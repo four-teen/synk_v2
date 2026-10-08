@@ -1,0 +1,38 @@
+name: Deploy SYNK to Lightsail
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.LIGHTSAIL_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to Lightsail
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.LIGHTSAIL_USER }}@${{ secrets.LIGHTSAIL_HOST }} << 'EOF'
+            set -e
+            cd /opt/bitnami/apache/htdocs
+
+            # Prepare these private files on the server before running deployment.
+            test -f /opt/bitnami/apache/backup_synk/db_config.local.php
+            test -f /opt/bitnami/apache/backup_synk/auth_config.local.php
+
+            git --git-dir=/opt/bitnami/apache/htdocs/synk/.git --work-tree=/opt/bitnami/apache/htdocs fetch origin main
+            git --git-dir=/opt/bitnami/apache/htdocs/synk/.git --work-tree=/opt/bitnami/apache/htdocs reset --hard origin/main
+
+            sudo cp /opt/bitnami/apache/backup_synk/db_config.local.php /opt/bitnami/apache/htdocs/backend/db_config.local.php
+            sudo cp /opt/bitnami/apache/backup_synk/auth_config.local.php /opt/bitnami/apache/htdocs/backend/auth_config.local.php
+
+            sudo /opt/bitnami/ctlscript.sh restart apache
+          EOF

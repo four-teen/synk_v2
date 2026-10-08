@@ -1,0 +1,58 @@
+/* Shared College Dean theme, using the dashboard's existing Bootstrap palette. */
+:root {
+  --dean-primary: #696cff;
+  --dean-primary-soft: #f2f2ff;
+  --dean-heading: #566a7f;
+  --dean-text: #697a8d;
+  --dean-muted: #8592a3;
+  --dean-border: #d9dee3;
+  --dean-card-radius: 0.5rem;
+  --dean-panel-radius: 0.875rem;
+  --dean-shadow: 0 0.125rem 0.25rem rgba(67, 89, 113, 0.075);
+}
+
+.card-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.dean-page-card {
+  border: 0;
+  border-radius: var(--dean-card-radius);
+  background: #fff;
+  box-shadow: var(--dean-shadow);
+}
+
+.dean-page-title {
+  color: var(--dean-heading);
+  font-weight: 500;
+}
+
+.dean-page-copy {
+  color: var(--dean-muted);
+  line-height: 1.53;
+}
+
+.dean-empty-state {
+  padding: 1.5rem;
+  border: 1px solid var(--dean-border);
+  border-radius: var(--dean-panel-radius);
+  background: #f8f9fc;
+  color: var(--dean-muted);
+}
+
+.dean-empty-state > .bx {
+  display: block;
+  margin-bottom: 0.75rem;
+  color: var(--dean-primary);
+  font-size: 1.75rem;
+}
+
+@media (max-width: 575.98px) {
+  .dean-empty-state {
+    padding: 1.25rem;
+  }
+}

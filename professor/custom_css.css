@@ -1,0 +1,81 @@
+body {
+    color: #000000 !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+label,
+.form-label,
+.form-control,
+.form-select,
+.table,
+.table th,
+.table td,
+.text-muted,
+.card-title,
+.card-header,
+.dropdown-item,
+.nav-link {
+    color: #000000 !important;
+}
+
+::placeholder {
+    color: #555555 !important;
+    opacity: 1;
+}
+
+.small,
+.form-text {
+    color: #333333 !important;
+}
+
+.layout-menu .menu-link,
+.layout-menu .menu-item .menu-link {
+    color: #000000 !important;
+    font-weight: 500;
+}
+
+.layout-menu .menu-item.active > .menu-link {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+.table thead th {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+.table tbody td {
+    color: #000000 !important;
+}
+
+.professor-navbar .dropdown-user > .nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+
+.professor-navbar .professor-avatar {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+}
+
+.professor-navbar .professor-avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 50%;
+}

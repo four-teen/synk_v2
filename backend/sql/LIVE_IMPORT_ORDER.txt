@@ -1,0 +1,13 @@
+Live DB import order
+
+1. Import `sksu_balancing_db (12.9.25).sql`.
+2. If your live DB does not yet have designation support, run:
+   - `backend/sql/phase5_designation_units.sql`
+   - `backend/sql/phase6_faculty_designation_fk.sql`
+3. Run `backend/sql/phase15_faculty_employment_classification.sql`.
+4. Run `backend/sql/live_performance_patch_no_views.sql`.
+
+Notes
+- The current runtime does not use `vw_faculty_workload`.
+- Do not import or recreate `vw_faculty_workload` for this version.
+- The live performance patch is safe for mixed schemas because it only adds missing indexes.

@@ -1,0 +1,44 @@
+#deanWorkload [hidden], #deanImportModal [hidden] { display: none !important; }
+.dean-faculty-select { max-width: 34rem; flex: 1 1 16rem; min-width: 0; }
+#deanSummary .card { height: 100%; }
+#deanSummary .dean-page-copy { display: block; min-height: 2.8rem; }
+#deanRosterFilter { min-width: 15rem; }
+#deanClasses article { scroll-margin-top: 1rem; }
+.dean-workload-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem; align-items: start; }
+.dean-faculty-photo-panel { display: flex; flex-direction: column; align-items: flex-end; gap: .75rem; }
+.dean-faculty-photo { width: 8rem; height: 8rem; object-fit: cover; border: 1px solid var(--dean-border); border-radius: .75rem; background: var(--dean-primary-soft); }
+.dean-roster-search { max-width: 22rem; }
+.dean-csv-input { max-width: 34rem; }
+.dean-class-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; }
+.dean-class-code { color: var(--dean-primary); font-size: 1.125rem; font-weight: 600; }
+.dean-class-title { color: var(--dean-heading); font-size: .9375rem; font-weight: 500; }
+.dean-workload-table { color: var(--dean-text); font-size: .875rem; margin-bottom: 0; }
+.dean-workload-table thead th { color: var(--dean-heading); background: var(--dean-primary-soft); font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.dean-workload-table td { vertical-align: middle; }
+.dean-student-count-populated { display: inline-flex; align-items: center; gap: .375rem; padding: .125rem .5rem; border: 1px solid #ff9f00; border-radius: .375rem; background: #fff0d5; color: #9b3c00; font-weight: 600; box-shadow: 0 0 .5rem rgba(255, 159, 0, .3); }
+.dean-student-count-populated::before { content: ''; width: .375rem; height: .375rem; flex-shrink: 0; border-radius: 50%; background: #ff8a00; box-shadow: 0 0 .375rem #ff9f00; }
+.dean-workload-details { margin-top: .75rem; }
+.dean-workload-details summary { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; width: 100%; cursor: pointer; list-style: none; }
+.dean-workload-details summary::-webkit-details-marker { display: none; }
+.dean-workload-details summary:focus-visible { outline: none; }
+.dean-workload-details summary:focus-visible .dean-workload-toggle { outline: 2px solid var(--dean-primary); outline-offset: 3px; border-radius: .25rem; }
+.dean-schedule-preview { display: flex; flex-direction: column; gap: .375rem; width: 100%; color: var(--dean-text); font-size: .8125rem; }
+.dean-schedule-line { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem 1.25rem; }
+.dean-schedule-field { display: inline-flex; align-items: baseline; gap: .375rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.dean-schedule-label { color: var(--dean-muted); font-size: .75rem; flex-shrink: 0; }
+.dean-workload-toggle { display: inline-flex; align-items: center; gap: .25rem; padding: .25rem 0; color: var(--dean-primary); font-size: .8125rem; font-weight: 500; }
+.dean-workload-details[open] .dean-schedule-preview { display: none; }
+.dean-workload-details summary .bx { font-size: 1rem; }
+.dean-workload-details[open] summary .bx { transform: rotate(180deg); }
+.dean-workload-details > .table-responsive { margin-top: .5rem; }
+.dean-import-stats { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.dean-import-notes { color: var(--dean-muted); font-size: .875rem; padding-left: 1.25rem; }
+.dean-preview-table { max-height: 24rem; overflow: auto; border: 1px solid var(--dean-border); border-radius: var(--dean-card-radius); }
+.dean-preview-table thead { position: sticky; top: 0; z-index: 1; }
+@media (max-width: 575.98px) {
+  .dean-workload-heading { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .dean-faculty-photo-panel { flex-direction: row; justify-content: space-between; align-items: center; }
+  .dean-faculty-photo { width: 5rem; height: 5rem; }
+  .dean-class-actions { width: 100%; display: flex; gap: .5rem; }
+  .dean-class-actions .btn { flex: 1; }
+}

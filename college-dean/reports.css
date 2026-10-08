@@ -1,0 +1,11 @@
+#deanFacultyReport [hidden], #deanFacultyClassesModal [hidden] { display: none !important; }
+.dean-report-table { color: var(--dean-text); font-size: .875rem; }
+.dean-report-table thead th { background: var(--dean-primary-soft); color: var(--dean-heading); font-size: .75rem; white-space: nowrap; }
+.dean-report-table td { vertical-align: middle; }
+.dean-report-table td:first-child { min-width: 13rem; }
+.dean-report-table th:not(:first-child), .dean-report-table td:not(:first-child) { text-align: center; }
+.dean-report-table .btn { white-space: nowrap; }
+.dean-report-table td.dean-report-missing { color: #9b3c00; font-weight: 600; }
+.dean-report-class-filter { max-width: 16rem; }
+#deanFacultyClassesContent .dean-report-table td:first-child { min-width: 8rem; }
+#deanReportSummary .dean-page-copy { display: block; min-height: 2.8rem; }

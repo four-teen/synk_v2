@@ -1,0 +1,4 @@
+# Private configuration is loaded by PHP includes, never by direct web requests.
+<FilesMatch "^(db_config\.local\.php|auth_config\.local\.php|\.env(?:\..*)?)$">
+    Require all denied
+</FilesMatch>

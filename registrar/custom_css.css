@@ -1,0 +1,238 @@
+body {
+    color: #000000 !important;
+    background:
+        radial-gradient(circle at top right, rgba(105, 108, 255, 0.07), transparent 24%),
+        radial-gradient(circle at bottom left, rgba(255, 159, 67, 0.06), transparent 22%),
+        #f6f8fc;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+label,
+.form-label,
+.form-control,
+.form-select,
+.table,
+.table th,
+.table td,
+.text-muted,
+.card-title,
+.card-header,
+.dropdown-item,
+.nav-link {
+    color: #000000 !important;
+}
+
+::placeholder {
+    color: #555555 !important;
+    opacity: 1;
+}
+
+.small,
+.form-text {
+    color: #333333 !important;
+}
+
+.registrar-shell-card,
+.registrar-hero-card,
+.registrar-metric-card,
+.registrar-chart-card,
+.registrar-table-card,
+.registrar-empty-state,
+.registrar-note-card,
+.registrar-link-card {
+    border: 1px solid #dce5f1;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 18px 38px rgba(67, 89, 113, 0.08);
+}
+
+.registrar-hero-card {
+    background: linear-gradient(135deg, #fff8f4 0%, #ffffff 55%, #eef6ff 100%);
+}
+
+.registrar-note-card {
+    background: linear-gradient(135deg, #fff8ea 0%, #fffdf6 100%);
+    color: #855b16 !important;
+}
+
+.registrar-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.38rem 0.85rem;
+    border-radius: 999px;
+    background: #fff0ea;
+    color: #9d4b21 !important;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.registrar-metric-grid,
+.registrar-summary-grid,
+.registrar-chart-grid,
+.registrar-link-grid,
+.registrar-split-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.registrar-metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.registrar-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.registrar-chart-grid,
+.registrar-split-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.registrar-link-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.registrar-metric-card,
+.registrar-link-card {
+    padding: 1.1rem 1.2rem;
+}
+
+.registrar-metric-label,
+.registrar-card-label {
+    display: block;
+    color: #7d8ea5 !important;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.registrar-metric-value {
+    display: block;
+    margin-top: 0.35rem;
+    color: #22354a !important;
+    font-size: 1.85rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.registrar-metric-caption {
+    display: block;
+    margin-top: 0.45rem;
+    color: #6b7e95 !important;
+    font-size: 0.9rem;
+}
+
+.registrar-link-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    text-decoration: none;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.registrar-link-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 22px 40px rgba(67, 89, 113, 0.12);
+}
+
+.registrar-link-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.registrar-link-arrow {
+    color: #7a89a0 !important;
+    font-size: 1.3rem;
+}
+
+.registrar-chart-card,
+.registrar-table-card,
+.registrar-shell-card {
+    padding: 1.35rem 1.45rem;
+}
+
+.registrar-chart-wrap {
+    min-height: 320px;
+}
+
+.registrar-chart-empty,
+.registrar-empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 240px;
+    padding: 1.5rem;
+    color: #6d8097 !important;
+    border-style: dashed;
+}
+
+.registrar-table thead th,
+.registrar-table tbody td {
+    vertical-align: middle;
+}
+
+.registrar-list-stack {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.registrar-list-row {
+    border: 1px solid #dfe7f2;
+    border-radius: 18px;
+    padding: 1rem 1.05rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.registrar-inline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+}
+
+.registrar-inline-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    background: #eef3ff;
+    color: #516be9 !important;
+}
+
+.registrar-table-subtext {
+    color: #6f8097 !important;
+    font-size: 0.86rem;
+}
+
+.registrar-dashboard-section {
+    margin-top: 1.25rem;
+}
+
+@media (max-width: 991.98px) {
+    .registrar-chart-grid,
+    .registrar-split-grid {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,66 @@
+/* ===============================
+   GLOBAL TEXT CLARITY OVERRIDE
+   =============================== */
+
+body {
+    color: #000000 !important;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+/* Labels, table headers, form text */
+label,
+.form-label,
+.form-control,
+.table,
+.table th,
+.table td,
+.text-muted,
+.card-title,
+.card-header,
+.dropdown-item,
+.nav-link {
+    color: #000000 !important;
+}
+
+/* Placeholder text (still softer but readable) */
+::placeholder {
+    color: #555555 !important;
+    opacity: 1;
+}
+
+/* Small helper texts */
+.small,
+.form-text {
+    color: #333333 !important;
+}
+
+/* Sidebar menu text */
+.layout-menu .menu-link,
+.layout-menu .menu-item .menu-link {
+    color: #000000 !important;
+    font-weight: 500;
+}
+
+/* Active menu item */
+.layout-menu .menu-item.active > .menu-link {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+/* Table headers */
+.table thead th {
+    color: #000000 !important;
+    font-weight: 600;
+}
+
+/* Table body */
+.table tbody td {
+    color: #000000 !important;
+}
+
+

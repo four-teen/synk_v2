@@ -1,0 +1,20 @@
+CREATE TABLE `tbl_faculty_workload_simulation` (
+  `simulation_id` int(11) NOT NULL AUTO_INCREMENT,
+  `college_id` int(11) NOT NULL,
+  `faculty_id` int(11) NOT NULL,
+  `ay_id` int(11) NOT NULL,
+  `semester` tinyint(4) NOT NULL,
+  `simulation_key` varchar(120) NOT NULL,
+  `offering_id` int(11) NOT NULL,
+  `schedule_id` int(11) NOT NULL DEFAULT 0,
+  `schedule_type` varchar(10) NOT NULL DEFAULT 'LEC',
+  `source_kind` varchar(20) NOT NULL DEFAULT 'scheduled',
+  `created_by` int(11) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`simulation_id`),
+  UNIQUE KEY `uq_faculty_workload_simulation` (`college_id`,`faculty_id`,`ay_id`,`semester`,`simulation_key`),
+  KEY `idx_workload_sim_lookup` (`college_id`,`faculty_id`,`ay_id`,`semester`),
+  KEY `idx_workload_sim_offering` (`offering_id`),
+  KEY `idx_workload_sim_schedule` (`schedule_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

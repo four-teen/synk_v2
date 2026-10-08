@@ -1,0 +1,11 @@
+.dean-students-table { color: var(--dean-text); font-size: .875rem; margin-bottom: 0; }
+.dean-students-table th { color: var(--dean-heading); background: var(--dean-primary-soft); font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.dean-students-table td { vertical-align: middle; }
+.dean-student-id { color: var(--dean-primary); font-weight: 600; white-space: nowrap; }
+.dean-student-name { min-width: 12rem; font-weight: 500; }
+.dean-student-context { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#deanStudentsSort { min-width: 10rem; }
+#deanStudentsPageSize { min-width: 7.5rem; }
+.dean-student-profile { background: var(--dean-primary-soft); border-radius: var(--dean-card-radius); padding: 1.25rem; margin-bottom: 1.5rem; }
+.dean-student-file { max-width: 15rem; overflow-wrap: anywhere; }
+@media (max-width: 575.98px) { .dean-student-profile { padding: 1rem; } }

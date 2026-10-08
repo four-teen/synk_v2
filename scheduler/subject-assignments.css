@@ -1,0 +1,28 @@
+#subjectAssignments .card { border-radius: .5rem; }
+#subjectAssignments .sa-eyebrow { font-size: .8125rem; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+#subjectAssignments .sa-table { font-size: .875rem; }
+#subjectAssignments .sa-table th { background: #f5f5ff; white-space: nowrap; }
+#subjectAssignments .sa-table td { vertical-align: middle; }
+#subjectAssignments .sa-table td:nth-child(2) { min-width: 15rem; }
+#subjectAssignments .sa-table td:nth-child(3) { min-width: 8rem; }
+#subjectAssignments .sa-code { color: #696cff; font-weight: 600; white-space: nowrap; }
+#subjectAssignments .sa-faculty-count { font-weight: 600; }
+#subjectAssignments .sa-term-label { white-space: normal; text-align: right; }
+#subjectAssignments .sa-table small { display: block; margin-top: .35rem; line-height: 1.4; }
+#subjectAssignments .sa-table .btn { white-space: nowrap; }
+#subjectAssignments [aria-busy="true"] { opacity: .65; }
+#saDetailModal .sa-faculty-card { border: 1px solid #d9dee3; border-radius: .5rem; padding: .875rem; height: 100%; }
+#saDetailModal .sa-faculty-card h6 { margin-bottom: .375rem; overflow-wrap: anywhere; }
+#saDetailModal .sa-meetings th { white-space: nowrap; }
+#saDetailModal .sa-meetings { font-size: .8125rem; }
+#saDetailModal .sa-meetings td { vertical-align: middle; min-width: 5rem; }
+#saDetailModal .sa-meetings td:nth-child(3) { min-width: 10rem; }
+#saDetailModal .sa-meetings td:nth-child(6) { min-width: 9rem; }
+#saDetailModal .sa-person { display: block; margin-bottom: .25rem; }
+#saDetailModal .sa-status { display: block; margin-top: .375rem; }
+@media (max-width: 575px) {
+    #subjectAssignments .card-body { padding: 1rem; }
+    #subjectAssignments .card-header { align-items: flex-start !important; flex-direction: column; }
+    #subjectAssignments .sa-term-label { text-align: left; }
+    #saDetailModal .modal-title { font-size: 1rem; overflow-wrap: anywhere; }
+}
