@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../backend/faculty_profile_helper.php';
+require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
 $directory = synk_faculty_directory_records($conn);
 $facultyId = synk_faculty_directory_id($_GET['faculty_id'] ?? null) ?? 0;
 $record = $directory['faculty'][$facultyId] ?? null;
@@ -45,15 +46,17 @@ unset($_SESSION['di_faculty_flash']);
 $statuses = synk_faculty_record_statuses();
 $profile = $record['profile'];
 $profileFields = synk_faculty_profile_fields();
-$photoPath = $record['user_id'] > 0 ? __DIR__ . '/../uploads/profile/profile_' . $record['user_id'] . '.jpg' : '';
-$photoUrl = $photoPath && is_file($photoPath) ? '../uploads/profile/profile_' . $record['user_id'] . '.jpg?v=' . substr(hash_file('sha256', $photoPath), 0, 12) : '';
+$photoUrl = synk_faculty_profile_image_url(($profile['_storage'] ?? '') === 'faculty' ? 0 : $record['user_id'], $facultyId);
 $fieldGroups = ['Personal details' => ['full_name', 'faculty_id_number', 'gender', 'date_of_birth', 'civil_status', 'campus_name', 'college_name'],
     'Employment and credentials' => ['faculty_rank', 'salary_grade', 'employment_classification', 'service_start_date', 'length_of_service', 'eligibility']];
 foreach (['bachelor' => "Bachelor's education", 'master' => "Master's education", 'doctoral' => 'Doctoral education'] as $level => $label) {
     $fieldGroups[$label] = array_map(static function ($suffix) use ($level) { return $level . '_' . $suffix; }, ['status', 'degree', 'institution', 'address', 'specialization']);
 }
 $credentials = [];
-if ($profile && synk_table_exists($conn, 'tbl_faculty_profile_eligibilities') && synk_table_exists($conn, 'tbl_faculty_eligibilities')) {
+if ($profile && ($profile['_storage'] ?? '') === 'faculty' && synk_table_exists($conn, 'tbl_faculty_eligibilities')) {
+    $catalog = synk_faculty_profile_eligibility_catalog($conn);
+    foreach ($profile['eligibility_ids'] ?? [] as $id) if (isset($catalog[$id])) $credentials[] = $catalog[$id];
+} elseif ($profile && synk_table_exists($conn, 'tbl_faculty_profile_eligibilities') && synk_table_exists($conn, 'tbl_faculty_eligibilities')) {
     $stmt = $conn->prepare('SELECT e.code, e.name FROM tbl_faculty_profile_eligibilities pe JOIN tbl_faculty_eligibilities e ON e.eligibility_id = pe.eligibility_id WHERE pe.user_id = ? ORDER BY e.code');
     $stmt->bind_param('i', $record['user_id']);
     $stmt->execute();

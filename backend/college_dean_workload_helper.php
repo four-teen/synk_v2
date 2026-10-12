@@ -5,6 +5,7 @@ require_once __DIR__ . '/college_dean_dashboard_helper.php';
 require_once __DIR__ . '/professor_portal_helper.php';
 require_once __DIR__ . '/student_management_exam_permits_helper.php';
 require_once __DIR__ . '/faculty_profile_image_helper.php';
+require_once __DIR__ . '/college_dean_roster_diagnostics.php';
 
 function synk_dean_roster_execute(mysqli_stmt $stmt): void
 {
@@ -47,7 +48,7 @@ function synk_dean_workload_faculties(mysqli $conn, array $scope, array $term, i
     $stmt->close();
     foreach ($rows as &$row) {
         $row['faculty_id'] = (int)$row['faculty_id'];
-        $row['profile_image_url'] = synk_faculty_profile_image_url((int)$row['profile_user_id']);
+        $row['profile_image_url'] = synk_faculty_profile_image_url((int)$row['profile_user_id'], $row['faculty_id']);
         unset($row['profile_user_id']);
     }
     return $rows;
@@ -158,24 +159,50 @@ function synk_dean_roster_key(string $value): string
 
 function synk_dean_roster_parse(string $path): array
 {
-    if (!is_file($path) || filesize($path) > 2 * 1024 * 1024) throw new DomainException('Choose a CSV file smaller than 2 MB.');
+    if (!is_file($path)) throw new DomainException('The CSV upload is no longer available. Choose the file again.');
+    if (filesize($path) > 2 * 1024 * 1024) throw new SynkDeanRosterValidationException([synk_dean_roster_issue(null,'','File size',
+        number_format(filesize($path)/1024/1024,2) . ' MB','Up to 2 MB','The CSV exceeds the import size limit.', 'Export only the selected class student list.')]);
     $bytes = file_get_contents($path);
     if ($bytes === false) throw new RuntimeException('Unable to read the CSV file.');
     $handle = fopen('php://temp', 'w+b');
     if (!$handle) throw new RuntimeException('Unable to read the CSV file.');
-    fwrite($handle, synk_student_identity_csv_utf8($bytes)); rewind($handle);
+    $encoding = substr($bytes,0,3) === "\xEF\xBB\xBF" ? 'UTF-8 BOM'
+        : (substr($bytes,0,2) === "\xFF\xFE" ? 'UTF-16LE'
+        : (substr($bytes,0,2) === "\xFE\xFF" ? 'UTF-16BE' : (preg_match('//u',$bytes) === 1 ? 'UTF-8' : 'Windows-1252')));
+    try { $decoded = synk_student_identity_csv_utf8($bytes); }
+    catch (DomainException $e) {
+        fclose($handle);
+        throw new SynkDeanRosterValidationException([synk_dean_roster_issue(null,'','File encoding','Unsupported or damaged text',
+            'CSV UTF-8', $e->getMessage(), 'Export the original file as CSV UTF-8. Renaming the file does not change its encoding.')]);
+    }
+    $text = synk_dean_roster_repair_csv_text($decoded);
+    fwrite($handle, $text); rewind($handle);
     $rows = [];
     try {
         while (($row = fgetcsv($handle)) !== false) {
             $rows[] = $row;
-            if (count($rows) > 2010) throw new DomainException('A class CSV may contain up to 2,000 student rows.');
+            if (count($rows) > 2010) throw new SynkDeanRosterValidationException([synk_dean_roster_issue(2011,'','CSV row limit',
+                'More than 2,010 total CSV rows','Up to 2,000 student rows plus the export headers',
+                'The CSV exceeds the class import row limit.', 'Export only the selected class student list.')]);
         }
     } finally { fclose($handle); }
-    if (count($rows) < 8 || synk_dean_roster_key(synk_student_management_csv_cell($rows[3], 0)) !== 'SUBJECT SECTION'
-        || synk_dean_roster_key(synk_student_management_csv_cell($rows[6], 0)) !== 'NO'
-        || synk_dean_roster_key(synk_student_management_csv_cell($rows[6], 1)) !== 'STUDENT S NAME'
-        || synk_dean_roster_key(synk_student_management_csv_cell($rows[6], 4)) !== 'ID NO') {
-        throw new DomainException('Use the Exam Permits CSV format with Subject/Section, faculty, Student\'s Name, and ID No.');
+    $issues = [];
+    foreach ([[3,0,'A','Subject/Section label','Subject/Section'],[6,0,'A','Row number label','No.'],
+        [6,1,'B','Student name label',"Student's Name"],[6,4,'E','Student ID label','ID No.']] as $check) {
+        [$index,$columnIndex,$column,$field,$expected] = $check;
+        $found = synk_student_management_csv_cell($rows[$index] ?? [], $columnIndex);
+        if (synk_dean_roster_key($found) !== synk_dean_roster_key($expected)) {
+            $issues[] = synk_dean_roster_issue($index+1,$column,$field,$found,$expected,
+                'The required CSV label is missing or in a different column.',
+                'Use the original Exam Permits export. Keep the header rows and comma-separated columns.');
+        }
+    }
+    if ($issues) {
+        if (count($rows[6] ?? []) === 1 && preg_match('/[;\t]/', (string)($rows[6][0] ?? ''))) {
+            $issues = [synk_dean_roster_issue(7,'','CSV separator','Semicolon or tab-separated columns','Comma-separated columns',
+                'The file uses a different column separator.', 'Export as CSV UTF-8 (comma delimited), then preview again.')];
+        }
+        throw new SynkDeanRosterValidationException($issues);
     }
     $parsed = [
         'campus_header' => synk_student_management_csv_cell($rows[0], 0),
@@ -184,7 +211,7 @@ function synk_dean_roster_parse(string $path): array
         'class_schedule_text' => synk_student_management_csv_cell($rows[4], 9),
         'faculty_name' => synk_student_management_csv_cell($rows[5], 3),
         'room_name' => synk_student_management_csv_cell($rows[5], 9),
-        'students' => [], 'duplicate_rows' => 0,
+        'students' => [], 'duplicate_rows' => 0, 'encoding'=>$encoding, 'encoding_repaired'=>$text !== $decoded,
     ];
     $seen = [];
     for ($index = 7; $index < count($rows); $index++) {
@@ -195,20 +222,42 @@ function synk_dean_roster_parse(string $path): array
         $footer = preg_replace('/[^A-Z]/', '', strtoupper($no . ' ' . $name));
         if (in_array($footer, ['NOTHINGFOLLOWS','DATEPRINTED'], true)) break;
         if ($no === '' && $name === '' && $id === '') continue;
-        if (!ctype_digit($no) || strpos($name, ',') === false) {
-            throw new DomainException('CSV row ' . ($index + 1) . ' needs a row number, numeric student ID, and name in Last Name, First Name format.');
-        }
+        $rowNumber = $index + 1;
+        $rowIssues = [];
+        if (!ctype_digit($no)) $rowIssues[] = synk_dean_roster_issue($rowNumber,'A','Row number',$no,'Digits only',
+            'The No. value is missing or is not a whole number.', 'Enter the student row number in column A.');
+        if (strpos($name, ',') === false) $rowIssues[] = synk_dean_roster_issue($rowNumber,'B','Student name',$name,'Last Name, First Name',
+            'The name is missing the comma separating the last and first names.', 'Keep the complete name in column B, with a comma after the last name.');
+        if (synk_dean_roster_damaged_name($name)) $rowIssues[] = synk_dean_roster_issue($rowNumber,'B','Student name',$name,'The original accented name',
+            'The name already contains ? or a replacement character; the original letters are missing.',
+            'Correct the name using the original record, then export as CSV UTF-8. Saving an already damaged name as UTF-8 cannot restore it.');
+        $number = '';
         try { $number = synk_student_identity_number($id); }
-        catch (DomainException $e) { throw new DomainException('CSV row ' . ($index + 1) . ': ' . $e->getMessage()); }
+        catch (DomainException $e) { $rowIssues[] = synk_dean_roster_issue($rowNumber,'E','Student ID',$id,'1–32 digits, preserving leading zeros',
+            $e->getMessage(), 'Correct ID No. in column E. Use text cells for IDs; do not use decimals or scientific notation.'); }
         $student = synk_student_management_parse_csv_student_name($name);
-        if ($student['last_name'] === '' || $student['first_name'] === '') throw new DomainException('CSV row ' . ($index + 1) . ' has an incomplete student name.');
+        if (strpos($name, ',') !== false && ($student['last_name'] === '' || $student['first_name'] === '')) {
+            $rowIssues[] = synk_dean_roster_issue($rowNumber,'B','Student name',$name,'Last Name, First Name',
+                'The last name or first name is empty.', 'Enter both the last and first names in column B.');
+        }
         foreach (['last_name'=>150, 'first_name'=>150, 'middle_name'=>150, 'suffix_name'=>50] as $field=>$limit) {
             $length = function_exists('mb_strlen') ? mb_strlen($student[$field], 'UTF-8') : strlen($student[$field]);
-            if ($length > $limit || preg_match('/\p{Cc}/u', $student[$field])) throw new DomainException('CSV row ' . ($index + 1) . ' has an invalid or excessively long name.');
+            if ($length > $limit || preg_match('/\p{Cc}/u', $student[$field])) $rowIssues[] = synk_dean_roster_issue($rowNumber,'B',ucfirst(str_replace('_',' ',$field)),
+                $student[$field], 'Up to ' . $limit . ' characters without control characters',
+                'This part of the name is too long or contains control characters.', 'Correct the name in column B.');
+        }
+        if ($rowIssues) {
+            $issues = array_merge($issues,$rowIssues);
+            if (count($issues) >= 50) { $issues = array_slice($issues,0,50); break; }
+            continue;
         }
         if (isset($seen[$number])) {
             if (synk_dean_roster_key($seen[$number]['student_name_raw']) !== synk_dean_roster_key($name)) {
-                throw new DomainException('Student ID ' . $id . ' has conflicting names in the CSV.');
+                $issues[] = synk_dean_roster_issue($rowNumber,'B / E','Duplicate student ID',$id . ': ' . $name,
+                    $seen[$number]['student_name_raw'] . ' (row ' . $seen[$number]['source_row_number'] . ')',
+                    'This ID has different names in CSV rows ' . $seen[$number]['source_row_number'] . ' and ' . $rowNumber . '.',
+                    'Verify the correct student ID and name in both rows.');
+                if (count($issues) >= 50) break;
             }
             $parsed['duplicate_rows']++;
             continue;
@@ -219,35 +268,62 @@ function synk_dean_roster_parse(string $path): array
         $parsed['students'][] = $student;
         if (count($parsed['students']) > 2000) throw new DomainException('A class CSV may contain up to 2,000 students.');
     }
-    if (!$parsed['students']) throw new DomainException('The CSV has no student rows to import.');
+    if ($issues) throw new SynkDeanRosterValidationException($issues);
+    if (!$parsed['students']) throw new SynkDeanRosterValidationException([synk_dean_roster_issue(8,'A / B / E','Student rows','','At least one student after row 7',
+        'The CSV has no student rows to import.', 'Export the class student list, including student names and IDs.')]);
     return $parsed;
 }
 
 function synk_dean_roster_validate_header(array $parsed, array $class): array
 {
+    $issues = [];
     $header = $parsed['subject_section_raw'];
-    if (!preg_match('/^(.+)\s*-\s*([^-]+)$/u', $header, $parts)) throw new DomainException('The CSV Subject/Section header is missing or incomplete.');
-    $csvCode = trim($parts[1]);
-    $csvCode = preg_replace('/\s*-\s*' . preg_quote($class['college_code'], '/') . '\s*$/i', '', $csvCode);
-    // The old exports spell the same elective code ELECT rather than ELEC.
-    $canonical = static function (string $code): string {
-        return str_replace('ELECT', 'ELEC', str_replace(' ', '', synk_dean_roster_key($code)));
-    };
-    if ($canonical($csvCode) !== $canonical($class['subject_code'])) throw new DomainException('The CSV subject does not match the selected class.');
-    $csvSection = str_replace(' ', '', synk_dean_roster_key($parts[2]));
     $section = $class['program_code'] . ' ' . $class['year_level'] . $class['section_name'];
-    $allowed = [str_replace(' ', '', synk_dean_roster_key($section)), str_replace(' ', '', synk_dean_roster_key($class['section_display']))];
-    if (!in_array($csvSection, $allowed, true)) throw new DomainException('The CSV program and section do not match the selected class.');
+    if (!preg_match('/^(.+)\s*-\s*([^-]+)$/u', $header, $parts)) {
+        $issues[] = synk_dean_roster_issue(4,'D','Subject / Section',$header,$class['subject_code'] . ' - ' . $class['section_display'],
+            'The Subject/Section value is missing or incomplete.', 'Use the CSV for the selected class. Put the subject code and section in D4, separated by a hyphen.');
+    } else {
+        $csvCode = trim($parts[1]);
+        $csvCode = preg_replace('/\s*-\s*' . preg_quote($class['college_code'], '/') . '\s*$/i', '', $csvCode);
+        // Preserve the existing subject-code comparison used for old exports.
+        $canonical = static function (string $code): string {
+            return str_replace('ELECT', 'ELEC', str_replace(' ', '', synk_dean_roster_key($code)));
+        };
+        if ($canonical($csvCode) !== $canonical($class['subject_code'])) $issues[] = synk_dean_roster_issue(4,'D','Subject code',$csvCode,$class['subject_code'],
+            'The CSV subject does not match the selected class.', 'Select the matching assigned class, or upload its correct CSV.');
+        $csvSection = str_replace(' ', '', synk_dean_roster_key($parts[2]));
+        $allowed = [str_replace(' ', '', synk_dean_roster_key($section)), str_replace(' ', '', synk_dean_roster_key($class['section_display']))];
+        if (!in_array($csvSection, $allowed, true)) $issues[] = synk_dean_roster_issue(4,'D','Program / Section',trim($parts[2]),$class['section_display'],
+            'The CSV program and section do not match the selected class.', 'Select the matching assigned section, or upload its correct CSV.');
+    }
     $campus = preg_replace('/^.*?\s+-\s+/', '', $parsed['campus_header']);
-    if (synk_dean_roster_key($campus) !== synk_dean_roster_key($class['campus_name'])) throw new DomainException('The CSV campus does not match your assigned college.');
-    $facultyKey = synk_dean_roster_key($parsed['faculty_name']);
+    if (synk_dean_roster_key($campus) !== synk_dean_roster_key($class['campus_name'])) $issues[] = synk_dean_roster_issue(1,'A','Campus',$parsed['campus_header'],$class['campus_name'],
+        'The CSV campus does not match your assigned college.', 'Upload the student list exported for your assigned campus.');
+    $facultyKey = synk_dean_roster_faculty_key($parsed['faculty_name']);
+    $expectedFaculty = trim(implode(' ',array_filter([$class['first_name'],$class['middle_name'],$class['last_name'],$class['ext_name']])));
     $facultyVariants = [];
     foreach (['', (string)$class['middle_name']] as $middle) {
-        $facultyVariants[] = synk_dean_roster_key($class['first_name'] . ' ' . $middle . ' ' . $class['last_name'] . ' ' . $class['ext_name']);
-        $facultyVariants[] = synk_dean_roster_key($class['last_name'] . ', ' . $class['first_name'] . ' ' . $middle . ' ' . $class['ext_name']);
+        $facultyVariants[] = synk_dean_roster_faculty_key($class['first_name'] . ' ' . $middle . ' ' . $class['last_name'] . ' ' . $class['ext_name'], false);
+        $facultyVariants[] = synk_dean_roster_faculty_key($class['last_name'] . ', ' . $class['first_name'] . ' ' . $middle . ' ' . $class['ext_name'], false);
     }
-    if (!in_array($facultyKey, $facultyVariants, true)) throw new DomainException('The CSV faculty does not match the selected faculty assignment.');
+    if (synk_dean_roster_damaged_name($expectedFaculty)) {
+        $issues[] = synk_dean_roster_issue(6,'D','Faculty record',$parsed['faculty_name'],$expectedFaculty,
+            'The selected faculty record contains damaged letters (? or a replacement character).',
+            'Correct the faculty record from its verified profile before importing. Changing CSV encoding cannot repair letters already lost in the database.');
+    } elseif (synk_dean_roster_damaged_name($parsed['faculty_name'])) {
+        $issues[] = synk_dean_roster_issue(6,'D','Faculty',$parsed['faculty_name'],$expectedFaculty,
+            'The CSV faculty name contains damaged letters.', 'Correct D6 from the original faculty name, then export as CSV UTF-8.');
+    } elseif (!in_array($facultyKey, $facultyVariants, true) && !in_array(synk_dean_roster_faculty_key($parsed['faculty_name'], false), $facultyVariants, true)) {
+        $issues[] = synk_dean_roster_issue(6,'D','Faculty',$parsed['faculty_name'],$expectedFaculty,
+            'The CSV faculty does not match the selected faculty assignment.', 'Select the correct faculty and class, or verify the faculty name in D6.');
+    }
+    if ($issues) throw new SynkDeanRosterValidationException($issues);
     $notes = [];
+    if (($parsed['encoding'] ?? 'UTF-8') !== 'UTF-8') $notes[] = 'CSV text decoded from ' . $parsed['encoding'] . ' to UTF-8; accented characters are preserved.';
+    if (!empty($parsed['encoding_repaired'])) $notes[] = 'Recovered misencoded accented characters in the CSV. Review the displayed names before confirming.';
+    if (synk_dean_roster_key($parsed['faculty_name']) !== synk_dean_roster_key($expectedFaculty)) {
+        $notes[] = 'Faculty header matched after allowing omitted middle names, recognized degree suffixes, and accented spelling. The faculty record is retained as ' . $expectedFaculty . '.';
+    }
     if (synk_dean_roster_key($parsed['descriptive_title']) !== synk_dean_roster_key($class['descriptive_title'])) {
         $notes[] = 'The CSV title differs. The assigned subject title will be retained.';
     }
@@ -284,7 +360,11 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
         $student['student_id'] = count($matches) === 1 ? (int)$matches[0]['student_id'] : 0;
         $student['issue'] = '';
         if (count($matches) > 1) $student['issue'] = 'Multiple student profiles use this ID. Resolve the duplicate profiles first.';
-        elseif ($matches && !synk_dean_roster_names_match($student, $matches[0])) $student['issue'] = 'This ID belongs to a different name in the student records. Review it before importing.';
+        elseif ($matches && !synk_dean_roster_names_match($student, $matches[0])) {
+            $storedName = $matches[0]['last_name'] . ', ' . trim(implode(' ',array_filter([$matches[0]['first_name'],$matches[0]['middle_name'],$matches[0]['suffix_name']])));
+            $student['issue'] = 'CSV row ' . $student['source_row_number'] . ', ID ' . $number . ': CSV name "' . $student['student_name_raw']
+                . '" differs from the saved name "' . $storedName . '". Verify column B (name) and E (ID); existing profiles are kept unchanged.';
+        }
         if ($student['issue'] !== '') {
             $student['action'] = 'conflict'; $summary['conflicts']++;
         } elseif (isset($existingNumbers[$number])) {
@@ -295,7 +375,12 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
         }
         $rows[] = $student;
     }
-    return ['rows'=>$rows, 'summary'=>$summary, 'notes'=>$notes, 'can_confirm'=>$summary['conflicts'] === 0 && $summary['add'] > 0];
+    $checks = [
+        ['field'=>'Subject / Section','cell'=>'D4','found'=>$parsed['subject_section_raw'],'expected'=>$class['subject_code'] . ' - ' . $class['section_display']],
+        ['field'=>'Campus','cell'=>'A1','found'=>$parsed['campus_header'],'expected'=>$class['campus_name']],
+        ['field'=>'Faculty','cell'=>'D6','found'=>$parsed['faculty_name'],'expected'=>$class['faculty_name']],
+    ];
+    return ['rows'=>$rows, 'summary'=>$summary, 'notes'=>$notes, 'checks'=>$checks, 'can_confirm'=>$summary['conflicts'] === 0 && $summary['add'] > 0];
 }
 
 function synk_dean_roster_save(mysqli $conn, array $scope, array $term, array $pending, int $userId): array

@@ -38,8 +38,12 @@
     catch (_) { throw new Error('Unable to connect. Please try again.'); }
     let data;
     try { data = await response.json(); }
-    catch (_) { throw new Error('Unable to load this request. Reload the page and try again.'); }
-    if (!response.ok || data.status !== 'ok') throw new Error(data.message || 'Unable to complete the request.');
+    catch (_) { throw new Error(response.status === 413 ? 'The server rejected the upload because it exceeds its file-size limit. Choose a CSV up to 2 MB.' : `The server returned an unreadable response${response.status ? ` (HTTP ${response.status})` : ''}. Reload the page and try again.`); }
+    if (!response.ok || data.status !== 'ok') {
+      const error = new Error(data.message || 'Unable to complete the request.');
+      error.issues = Array.isArray(data.issues) ? data.issues : [];
+      throw error;
+    }
     return data;
   }
   function captureWorkloadView() {
@@ -205,6 +209,13 @@
     $('deanImportForm').reset(); setImportBusy(false);
     importModal.show();
   }
+  function renderImportIssues(error) {
+    notice('deanImportNotice', error.message);
+    if (!error.issues || !error.issues.length) return;
+    const location = issue => !issue.row ? 'File' : (issue.column && /^[A-Z]$/.test(issue.column) ? issue.column + issue.row : `Row ${issue.row}${issue.column ? ` · ${issue.column}` : ''}`);
+    $('deanImportPreview').innerHTML = `<section class="dean-import-issues" aria-labelledby="dean-import-issues-title"><h6 id="dean-import-issues-title">${error.issues.length} ${error.issues.length === 1 ? 'issue' : 'issues'} to correct</h6><p class="small text-muted">No students were imported. Correct the items below, then click Preview Import again.${error.issues.length >= 50 ? ' The first 50 issues are shown.' : ''}</p><div class="dean-preview-table"><table class="table dean-workload-table"><thead><tr><th>CSV cell</th><th>Field and values</th><th>Problem and correction</th></tr></thead><tbody>${error.issues.map(issue=>`<tr><td>${escape(location(issue))}</td><td><strong>${escape(issue.field)}</strong><div class="small mt-1"><b>Found:</b> ${escape(issue.found || '(empty)')}</div><div class="small mt-1"><b>Expected:</b> ${escape(issue.expected)}</div></td><td><div>${escape(issue.reason)}</div><div class="small mt-2"><b>How to fix:</b> ${escape(issue.fix)}</div></td></tr>`).join('')}</tbody></table></div></section>`;
+    $('deanImportPreview').hidden = false;
+  }
   function renderPreview(data) {
     const {summary, rows, notes, can_confirm} = data.preview;
     state.token = data.preview_token;
@@ -212,6 +223,10 @@
     const actionColor = {add:'success', existing:'secondary', conflict:'danger'};
     $('deanImportPreview').innerHTML = `<p class="small text-muted">${escape(data.file_name)}</p><div class="dean-import-stats"><span class="badge bg-label-primary">${summary.students} unique students</span><span class="badge bg-label-success">${summary.add} to add</span><span class="badge bg-label-secondary">${summary.existing} already in class</span><span class="badge bg-label-info">${summary.new_profiles} new student profiles</span>${summary.duplicate_rows ? `<span class="badge bg-label-warning">${summary.duplicate_rows} duplicate CSV rows skipped</span>` : ''}${summary.conflicts ? `<span class="badge bg-label-danger">${summary.conflicts} conflicts</span>` : ''}</div><ul class="dean-import-notes">${notes.map(note=>`<li>${escape(note)}</li>`).join('')}</ul><div class="dean-preview-table"><table class="table dean-workload-table"><thead><tr><th>CSV Row</th><th>Student ID</th><th>Student Name</th><th>Action</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${row.source_row_number}</td><td>${escape(row.student_number)}</td><td>${escape(row.student_name_raw)}</td><td><span class="badge bg-label-${actionColor[row.action]}">${actionLabel[row.action]}</span>${row.issue ? `<div class="small text-danger mt-1">${escape(row.issue)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
     $('deanImportPreview').hidden = false;
+    if (data.preview.checks && data.preview.checks.length) {
+      const checks = `<details class="dean-import-checks"><summary>Header checks passed — compare CSV with the selected class</summary><div class="table-responsive"><table class="table dean-workload-table"><thead><tr><th>Header</th><th>CSV value</th><th>Selected class</th></tr></thead><tbody>${data.preview.checks.map(check=>`<tr><td>${escape(check.field)} <small class="d-block">${escape(check.cell)}</small></td><td>${escape(check.found)}</td><td>${escape(check.expected)}</td></tr>`).join('')}</tbody></table></div></details>`;
+      $('deanImportPreview').innerHTML = checks + $('deanImportPreview').innerHTML;
+    }
     $('deanConfirmButton').hidden = !can_confirm;
     if (summary.conflicts) notice('deanImportNotice', 'Resolve the highlighted student ID conflicts, then preview the corrected CSV.', 'warning');
     else if (!summary.add) notice('deanImportNotice', 'All students in this CSV are already in this class. Nothing needs to be imported.', 'info');
@@ -222,12 +237,12 @@
     clearPreview();
     const file = $('deanCsvFile').files[0];
     if (!file || !/\.csv$/i.test(file.name) || file.size > 2*1024*1024) {
-      notice('deanImportNotice', 'Choose a .csv file smaller than 2 MB.'); return;
+      notice('deanImportNotice', !file ? 'Choose the class CSV before previewing.' : (!/\.csv$/i.test(file.name) ? `“${file.name}” is not a .csv file. Export it as CSV UTF-8 (comma delimited).` : `“${file.name}” is ${(file.size / 1024 / 1024).toFixed(2)} MB; the maximum is 2 MB.`)); return;
     }
     setImportBusy(true);
     try {
       renderPreview(await request('preview', {faculty_id:state.facultyId, offering_id:state.selected.offering_id}, file));
-    } catch (error) { notice('deanImportNotice', error.message); }
+    } catch (error) { renderImportIssues(error); }
     finally { setImportBusy(false); }
   });
   $('deanConfirmButton').addEventListener('click', async () => {

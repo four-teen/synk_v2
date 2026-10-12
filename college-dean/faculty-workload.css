@@ -35,7 +35,20 @@
 .dean-import-notes { color: var(--dean-muted); font-size: .875rem; padding-left: 1.25rem; }
 .dean-preview-table { max-height: 24rem; overflow: auto; border: 1px solid var(--dean-border); border-radius: var(--dean-card-radius); }
 .dean-preview-table thead { position: sticky; top: 0; z-index: 1; }
+.dean-import-issues .dean-preview-table { max-height: 30rem; }
+.dean-import-issues td { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.dean-import-issues th:first-child { min-width: 5rem; }
+.dean-import-issues th:nth-child(2) { min-width: 13rem; }
+.dean-import-issues th:nth-child(3) { min-width: 17rem; }
+.dean-import-checks { border: 1px solid var(--dean-border); border-radius: .5rem; padding: .75rem; margin-bottom: 1rem; }
+.dean-import-checks summary { cursor: pointer; color: var(--dean-primary); font-size: .85rem; font-weight: 600; }
+.dean-import-checks .table-responsive { margin-top: .75rem; }
 @media (max-width: 575.98px) {
+  .dean-import-issues .table,.dean-import-issues tbody,.dean-import-issues tr,.dean-import-issues td { display: block; width: 100%; }
+  .dean-import-issues thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  .dean-import-issues tr { border-bottom: 1px solid var(--dean-border); padding: .5rem 0; }
+  .dean-import-issues td { border: 0; padding: .4rem .75rem; }
+  .dean-import-issues td:first-child { font-weight: 700; color: var(--dean-primary); }
   .dean-workload-heading { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .dean-faculty-photo-panel { flex-direction: row; justify-content: space-between; align-items: center; }
   .dean-faculty-photo { width: 5rem; height: 5rem; }

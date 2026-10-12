@@ -99,6 +99,7 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
             <div class="d-flex flex-wrap gap-2"><input type="file" id="deanCsvFile" class="form-control dean-csv-input" accept=".csv,text/csv" required /><button type="submit" id="deanPreviewButton" class="btn btn-primary"><i class="bx bx-search-alt me-1" aria-hidden="true"></i>Preview Import</button></div>
             <p class="small text-muted mt-2 mb-0">Use the subject CSV exported from the old system. Maximum 2 MB and 2,000 students.</p>
             <p class="small text-muted mt-1 mb-0">Students are matched by ID. One student record can belong to multiple classes.</p>
+            <p class="small text-muted mt-1 mb-0">For ñ and accented names, use CSV UTF-8 (comma delimited). Preview checks the campus, subject, section, faculty, and each student ID before importing.</p>
           </form>
           <div id="deanImportNotice" class="alert mt-3 mb-0 d-none" role="status"></div>
           <div id="deanImportPreview" class="mt-3" hidden></div>

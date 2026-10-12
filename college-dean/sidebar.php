@@ -20,6 +20,15 @@ $collegeDeanSidebarItems = [
         'pages' => ['faculty-workload.php'],
     ],
     [
+        'key' => 'faculty-profile',
+        'href' => 'faculty-profile.php',
+        'icon_bg' => 'bg-label-success',
+        'icon' => 'bx-id-card',
+        'title' => 'Faculty profile',
+        'description' => 'Manage faculty details and qualifications',
+        'pages' => ['faculty-profile.php', 'manage-faculty-profile.php'],
+    ],
+    [
         'key' => 'programs',
         'href' => 'programs.php',
         'icon_bg' => 'bg-label-info',

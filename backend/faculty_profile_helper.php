@@ -2,8 +2,9 @@
 
 require_once __DIR__ . '/faculty_eligibility_helper.php';
 require_once __DIR__ . '/faculty_education_helper.php';
+require_once __DIR__ . '/faculty_record_profile_helper.php';
 
-// Profile-only storage. Identity is always supplied by the authenticated session.
+// Profile-only storage. Each caller verifies the actor and resolves the target identity.
 function synk_faculty_profile_fields(array $ranks = [], array $existing = [], array $locations = []): array
 {
     $collegeCampuses = [];
@@ -260,7 +261,13 @@ function synk_faculty_profile_fetch(mysqli $conn, int $userId): ?array
     if ($profile) {
         $profile['eligibility_ids'] = synk_faculty_profile_eligibility_ids($conn, $userId);
     }
-    return $profile ?: null;
+    return $profile ?: synk_faculty_record_profile_for_account($conn, $userId);
+}
+
+function synk_faculty_profile_owner(int $userId, int $facultyId, ?array $profile): string
+{
+    return ($profile['_storage'] ?? '') === 'faculty' || $userId <= 0
+        ? 'faculty:' . (int)($profile['_faculty_id'] ?? $facultyId) : 'account:' . $userId;
 }
 
 function synk_faculty_profile_date(string $value): ?DateTimeImmutable
@@ -358,6 +365,10 @@ function synk_faculty_profile_save(mysqli $conn, int $userId, array $data, int $
     }
     $fields = synk_faculty_profile_fields();
     $existing = synk_faculty_profile_fetch($conn, $userId) ?? [];
+    if (($existing['_storage'] ?? '') === 'faculty') {
+        return synk_faculty_record_profile_save($conn, (int)$existing['_faculty_id'], $data, $revision,
+            (int)($_SESSION['user_id'] ?? $userId));
+    }
     // Recheck at the persistence boundary, including callers outside the form.
     $locationErrors = synk_faculty_profile_location_errors($data, synk_faculty_profile_locations($conn));
     if ($locationErrors) {

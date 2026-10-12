@@ -64,6 +64,9 @@ try {
     $basePost = array_fill_keys(array_keys(synk_faculty_profile_fields()), '');
     $basePost['full_name'] = $tag;
     $basePost['csrf_token'] = $csrf[1];
+    preg_match('/name="profile_owner" value="([^"]+)"/', $get['body'], $owner);
+    profile_image_portal_check(isset($owner[1]), 'The form identifies its current profile owner.');
+    $basePost['profile_owner'] = $owner[1];
     $basePost['revision'] = '0';
     $image = imagecreatetruecolor(1800, 1200);
     $savedHashes = [];
