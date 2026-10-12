@@ -30,8 +30,8 @@ $request=static function (string $scenario) use ($routeName,$token,&$version,$ch
 };
 try {
     $r=$request('page');
-    $check($r['http_status']===200 && is_string($r['response']) && !preg_match('/Fatal error|Parse error|Warning|xdebug-error/i',$r['response']),'Student Management failed to render.');
-    foreach (['Student Management','students.js','custom_css.css','deanStudentsRows','deanStudentDetailsModal','Import Students'] as $feature) $check(strpos($r['response'],$feature)!==false,'Missing student directory feature: ' . $feature);
+    $check($r['http_status']===200 && is_string($r['response']) && !preg_match('/Fatal error|Parse error|Warning(?:<\/b>)?:|xdebug-error/i',$r['response']),'Student Management failed to render.');
+    foreach (['Student Management','students.js','custom_css.css','deanStudentsRows','deanStudentDetailsModal','Import Students','Class Sections','Student Name','Add Student','Delete Selected Term Records'] as $feature) $check(strpos($r['response'],$feature)!==false,'Missing student directory feature: ' . $feature);
     $check($r['session_college']===$r['scope']['college_id'],'Page URL filters changed the assigned college.');
     $r=$request('bootstrap');
     $check($r['http_status']===200 && $r['response']['status']==='ok','Directory filters did not load.');
@@ -44,6 +44,8 @@ try {
     $check(count($rows)===2 && $shared['subject_count']===2,'Subject totals duplicated the same subject across terms or leaked foreign subjects.');
     $check($shared['student_number']===$r['profiles']['shared']['student_number'] && strpos($shared['student_name'],'Peña, José Niño')===0,'The directory lost leading zeros or accented characters.');
     $check($r['profiles']['shared']['program_id']===$r['foreign_scope']['program_id'] && isset($rows[$r['profiles']['shared']['student_id']]),'Membership was incorrectly inferred from the master profile program.');
+    $r=$request('default_term'); $check($r['response']['summary']['classes']===2,'Omitting the term did not default to the current semester.');
+    $r=$request('whole_year'); $check($r['response']['summary']['classes']===3,'Academic-year filtering omitted another semester.');
     foreach (['current','section','program'] as $scenario) {
         $r=$request($scenario); $rows=array_column($r['response']['rows'],null,'student_id');
         $check($r['response']['summary']['students']===2 && $rows[$r['profiles']['shared']['student_id']]['subject_count']===2,'Subject totals ignored the selected term, section, or program.');

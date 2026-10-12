@@ -63,7 +63,7 @@ const last=action=>requests.filter(item=>item.params.action===action).at(-1).par
 const openDetails=()=>fire('deanStudentsRows','click',{target:{closest:()=>({dataset:{student:'11'}})}});
 (async()=>{
   await tick();
-  check(!element('deanStudentsProgram').disabled && element('deanStudentsTerm').value==='all','The directory did not initialize with all imported terms.');
+  check(!element('deanStudentsProgram').disabled && element('deanStudentsTerm').value==='2:1' && last('list').term==='2:1','The directory did not default to the current semester.');
   check(element('deanStudentsTerm').innerHTML.includes('(Current)'),'The current academic term is not identified.');
   check(element('deanUniqueStudents').textContent==='2' && element('deanStudentsRows').innerHTML.includes('Peña, José Niño'),'Unique student totals or accented names were not displayed.');
   check(element('deanStudentsRows').innerHTML.includes('000123'),'The student ID display lost leading zeros.');
@@ -87,7 +87,12 @@ const openDetails=()=>fire('deanStudentsRows','click',{target:{closest:()=>({dat
   await fire('deanStudentsRefresh','click');
   check(element('deanStudentsProgram').value==='1' && element('deanStudentsTerm').value==='2:1' && element('deanStudentsSection').value==='10','Refresh discarded valid directory filters.');
   await fire('deanStudentsReset','click');
-  check(last('list').search==='' && last('list').term==='all' && last('list').program_id==='0' && last('list').section_id==='0','Reset did not restore the full unique directory.');
+  check(last('list').search==='' && last('list').term==='2:1' && last('list').program_id==='0' && last('list').section_id==='0','Reset did not restore the current semester directory.');
+  element('deanStudentsTerm').value='year:2'; await fire('deanStudentsTerm','change');
+  check(element('deanStudentsSection').innerHTML.includes('value="10"') && element('deanStudentsSection').innerHTML.includes('value="20"'),'An academic-year filter hid class sections from another semester.');
+  element('deanStudentsTerm').value='all'; await fire('deanStudentsTerm','change'); await fire('deanStudentsRefresh','click');
+  check(element('deanStudentsTerm').value==='all','Refresh lost an explicitly selected All academic terms filter.');
+  await fire('deanStudentsReset','click');
   element('deanStudentsSearch').value='absent'; await fire('deanStudentsFilters','submit');
   check(element('deanStudentsRows').innerHTML.includes('No matching students') && element('deanUniqueStudents').textContent==='0','Empty search results did not display a clear empty state.');
   listError='Your access changed.'; await fire('deanStudentsRefresh','click');
