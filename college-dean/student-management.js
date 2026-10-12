@@ -6,7 +6,7 @@
   const editor=new bootstrap.Modal($('deanStudentEditorModal'));
   const deletion=new bootstrap.Modal($('deanStudentDeleteModal'));
   const state={selected:new Set(),rows:[],filters:{},key:'',ready:false,selecting:false,editorBusy:false,editorReady:false,editorShown:false,editorGeneration:0,deleteBusy:false,deleteShown:false,deleteToken:''};
-  const key=filters=>JSON.stringify([filters.search,filters.term,filters.program_id,filters.section_id]);
+  const key=filters=>JSON.stringify([filters.search,filters.term,filters.program_id,filters.section_id,filters.email_status || 'all']);
   function notice(id,message='',type='danger') { $(id).textContent=message; $(id).className=`alert ${id==='deanStudentManagementNotice'?'mt-3 mb-0 ':''}${message?'alert-'+type:'d-none'}`; }
   async function request(action,params={}) {
     const body=new FormData(); Object.entries({...config,action,...params}).forEach(([field,value])=>body.append(field,value));

@@ -63,6 +63,7 @@
   }
   $('deanStudentEmailsOpen').addEventListener('click',()=>{
     state.filters={search:$('deanStudentsSearch').value.trim(),term:$('deanStudentsTerm').value || 'all',
+      email_status:$('deanStudentsEmailStatus').value || 'all',
       program_id:$('deanStudentsProgram').value || '0',section_id:$('deanStudentsSection').value || '0'};
     modal.show(); preview();
   });

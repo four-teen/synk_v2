@@ -92,6 +92,16 @@ switch ($scenario) {
     case 'list': break;
     case 'default_term': unset($_POST['term']); break;
     case 'whole_year': $_POST['term']='year:'.$term['ay_id']; break;
+    case 'email_missing': case 'email_present': case 'email_selection': case 'email_preview_filtered': case 'email_whitespace':
+        $stmt=$conn->prepare('UPDATE tbl_student_management SET email_address=? WHERE student_id=?');
+        $value=$scenario==='email_whitespace' ? '   ' : strtolower($tag).'@sksu.edu.ph';
+        $emailId=$profiles['own']['student_id']; $stmt->bind_param('si',$value,$emailId); $stmt->execute(); $stmt->close();
+        $_POST['email_status']=$scenario==='email_present' ? 'present' : 'missing';
+        if ($scenario==='email_selection') $_POST['action']='selection';
+        if ($scenario==='email_preview_filtered') $_POST['action']='email_preview';
+        break;
+    case 'bad_email_status': $_POST['email_status']='missing OR 1=1'; break;
+    case 'array_email_status': $_POST['email_status']=['missing']; break;
     case 'current': $_POST['term']=$term['ay_id'] . ':' . $term['semester']; break;
     case 'historical': $_POST['term']=$term['ay_id'] . ':' . $otherSemester; break;
     case 'section': $_POST['section_id']=$ownSection; break;

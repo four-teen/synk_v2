@@ -22,7 +22,7 @@ function synk_dean_students_query(mysqli $conn, string $sql, string $types, arra
 
 function synk_dean_students_filters(array $input, ?mysqli $conn=null): array
 {
-    $filters = ['program_id'=>0,'section_id'=>0,'ay_id'=>0,'semester'=>0,'term'=>'all','search'=>'','sort'=>'name','page'=>1,'page_size'=>25];
+    $filters = ['program_id'=>0,'section_id'=>0,'ay_id'=>0,'semester'=>0,'term'=>'all','email_status'=>'all','search'=>'','sort'=>'name','page'=>1,'page_size'=>25];
     foreach (['program_id','section_id','page','page_size'] as $field) {
         if (!isset($input[$field]) || (string)$input[$field] === '') continue;
         $value = filter_var($input[$field],FILTER_VALIDATE_INT,['options'=>['min_range'=>in_array($field,['page','page_size'],true) ? 1 : 0]]);
@@ -48,6 +48,8 @@ function synk_dean_students_filters(array $input, ?mysqli $conn=null): array
     if ($length > 150) throw new DomainException('Search using up to 150 characters.');
     $filters['sort'] = (string)($input['sort'] ?? 'name');
     if (!in_array($filters['sort'],['name','id','newest'],true)) throw new DomainException('Choose a valid sort order.');
+    $filters['email_status']=(string)($input['email_status'] ?? 'all');
+    if (!in_array($filters['email_status'],['all','missing','present'],true)) throw new DomainException('Choose a valid email status.');
     return $filters;
 }
 
@@ -63,6 +65,8 @@ function synk_dean_students_source(array $scope, array $filters): array
     foreach (['program_id'=>'COALESCE(es.program_id,s.program_id)','section_id'=>'es.section_id','ay_id'=>'COALESCE(es.ay_id,s.ay_id)','semester'=>'COALESCE(es.semester,s.semester)'] as $field=>$column) {
         if (!empty($filters[$field])) { $sql .= ' AND ' . $column . '=?'; $params[]=$filters[$field]; $types.='i'; }
     }
+    if (($filters['email_status'] ?? 'all')==='missing') $sql.=" AND (s.email_address IS NULL OR TRIM(s.email_address)='')";
+    elseif (($filters['email_status'] ?? 'all')==='present') $sql.=" AND s.email_address IS NOT NULL AND TRIM(s.email_address)<>''";
     if (!empty($filters['search'])) {
         // Treat wildcard characters literally, while supporting any order of name words.
         foreach (preg_split('/\s+/u',$filters['search']) as $word) {

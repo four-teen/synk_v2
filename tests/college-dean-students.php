@@ -46,6 +46,13 @@ try {
     $check($r['profiles']['shared']['program_id']===$r['foreign_scope']['program_id'] && isset($rows[$r['profiles']['shared']['student_id']]),'Membership was incorrectly inferred from the master profile program.');
     $r=$request('default_term'); $check($r['response']['summary']['classes']===2,'Omitting the term did not default to the current semester.');
     $r=$request('whole_year'); $check($r['response']['summary']['classes']===3,'Academic-year filtering omitted another semester.');
+    foreach (['email_missing'=>'shared','email_present'=>'own'] as $scenario=>$studentKey) {
+        $r=$request($scenario);
+        $check($r['response']['summary']['students']===1 && $r['response']['rows'][0]['student_id']===$r['profiles'][$studentKey]['student_id'] && $r['response']['pagination']['total']===1,'Email status did not filter rows, totals and pagination consistently.');
+    }
+    $r=$request('email_selection'); $check($r['response']['student_ids']===[$r['profiles']['shared']['student_id']],'Select matching students ignored the missing-email filter.');
+    $r=$request('email_preview_filtered'); $check(count($r['response']['rows'])===1 && $r['response']['rows'][0]['student_id']===$r['profiles']['shared']['student_id'],'Fill Missing Emails preview ignored the email filter.');
+    $r=$request('email_whitespace'); $check(count($r['response']['rows'])===2,'Whitespace-only email values were treated as present addresses.');
     foreach (['current','section','program'] as $scenario) {
         $r=$request($scenario); $rows=array_column($r['response']['rows'],null,'student_id');
         $check($r['response']['summary']['students']===2 && $rows[$r['profiles']['shared']['student_id']]['subject_count']===2,'Subject totals ignored the selected term, section, or program.');
@@ -78,7 +85,7 @@ try {
     $r=$request('reassigned');
     $check($r['session_college']===$r['foreign_scope']['college_id'] && $r['response']['summary']['students']===2,'The student directory retained stale Dean college access.');
     foreach (['scope_tamper'=>403,'bad_csrf'=>403,'revoked'=>403,'inactive'=>403,'other_role'=>403,'bad_method'=>405,
-        'bad_term'=>422,'bad_sort'=>422,'bad_page'=>422,'array_input'=>400,'bad_action'=>422] as $scenario=>$status) {
+        'bad_term'=>422,'bad_sort'=>422,'bad_page'=>422,'array_input'=>400,'bad_action'=>422,'bad_email_status'=>422,'array_email_status'=>400] as $scenario=>$status) {
         $r=$request($scenario); $check($r['http_status']===$status,'Student directory request validation failed: ' . $scenario);
     }
     $check($snapshot()===$before,'Student directory tests changed real data.');
