@@ -125,6 +125,8 @@ register_shutdown_function(static function() use($conn,$snapshot,$before,$target
         header('X-QA-Completion: '.($progress[$targetId] ?? 'none'));
         header('X-QA-Credential-Count: '.count($labels['faculty:'.$targetId] ?? []));
         header('X-QA-Photo: '.((is_file($imagePath)||is_file($userImage)) ? 'yes' : 'no'));
+        $photoInfo = is_file($imagePath) ? getimagesize($imagePath) : (is_file($userImage) ? getimagesize($userImage) : null);
+        if ($photoInfo) header('X-QA-Photo-Size: '.$photoInfo[0].'x'.$photoInfo[1]);
     } finally {
         $conn->requestMode=false;$conn->rollback();
         foreach ([$imagePath,$userImage] as $path) if (is_file($path)) unlink($path);

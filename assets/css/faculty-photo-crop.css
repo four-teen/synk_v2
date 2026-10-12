@@ -1,0 +1,38 @@
+.faculty-photo-crop {
+  margin-top: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--dean-border, #d9dee3);
+  border-radius: .75rem;
+  background: #f8f9fc;
+}
+.faculty-photo-crop[hidden] { display: none; }
+.faculty-photo-crop-heading h3 { margin: 0 0 .35rem; font-size: 1rem; }
+.faculty-photo-crop-heading p { margin: 0 0 1rem; font-size: .875rem; }
+.faculty-photo-crop-grid { display: grid; grid-template-columns: minmax(0, 280px) minmax(0, 1fr); gap: 1.5rem; }
+.faculty-photo-crop-preview canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border: 1px solid var(--dean-border, #d9dee3);
+  border-radius: .5rem;
+  background: white;
+  cursor: grab;
+  touch-action: none;
+}
+.faculty-photo-crop-preview canvas:active { cursor: grabbing; }
+.faculty-photo-crop-preview canvas:focus-visible { outline: 3px solid var(--dean-primary, #696cff); outline-offset: 3px; }
+.faculty-photo-crop-preview span { display: block; margin-top: .5rem; font-size: .75rem; text-align: center; }
+.faculty-photo-crop-controls { display: flex; flex-direction: column; align-items: stretch; gap: .4rem; }
+.faculty-photo-crop-controls p { min-height: 2.5rem; margin: 0 0 .25rem; font-size: .875rem; }
+.faculty-photo-crop-controls > label { font-size: .85rem; font-weight: 600; }
+.faculty-photo-crop-controls input[type="range"] { width: 100%; margin-bottom: .5rem; accent-color: var(--dean-primary, #696cff); }
+.faculty-photo-crop-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .4rem 0; }
+.faculty-photo-crop-original { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; }
+.faculty-photo-crop-controls small { font-size: .75rem; }
+@media (max-width: 767.98px) {
+  .faculty-profile-page .profile-page-heading { flex-wrap: wrap; }
+  .faculty-photo-crop { padding: 1rem; }
+  .faculty-photo-crop-grid { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .faculty-photo-crop-preview { width: min(100%, 280px); margin: 0 auto; }
+}

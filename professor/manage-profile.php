@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../backend/professor_portal_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
+require_once __DIR__ . '/../backend/faculty_profile_crop_helper.php';
 synk_professor_require_login();
 
 header('Cache-Control: no-store, private');
@@ -80,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($upload !== null && !is_array($upload)) {
                     throw new InvalidArgumentException('Choose a valid profile image.');
                 }
-                $stagedImage = synk_faculty_profile_stage_image($upload,
-                    ($storedProfile['_storage'] ?? '') === 'faculty' ? 0 : $userId, (int)$portal['faculty_id']);
+                $stagedImage = synk_faculty_profile_stage_cropped_image($upload,
+                    ($storedProfile['_storage'] ?? '') === 'faculty' ? 0 : $userId, (int)$portal['faculty_id'], $_POST['profile_photo_crop'] ?? '');
             } catch (InvalidArgumentException $exception) {
                 $errors['profile_image'] = $exception->getMessage();
             } catch (Throwable $exception) {
@@ -169,5 +170,5 @@ foreach (array_slice(preg_split('/\s+/', trim($profile['full_name'])) ?: [], 0, 
     $initials .= function_exists('mb_substr') ? mb_substr($namePart, 0, 1, 'UTF-8') : substr($namePart, 0, 1);
 }
 
-$profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner]];
+$profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner], 'photo_crop_enabled'=>true];
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';

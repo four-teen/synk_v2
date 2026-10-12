@@ -12,6 +12,7 @@ $profileEditor = array_merge([
     'show_link_notice' => empty($portal['faculty_is_linked']),
     'action' => 'manage-profile.php', 'education_url' => 'education-options.php',
     'csrf_token' => (string)($_SESSION['faculty_profile_csrf'] ?? ''), 'hidden_fields' => [],
+    'photo_crop_enabled' => false, 'photo_crop_field' => 'profile_photo_crop',
 ], $profileEditor ?? []);
 ?>
 <!DOCTYPE html>
@@ -29,6 +30,10 @@ $profileEditor = array_merge([
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
   <link rel="stylesheet" href="custom_css.css?v=<?php echo filemtime($profileEditor['theme_path']); ?>">
   <link rel="stylesheet" href="../professor/faculty-profile.css?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.css'); ?>">
+  <?php if ($profileEditor['photo_crop_enabled']): ?>
+    <link rel="stylesheet" href="../assets/css/faculty-photo-crop.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/faculty-photo-crop.css') ?>">
+    <script src="../assets/js/faculty-photo-crop.js?v=<?= filemtime(dirname(__DIR__) . '/assets/js/faculty-photo-crop.js') ?>" defer></script>
+  <?php endif; ?>
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
 </head>
@@ -145,6 +150,7 @@ $profileEditor = array_merge([
                           <div class="form-text" id="profile-image-selection" role="status" aria-live="polite"><?php echo ($errors || $saveError !== '') ? 'If you selected an image, choose it again before retrying.' : ''; ?></div>
                         </div>
                       </div>
+                      <?php if ($profileEditor['photo_crop_enabled']) require __DIR__ . '/faculty_profile_photo_editor.php'; ?>
                     </div>
                     <div class="col-12"><?php faculty_profile_input('full_name', $fields, $profile, $errors, $today->format('Y-m-d')); ?></div>
                     <div class="col-12"><?php faculty_profile_input('faculty_id_number', $fields, $profile, $errors, $today->format('Y-m-d'), 'Enter your university-issued ID. Letters, numbers, and hyphens are accepted; leading zeros are kept.'); ?></div>

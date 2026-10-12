@@ -3,6 +3,7 @@ session_start();
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/college_dean_profile_helper.php';
+require_once __DIR__ . '/faculty_photo_crop_helper.php';
 synk_college_dean_require_login($conn);
 $scope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
@@ -68,7 +69,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             try {
                 $upload = $_FILES['profile_image'] ?? null;
                 if ($upload !== null && !is_array($upload)) throw new InvalidArgumentException('Choose a valid profile image.');
-                $stagedImage = synk_faculty_profile_stage_image($upload, $imageUserId, $facultyId);
+                $stagedImage = synk_dean_profile_stage_image($upload, $imageUserId, $facultyId, $_POST['dean_photo_crop'] ?? '');
             } catch (InvalidArgumentException $exception) {
                 $errors['profile_image'] = $exception->getMessage();
             } catch (Throwable $exception) {
@@ -143,5 +144,6 @@ $profileEditor = [
     'account_note'=>'You are managing the selected faculty member’s profile.', 'show_link_notice'=>false,
     'action'=>$action, 'education_url'=>'education-options.php', 'csrf_token'=>$_SESSION['dean_faculty_profile_csrf'],
     'hidden_fields'=>['profile_owner'=>$owner],
+    'photo_crop_enabled'=>true, 'photo_crop_field'=>'dean_photo_crop',
 ];
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';

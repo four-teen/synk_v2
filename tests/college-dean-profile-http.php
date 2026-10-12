@@ -43,6 +43,7 @@ try {
     dean_profile_check(strpos($directory['headers'],'X-QA-Changed: no')!==false,'Viewing profiles does not change profile data.');
     $get=$request('get');
     dean_profile_check($get['status']===200 && strpos($get['body'],'Manage faculty profile')!==false,'Unlinked faculty have a working editor.');
+    dean_profile_check(strpos($get['body'],'faculty-photo-crop-template')!==false && strpos($get['body'],'faculty-photo-crop.js')!==false,'The Dean editor includes its photo crop controls.');
     foreach (['foreign'=>404,'old_roster'=>404,'reassigned'=>404,'wrong_role'=>302,'revoked'=>302,'inactive'=>302,'bad_id'=>400] as $scenario=>$status) {
         $r=$request($scenario,$valid);
         dean_profile_check($r['status']===$status && strpos($r['headers'],'X-QA-Changed: no')!==false,'Denied request: '.$scenario);
@@ -72,6 +73,17 @@ try {
     $post=$valid;$post['profile_image']=new CURLFile($temporaryImage,'image/png','faculty.png');
     $photo=$request('photo',$post);
     dean_profile_check($photo['status']===303 && strpos($photo['headers'],'X-QA-Photo: yes')!==false,'Real multipart photo upload is accepted and saved.');
+    $cropPost=$post;$cropPost['dean_photo_crop']=json_encode(['x'=>1/6,'y'=>0,'width'=>2/3,'height'=>1]);
+    $cropPhoto=$request('photo',$cropPost);
+    dean_profile_check($cropPhoto['status']===303 && strpos($cropPhoto['headers'],'X-QA-Photo-Size: 60x60')!==false,'The real Dean upload saves the selected square crop.');
+    $professorCrop=$valid;$professorCrop['revision']='1';$professorCrop['profile_image']=new CURLFile($temporaryImage,'image/png','faculty.png');
+    $professorCrop['profile_photo_crop']=json_encode(['x'=>1/6,'y'=>0,'width'=>2/3,'height'=>1]);
+    $professorCropSave=$request('professor_save',$professorCrop);
+    dean_profile_check($professorCropSave['status']===303 && strpos($professorCropSave['headers'],'X-QA-Photo-Size: 60x60')!==false
+        && strpos($professorCropSave['headers'],'X-QA-Account-Storage: faculty')!==false,'Professor cropping preserves the faculty-owned profile started by the Dean.');
+    $cropPost['dean_photo_crop']='{"x":2,"y":0,"width":1,"height":1}';
+    $invalidCrop=$request('photo',$cropPost);
+    dean_profile_check($invalidCrop['status']===422 && strpos($invalidCrop['headers'],'X-QA-Changed: no')!==false && strpos($invalidCrop['headers'],'X-QA-Photo: no')!==false,'Invalid crop coordinates cannot save profile data or photos.');
     $bad=$valid;$bad['profile_image']=new CURLFile(__FILE__,'image/png','fake.png');
     $fake=$request('fake_photo',$bad);
     dean_profile_check($fake['status']===422 && strpos($fake['headers'],'X-QA-Changed: no')!==false && strpos($fake['headers'],'X-QA-Photo: no')!==false,'Forged photo uploads cannot change data or photos.');

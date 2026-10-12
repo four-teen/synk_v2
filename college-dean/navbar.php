@@ -15,7 +15,7 @@ $collegeDeanAvatarUrl = synk_resolve_user_avatar_url($collegeDeanEmail, (string)
 ?>
 
 <nav
-  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme dean-navbar"
   id="layout-navbar"
 >
   <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -38,7 +38,7 @@ $collegeDeanAvatarUrl = synk_resolve_user_avatar_url($collegeDeanEmail, (string)
       <li class="nav-item navbar-dropdown dropdown-user dropdown">
         <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
           <div class="avatar avatar-online">
-            <img src="<?php echo htmlspecialchars($collegeDeanAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($collegeDeanName, ENT_QUOTES, 'UTF-8'); ?>" class="w-px-40 h-auto rounded-circle" onerror="this.onerror=null;this.src='<?php echo htmlspecialchars($collegeDeanAvatarFallback, ENT_QUOTES, 'UTF-8'); ?>';" referrerpolicy="no-referrer" />
+            <img src="<?php echo htmlspecialchars($collegeDeanAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($collegeDeanName, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-circle" onerror="this.onerror=null;this.src='<?php echo htmlspecialchars($collegeDeanAvatarFallback, ENT_QUOTES, 'UTF-8'); ?>';" referrerpolicy="no-referrer" />
           </div>
         </a>
 
@@ -48,7 +48,7 @@ $collegeDeanAvatarUrl = synk_resolve_user_avatar_url($collegeDeanEmail, (string)
               <div class="d-flex">
                 <div class="flex-shrink-0 me-3">
                   <div class="avatar avatar-online">
-                    <img src="<?php echo htmlspecialchars($collegeDeanAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($collegeDeanName, ENT_QUOTES, 'UTF-8'); ?>" class="w-px-40 h-auto rounded-circle" onerror="this.onerror=null;this.src='<?php echo htmlspecialchars($collegeDeanAvatarFallback, ENT_QUOTES, 'UTF-8'); ?>';" referrerpolicy="no-referrer" />
+                    <img src="<?php echo htmlspecialchars($collegeDeanAvatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($collegeDeanName, ENT_QUOTES, 'UTF-8'); ?>" class="rounded-circle" onerror="this.onerror=null;this.src='<?php echo htmlspecialchars($collegeDeanAvatarFallback, ENT_QUOTES, 'UTF-8'); ?>';" referrerpolicy="no-referrer" />
                   </div>
                 </div>
 

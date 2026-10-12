@@ -57,6 +57,8 @@ try {
     $get = $request($bootstrapUrl . '?qa=' . rawurlencode($token));
     profile_image_portal_check($get['status'] === 200 && strpos($get['body'], 'id="faculty-profile-form"') !== false, 'The authenticated professor sees the real profile form.');
     profile_image_portal_check(strpos($get['body'], 'enctype="multipart/form-data"') !== false, 'The profile form submits actual multipart uploads.');
+    profile_image_portal_check(strpos($get['body'], 'faculty-photo-crop-template') !== false && strpos($get['body'], 'assets/js/faculty-photo-crop.js') !== false
+        && strpos($get['body'], 'name="profile_photo_crop"') !== false, 'The Professor profile editor loads the crop preview with its own upload field.');
     preg_match('/name="csrf_token" value="([a-f0-9]+)"/', $get['body'], $csrf);
     profile_image_portal_check(isset($csrf[1]), 'The profile form supplies its real CSRF token.');
     echo trim(preg_replace('/\r?\n/', '; ', preg_replace('/.*?(X-Synk-Image-QA-PHP:.*?X-Synk-Image-QA-Fileinfo:[^\r\n]*).*/s', '$1', $get['headers']))), PHP_EOL;
@@ -106,6 +108,22 @@ try {
     $stale = $request($profileUrl, $post);
     profile_image_portal_check($stale['status'] === 409 && hash_file('sha256', $imagePath) === $savedHash
         && (int)synk_faculty_profile_fetch($conn, $userId)['revision'] === 3, 'An outdated profile form cannot overwrite newer details or pictures.');
+    foreach (['{', '{"x":2,"y":0,"width":0.6,"height":0.9}', '{"x":0,"y":0,"width":1,"height":1}'] as $badCrop) {
+        $post = $basePost;
+        $post['revision'] = '3';
+        $post['profile_image'] = new CURLFile($fixtures[2], 'image/png', 'photo.png');
+        $post['profile_photo_crop'] = $badCrop;
+        $rejectedCrop = $request($profileUrl, $post);
+        profile_image_portal_check($rejectedCrop['status'] === 422 && strpos($rejectedCrop['body'], 'The photo crop is invalid.') !== false, 'The Professor upload rejects invalid crop coordinates.');
+        profile_image_portal_check(hash_file('sha256', $imagePath) === $savedHash && (int)synk_faculty_profile_fetch($conn, $userId)['revision'] === 3, 'Rejected cropping preserves the saved photo and profile.');
+    }
+    $post['profile_photo_crop'] = json_encode(['x'=>.1, 'y'=>0, 'width'=>.6, 'height'=>.9]);
+    $croppedSave = $request($profileUrl, $post);
+    $cropInfo = getimagesize($imagePath);
+    profile_image_portal_check($croppedSave['status'] === 303 && $cropInfo[0] === 600 && $cropInfo[1] === 600 && $cropInfo[2] === IMAGETYPE_JPEG,
+        'The actual Professor form saves the selected square JPEG crop.');
+    profile_image_portal_check((int)synk_faculty_profile_fetch($conn, $userId)['revision'] === 4 && hash_file('sha256', $imagePath) !== $savedHash,
+        'A successful crop updates the photo and profile together.');
     $view = $request($profileUrl);
     profile_image_portal_check($view['status'] === 200 && strpos($view['body'], '/uploads/profile/profile_' . $userId . '.jpg?v=') !== false
         && strpos($view['body'], 'Your profile image could not be prepared.') === false, 'The professor page displays the saved picture with its cache version.');
