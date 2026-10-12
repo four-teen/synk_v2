@@ -167,7 +167,21 @@ const clickClass = async kind => {
   check(element('deanConfirmButton').hidden && element('deanConfirmButton').disabled,'Confirmation is enabled before preview.');
   element('deanCsvFile').files=[{name:'bad.txt',size:100}]; await element('deanImportForm').fire('submit');
   check(!requests.some(r=>r.params.action==='preview'),'A non-CSV file was uploaded.');
+  const validPreview=previewData;
+  previewData={status:'error',message:'CSV fields need correction.',issues:[{row:6,column:'D',field:'Faculty',found:'<img src=x onerror=alert(1)>',expected:'Peña, José',reason:'The CSV faculty does not match.',fix:'Verify D6.'},
+    {row:8,column:'E',field:'Student ID',found:'1.23E+10',expected:'Digits only',reason:'Scientific notation is not an ID.',fix:'Use a text cell.'}]};
+  element('deanCsvFile').files=[{name:'class.csv',size:100}];await element('deanImportForm').fire('submit');
+  check(!element('deanImportPreview').hidden && element('deanImportPreview').innerHTML.includes('D6') && element('deanImportPreview').innerHTML.includes('E8'),
+    'Preview errors must show exact CSV cells.');
+  check(element('deanImportPreview').innerHTML.includes('Found:') && element('deanImportPreview').innerHTML.includes('Expected:') && element('deanImportPreview').innerHTML.includes('How to fix:'),
+    'Preview errors must explain the values and correction.');
+  check(element('deanImportPreview').innerHTML.includes('Peña, José') && element('deanImportPreview').innerHTML.includes('&lt;img') && !element('deanImportPreview').innerHTML.includes('<img'),
+    'Error values must preserve accents and escape CSV markup.');
+  check(element('deanConfirmButton').hidden && element('deanConfirmButton').disabled,'An invalid CSV must never enable confirmation.');
+  previewData={...validPreview,preview:{...validPreview.preview,checks:[{field:'Faculty',cell:'D6',found:'Peña, José, MAT',expected:'José Peña'}]}};
   element('deanCsvFile').files=[{name:'class.csv',size:100}]; await element('deanImportForm').fire('submit');
+  check(element('deanImportPreview').innerHTML.includes('Header checks passed') && element('deanImportPreview').innerHTML.includes('Selected class'),
+    'A valid preview must offer found/selected header comparisons.');
   check(!element('deanConfirmButton').hidden && !element('deanConfirmButton').disabled,'A valid preview did not enable confirmation.');
   check(!requests.some(r=>r.params.action==='confirm'),'Preview saved the roster automatically.');
   check(element('deanImportPreview').innerHTML.includes('&lt;img') && !element('deanImportPreview').innerHTML.includes('<img'),'CSV content was rendered as executable markup.');

@@ -54,13 +54,22 @@ function synk_faculty_excel_eligibilities(mysqli $conn, array $records): array
     $ids = array_unique(array_filter(array_map(static function (array $record): int {
         return max(0, (int)($record['user_id'] ?? 0));
     }, $records)));
-    if (!$ids || !synk_table_exists($conn, 'tbl_faculty_profile_eligibilities')
-        || !synk_table_exists($conn, 'tbl_faculty_eligibilities')) return $labels;
-    $result = $conn->query('SELECT pe.user_id, e.name FROM tbl_faculty_profile_eligibilities pe
+    if (!synk_table_exists($conn, 'tbl_faculty_eligibilities')) return $labels;
+    if ($ids && synk_table_exists($conn, 'tbl_faculty_profile_eligibilities')) {
+        $result = $conn->query('SELECT pe.user_id, e.name FROM tbl_faculty_profile_eligibilities pe
         JOIN tbl_faculty_eligibilities e ON e.eligibility_id = pe.eligibility_id
         WHERE pe.user_id IN (' . implode(',', $ids) . ') ORDER BY e.sort_order, e.name, e.eligibility_id');
-    while ($row = $result->fetch_assoc()) $labels[(int)$row['user_id']][] = $row['name'];
-    $result->close();
+        while ($row = $result->fetch_assoc()) $labels[(int)$row['user_id']][] = $row['name'];
+        $result->close();
+    }
+    $catalog = synk_faculty_profile_eligibility_catalog($conn);
+    foreach ($records as $record) {
+        if (($record['profile']['_storage'] ?? '') !== 'faculty') continue;
+        $key = 'faculty:' . (int)$record['faculty_id'];
+        foreach ($record['profile']['eligibility_ids'] ?? [] as $id) {
+            if (isset($catalog[$id])) $labels[$key][] = $catalog[$id]['name'];
+        }
+    }
     return $labels;
 }
 
@@ -247,7 +256,8 @@ function synk_faculty_excel_sheet(string $templateXml, array $sharedStrings, arr
             if ($birth && ($birth > $today || $birth < new DateTimeImmutable('1900-01-01'))) $birth = null;
             $dateNumber = $birth ? (int)(new DateTimeImmutable('1899-12-30'))->diff($birth)->days : '';
             if ($birth && $birth < new DateTimeImmutable('1900-03-01')) $dateNumber--;
-            $credentials = $eligibilities[(int)($record['user_id'] ?? 0)] ?? [];
+            $credentialKey = ($profile['_storage'] ?? '') === 'faculty' ? 'faculty:' . (int)$record['faculty_id'] : (int)($record['user_id'] ?? 0);
+            $credentials = $eligibilities[$credentialKey] ?? [];
             $otherEligibility = trim((string)($profile['eligibility'] ?? ''));
             if ($otherEligibility !== '') $credentials[] = $otherEligibility;
             $service = trim((string)($profile['length_of_service'] ?? ''));

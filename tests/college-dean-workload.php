@@ -108,7 +108,48 @@ try {
         $other = $class; $other[$field]=$value;
         $r = $request('preview',$csvFor($other,$students));
         $check($r['http_status']===422 && $r['pending_count']===0,'The import accepted a mismatched ' . $field);
+        $check(!empty($r['response']['issues'][0]['found']) && !empty($r['response']['issues'][0]['expected'])
+            && !empty($r['response']['issues'][0]['fix']),'The mismatch does not explain found, expected and correction: ' . $field);
     }
+    $other=$class;$other['subject_code']='WRONG 999';$other['section_display']='WRONG 9Z';
+    $other['first_name']='OtherFacultyQA';$other['campus_name']='OtherCampusQA';
+    $r=$request('preview',$csvFor($other,$students));
+    $check($r['http_status']===422 && count($r['response']['issues'])===4,'Preview must report every header mismatch together.');
+    $check(array_column($r['response']['issues'],'row')===[4,4,1,6],'Header diagnostics lost their precise CSV rows.');
+    $check($r['pending_count']===0 && $r['before_counts']===$r['after_counts'],'Invalid header diagnostics issued a token or saved data.');
+    $r=$request('preview',$csvFor($class,[['1.234E+10','Name without comma'],['ABC','Other without comma']]));
+    $check($r['http_status']===422 && count($r['response']['issues'])===4,'Student diagnostics must include multiple rows and fields.');
+    $check(array_column($r['response']['issues'],'column')===['B','E','B','E'] && array_column($r['response']['issues'],'row')===[8,8,9,9],
+        'Invalid student names and IDs do not identify B8/E8 and B9/E9.');
+    $check($r['response']['issues'][1]['found']==='1.234E+10','The diagnostic lost the original invalid ID value.');
+    $r=$request('preview',$csvFor($class,[$students[0],[$students[0][0],'DifferentQA, Person']]));
+    $issue=$r['response']['issues'][0];
+    $check($r['http_status']===422 && $issue['row']===9 && strpos($issue['expected'],'row 8')!==false,
+        'A conflicting duplicate ID must identify both CSV rows.');
+    $r=$request('preview',$csvFor($class,[[$students[0][0],'Pe??a, Name']]));
+    $check($r['http_status']===422 && $r['response']['issues'][0]['row']===8 && $r['response']['issues'][0]['column']==='B'
+        && strpos($r['response']['issues'][0]['reason'],'original letters are missing')!==false,
+        'Already-lost letters must be reported without guessing a replacement name.');
+    $facultyClass=$class;$facultyClass['first_name']='SARIP';$facultyClass['last_name']='PANGSAYAN';$facultyClass['middle_name']='E';$facultyClass['ext_name']='';
+    $header=$parseCsv($csvFor($facultyClass,$students));
+    foreach (['SARIP PANGSAYAN, MAT','PANGSAYAN, SARIP, M.A.T.','SARIP E. PANGSAYAN, MAT, Ph.D.'] as $name) {
+        $header['faculty_name']=$name;
+        $check(count(synk_dean_roster_validate_header($header,$facultyClass))>0,'A recognized degree suffix blocked the faculty: ' . $name);
+    }
+    $header['faculty_name']='DIFFERENT PANGSAYAN, MAT';
+    $reject(static function() use($header,$facultyClass) {synk_dean_roster_validate_header($header,$facultyClass);},'Degree handling accepted a different faculty.');
+    $facultyClass['first_name']='MAT';$facultyClass['middle_name']='';$header['faculty_name']='PANGSAYAN, MAT';
+    $check(count(synk_dean_roster_validate_header($header,$facultyClass))>0,'A real given name must not be removed as a credential.');
+    $header['faculty_name']='PANGSAYAN';
+    $reject(static function() use($header,$facultyClass) {synk_dean_roster_validate_header($header,$facultyClass);},'Credential handling accepted a surname without the selected given name.');
+    $facultyClass['first_name']='GEROLD';$facultyClass['middle_name']='';$facultyClass['last_name']='DELA PEÑA';
+    $header['faculty_name']='GEROLD DELA PENA';
+    $check(count(synk_dean_roster_validate_header($header,$facultyClass))>0,'Legacy PENA headers do not match a verified PEÑA faculty.');
+    $facultyClass['last_name']='DELA PE??A';
+    try {synk_dean_roster_validate_header($header,$facultyClass);$check(false,'A damaged faculty record was accepted.');}
+    catch(SynkDeanRosterValidationException $e) {$check($e->issues[0]['field']==='Faculty record','The error does not identify database name damage.');}
+    $check(!synk_student_identity_names_match(['last_name'=>'Peña','first_name'=>'José'],['last_name'=>'Pena','first_name'=>'José']),
+        'Faculty header normalization must not weaken student identity matching.');
     foreach (['confirm_forged','confirm_tampered','confirm_other_user','confirm_expired','confirm_removed','confirm_identity'] as $scenario) {
         $r = $request($scenario,$csv);
         $check($r['http_status']===422,'Confirmation validation failed for ' . $scenario);
@@ -153,6 +194,13 @@ try {
     $r=$request('confirm',$decomposed);
     $roster=array_column($r['roster'],null,'student_number');
     $check(($roster['000' . $randomNumber]['student_name'] ?? '')===$accentName,'Combining marks were not preserved as the displayed accented name.');
+    $misencoded=iconv('Windows-1252','UTF-8',$accentCsv);
+    $r=$request('preview',$misencoded);
+    $check($r['response']['status']==='ok' && $r['response']['preview']['rows'][0]['student_name_raw']===$accentName,
+        'Recoverable Windows-1252/UTF-8 mojibake was not repaired in preview.');
+    $check(strpos(implode(' ',$r['response']['preview']['notes']),'Recovered misencoded')!==false,'Encoding repairs must be disclosed in preview.');
+    $r=$request('confirm',$misencoded);$roster=array_column($r['roster'],null,'student_number');
+    $check(($roster['000'.$randomNumber]['student_name'] ?? '')===$accentName,'Repaired accented names did not survive database storage.');
     // Exercise the three supplied files without storing their real students.
     $folder = 'C:/Users/CCS-Dean/Downloads/FACULTY (1)/ANTONIO ELBREN/';
     foreach (['CS 111 - CCS - BSCS 1A.csv'=>[944,39],'CS ELECT 311 - BSCS 3A.csv'=>[958,36],'CS RES 400A - BSCS 4A.csv'=>[964,23]] as $file=>$expected) {

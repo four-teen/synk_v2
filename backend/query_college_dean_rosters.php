@@ -69,12 +69,21 @@ try {
         synk_dean_roster_response(['status'=>'ok','result'=>$result,'message'=>$result['added'] . ' students added. ' . $result['skipped'] . ' existing students skipped.']);
     }
     $file = $_FILES['csv_file'] ?? null;
-    if (!$file || !is_scalar($file['error'] ?? null) || (int)$file['error'] !== UPLOAD_ERR_OK
+    if (!is_array($file) || !is_scalar($file['error'] ?? null) || (int)$file['error'] !== UPLOAD_ERR_OK
         || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name'])) {
-        throw new DomainException('Choose a CSV file smaller than 2 MB and try again.');
+        $error = is_array($file) && is_scalar($file['error'] ?? null) ? (int)$file['error'] : UPLOAD_ERR_NO_FILE;
+        $reason = [UPLOAD_ERR_INI_SIZE=>'The upload exceeds the server file-size limit.',
+            UPLOAD_ERR_FORM_SIZE=>'The upload exceeds the form file-size limit.', UPLOAD_ERR_PARTIAL=>'Only part of the CSV reached the server.',
+            UPLOAD_ERR_NO_FILE=>'No CSV file was received.', UPLOAD_ERR_NO_TMP_DIR=>'The server upload folder is unavailable.',
+            UPLOAD_ERR_CANT_WRITE=>'The server could not store the temporary upload.', UPLOAD_ERR_EXTENSION=>'The server stopped this upload.'][$error] ?? 'The CSV upload could not be verified.';
+        throw new SynkDeanRosterValidationException([synk_dean_roster_issue(null,'','CSV upload',$reason,'One complete CSV file, up to 2 MB',
+            $reason, 'Choose the CSV and retry. If the upload folder or server limit is the issue, contact your administrator.')]);
     }
-    $fileName = basename(str_replace('\\', '/', (string)$file['name']));
-    if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) !== 'csv' || strlen($fileName) > 255) throw new DomainException('Choose a CSV file with a .csv extension.');
+    if (!is_string($file['name'] ?? null)) throw new DomainException('Choose one CSV file with a valid file name.');
+    $fileName = synk_student_management_normalize_csv_encoding(basename(str_replace('\\', '/', (string)$file['name'])));
+    if (strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) !== 'csv' || strlen($fileName) > 255) throw new SynkDeanRosterValidationException([
+        synk_dean_roster_issue(null,'','File name',$fileName,'A .csv file name up to 255 bytes',
+            'The file extension or name is invalid.', 'Export as CSV UTF-8 (comma delimited), using a shorter file name. Do not rename an Excel workbook to .csv.')]);
     $parsed = synk_dean_roster_parse($file['tmp_name']);
     $preview = synk_dean_roster_preview($conn,$class,$parsed);
     $token = '';
@@ -89,6 +98,8 @@ try {
     }
     // PHP removes the temporary upload after the request; keep only validated rows in this session.
     synk_dean_roster_response(['status'=>'ok','class'=>$class,'file_name'=>$fileName,'preview_token'=>$token,'preview'=>$preview]);
+} catch (SynkDeanRosterValidationException $e) {
+    synk_dean_roster_response(['status'=>'error','message'=>$e->getMessage(),'issues'=>$e->issues], 422);
 } catch (DomainException $e) {
     synk_dean_roster_response(['status'=>'error','message'=>$e->getMessage()], 422);
 } catch (Throwable $e) {

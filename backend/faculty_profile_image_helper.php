@@ -10,11 +10,19 @@ function synk_faculty_profile_image_path(int $userId): string
     return dirname(__DIR__) . '/uploads/profile/profile_' . $userId . '.jpg';
 }
 
-function synk_faculty_profile_image_url(int $userId): string
+function synk_faculty_record_image_path(int $facultyId): string
 {
-    if ($userId <= 0 || !is_file($path = synk_faculty_profile_image_path($userId))) {
-        return '';
+    if ($facultyId <= 0) throw new InvalidArgumentException('Invalid faculty profile image.');
+    return dirname(__DIR__) . '/uploads/profile/faculty_' . $facultyId . '.jpg';
+}
+
+function synk_faculty_profile_image_url(int $userId, int $facultyId = 0): string
+{
+    $path = $userId > 0 ? synk_faculty_profile_image_path($userId) : '';
+    if ($path === '' || !is_file($path)) {
+        $path = $facultyId > 0 ? synk_faculty_record_image_path($facultyId) : '';
     }
+    if ($path === '' || !is_file($path)) return '';
     // Resolve the app's URL prefix, including portals in nested directories.
     $appRoot = str_replace('\\', '/', dirname(__DIR__));
     $scriptPath = str_replace('\\', '/', (string)($_SERVER['SCRIPT_FILENAME'] ?? ''));
@@ -26,7 +34,7 @@ function synk_faculty_profile_image_url(int $userId): string
             $prefix = substr($scriptUrl, 0, -strlen($relativeScript));
         }
     }
-    return $prefix . '/uploads/profile/profile_' . $userId . '.jpg?v=' . substr(hash_file('sha256', $path), 0, 16);
+    return $prefix . '/uploads/profile/' . basename($path) . '?v=' . substr(hash_file('sha256', $path), 0, 16);
 }
 
 // Validate an actual HTTP upload before decoding. Never trust its name or MIME field.
@@ -58,7 +66,7 @@ function synk_faculty_profile_image_info(string $path): array
     return $info;
 }
 
-function synk_faculty_profile_stage_image(?array $upload, int $userId): ?string
+function synk_faculty_profile_stage_image(?array $upload, int $userId, int $facultyId = 0): ?string
 {
     if ($upload === null) {
         return null;
@@ -110,7 +118,7 @@ function synk_faculty_profile_stage_image(?array $upload, int $userId): ?string
         $image = imagecreatetruecolor($width, $height);
         imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
         imagecopyresampled($image, $source, 0, 0, 0, 0, $width, $height, imagesx($source), imagesy($source));
-        $directory = dirname(synk_faculty_profile_image_path($userId));
+        $directory = dirname($userId > 0 ? synk_faculty_profile_image_path($userId) : synk_faculty_record_image_path($facultyId));
         if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
             throw new RuntimeException('Profile image storage is unavailable.');
         }
@@ -134,9 +142,9 @@ function synk_faculty_profile_stage_image(?array $upload, int $userId): ?string
 
 // Called while the profile row is locked by its save transaction. Keep the old
 // bytes in memory so a failed database commit can restore the previous image.
-function synk_faculty_profile_publish_image(string $staged, int $userId): array
+function synk_faculty_profile_publish_image(string $staged, int $userId, int $facultyId = 0): array
 {
-    $path = synk_faculty_profile_image_path($userId);
+    $path = $userId > 0 ? synk_faculty_profile_image_path($userId) : synk_faculty_record_image_path($facultyId);
     $previous = is_file($path) ? file_get_contents($path) : null;
     if ($previous === false || !rename($staged, $path)) {
         throw new RuntimeException('Profile image could not be replaced.');

@@ -82,9 +82,9 @@ function synk_di_faculty_profile_completion_by_faculty(mysqli $conn, array $dire
     foreach ($directory['faculty'] as $facultyId => $faculty) {
         $userId = (int)($faculty['user_id'] ?? 0);
         $profile = $faculty['profile'] ?? null;
-        if ($userId <= 0 || !is_array($profile)) continue;
+        if (!is_array($profile)) continue;
 
-        $profile['eligibility_ids'] = $eligibilityIds[$userId] ?? [];
+        if (($profile['_storage'] ?? '') !== 'faculty') $profile['eligibility_ids'] = $eligibilityIds[$userId] ?? [];
         $fields = synk_faculty_profile_fields($ranks, $profile, $locations);
         [$values, $errors] = synk_faculty_profile_validate($profile, $today, $ranks, $profile, $eligibilities, $locations);
         $completion = synk_faculty_profile_completion($values, synk_faculty_profile_completion_rules($fields), $errors);
@@ -186,12 +186,12 @@ function synk_di_profile_dashboard(mysqli $conn, array $term, int $campusId = 0,
     while ($row = $result->fetch_assoc()) {
         $userId = (int)$row['user_id'];
         $facultyId = (int)$row['faculty_id'];
-        $stored = $profiles[$userId] ?? null;
+        $stored = $profiles[$userId] ?? ($directory['faculty'][$facultyId]['profile'] ?? null);
         $facultyRow = $faculty[$facultyId] ?? null;
         $facultyName = $facultyRow ? trim(implode(' ', array_filter([$facultyRow['first_name'], $facultyRow['middle_name'], $facultyRow['last_name'], $facultyRow['ext_name']]))) : '';
         $defaults = synk_faculty_profile_defaults($row, $facultyRow ? ['faculty_name' => $facultyName] : null, (string)($facultyRow['employment_classification'] ?? ''));
         $profile = $stored ?? $defaults;
-        $profile['eligibility_ids'] = $eligibilityIds[$userId] ?? [];
+        if (($profile['_storage'] ?? '') !== 'faculty') $profile['eligibility_ids'] = $eligibilityIds[$userId] ?? [];
         $fields = synk_faculty_profile_fields($ranks, $stored ?? [], $locations);
         [$values, $errors] = synk_faculty_profile_validate($profile, $today, $ranks, $stored ?? [], $eligibilities, $locations);
         $completion = synk_faculty_profile_completion($values, synk_faculty_profile_completion_rules($fields), $errors);

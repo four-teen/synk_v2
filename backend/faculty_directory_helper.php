@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/auth_useraccount.php';
+require_once __DIR__ . '/faculty_record_profile_helper.php';
 
 function synk_faculty_record_statuses(): array
 {
@@ -79,6 +80,12 @@ function synk_faculty_directory_records(mysqli $conn): array
         while ($row = $result->fetch_assoc()) $profiles[(int)$row['user_id']] = $row;
         $result->close();
     }
+    $recordProfiles = [];
+    if (synk_faculty_record_profiles_ready($conn)) {
+        $result = $conn->query('SELECT * FROM tbl_faculty_record_profiles');
+        while ($row = $result->fetch_assoc()) $recordProfiles[(int)$row['faculty_id']] = synk_faculty_record_profile_decode($row);
+        $result->close();
+    }
     $links = [];
     if (synk_table_exists($conn, 'tbl_useraccount_faculty_links')) {
         $result = $conn->query('SELECT user_id, faculty_id FROM tbl_useraccount_faculty_links');
@@ -99,7 +106,7 @@ function synk_faculty_directory_records(mysqli $conn): array
         $id = (int)$faculty['faculty_id'];
         $userId = $links[$id] ?? 0;
         $account = $accounts[$userId] ?? null;
-        $profile = $profiles[$userId] ?? null;
+        $profile = $profiles[$userId] ?? ($recordProfiles[$id] ?? null);
         $collegeIds = [];
         $campusIds = [];
         $source = 'Not recorded';

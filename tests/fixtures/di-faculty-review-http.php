@@ -8,7 +8,9 @@ if (!defined('SYNK_DI_HTTP_QA') || !in_array($_SERVER['REMOTE_ADDR'] ?? '', ['12
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require_once __DIR__ . '/../../backend/db.php';
 require_once __DIR__ . '/../../backend/faculty_directory_helper.php';
+require_once __DIR__ . '/../../backend/faculty_profile_helper.php';
 synk_faculty_directory_ensure_schema($conn);
+synk_faculty_record_profiles_ensure($conn);
 session_start();
 ob_start();
 $conn->begin_transaction();
@@ -21,6 +23,15 @@ $qaActorId = (int)$conn->insert_id;
 $stmt->close();
 $conn->query("INSERT INTO tbl_faculty (first_name, last_name, status) VALUES ('DI Directory HTTP', 'QA Faculty', 'active')");
 $qaFacultyId = (int)$conn->insert_id;
+// The professor list includes saved profiles at 25% completion or higher.
+// This unassigned faculty has a profile, even without a login account.
+$qaProfile = synk_faculty_profile_defaults(['username'=>'DI Directory HTTP QA Faculty'], null);
+$qaProfile['gender'] = 'Male';
+$qaProfile['date_of_birth'] = '1990-01-01';
+$qaProfile['civil_status'] = 'Single';
+$qaProfile['employment_classification'] = 'Permanent';
+foreach (['bachelor','master','doctoral'] as $level) $qaProfile[$level . '_status'] = 'Not applicable';
+synk_faculty_record_profile_save($conn, $qaFacultyId, $qaProfile, 0, $qaActorId);
 $_SESSION = ['user_id' => $qaActorId, 'role' => 'DI', 'di_faculty_csrf' => SYNK_DI_HTTP_QA];
 $_GET['faculty_id'] = ($_GET['scenario'] ?? '') === 'bad_id' ? '1 OR 1=1' : (string)$qaFacultyId;
 register_shutdown_function(static function () use ($conn, $qaFacultyId) {
