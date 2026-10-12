@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
@@ -69,6 +70,7 @@ $professorAvatarUrl = synk_resolve_user_avatar_url($professorEmail, (string)($_S
             </a>
           </li>
 
+          <?php synk_render_account_switch($conn); ?>
           <li>
             <a class="dropdown-item" href="../logout.php">
               <i class="bx bx-power-off me-2"></i>

@@ -3,6 +3,7 @@ if (!isset($moduleRole, $moduleIcon, $moduleAccount, $moduleTerm)) {
     http_response_code(404);
     exit;
 }
+require_once __DIR__ . '/account_switch_helper.php';
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
@@ -54,6 +55,7 @@ if (!isset($moduleRole, $moduleIcon, $moduleAccount, $moduleTerm)) {
               <span class="fw-semibold d-block"><?= synk_leadership_h($moduleAccount['username']) ?></span>
               <small class="text-muted module-account-email"><?= synk_leadership_h($moduleAccount['email']) ?></small>
             </div>
+            <?php synk_render_account_switch($conn, '../switch-account.php', true); ?>
             <a href="../logout.php" class="btn btn-outline-secondary btn-sm"><i class="bx bx-log-out me-1"></i>Log Out</a>
           </nav>
           <div class="content-wrapper">

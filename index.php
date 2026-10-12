@@ -14,6 +14,7 @@ $authStatus = trim((string)($_GET['auth_status'] ?? ''));
 $showGoogleConfigNotice = $googleLoginEnabled && !$googleReady;
 $showLegacyLogin = $legacyLoginEnabled && (!$googleLoginEnabled || !$googleReady);
 $pendingRoleLogin = synk_get_pending_role_login();
+$isAccountSwitch = !empty($pendingRoleLogin['is_account_switch']);
 
 function synk_login_json_response(array $payload): void
 {
@@ -56,6 +57,14 @@ if (isset($_POST['complete_role_login'])) {
     $pendingLogin = synk_get_pending_role_login();
     if (!$pendingLogin) {
         synk_login_json_response(['status' => 'role_selection_missing']);
+    }
+
+    if (!empty($pendingLogin['is_account_switch'])) {
+        $selectionToken = $_POST['role_selection_token'] ?? null;
+        $expectedToken = (string)($pendingLogin['selection_token'] ?? '');
+        if (!is_string($selectionToken) || $expectedToken === '' || !hash_equals($expectedToken, $selectionToken)) {
+            synk_login_json_response(['status' => 'role_selection_invalid']);
+        }
     }
 
     $selectedRole = synk_normalize_role_code((string)($_POST['selected_role'] ?? ''));
@@ -573,6 +582,12 @@ if (isset($_POST['login'])) {
       .swal2-popup.role-choice-swal {
         padding: 1.45rem 1.35rem 1.35rem;
         border-radius: 22px;
+        font-family: "Public Sans", sans-serif;
+      }
+
+      .role-choice-swal .swal2-html-container {
+        max-height: 60vh;
+        overflow-y: auto;
       }
 
       .role-choice-lead {
@@ -599,7 +614,7 @@ if (isset($_POST['login'])) {
 
       .role-choice-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: minmax(0, 1fr);
         gap: 0.85rem;
         margin-top: 1rem;
         text-align: left;
@@ -607,11 +622,14 @@ if (isset($_POST['login'])) {
 
       .role-choice-card {
         position: relative;
-        display: block;
-        border: 1px solid #dce5f1;
-        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border: 1px solid var(--login-card-border);
+        border-radius: 16px;
         padding: 1rem 0.95rem;
-        background: #fbfdff;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
         cursor: pointer;
         transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
       }
@@ -635,11 +653,9 @@ if (isset($_POST['login'])) {
         pointer-events: none;
       }
 
-      .role-choice-top {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 0.75rem;
+      .role-choice-content {
+        flex: 1;
+        min-width: 0;
       }
 
       .role-choice-icon {
@@ -658,7 +674,6 @@ if (isset($_POST['login'])) {
         height: 1rem;
         border-radius: 999px;
         border: 2px solid #c4d0df;
-        margin-top: 0.15rem;
         flex: 0 0 1rem;
         transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
       }
@@ -670,8 +685,8 @@ if (isset($_POST['login'])) {
       }
 
       .role-choice-title {
-        margin: 0.85rem 0 0;
-        color: #25364a;
+        margin: 0;
+        color: var(--login-title);
         font-size: 1rem;
         font-weight: 800;
       }
@@ -681,14 +696,13 @@ if (isset($_POST['login'])) {
         color: #607389;
         font-size: 0.88rem;
         line-height: 1.5;
-        min-height: 2.65rem;
       }
 
       .role-choice-badges {
         display: flex;
         flex-wrap: wrap;
         gap: 0.45rem;
-        margin-top: 0.9rem;
+        margin-top: 0.6rem;
       }
 
       .role-choice-badges .badge {
@@ -784,12 +798,12 @@ if (isset($_POST['login'])) {
         }
 
         .role-choice-grid {
-          grid-template-columns: 1fr;
           gap: 0.7rem;
         }
 
-        .role-choice-copy {
-          min-height: auto;
+        .role-choice-card {
+          gap: 0.75rem;
+          padding: 0.9rem 0.8rem;
         }
       }
 
@@ -827,6 +841,18 @@ if (isset($_POST['login'])) {
             <div class="card-body">
               <div class="login-brand"><span>s</span><span>y</span><span>n</span><span>k</span></div>
 
+              <?php if ($isAccountSwitch): ?>
+                <h1 class="login-title">Switch Account</h1>
+                <p class="login-subtitle">Choose one of your assigned workspaces to continue.</p>
+                <div class="role-choice-email">
+                  <i class="bx bx-envelope"></i>
+                  <span><?php echo htmlspecialchars((string)($pendingRoleLogin['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                </div>
+                <div class="d-grid gap-2 mt-4">
+                  <button type="button" id="btn_choose_account" class="btn btn-primary">Choose Account</button>
+                  <a href="logout.php" class="btn btn-outline-secondary">Log Out</a>
+                </div>
+              <?php else: ?>
               <h1 class="login-title">Centralized Academic Management Platform</h1>
               <p class="login-subtitle">
                 Official platform for centralized academic operations, designed to unify scheduling,
@@ -919,6 +945,7 @@ if (isset($_POST['login'])) {
 
                 <div class="login-project-note">SYNKronized 2025</div>
               </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -929,7 +956,7 @@ if (isset($_POST['login'])) {
     <script src="assets/vendor/libs/popper/popper.js"></script>
     <script src="assets/vendor/js/bootstrap.js"></script>
     <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="assets/js/sweetalert2.all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="assets/vendor/js/menu.js"></script>
     <script src="assets/js/main.js"></script>
@@ -939,6 +966,7 @@ if (isset($_POST['login'])) {
         const authStatus = <?php echo json_encode($authStatus, JSON_UNESCAPED_SLASHES); ?>;
         const googleReady = <?php echo $googleReady ? 'true' : 'false'; ?>;
         const pendingRoleLogin = <?php echo json_encode($pendingRoleLogin, JSON_UNESCAPED_SLASHES); ?>;
+        let roleSelectionContext = pendingRoleLogin;
 
         const authStatusMessages = {
           google_unavailable: {
@@ -1136,26 +1164,29 @@ if (isset($_POST['login'])) {
           }).filter(Boolean);
         }
 
-        function roleChoiceHtml(roleRows, selectedRole) {
+        function roleChoiceHtml(roleRows, selectedRole, currentRole) {
           return roleRows.map(function (roleRow) {
             const checked = roleRow.role === selectedRole ? " checked" : "";
             const selectedClass = roleRow.role === selectedRole ? " is-selected" : "";
             const defaultBadge = roleRow.isPrimary
               ? '<span class="badge bg-label-primary">Default</span>'
               : '<span class="badge bg-label-secondary">Assigned</span>';
+            const currentBadge = roleRow.role === currentRole
+              ? '<span class="badge bg-label-success">Current</span>'
+              : '';
 
             return `
               <label class="role-choice-card${selectedClass}" data-role-card="${roleRow.role}">
                 <input class="role-choice-input" type="radio" name="synk_role_choice" value="${roleRow.role}"${checked}>
-                <div class="role-choice-top">
-                  <span class="role-choice-icon ${roleRow.iconClass}">
-                    <i class="bx ${roleRow.icon}"></i>
-                  </span>
-                  <span class="role-choice-state" aria-hidden="true"></span>
+                <span class="role-choice-icon ${roleRow.iconClass}">
+                  <i class="bx ${roleRow.icon}"></i>
+                </span>
+                <div class="role-choice-content">
+                  <div class="role-choice-title">${escapeHtmlText(roleRow.label)}</div>
+                  <div class="role-choice-copy">${escapeHtmlText(roleRow.description)}</div>
+                  <div class="role-choice-badges">${defaultBadge}${currentBadge}</div>
                 </div>
-                <div class="role-choice-title">${escapeHtmlText(roleRow.label)}</div>
-                <div class="role-choice-copy">${escapeHtmlText(roleRow.description)}</div>
-                <div class="role-choice-badges">${defaultBadge}</div>
+                <span class="role-choice-state" aria-hidden="true"></span>
               </label>
             `;
           }).join("");
@@ -1210,7 +1241,8 @@ if (isset($_POST['login'])) {
             dataType: "json",
             data: {
               complete_role_login: 1,
-              selected_role: selectedRole
+              selected_role: selectedRole,
+              role_selection_token: String(roleSelectionContext && roleSelectionContext.selection_token ? roleSelectionContext.selection_token : "")
             }
           }).done(function (response) {
             handleLoginResponse(response);
@@ -1218,19 +1250,26 @@ if (isset($_POST['login'])) {
             Swal.fire({
               icon: "error",
               title: "Role Selection Failed",
-              text: "Please sign in again to continue.",
+              text: "Please try selecting your account again.",
               width: "360px",
               padding: "1.5rem"
+            }).then(function () {
+              promptRoleSelection(roleSelectionContext);
             });
           });
         }
 
         function promptRoleSelection(context) {
+          roleSelectionContext = context;
           const roleRows = roleChoiceRows(context && context.roles);
           const optionKeys = roleRows.map(function (item) {
             return item.role;
           }).filter(Boolean);
-          const defaultRole = String(context && context.primary_role ? context.primary_role : (optionKeys[0] || ""));
+          const isAccountSwitch = Boolean(context && context.is_account_switch);
+          const currentRole = String(context && context.current_role ? context.current_role : "");
+          const defaultRole = optionKeys.indexOf(currentRole) !== -1
+            ? currentRole
+            : String(context && context.primary_role ? context.primary_role : (optionKeys[0] || ""));
 
           if (optionKeys.length === 0) {
             showStatusAlert("role_selection_missing");
@@ -1238,7 +1277,7 @@ if (isset($_POST['login'])) {
           }
 
           Swal.fire({
-            title: "Choose Login Role",
+            title: isAccountSwitch ? "Switch Account" : "Choose Login Role",
             html: `
               <div class="role-choice-lead">
                 Select the workspace to open for this session.
@@ -1248,10 +1287,12 @@ if (isset($_POST['login'])) {
                 </div>
               </div>
               <div class="role-choice-grid">
-                ${roleChoiceHtml(roleRows, defaultRole)}
+                ${roleChoiceHtml(roleRows, defaultRole, currentRole)}
               </div>
             `,
             confirmButtonText: "Continue",
+            showDenyButton: isAccountSwitch,
+            denyButtonText: "Log Out",
             allowOutsideClick: false,
             allowEscapeKey: false,
             width: "620px",
@@ -1271,6 +1312,11 @@ if (isset($_POST['login'])) {
               return value;
             }
           }).then(function (result) {
+            if (result.isDenied && isAccountSwitch) {
+              window.location = "logout.php";
+              return;
+            }
+
             if (!result.isConfirmed || !result.value) {
               return;
             }
@@ -1347,6 +1393,17 @@ if (isset($_POST['login'])) {
             return;
           }
 
+          if (status === "role_selection_invalid") {
+            Swal.fire({
+              icon: "warning",
+              title: "Refresh Account Selection",
+              text: "Refresh the account selector and try again."
+            }).then(function () {
+              window.location = "index.php";
+            });
+            return;
+          }
+
           if (status === "role_selection_missing" || status === "invalid_primary_role") {
             Swal.fire({
               icon: "warning",
@@ -1355,8 +1412,8 @@ if (isset($_POST['login'])) {
               width: "360px",
               padding: "1.5rem"
             }).then(function () {
-              if (pendingRoleLogin && Array.isArray(pendingRoleLogin.roles) && pendingRoleLogin.roles.length > 1) {
-                promptRoleSelection(pendingRoleLogin);
+              if (roleSelectionContext && Array.isArray(roleSelectionContext.roles) && roleSelectionContext.roles.length > 1) {
+                promptRoleSelection(roleSelectionContext);
               }
             });
             return;
@@ -1388,6 +1445,10 @@ if (isset($_POST['login'])) {
             promptRoleSelection(pendingRoleLogin);
           }, 80);
         }
+
+        $("#btn_choose_account").on("click", function () {
+          promptRoleSelection(roleSelectionContext);
+        });
 
         $("#btn_google_login").on("click", function (e) {
           if (googleReady) {

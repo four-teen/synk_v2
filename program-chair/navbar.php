@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
 $programChairCurrentTerm = is_array($programChairPortalContext['current_term'] ?? null)
@@ -74,6 +75,7 @@ $programChairAvatarUrl = synk_resolve_user_avatar_url($programChairEmail, (strin
 
           <li><div class="dropdown-divider"></div></li>
 
+          <?php synk_render_account_switch($conn); ?>
           <li>
             <a class="dropdown-item" href="../logout.php">
               <i class="bx bx-power-off me-2"></i>

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
@@ -128,6 +129,7 @@ $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avat
 
           <li><div class="dropdown-divider"></div></li>
 
+          <?php synk_render_account_switch($conn); ?>
           <li>
             <a class="dropdown-item" href="../logout.php">
               <i class="bx bx-power-off me-2"></i>
