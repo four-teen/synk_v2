@@ -6,15 +6,28 @@ require_once $root . '/backend/db.php';
 require_once $root . '/backend/college_dean_students_helper.php';
 class DeanStudentsQAConnection extends mysqli
 {
+    public $failEmailWrite=false;
+    private $emailWrites=0;
+    #[\ReturnTypeWillChange]
+    public function prepare($query)
+    {
+        if ($this->failEmailWrite && strpos($query,'UPDATE tbl_student_management SET email_address=')===0 && ++$this->emailWrites===2) throw new RuntimeException('Injected second email failure.');
+        return parent::prepare($query);
+    }
     #[\ReturnTypeWillChange]
     public function query($query,$result_mode=MYSQLI_STORE_RESULT)
     {
         if (preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i',$query)) throw new RuntimeException('Directory requests must not change the schema.');
         return parent::query($query,$result_mode);
     }
+    public function startFixtures(): void { parent::begin_transaction(); }
+    public function discardFixtures(): void { parent::rollback(); }
+    public function begin_transaction($flags=null,$name=null): bool { return $this->query('SAVEPOINT dean_students_request'); }
+    public function commit($flags=null,$name=null): bool { return $this->query('RELEASE SAVEPOINT dean_students_request'); }
+    public function rollback($flags=null,$name=null): bool { return $this->query('ROLLBACK TO SAVEPOINT dean_students_request'); }
 }
 $conn->close(); $conn=new DeanStudentsQAConnection($servername,$username,$password,$dbase); $conn->set_charset('utf8mb4');
-$conn->begin_transaction();
+$conn->startFixtures();
 $scenario=(string)($_GET['scenario'] ?? ($argv[1] ?? 'list'));
 $term=synk_fetch_current_academic_term($conn);
 $otherSemester=$term['semester']===1 ? 2 : 1;
@@ -111,6 +124,7 @@ switch ($scenario) {
     case 'bad_action': $_POST['action']='delete'; break;
     default: throw new RuntimeException('Unknown students fixture scenario.');
 }
+if (defined('SYNK_STUDENT_EMAIL_QA')) require __DIR__ . '/student-emails-scenarios.php';
 $takeState=static function () use ($conn): string {
     $rows=[];
     foreach (['tbl_student_management','tbl_student_management_enrolled_subjects'] as $table) $rows[$table]=$conn->query('SELECT * FROM ' . $table . ' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
@@ -122,12 +136,14 @@ register_shutdown_function(static function () use ($conn,$scope,$foreignScope,$p
     try {
         $result=['response'=>json_decode($body,true) ?: $body,'http_status'=>http_response_code() ?: 200,
             'scope'=>$scope,'foreign_scope'=>$foreignScope,'profiles'=>$profiles,'term'=>$term,'session_college'=>$_SESSION['college_id'] ?? 0,
-            'records_unchanged'=>$requestBefore===$takeState()];
-        $conn->rollback();
+            'records_unchanged'=>$requestBefore===$takeState(),
+            'email_profiles'=>$conn->query('SELECT student_id,student_number,first_name,last_name,middle_name,email_address FROM tbl_student_management WHERE student_id IN (' . implode(',',array_column($profiles,'student_id')) . ') ORDER BY student_id')->fetch_all(MYSQLI_ASSOC),
+            'email_pending_count'=>count($_SESSION['dean_student_email_previews'] ?? [])];
+        $conn->discardFixtures();
         if (session_status()===PHP_SESSION_ACTIVE) session_destroy();
         http_response_code(200); header('Content-Type: application/json; charset=utf-8'); echo json_encode($result);
     } catch (Throwable $e) {
-        $conn->rollback(); if (session_status()===PHP_SESSION_ACTIVE) session_destroy();
+        $conn->discardFixtures(); if (session_status()===PHP_SESSION_ACTIVE) session_destroy();
         http_response_code(500); echo json_encode(['fixture_error'=>$e->getMessage(),'output'=>substr($body,0,1200)]);
     }
 });

@@ -8,4 +8,17 @@
 #deanStudentsPageSize { min-width: 7.5rem; }
 .dean-student-profile { background: var(--dean-primary-soft); border-radius: var(--dean-card-radius); padding: 1.25rem; margin-bottom: 1.5rem; }
 .dean-student-file { max-width: 15rem; overflow-wrap: anywhere; }
+.dean-student-email { min-width: 12rem; max-width: 20rem; overflow-wrap: anywhere; }
+.dean-email-table { width: 100%; font-size: .875rem; }
+.dean-email-table th { font-size: .75rem; background: var(--dean-primary-soft); }
+.dean-email-table td { vertical-align: top; }
+.dean-email-table td:last-child { max-width: 22rem; }
+#deanStudentEmailsTools[hidden] { display: none !important; }
+@media (max-width: 767.98px) {
+  .dean-email-table thead { display: none; }
+  .dean-email-table, .dean-email-table tbody, .dean-email-table tr, .dean-email-table td { display: block; width: 100%; }
+  .dean-email-table tr { border: 1px solid var(--dean-border); border-radius: .5rem; margin-bottom: .75rem; padding: .75rem; }
+  .dean-email-table td { border: 0; padding: .4rem; max-width: none !important; }
+  .dean-email-table td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--dean-heading); margin-bottom: .25rem; }
+}
 @media (max-width: 575.98px) { .dean-student-profile { padding: 1rem; } }

@@ -113,12 +113,12 @@ function synk_dean_students_list(mysqli $conn, array $scope, array $filters): ar
     $page=min($pages,$filters['page']); $offset=($page-1)*$filters['page_size'];
     $sort=['name'=>'s.last_name,s.first_name,s.middle_name,s.student_id',
         'id'=>'s.student_number,s.student_id','newest'=>'last_imported DESC,s.last_name,s.first_name,s.student_id'][$filters['sort']];
-    $rows=synk_dean_students_query($conn,"SELECT s.student_id,s.student_number,s.last_name,s.first_name,s.middle_name,s.suffix_name,
+    $rows=synk_dean_students_query($conn,"SELECT s.student_id,s.student_number,s.last_name,s.first_name,s.middle_name,s.suffix_name,s.email_address,
         GROUP_CONCAT(DISTINCT CONCAT_WS(' - ',COALESCE(NULLIF(p.program_code,''),p.program_name),NULLIF(p.major,'')) ORDER BY p.program_code SEPARATOR ', ') AS programs,
         GROUP_CONCAT(DISTINCT COALESCE(NULLIF(sec.full_section,''),NULLIF(es.section_text,''),CONCAT(p.program_code,' ',es.year_level)) ORDER BY sec.full_section SEPARATOR ', ') AS sections,
         COUNT(DISTINCT es.subject_id) AS subject_count,MAX(es.created_at) AS last_imported
         {$source['sql']}
-        GROUP BY s.student_id,s.student_number,s.last_name,s.first_name,s.middle_name,s.suffix_name
+        GROUP BY s.student_id,s.student_number,s.last_name,s.first_name,s.middle_name,s.suffix_name,s.email_address
         ORDER BY {$sort} LIMIT ? OFFSET ?",$source['types'].'ii',array_merge($source['params'],[$filters['page_size'],$offset]));
     foreach ($rows as &$row) {
         $row['student_id']=(int)$row['student_id']; $row['student_number']=(string)$row['student_number'];

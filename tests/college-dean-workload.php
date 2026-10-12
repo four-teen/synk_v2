@@ -104,6 +104,7 @@ try {
     $check($r['response']['status']==='ok' && $r['response']['preview']['summary']['add']===2 && $r['response']['preview']['summary']['duplicate_rows']===1,'The upload preview does not match parsed rows.');
     $check(strlen($r['response']['preview_token'])===64 && $r['pending_count']===1,'The preview did not issue a server-side token.');
     $check($r['before_counts']===$r['after_counts'],'Preview saved student data before confirmation.');
+    $check($r['response']['preview']['rows'][0]['email_address']==='firstrosterqa@sksu.edu.ph' && $r['response']['preview']['rows'][0]['email_status']==='ready','CSV preview did not show the proposed school email.');
     foreach (['subject_code'=>'UNRELATED 999','section_display'=>'UNRELATED 9Z','first_name'=>'DifferentFacultyQA','campus_name'=>'DifferentCampusQA'] as $field=>$value) {
         $other = $class; $other[$field]=$value;
         $r = $request('preview',$csvFor($other,$students));
@@ -162,6 +163,7 @@ try {
     $check(in_array($randomNumber,array_column($r['roster'],'student_number'),true),'The imported student does not appear in the roster.');
     $check((int)$r['count_map'][$class['offering_id']]===count($r['roster']),'The imported roster did not update workload student counts.');
     $check($r['pending_count']===0,'A confirmed token remained reusable.');
+    $check($r['imported_profiles'][0]['email_address']==='firstrosterqa@sksu.edu.ph' && $r['imported_profiles'][1]['email_address']==='secondrosterqa@sksu.edu.ph','New CSV students were saved without generated emails.');
     $r = $request('confirm_existing',$csv);
     $check($r['response']['status']==='ok' && $r['response']['result']['added']===0 && $r['response']['result']['skipped']===2,'Re-import did not skip existing memberships.');
     $check($r['before_counts']===$r['after_counts'],'Re-import changed existing student records.');
@@ -169,6 +171,14 @@ try {
     $check($r['response']['status']==='ok' && $r['response']['result']['added']===1 && $r['response']['result']['skipped']===1,'A partial overlap did not add only the missing student.');
     $r = $request('confirm_profile',$csv);
     $check($r['response']['status']==='ok' && $r['response']['result']['new_profiles']===1 && $r['profile_unchanged']===true,'Matching an ID overwrote the existing student profile.');
+    $r=$request('confirm_missing_email',$csv);
+    $check($r['response']['status']==='ok' && $r['response']['result']['new_profiles']===1,'Filling a reused student email changed identity reuse.');
+    $original=$r['original_profile']; $updated=$r['imported_profiles'][0];
+    $check($original['email_address']==='' && $updated['email_address']===synk_student_management_build_email($original['first_name'],$original['last_name']),'A future CSV import did not fill the existing blank email.');
+    foreach (['email_address','updated_at'] as $field) { unset($original[$field],$updated[$field]); }
+    $check($original==$updated,'Filling a reused email changed other student profile fields.');
+    $r=$request('confirm_email_collision',$csv);
+    $check($r['response']['status']==='ok' && $r['response']['result']['added']===2 && $r['imported_profiles'][0]['email_address']==='','An email collision blocked class importing or assigned the same email.');
     $r = $request('confirm_failure',$csv);
     $check($r['http_status']===500 && $r['before_counts']===$r['after_counts'],'A failed second row did not roll back the whole import.');
     $r = $request('confirm_multisubject',$csv);
@@ -177,6 +187,8 @@ try {
     $check($r['shared_subject_counts']===[2,2],'The same student ID does not have two separate subject memberships.');
     $accentName = 'Peña-Ñuñez, José Niño';
     $accentCsv = $csvFor($class,[['000' . $randomNumber,$accentName],[$randomNumber,'PEÑA-ÑUÑEZ, JOSÉ NIÑO']]);
+    $r=$request('preview',$accentCsv);
+    $check($r['response']['preview']['can_confirm'] && $r['response']['preview']['rows'][0]['email_status']==='review' && $r['response']['preview']['rows'][1]['email_status']==='review','Same-name students in one CSV were assigned colliding emails.');
     foreach (['UTF-8'=>$accentCsv,'UTF-8 BOM'=>"\xEF\xBB\xBF" . $accentCsv,
         'Windows-1252'=>iconv('UTF-8','Windows-1252',$accentCsv),
         'UTF-16LE'=>"\xFF\xFE" . iconv('UTF-8','UTF-16LE',$accentCsv),
