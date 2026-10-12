@@ -197,6 +197,15 @@ $consolidatedReportSignatories = [
             vertical-align: middle;
         }
 
+        .workload-table tbody .workload-group-start > td {
+            border-top: 2px solid #d7e1ec;
+        }
+
+        .workload-table tbody .workload-group-end > td,
+        .workload-table tbody .workload-group-start > td[rowspan] {
+            border-bottom: 2px solid #d7e1ec;
+        }
+
         .workload-table tfoot th,
         .workload-table tfoot td {
             color: #5f728b;
@@ -5070,6 +5079,10 @@ $(document).ready(function () {
         return `${escapeHtml(courseLabel)}${buildProgramMajorNote(row)}`;
     }
 
+    function buildMergedWorkloadCourseCell(groupRows) {
+        return Array.from(new Set(groupRows.map(buildWorkloadCourseCell))).join("<br>");
+    }
+
     function sortWorkloadRowsForDisplay(rowsData) {
         const groups = [];
 
@@ -5144,10 +5157,10 @@ $(document).ready(function () {
 
                 groupRows.forEach(function (groupRow, groupIndex) {
                     rows += `
-                        <tr class="external-workload-row ${groupIndex === 0 ? "paired-row paired-anchor" : "paired-row"}">
+                        <tr class="external-workload-row ${groupIndex === 0 ? "paired-row paired-anchor workload-group-start" : "paired-row"}${groupIndex === groupRows.length - 1 ? " workload-group-end" : ""}">
                             ${groupIndex === 0 ? `<td class="workload-code" rowspan="${groupRows.length}">${escapeHtml(groupRow.sub_code)}</td>` : ""}
                             <td class="workload-desc">${buildWorkloadDescription(groupRow, true)}</td>
-                            <td>${buildWorkloadCourseCell(groupRow)}</td>
+                            ${groupIndex === 0 ? `<td class="workload-course" rowspan="${groupRows.length}">${buildMergedWorkloadCourseCell(groupRows)}</td>` : ""}
                             <td class="workload-days">${escapeHtml(groupRow.days)}</td>
                             <td class="workload-time">${formatCompactTime(groupRow.time)}</td>
                             <td class="workload-room">${escapeHtml(groupRow.room)}</td>
@@ -5170,10 +5183,10 @@ $(document).ready(function () {
             }
 
             rows += `
-                <tr class="external-workload-row">
+                <tr class="external-workload-row workload-group-start workload-group-end">
                     <td class="workload-code">${escapeHtml(row.sub_code)}</td>
                     <td class="workload-desc">${buildWorkloadDescription(row)}</td>
-                    <td>${buildWorkloadCourseCell(row)}</td>
+                    <td class="workload-course">${buildWorkloadCourseCell(row)}</td>
                     <td class="workload-days">${escapeHtml(row.days)}</td>
                     <td class="workload-time">${formatCompactTime(row.time)}</td>
                     <td class="workload-room">${escapeHtml(row.room)}</td>
@@ -5554,10 +5567,10 @@ $(document).ready(function () {
 
                     groupRows.forEach(function (groupRow, groupIndex) {
                         rows += `
-                            <tr class="${groupIndex === 0 ? "paired-row paired-anchor" : "paired-row"}">
+                            <tr class="${groupIndex === 0 ? "paired-row paired-anchor workload-group-start" : "paired-row"}${groupIndex === groupRows.length - 1 ? " workload-group-end" : ""}">
                                 ${groupIndex === 0 ? `<td class="workload-code" rowspan="${groupRows.length}">${escapeHtml(groupRow.sub_code)}</td>` : ""}
                                 <td class="workload-desc">${buildWorkloadDescription(groupRow, true)}</td>
-                                <td>${buildWorkloadCourseCell(groupRow)}</td>
+                                ${groupIndex === 0 ? `<td class="workload-course" rowspan="${groupRows.length}">${buildMergedWorkloadCourseCell(groupRows)}</td>` : ""}
                                 <td class="workload-days">${escapeHtml(groupRow.days)}</td>
                                 <td class="workload-time">${formatCompactTime(groupRow.time)}</td>
                                 <td class="workload-room">${escapeHtml(groupRow.room)}</td>
@@ -5584,10 +5597,10 @@ $(document).ready(function () {
                 }
 
                 rows += `
-                    <tr>
+                    <tr class="workload-group-start workload-group-end">
                         <td class="workload-code">${escapeHtml(row.sub_code)}</td>
                         <td class="workload-desc">${buildWorkloadDescription(row)}</td>
-                        <td>${buildWorkloadCourseCell(row)}</td>
+                        <td class="workload-course">${buildWorkloadCourseCell(row)}</td>
                         <td class="workload-days">${escapeHtml(row.days)}</td>
                         <td class="workload-time">${formatCompactTime(row.time)}</td>
                         <td class="workload-room">${escapeHtml(row.room)}</td>
