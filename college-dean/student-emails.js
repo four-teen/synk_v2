@@ -19,12 +19,13 @@
     $('deanStudentEmailsAll').disabled=state.busy || !state.token || !eligible;
     $('deanStudentEmailsModal').setAttribute('aria-busy',String(state.busy));
     $('deanStudentEmailsPreview').querySelectorAll('input[data-email-student]').forEach(input=>input.disabled=state.busy || !state.token);
+    $('deanStudentEmailsPreview').querySelectorAll('button[data-email-edit]').forEach(button=>button.disabled=state.busy);
   }
   function render() {
     const rows=state.rows.filter(row=>!$('deanStudentEmailsReviewOnly').checked || row.status==='review');
     const labels={ready:'Proposed',preserved:'Kept',review:'Needs review'};
     const colors={ready:'success',preserved:'secondary',review:'warning'};
-    $('deanStudentEmailsPreview').innerHTML=rows.length ? `<table class="table dean-email-table"><thead><tr><th scope="col">Select</th><th scope="col">Student</th><th scope="col">Email</th><th scope="col">Status</th></tr></thead><tbody>${rows.map(row=>`<tr><td data-label="Select">${row.status==='ready' ? `<input type="checkbox" class="form-check-input" data-email-student="${row.student_id}" aria-label="${escape('Approve email for '+row.student_name)}" ${state.selected.has(row.student_id) ? 'checked' : ''}>` : '<span class="text-muted">&mdash;</span>'}</td><td data-label="Student"><div class="fw-semibold">${escape(row.student_name)}</div><small class="dean-student-id">${escape(row.student_number)}</small></td><td data-label="Email" class="dean-student-email">${escape(row.email || 'Not generated')}</td><td data-label="Status"><span class="badge bg-label-${colors[row.status]}">${labels[row.status]}</span><p class="small text-muted mt-2 mb-0">${escape(row.reason)}</p></td></tr>`).join('')}</tbody></table>` : '<p class="text-muted py-3">No students match this view.</p>';
+    $('deanStudentEmailsPreview').innerHTML=rows.length ? `<table class="table dean-email-table"><thead><tr><th scope="col">Select</th><th scope="col">Student</th><th scope="col">Email</th><th scope="col">Status</th></tr></thead><tbody>${rows.map(row=>`<tr><td data-label="Select">${row.status==='ready' ? `<input type="checkbox" class="form-check-input" data-email-student="${row.student_id}" aria-label="${escape('Approve email for '+row.student_name)}" ${state.selected.has(row.student_id) ? 'checked' : ''}>` : '<span class="text-muted">&mdash;</span>'}</td><td data-label="Student"><div class="fw-semibold">${escape(row.student_name)}</div><small class="dean-student-id">${escape(row.student_number)}</small></td><td data-label="Email" class="dean-student-email">${escape(row.email || 'Not generated')}</td><td data-label="Status"><span class="badge bg-label-${colors[row.status]}">${labels[row.status]}</span><p class="small text-muted mt-2 mb-0">${escape(row.reason)}</p><button type="button" class="btn btn-sm btn-outline-primary mt-2" data-email-edit="${row.student_id}" aria-label="${escape('Edit '+row.student_name)}">Edit Student</button></td></tr>`).join('')}</tbody></table>` : '<p class="text-muted py-3">No students match this view.</p>';
     controls();
   }
   async function request(action, params={}) {
@@ -53,7 +54,7 @@
       const s=data.summary;
       $('deanStudentEmailsSummary').innerHTML=`<span class="badge bg-label-primary">${s.students} unique students</span><span class="badge bg-label-success">${s.ready} eligible</span><span class="badge bg-label-secondary">${s.preserved} existing emails kept</span><span class="badge bg-label-warning">${s.review} need review</span>`;
       $('deanStudentEmailsTools').hidden=!state.rows.length;
-      if (!s.ready) notice(s.review ? 'No emails can be filled automatically. Ask an administrator to verify unclear names or save the confirmed school addresses, then preview again.' : 'These students already have emails, or no students match your filters.','info');
+      if (!s.ready) notice(s.review ? 'Use Edit Student to verify unclear names or enter the confirmed school address, then preview again.' : 'These students already have emails, or no students match your filters.','info');
       render();
     } catch (error) {
       if (generation!==state.generation) return;

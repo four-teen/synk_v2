@@ -7,11 +7,13 @@ require_once $root . '/backend/college_dean_students_helper.php';
 class DeanStudentsQAConnection extends mysqli
 {
     public $failEmailWrite=false;
+    public $failStudentCountWrite=false;
     private $emailWrites=0;
     #[\ReturnTypeWillChange]
     public function prepare($query)
     {
         if ($this->failEmailWrite && strpos($query,'UPDATE tbl_student_management SET email_address=')===0 && ++$this->emailWrites===2) throw new RuntimeException('Injected second email failure.');
+        if ($this->failStudentCountWrite && strpos($query,'UPDATE tbl_offering_enrollee_counts SET')===0) throw new RuntimeException('Injected count refresh failure after removal.');
         return parent::prepare($query);
     }
     #[\ReturnTypeWillChange]
@@ -47,7 +49,7 @@ session_save_path($root . '/temp'); session_start();
 $_SESSION=['user_id'=>$userId,'role'=>'college_dean','csrf_token'=>'dean-students-qa'];
 $subjectRows=$conn->query('SELECT sub_id,sub_code,sub_description FROM tbl_subject_masterlist ORDER BY sub_id LIMIT 2')->fetch_all(MYSQLI_ASSOC);
 $section=static function (array $college,int $semester) use ($conn,$term,$tag): int {
-    $suffix='Q' . substr($tag,-5);
+    $suffix='Q' . substr($tag,-5) . bin2hex(random_bytes(2));
     $full='QA 1' . $suffix;
     $stmt=$conn->prepare("INSERT INTO tbl_sections (program_id,ay_id,semester,year_level,section_name,full_section,status) VALUES (?,?,?,1,?,?,'active')");
     $stmt->bind_param('iiiss',$college['program_id'],$term['ay_id'],$semester,$suffix,$full); $stmt->execute(); $id=(int)$stmt->insert_id; $stmt->close(); return $id;
@@ -83,11 +85,13 @@ $link($profiles['foreign']['student_id'],$foreignScope,$foreignSection,$term['se
 $link($profiles['archived']['student_id'],$scope,$ownSection,$term['semester'],$subjectRows[0],0);
 $handler='backend/query_college_dean_students.php';
 $_SERVER['REQUEST_METHOD']='POST'; $_GET=[];
-$_POST=['action'=>'list','csrf_token'=>'dean-students-qa','search'=>$tag];
+$_POST=['action'=>'list','csrf_token'=>'dean-students-qa','search'=>$tag,'term'=>'all'];
 switch ($scenario) {
     case 'page': $handler='college-dean/students.php'; $_GET=['college_id'=>$foreignScope['college_id']]; break;
     case 'bootstrap': $_POST['action']='bootstrap'; break;
     case 'list': break;
+    case 'default_term': unset($_POST['term']); break;
+    case 'whole_year': $_POST['term']='year:'.$term['ay_id']; break;
     case 'current': $_POST['term']=$term['ay_id'] . ':' . $term['semester']; break;
     case 'historical': $_POST['term']=$term['ay_id'] . ':' . $otherSemester; break;
     case 'section': $_POST['section_id']=$ownSection; break;
@@ -125,13 +129,19 @@ switch ($scenario) {
     default: throw new RuntimeException('Unknown students fixture scenario.');
 }
 if (defined('SYNK_STUDENT_EMAIL_QA')) require __DIR__ . '/student-emails-scenarios.php';
+if (defined('SYNK_STUDENT_MANAGEMENT_QA')) require __DIR__ . '/student-management-scenarios.php';
 $takeState=static function () use ($conn): string {
     $rows=[];
     foreach (['tbl_student_management','tbl_student_management_enrolled_subjects'] as $table) $rows[$table]=$conn->query('SELECT * FROM ' . $table . ' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return hash('sha256',json_encode($rows));
 };
 $requestBefore=$takeState(); session_write_close(); ob_start();
-register_shutdown_function(static function () use ($conn,$scope,$foreignScope,$profiles,$term,$requestBefore,$takeState): void {
+$scheduleSnapshot=static function () use ($conn): string {
+    $values=[]; foreach (['tbl_faculty_workload_sched','tbl_class_schedule','tbl_prospectus_offering'] as $table) $values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    return hash('sha256',json_encode($values));
+};
+$scheduleBefore=$scheduleSnapshot();
+register_shutdown_function(static function () use ($conn,$scope,$foreignScope,$profiles,$term,$requestBefore,$takeState,$scheduleSnapshot,$scheduleBefore,$prefix): void {
     $body=''; while (ob_get_level()>0) $body=ob_get_clean() . $body;
     try {
         $result=['response'=>json_decode($body,true) ?: $body,'http_status'=>http_response_code() ?: 200,
@@ -139,6 +149,17 @@ register_shutdown_function(static function () use ($conn,$scope,$foreignScope,$p
             'records_unchanged'=>$requestBefore===$takeState(),
             'email_profiles'=>$conn->query('SELECT student_id,student_number,first_name,last_name,middle_name,email_address FROM tbl_student_management WHERE student_id IN (' . implode(',',array_column($profiles,'student_id')) . ') ORDER BY student_id')->fetch_all(MYSQLI_ASSOC),
             'email_pending_count'=>count($_SESSION['dean_student_email_previews'] ?? [])];
+        if (defined('SYNK_STUDENT_MANAGEMENT_QA')) {
+            $result['manage_students']=$conn->query("SELECT student_id,student_number,first_name,last_name,middle_name,email_address,source_sheet_name,ay_id,semester,program_id FROM tbl_student_management WHERE student_number LIKE '".$prefix."%' ORDER BY student_id")->fetch_all(MYSQLI_ASSOC);
+            $result['manage_memberships']=$conn->query("SELECT es.student_id,es.ay_id,es.semester,es.college_id,es.section_id,es.subject_id,es.is_active,es.offering_id FROM tbl_student_management_enrolled_subjects es JOIN tbl_student_management s ON s.student_id=es.student_id WHERE s.student_number LIKE '".$prefix."%' ORDER BY es.student_enrollment_id")->fetch_all(MYSQLI_ASSOC);
+            $result['schedules_unchanged']=$scheduleBefore===$scheduleSnapshot();
+            $result['manage_directory']=synk_dean_students_list($conn,$scope,synk_dean_students_filters(['search'=>$prefix,'term'=>'all']));
+            $result['manage_portal_profiles']=$conn->query("SELECT student_number,email_address FROM tbl_student_portal_profile WHERE student_number LIKE '".$prefix."%' ORDER BY profile_id")->fetch_all(MYSQLI_ASSOC);
+            $result['manage_deleted_pending']=count($_SESSION['dean_student_delete_previews'] ?? []);
+            $result['manage_count_offering_id']=$GLOBALS['manage_count_offering_id'] ?? 0;
+            $result['manage_count_expected']=$GLOBALS['manage_count_expected'] ?? null;
+            if ($result['manage_count_offering_id']) $result['manage_count']=$conn->query('SELECT total_enrollees,source_kind FROM tbl_offering_enrollee_counts WHERE offering_id='.(int)$result['manage_count_offering_id'])->fetch_assoc();
+        }
         $conn->discardFixtures();
         if (session_status()===PHP_SESSION_ACTIVE) session_destroy();
         http_response_code(200); header('Content-Type: application/json; charset=utf-8'); echo json_encode($result);

@@ -1,6 +1,6 @@
 # Student email automation
 
-In College Dean → Students, choose **Fill Missing Emails**. The preview includes students matching the current search, program, section, and term across every directory result page. Reset filters to include all imported students in the assigned college.
+In College Dean → Students, choose **Fill Missing Emails**. The preview includes students matching the current search, program, class section, and term across every directory result page. The directory defaults to the current semester. Choose **All academic terms** to include other semesters and academic years.
 
 Review the proposed addresses, select eligible rows individually or with **Select all eligible emails**, then choose **Save Selected**. Existing emails are preserved. The directory refreshes after saving. A shared student receives one email on their existing unique profile, so their subject memberships stay attached to the same student ID.
 
@@ -14,7 +14,7 @@ Addresses use the complete stored first name followed by the last name, lowercas
 
 The spelling is taken from the profile: “Jan” remains “jan”. Confirm that the proposals match actual school accounts before selecting them. Generating an address does not provision an institutional mailbox.
 
-Duplicate addresses are checked against existing emails and proposed addresses for other student IDs throughout the directory, including other colleges. Initials, damaged letters, unsupported spellings, and invalid email lengths are held for review. Ask an administrator to verify the profile names or save confirmed school addresses for these records. Automatic generation does not invent a numeric suffix. Use **Show only emails needing review** to locate these cases.
+Duplicate addresses are checked against existing emails and proposed addresses for other student IDs throughout the directory, including other colleges. Initials, damaged letters, unsupported spellings, and invalid email lengths are held for review. Use **Show only emails needing review**, then **Edit Student** to correct verified names or save the confirmed school address. Automatic generation does not invent a numeric suffix.
 
 Future Dean CSV imports display proposed emails during **Preview Import** and fill eligible blank emails when confirming new class memberships. They preserve existing email values and leave conflicting emails blank while allowing the class import to proceed. CSV name parsing and student ID matching retain their existing behavior. Students already in the selected class are skipped; use **Fill Missing Emails** to update their missing addresses.
 
