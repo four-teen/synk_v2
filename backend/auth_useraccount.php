@@ -534,7 +534,7 @@ function synk_filter_loginable_role_rows(mysqli $conn, array $row, array $roleRo
             continue;
         }
 
-        if (in_array($role, ['VPAA', 'DI'], true) && !synk_useraccount_has_active_role($conn, $row, $role)) {
+        if (!synk_useraccount_has_active_role($conn, $row, $role)) {
             continue;
         }
 
@@ -794,6 +794,9 @@ function synk_store_pending_role_login(array $row, array $roleRows, array $conte
         'primary_role' => synk_useraccount_primary_role($roleRows, (string)($row['role'] ?? '')),
         'roles' => synk_role_rows_to_payload($roleRows),
         'avatar_url' => trim((string)($context['avatar_url'] ?? '')),
+        'is_account_switch' => !empty($context['is_account_switch']),
+        'current_role' => synk_normalize_role_code((string)($context['current_role'] ?? '')),
+        'selection_token' => !empty($context['is_account_switch']) ? bin2hex(random_bytes(32)) : '',
     ];
 }
 

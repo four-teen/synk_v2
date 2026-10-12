@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
 $registrarCurrentTerm = is_array($registrarPortalContext['current_term'] ?? null)
@@ -65,6 +66,7 @@ $registrarAvatarUrl = synk_resolve_user_avatar_url($registrarEmail, (string)($_S
           </li>
 
           <li><div class="dropdown-divider"></div></li>
+          <?php synk_render_account_switch($conn); ?>
           <li>
             <a class="dropdown-item" href="../logout.php">
               <i class="bx bx-power-off me-2"></i>

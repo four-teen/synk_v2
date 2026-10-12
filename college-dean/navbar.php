@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
 $collegeDeanCollege = is_array($collegeDeanPortalContext['college'] ?? null)
@@ -62,6 +63,7 @@ $collegeDeanAvatarUrl = synk_resolve_user_avatar_url($collegeDeanEmail, (string)
 
           <li><div class="dropdown-divider"></div></li>
 
+          <?php synk_render_account_switch($conn); ?>
           <li>
             <a class="dropdown-item" href="../logout.php">
               <i class="bx bx-power-off me-2"></i>

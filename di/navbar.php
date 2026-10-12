@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once __DIR__ . '/../backend/user_avatar_helper.php';
 $diAvatarFallback = synk_default_user_avatar_path();
 $diAvatarUrl = synk_resolve_user_avatar_url((string)$moduleAccount['email'], (string)($_SESSION['user_avatar_url'] ?? ''), 80);
@@ -17,6 +18,7 @@ $diAvatarUrl = synk_resolve_user_avatar_url((string)$moduleAccount['email'], (st
         <ul class="dropdown-menu dropdown-menu-end">
           <li class="px-3 py-2"><strong class="d-block"><?= synk_leadership_h($moduleAccount['username']) ?></strong><small class="text-muted d-block">DI · Director for Instruction</small><small class="text-muted di-email"><?= synk_leadership_h($moduleAccount['email']) ?></small></li>
           <li><div class="dropdown-divider"></div></li>
+          <?php synk_render_account_switch($conn); ?>
           <li><a class="dropdown-item" href="../logout.php"><i class="bx bx-power-off me-2"></i>Log Out</a></li>
         </ul>
       </li>
