@@ -3,8 +3,8 @@
 .dean-students-table td { vertical-align: middle; }
 .dean-student-id { color: var(--dean-primary); font-weight: 600; white-space: nowrap; }
 .dean-student-name { min-width: 12rem; font-weight: 500; }
-.dean-student-full-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .15rem; }
-.dean-student-contact { color: var(--dean-text); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .2rem; }
+.dean-student-full-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0; line-height: 1.25; }
+.dean-student-contact { color: var(--dean-text); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0; line-height: 1.25; }
 .dean-student-context { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #deanStudentsSort { min-width: 10rem; }
 #deanStudentsPageSize { min-width: 7.5rem; }
@@ -21,7 +21,7 @@
 .dean-student-directory-table th, .dean-student-directory-table td { padding: .75rem .5rem; }
 .dean-student-directory-table th { font-size: .7rem; letter-spacing: .025rem; }
 .dean-student-directory-table .dean-student-name { min-width: 0; }
-.dean-student-directory-table .dean-student-id { font-size: .8rem; }
+.dean-student-directory-table .dean-student-id { font-size: .8rem; line-height: 1.25; }
 .dean-student-directory-table .dean-student-context { max-width: none; white-space: normal; overflow-wrap: anywhere; }
 .dean-student-row-actions { display: flex; justify-content: flex-end; gap: .35rem; }
 .dean-student-row-actions .btn { padding: .25rem .45rem; white-space: nowrap; }

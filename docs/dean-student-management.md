@@ -2,6 +2,8 @@
 
 Open College Dean → Students. The directory starts with the configured current academic year and semester. **Reset Filters** returns to that semester. You can choose another semester, a whole academic year with **All semesters**, or **All academic terms**.
 
+Choose **Email status → Missing email** to locate students who need an address, then use their **Edit** button. **With email** shows students with an address; **All emails** removes this filter. Email status applies together with search, academic term, program, and class section. It also scopes matching-result selection and the Fill Missing Emails preview. Refresh and successful edits retain this choice; a student disappears from the missing-email results after their address is saved. Reset Filters restores **All emails**.
+
 The compact **Student Name** column shows the student ID first, the full name on a single second line, and the email in lowercase italic text below it. **Class Sections** shows every class group in which the student has imported subjects for the selected term. It can legitimately contain several sections. The verified home section is omitted from this display.
 
 ## Add and edit students

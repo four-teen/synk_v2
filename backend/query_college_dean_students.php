@@ -13,7 +13,7 @@ function synk_dean_students_response(array $payload, int $status=200): void
     exit;
 }
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') synk_dean_students_response(['status'=>'error','message'=>'Use a POST request.'],405);
-foreach (['action','csrf_token','college_id','campus_id','program_id','section_id','term','search','sort','page','page_size','student_id','preview_token','selected_ids',
+foreach (['action','csrf_token','college_id','campus_id','program_id','section_id','term','email_status','search','sort','page','page_size','student_id','preview_token','selected_ids',
     'student_number','first_name','last_name','middle_name','suffix_name','email_address','version','record_term','record_program_id','year_level'] as $field) {
     if (isset($_POST[$field]) && !is_scalar($_POST[$field])) synk_dean_students_response(['status'=>'error','message'=>'Invalid request.'],400);
 }

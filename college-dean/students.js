@@ -14,6 +14,7 @@
   function filters() {
     return {search:$('deanStudentsSearch').value.trim(), term:$('deanStudentsTerm').value || 'all',
       program_id:$('deanStudentsProgram').value || '0', section_id:$('deanStudentsSection').value || '0',
+      email_status:$('deanStudentsEmailStatus').value || 'all',
       sort:$('deanStudentsSort').value || 'name', page_size:$('deanStudentsPageSize').value || '25', page:state.page};
   }
   async function request(action, params = {}) {
@@ -55,7 +56,7 @@
     $('deanImportedPrograms').textContent = number(data.summary.programs);
     if (!data.rows.length) {
       const query = filters();
-      const filtered = query.search || query.term !== 'all' || query.program_id !== '0' || query.section_id !== '0';
+      const filtered = query.search || query.term !== 'all' || query.program_id !== '0' || query.section_id !== '0' || query.email_status !== 'all';
       $('deanStudentsRows').innerHTML = `<tr><td colspan="6"><div class="dean-empty-state my-2"><i class="bx bx-user-pin" aria-hidden="true"></i><h5>${filtered ? 'No matching students' : 'No students yet'}</h5><p class="mb-0">${filtered ? 'Try another name or ID, or choose another academic term.' : 'Add a student or import students through Faculty Workload.'}</p></div></td></tr>`;
     } else {
       $('deanStudentsRows').innerHTML = data.rows.map(row=>{
@@ -88,7 +89,7 @@
     }
   }
   async function initialize(preserve = false) {
-    const previous = preserve ? filters() : {program_id:'0',section_id:'0',term:''};
+    const previous = preserve ? filters() : {program_id:'0',section_id:'0',term:'',email_status:'all'};
     state.ready = false; state.generation++; loading(); notice();
     $('deanStudentEmailsOpen').disabled = true;
     $('deanStudentAdd').disabled = true;
@@ -102,11 +103,12 @@
       $('deanStudentsTerm').innerHTML = '<option value="all">All academic terms</option>' + data.options.terms.map(row=>`<option value="${escape(row.key)}">${escape(row.label)}${row.key === currentKey ? ' (Current)' : ''}</option>`).join('') + years.map(([id,label])=>`<option value="year:${escape(id)}">${escape(label)} - All semesters</option>`).join('');
       $('deanStudentsProgram').value = data.options.programs.some(row=>String(row.program_id) === previous.program_id) ? previous.program_id : '0';
       $('deanStudentsTerm').value = previous.term==='all' || data.options.terms.some(row=>row.key === previous.term) || (previous.term.startsWith('year:') && years.some(([id])=>`year:${id}`===previous.term)) ? previous.term : state.currentTerm;
+      $('deanStudentsEmailStatus').value=previous.email_status;
       sections();
       if (preserve && state.options.sections.some(row=>String(row.section_id) === previous.section_id
           && (!Number(previous.program_id) || row.program_id === Number(previous.program_id))
           && (previous.term === 'all' || row.term === previous.term || (previous.term.startsWith('year:') && row.term.split(':')[0] === previous.term.slice(5))))) $('deanStudentsSection').value = previous.section_id;
-      ['deanStudentsProgram','deanStudentsTerm','deanStudentsSection','deanStudentsSearchButton','deanStudentsReset'].forEach(id=>{ $(id).disabled = false; });
+      ['deanStudentsProgram','deanStudentsTerm','deanStudentsSection','deanStudentsEmailStatus','deanStudentsSearchButton','deanStudentsReset'].forEach(id=>{ $(id).disabled = false; });
       state.ready = true; await load();
     } catch (error) {
       notice(error.message);
@@ -139,14 +141,14 @@
   $('deanStudentsFilters').addEventListener('submit',event=>{ event.preventDefault(); load(); });
   $('deanStudentsSearch').addEventListener('input',()=>{ clearTimeout(searchTimer); searchTimer = setTimeout(()=>load(),300); });
   ['deanStudentsProgram','deanStudentsTerm'].forEach(id=>$(id).addEventListener('change',()=>{ sections(); load(); }));
-  ['deanStudentsSection','deanStudentsSort','deanStudentsPageSize'].forEach(id=>$(id).addEventListener('change',()=>load()));
+  ['deanStudentsSection','deanStudentsEmailStatus','deanStudentsSort','deanStudentsPageSize'].forEach(id=>$(id).addEventListener('change',()=>load()));
   $('deanStudentsPrevious').addEventListener('click',()=>{ if (state.page > 1) { state.page--; load(false); } });
   $('deanStudentsNext').addEventListener('click',()=>{ if (state.page < state.pages) { state.page++; load(false); } });
   $('deanStudentsRefresh').addEventListener('click',()=>initialize(true));
   $('deanStudentsRefresh').addEventListener('student-emails-saved',()=>load(false));
   $('deanStudentsRefresh').addEventListener('student-records-changed',()=>initialize(true));
   $('deanStudentsReset').addEventListener('click',()=>{
-    $('deanStudentsSearch').value = ''; $('deanStudentsProgram').value = '0'; $('deanStudentsTerm').value = state.currentTerm; sections(); load();
+    $('deanStudentsSearch').value = ''; $('deanStudentsProgram').value = '0'; $('deanStudentsTerm').value = state.currentTerm; $('deanStudentsEmailStatus').value='all'; sections(); load();
   });
   $('deanStudentsRows').addEventListener('click',event=>{
     const button = event.target.closest('[data-student]');
