@@ -66,7 +66,9 @@ try {
         if (!$pending || $pending['faculty_id'] !== $facultyId || $pending['offering_id'] !== $offeringId) throw new DomainException('This import preview is no longer available. Preview the CSV again.');
         $result = synk_dean_roster_save($conn,$scope,$term,$pending,(int)$_SESSION['user_id']);
         unset($_SESSION['dean_roster_previews'][$token]);
-        synk_dean_roster_response(['status'=>'ok','result'=>$result,'message'=>$result['added'] . ' students added. ' . $result['skipped'] . ' existing students skipped.']);
+        $message=$result['added'] . ' students added. ' . $result['skipped'] . ' existing students skipped. ' . $result['emails_added'] . ' missing emails filled.';
+        if ($result['emails_review']) $message.=' ' . $result['emails_review'] . ' emails need review in Student Management.';
+        synk_dean_roster_response(['status'=>'ok','result'=>$result,'message'=>$message]);
     }
     $file = $_FILES['csv_file'] ?? null;
     if (!is_array($file) || !is_scalar($file['error'] ?? null) || (int)$file['error'] !== UPLOAD_ERR_OK

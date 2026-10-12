@@ -128,9 +128,27 @@ function synk_student_management_master_semester_number($value): int
     return $map[$normalized] ?? 0;
 }
 
+function synk_student_management_fold_email_name(string $value): string
+{
+    // Deterministic on Windows/Linux, including servers without intl or mbstring.
+    return strtr($value, [
+        'À'=>'A','Á'=>'A','Â'=>'A','Ã'=>'A','Ä'=>'A','Å'=>'A','Ā'=>'A','Ă'=>'A','Ą'=>'A',
+        'à'=>'a','á'=>'a','â'=>'a','ã'=>'a','ä'=>'a','å'=>'a','ā'=>'a','ă'=>'a','ą'=>'a',
+        'Ç'=>'C','Ć'=>'C','Č'=>'C','ç'=>'c','ć'=>'c','č'=>'c','Ð'=>'D','Đ'=>'D','ð'=>'d','đ'=>'d',
+        'È'=>'E','É'=>'E','Ê'=>'E','Ë'=>'E','Ē'=>'E','Ė'=>'E','Ę'=>'E','è'=>'e','é'=>'e','ê'=>'e','ë'=>'e','ē'=>'e','ė'=>'e','ę'=>'e',
+        'Ì'=>'I','Í'=>'I','Î'=>'I','Ï'=>'I','Ī'=>'I','İ'=>'I','ì'=>'i','í'=>'i','î'=>'i','ï'=>'i','ī'=>'i','ı'=>'i',
+        'Ñ'=>'N','Ń'=>'N','Ň'=>'N','ñ'=>'n','ń'=>'n','ň'=>'n','Ł'=>'L','ł'=>'l',
+        'Ò'=>'O','Ó'=>'O','Ô'=>'O','Õ'=>'O','Ö'=>'O','Ø'=>'O','Ō'=>'O','ò'=>'o','ó'=>'o','ô'=>'o','õ'=>'o','ö'=>'o','ø'=>'o','ō'=>'o',
+        'Ù'=>'U','Ú'=>'U','Û'=>'U','Ü'=>'U','Ū'=>'U','ù'=>'u','ú'=>'u','û'=>'u','ü'=>'u','ū'=>'u',
+        'Ý'=>'Y','Ÿ'=>'Y','ý'=>'y','ÿ'=>'y','Ś'=>'S','Š'=>'S','ś'=>'s','š'=>'s','Ž'=>'Z','Ź'=>'Z','Ż'=>'Z','ž'=>'z','ź'=>'z','ż'=>'z',
+        'Æ'=>'AE','æ'=>'ae','Œ'=>'OE','œ'=>'oe','ß'=>'ss','Þ'=>'TH','þ'=>'th',
+    ]);
+}
+
 function synk_student_management_ascii_token(string $value): string
 {
-    $normalized = synk_student_management_normalize_space($value);
+    $normalized = synk_student_management_fold_email_name(synk_student_identity_utf8(synk_student_management_normalize_space($value)));
+    $normalized = preg_replace('/\p{M}/u', '', $normalized) ?? $normalized;
 
     if (function_exists('iconv')) {
         $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $normalized);

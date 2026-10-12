@@ -5,6 +5,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $root = dirname(__DIR__, 2);
 require_once $root . '/backend/db.php';
 require_once $root . '/backend/college_dean_workload_helper.php';
+require_once $root . '/backend/student_email_helper.php';
 class DeanRosterQAConnection extends mysqli
 {
     public $failRosterInsert = false;
@@ -135,12 +136,20 @@ if (strpos($scenario,'confirm') === 0) {
         $partial = $pending; $partial['parsed']['students'] = [$parsed['students'][0]];
         synk_dean_roster_save($conn,$scope,$term,$partial,$userId);
     }
-    if ($scenario === 'confirm_profile') {
+    if (in_array($scenario,['confirm_profile','confirm_missing_email','confirm_email_collision'],true)) {
         $record = $parsed['students'][0] + ['ay_id'=>$term['ay_id'],'semester'=>$term['semester'],
             'source_sheet_name'=>'QA ORIGINAL','source_file_name'=>'qa-original.csv','year_level'=>$class['year_level'],
             'email_address'=>'existing-profile-qa@sksu.edu.ph','program_id'=>$class['program_id'],'uploaded_by'=>$userId];
+        if ($scenario !== 'confirm_profile') $record['email_address']='';
         $profileId = synk_student_management_insert_master_student_record($conn,$record);
         $profileBefore = $conn->query('SELECT * FROM tbl_student_management WHERE student_id=' . $profileId)->fetch_assoc();
+        if ($scenario === 'confirm_email_collision') {
+            $collision=$record;
+            $collision['student_number']='000'.(string)(5900000000+random_int(1,10000000));
+            $collision['first_name']='OtherEmailQA'; $collision['last_name']='Student';
+            $collision['email_address']=synk_student_email_candidate($record)['email'];
+            synk_student_identity_insert_record($conn,$collision);
+        }
     }
     if ($scenario === 'confirm_failure') $conn->failRosterInsert = true;
     if ($scenario === 'confirm_removed') $conn->query('DELETE FROM tbl_faculty_workload_sched WHERE faculty_id=' . $facultyId . ' AND schedule_id IN (SELECT schedule_id FROM tbl_class_schedule WHERE offering_id=' . $offeringId . ')');
@@ -180,12 +189,13 @@ switch ($scenario) {
     case 'unknown_action': $_POST['action']='delete'; break;
     case 'confirm': case 'confirm_existing': case 'confirm_removed': case 'confirm_expired':
     case 'confirm_identity': case 'confirm_forged': case 'confirm_tampered': case 'confirm_other_user':
-    case 'confirm_profile': case 'confirm_partial': case 'confirm_failure': case 'confirm_multisubject': break;
+    case 'confirm_profile': case 'confirm_partial': case 'confirm_failure': case 'confirm_multisubject':
+    case 'confirm_missing_email': case 'confirm_email_collision': break;
     default: throw new RuntimeException('Unknown roster fixture scenario.');
 }
 session_write_close();
 ob_start();
-register_shutdown_function(static function () use ($conn,$scope,$term,$class,$facultyId,$offeringId,$userId,$scenario,$takeCounts,$beforeCounts,$profileBefore,$originalProfiles,$photoExpectedUrl,$photoBeforeUrl,$photoUserId): void {
+register_shutdown_function(static function () use ($conn,$scope,$term,$class,$facultyId,$offeringId,$userId,$scenario,$takeCounts,$beforeCounts,$profileBefore,$originalProfiles,$photoExpectedUrl,$photoBeforeUrl,$photoUserId,$parsed): void {
     $body = '';
     while (ob_get_level() > 0) $body = ob_get_clean() . $body;
     try {
@@ -196,6 +206,12 @@ register_shutdown_function(static function () use ($conn,$scope,$term,$class,$fa
             'roster'=>synk_dean_roster_rows($conn,$class), 'count_map'=>synk_fetch_offering_enrollee_count_map($conn,[$offeringId]),
             'profile_unchanged'=>$profileBefore === null || $conn->query('SELECT * FROM tbl_student_management WHERE student_id=' . (int)$profileBefore['student_id'])->fetch_assoc() === $profileBefore,
             'shared_profiles_unchanged'=>true,'shared_subject_counts'=>[]];
+        $result['imported_profiles']=[];
+        foreach (($parsed['students'] ?? []) as $student) {
+            $profile=synk_student_identity_find($conn,$student['student_number']);
+            if ($profile) $result['imported_profiles'][]=$profile;
+        }
+        $result['original_profile']=$profileBefore;
         foreach (($originalProfiles ?? []) as $profile) {
             $current=synk_student_identity_find($conn,$profile['student_number']);
             $result['shared_profiles_unchanged'] = $result['shared_profiles_unchanged'] && $current === $profile;

@@ -328,7 +328,7 @@ function synk_dean_roster_validate_header(array $parsed, array $class): array
         $notes[] = 'The CSV title differs. The assigned subject title will be retained.';
     }
     $notes[] = 'Students will be added to ' . $class['term_text'] . '. Existing students in this class will be skipped.';
-    $notes[] = 'Students are matched by their exact ID. Existing student profiles are reused across subjects and kept unchanged.';
+    $notes[] = 'Students are matched by their exact ID. Existing profiles are reused across subjects; only missing emails may be filled.';
     $notes[] = 'The assigned schedules and rooms will be retained. Lecture and laboratory share this student list.';
     return $notes;
 }
@@ -340,10 +340,11 @@ function synk_dean_roster_names_match(array $csv, array $master): bool
 
 function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): array
 {
+    require_once __DIR__ . '/student_email_helper.php';
     $notes = synk_dean_roster_validate_header($parsed, $class);
     $numbers = array_column($parsed['students'], 'student_number');
     $placeholders = implode(',', array_fill(0, count($numbers), '?'));
-    $stmt = $conn->prepare("SELECT student_id, student_number, last_name, first_name, middle_name, suffix_name
+    $stmt = $conn->prepare("SELECT student_id, student_number, last_name, first_name, middle_name, suffix_name, email_address
         FROM tbl_student_management WHERE student_number IN ({$placeholders}) ORDER BY student_id");
     synk_bind_dynamic_params($stmt, str_repeat('s', count($numbers)), $numbers);
     synk_dean_roster_execute($stmt);
@@ -351,6 +352,14 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
     $masters = [];
     while ($row = $result->fetch_assoc()) $masters[(string)$row['student_number']][] = $row;
     $stmt->close();
+    $catalog=synk_student_email_catalog($conn);
+    // New students in the same CSV must also be checked against each other.
+    foreach ($parsed['students'] as $incoming) {
+        if (!isset($masters[$incoming['student_number']])) {
+            $candidate=synk_student_email_candidate($incoming);
+            if ($candidate['status']==='ready') $catalog['owners'][$candidate['email']][$incoming['student_number']]=true;
+        }
+    }
     $existingNumbers = array_fill_keys(array_column(synk_dean_roster_rows($conn, $class), 'student_number'), true);
     $summary = ['students'=>count($numbers), 'add'=>0, 'existing'=>0, 'new_profiles'=>0, 'conflicts'=>0, 'duplicate_rows'=>$parsed['duplicate_rows']];
     $rows = [];
@@ -373,6 +382,10 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
             $student['action'] = 'add'; $summary['add']++;
             if (!$matches) $summary['new_profiles']++;
         }
+        $email=synk_student_email_check($matches ? $matches[0] : $student,$catalog['owners']);
+        $student['email_address']=$email['status']==='review' ? '' : $email['email'];
+        $student['email_status']=$email['status']; $student['email_reason']=$email['reason'];
+        $student['email_preview']=$email['email'];
         $rows[] = $student;
     }
     $checks = [
@@ -380,6 +393,9 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
         ['field'=>'Campus','cell'=>'A1','found'=>$parsed['campus_header'],'expected'=>$class['campus_name']],
         ['field'=>'Faculty','cell'=>'D6','found'=>$parsed['faculty_name'],'expected'=>$class['faculty_name']],
     ];
+    $review=count(array_filter($rows,static function ($row) { return $row['email_status']==='review'; }));
+    $notes[]='Blank emails use complete stored first and last names at @sksu.edu.ph. Existing emails are retained; no middle names are added.';
+    if ($review) $notes[]=$review . ' student emails need review. Their class imports can proceed; their blank emails will remain for correction.';
     return ['rows'=>$rows, 'summary'=>$summary, 'notes'=>$notes, 'checks'=>$checks, 'can_confirm'=>$summary['conflicts'] === 0 && $summary['add'] > 0];
 }
 
@@ -392,10 +408,13 @@ function synk_dean_roster_save(mysqli $conn, array $scope, array $term, array $p
     // Serializes Dean imports across accounts, including profile creation for overlapping student IDs.
     $lock = $conn->query("SELECT GET_LOCK('synk_college_dean_roster_import', 5) AS acquired")->fetch_assoc();
     if ((int)$lock['acquired'] !== 1) throw new DomainException('Another import is being saved. Please try again shortly.');
-    $transaction = false;
+    $transaction = false; $emailLocked=false;
     try {
+        require_once __DIR__ . '/student_email_helper.php';
+        synk_student_email_lock($conn); $emailLocked=true;
         if (!$conn->begin_transaction()) throw new RuntimeException('Unable to begin the roster import transaction.');
         $transaction = true;
+        synk_student_email_catalog($conn,true);
         $offeringId = (int)$pending['offering_id'];
         $stmt = $conn->prepare('SELECT offering_id FROM tbl_prospectus_offering WHERE offering_id=? FOR UPDATE');
         $stmt->bind_param('i', $offeringId); synk_dean_roster_execute($stmt); $stmt->get_result()->fetch_assoc(); $stmt->close();
@@ -409,7 +428,7 @@ function synk_dean_roster_save(mysqli $conn, array $scope, array $term, array $p
         $class = synk_dean_workload_class($conn, $freshScope, $freshTerm, $pending['faculty_id'], $offeringId);
         $preview = synk_dean_roster_preview($conn, $class, $pending['parsed']);
         if ($preview['summary']['conflicts'] > 0) throw new DomainException('Student records have changed and contain conflicts. Preview the CSV again.');
-        $added = 0; $profiles = 0; $skipped = $preview['summary']['existing'];
+        $added = 0; $profiles = 0; $skipped = $preview['summary']['existing']; $emailsAdded=0; $emailsReview=0;
         $batch = 'dean-' . bin2hex(random_bytes(24));
         $fileName = $pending['file_name'];
         $scheduleParts = []; $roomParts = [];
@@ -431,6 +450,9 @@ function synk_dean_roster_save(mysqli $conn, array $scope, array $term, array $p
             $identity = synk_student_identity_create_or_reuse($conn, $record);
             $studentId = $identity['student_id'];
             if ($identity['created']) $profiles++;
+            elseif ($student['email_status']==='ready') synk_student_email_fill($conn,$studentId,$student['email_address']);
+            if ($student['email_status']==='ready') $emailsAdded++;
+            if ($student['email_status']==='review') $emailsReview++;
             $stmt = $conn->prepare("INSERT INTO tbl_student_management_enrolled_subjects
                 (import_batch_key,source_file_name,campus_id,college_id,program_id,ay_id,semester,year_level,
                  section_id,section_text,offering_id,subject_id,subject_code,descriptive_title,student_id,faculty_id,
@@ -456,9 +478,13 @@ function synk_dean_roster_save(mysqli $conn, array $scope, array $term, array $p
         }
         if (!$conn->commit()) throw new RuntimeException('Unable to commit the roster import.');
         $transaction = false;
-        return ['added'=>$added, 'skipped'=>$skipped, 'new_profiles'=>$profiles, 'roster_count'=>$total];
+        return ['added'=>$added, 'skipped'=>$skipped, 'new_profiles'=>$profiles, 'roster_count'=>$total,
+            'emails_added'=>$emailsAdded,'emails_review'=>$emailsReview];
     } catch (Throwable $e) {
         if ($transaction) $conn->rollback();
         throw $e;
-    } finally { $conn->query("SELECT RELEASE_LOCK('synk_college_dean_roster_import')"); }
+    } finally {
+        if ($emailLocked) synk_student_email_unlock($conn);
+        $conn->query("SELECT RELEASE_LOCK('synk_college_dean_roster_import')");
+    }
 }

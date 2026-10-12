@@ -40,7 +40,7 @@
   }
   function loading() {
     state.rows = [];
-    $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Loading students...</td></tr>';
+    $('deanStudentsRows').innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">Loading students...</td></tr>';
     $('deanStudentsPrevious').disabled = true; $('deanStudentsNext').disabled = true;
     $('deanStudentsPageInfo').textContent = '';
     ['deanUniqueStudents','deanImportedClasses','deanImportedPrograms'].forEach(id=>{ $(id).textContent = '—'; });
@@ -54,9 +54,9 @@
     if (!data.rows.length) {
       const query = filters();
       const filtered = query.search || query.term !== 'all' || query.program_id !== '0' || query.section_id !== '0';
-      $('deanStudentsRows').innerHTML = `<tr><td colspan="6"><div class="dean-empty-state my-2"><i class="bx bx-user-pin" aria-hidden="true"></i><h5>${filtered ? 'No matching students' : 'No imported students yet'}</h5><p class="mb-0">${filtered ? 'Try another name or ID, or reset the filters.' : 'Use Faculty Workload to import students into assigned classes.'}</p></div></td></tr>`;
+      $('deanStudentsRows').innerHTML = `<tr><td colspan="7"><div class="dean-empty-state my-2"><i class="bx bx-user-pin" aria-hidden="true"></i><h5>${filtered ? 'No matching students' : 'No imported students yet'}</h5><p class="mb-0">${filtered ? 'Try another name or ID, or reset the filters.' : 'Use Faculty Workload to import students into assigned classes.'}</p></div></td></tr>`;
     } else {
-      $('deanStudentsRows').innerHTML = data.rows.map(row=>`<tr><td class="dean-student-id">${escape(row.student_number)}</td><td class="dean-student-name">${escape(row.student_name)}</td><td><div class="dean-student-context" title="${escape(row.programs)}">${escape(row.programs || '—')}</div></td><td><div class="dean-student-context" title="${escape(row.sections)}">${escape(row.sections || '—')}</div></td><td><span class="badge bg-label-primary">${number(row.subject_count)}</span></td><td><button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-student="${row.student_id}" aria-label="${escape('View details for ' + row.student_name)}">View Details</button></td></tr>`).join('');
+      $('deanStudentsRows').innerHTML = data.rows.map(row=>`<tr><td class="dean-student-id">${escape(row.student_number)}</td><td class="dean-student-name">${escape(row.student_name)}</td><td class="dean-student-email">${row.email_address ? escape(row.email_address) : '<span class="badge bg-label-warning">Missing email</span>'}</td><td><div class="dean-student-context" title="${escape(row.programs)}">${escape(row.programs || '—')}</div></td><td><div class="dean-student-context" title="${escape(row.sections)}">${escape(row.sections || '—')}</div></td><td><span class="badge bg-label-primary">${number(row.subject_count)}</span></td><td><button type="button" class="btn btn-sm btn-outline-primary text-nowrap" data-student="${row.student_id}" aria-label="${escape('View details for ' + row.student_name)}">View Details</button></td></tr>`).join('');
     }
     $('deanStudentsPageInfo').textContent = data.pagination.total ? `${number(data.pagination.from)}–${number(data.pagination.to)} of ${number(data.pagination.total)} students · Page ${state.page} of ${state.pages}` : '0 students';
     $('deanStudentsPrevious').disabled = state.page <= 1;
@@ -75,7 +75,7 @@
     } catch (error) {
       if (generation !== state.generation) return;
       notice(error.message);
-      $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
+      $('deanStudentsRows').innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
     } finally {
       if (generation === state.generation) $('deanStudentDirectory').setAttribute('aria-busy','false');
     }
@@ -83,6 +83,7 @@
   async function initialize(preserve = false) {
     const previous = preserve ? filters() : {program_id:'0',section_id:'0',term:'all'};
     state.ready = false; state.generation++; loading(); notice();
+    $('deanStudentEmailsOpen').disabled = true;
     $('deanStudentsRefresh').disabled = true;
     try {
       const data = await request('bootstrap'); state.options = data.options;
@@ -99,8 +100,8 @@
       state.ready = true; await load();
     } catch (error) {
       notice(error.message);
-      $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
-    } finally { $('deanStudentsRefresh').disabled = false; $('deanStudentDirectory').setAttribute('aria-busy','false'); }
+      $('deanStudentsRows').innerHTML = '<tr><td colspan="7" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
+    } finally { $('deanStudentsRefresh').disabled = false; $('deanStudentEmailsOpen').disabled = !state.ready; $('deanStudentDirectory').setAttribute('aria-busy','false'); }
   }
   async function details(row) {
     const generation = ++state.detailGeneration;
@@ -129,6 +130,7 @@
   $('deanStudentsPrevious').addEventListener('click',()=>{ if (state.page > 1) { state.page--; load(false); } });
   $('deanStudentsNext').addEventListener('click',()=>{ if (state.page < state.pages) { state.page++; load(false); } });
   $('deanStudentsRefresh').addEventListener('click',()=>initialize(true));
+  $('deanStudentsRefresh').addEventListener('student-emails-saved',()=>load(false));
   $('deanStudentsReset').addEventListener('click',()=>{
     $('deanStudentsSearch').value = ''; $('deanStudentsProgram').value = '0'; $('deanStudentsTerm').value = 'all'; sections(); load();
   });

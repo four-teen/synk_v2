@@ -61,7 +61,7 @@ const classes = [{offering_id:944,subject_code:'CS 111',section_display:'BSCS 1A
 const requests = [];
 let previewData = {status:'ok',file_name:'class.csv',preview_token:'preview-token', preview:{
   can_confirm:true,summary:{students:2,add:2,existing:0,new_profiles:2,conflicts:0,duplicate_rows:0},notes:['Assigned schedules are retained.'],
-  rows:[{source_row_number:8,student_number:123,student_name_raw:'Student, First',action:'add',issue:''},
+  rows:[{source_row_number:8,student_number:123,student_name_raw:'Student, First',action:'add',issue:'',email_preview:'firststudent@sksu.edu.ph',email_status:'ready'},
     {source_row_number:9,student_number:'000124',student_name_raw:'<img src=x onerror=alert(1)> Peña, JOSÉ NIÑO',action:'add',issue:''}]
 }};
 let confirmError = '';
@@ -186,6 +186,7 @@ const clickClass = async kind => {
   check(!requests.some(r=>r.params.action==='confirm'),'Preview saved the roster automatically.');
   check(element('deanImportPreview').innerHTML.includes('&lt;img') && !element('deanImportPreview').innerHTML.includes('<img'),'CSV content was rendered as executable markup.');
   check(element('deanImportPreview').innerHTML.includes('Peña, JOSÉ NIÑO') && element('deanImportPreview').innerHTML.includes('000124'),'The CSV preview lost leading zeros or accented characters.');
+  check(element('deanImportPreview').innerHTML.includes('firststudent@sksu.edu.ph') && element('deanImportPreview').innerHTML.includes('Will fill missing email'),'The CSV preview did not explain the proposed email.');
   check(requests.find(r=>r.params.action==='preview').params.offering_id===944,'Preview was not bound to the selected class.');
   const beforeFailedImport=scrollCalls.length;
   confirmError='Student records changed. Preview again.'; await element('deanConfirmButton').fire('click');
