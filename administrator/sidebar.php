@@ -39,6 +39,15 @@ $sidebarSections = [
                         'pages' => ['manage-accounts.php'],
                     ],
                     [
+                        'key' => 'student_login_issues',
+                        'href' => 'student-login-issues.php',
+                        'icon_bg' => 'bg-label-warning',
+                        'icon' => 'bx-envelope',
+                        'title' => 'Student Sign-in Issues',
+                        'description' => 'Review emails from unsuccessful student sign-ins',
+                        'pages' => ['student-login-issues.php'],
+                    ],
+                    [
                         'key' => 'academic_settings',
                         'href' => 'academic-settings.php',
                         'icon_bg' => 'bg-label-success',

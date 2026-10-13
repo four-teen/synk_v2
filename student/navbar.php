@@ -2,20 +2,20 @@
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
-$studentCurrentTerm = synk_fetch_current_academic_term($conn);
+$studentCurrentTerm = $studentPortalViewTerm ?? synk_fetch_current_academic_term($conn);
 $studentTermText = trim((string)($studentCurrentTerm['term_text'] ?? 'Current academic term'));
 $studentName = trim((string)($studentPortalDisplayName ?? ucfirst((string)($_SESSION['username'] ?? 'Student'))));
 $studentEmail = trim((string)($studentPortalDisplayEmail ?? (string)($_SESSION['email'] ?? '')));
 $studentPreviewMode = !empty($studentPortalPreviewMode);
 $studentBackUrl = trim((string)($studentPortalBackUrl ?? ''));
 $studentPortalBadge = $studentPreviewMode ? 'Student Preview' : 'Student Portal';
-$studentRoleLabel = $studentPreviewMode ? 'Admin Preview' : 'Student';
+$studentRoleLabel = $studentPreviewMode ? synk_student_preview_label().' · Read only' : 'Student';
 $studentAvatarFallback = synk_default_user_avatar_path();
-$studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, (string)($_SESSION['user_avatar_url'] ?? ''), 80);
+$studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, $studentPreviewMode ? '' : (string)($_SESSION['user_avatar_url'] ?? ''), 80);
 ?>
 
 <nav
-  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme student-navbar<?= $studentPreviewMode ? ' student-preview-navbar' : '' ?>"
   id="layout-navbar"
 >
   <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
@@ -25,9 +25,10 @@ $studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, (string)($_SESSI
   </div>
 
   <div class="navbar-nav-right d-flex align-items-center justify-content-between gap-3 w-100" id="navbar-collapse">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <span class="badge bg-label-primary text-uppercase"><?php echo htmlspecialchars($studentPortalBadge, ENT_QUOTES, 'UTF-8'); ?></span>
-      <span class="badge bg-label-info"><?php echo htmlspecialchars($studentTermText, ENT_QUOTES, 'UTF-8'); ?></span>
+    <div class="d-flex align-items-center gap-2 student-header-cluster<?php echo $studentPreviewMode ? ' flex-wrap' : ''; ?>">
+      <span class="badge bg-label-primary text-uppercase student-header-badge"><?php echo htmlspecialchars($studentPortalBadge, ENT_QUOTES, 'UTF-8'); ?></span>
+      <span class="student-header-term"><?php echo htmlspecialchars($studentTermText, ENT_QUOTES, 'UTF-8'); ?></span>
+      <?php if (!empty($terms)): ?><button class="student-term-toggle" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal" aria-label="Choose academic year and semester" title="Choose academic year and semester"><i class="bx bx-cog" aria-hidden="true"></i></button><?php endif; ?>
       <?php if ($studentPreviewMode && $studentBackUrl !== ''): ?>
         <a href="<?php echo htmlspecialchars($studentBackUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-primary">
           <i class="bx bx-arrow-back me-1"></i> Back to Directory
@@ -70,9 +71,9 @@ $studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, (string)($_SESSI
           <li><div class="dropdown-divider"></div></li>
 
           <li>
-            <a class="dropdown-item" href="../logout.php">
-              <i class="bx bx-power-off me-2"></i>
-              <span class="align-middle">Log Out</span>
+            <a class="dropdown-item" href="<?= htmlspecialchars($studentPreviewMode ? $studentBackUrl : '../logout.php', ENT_QUOTES, 'UTF-8') ?>">
+              <i class="bx <?= $studentPreviewMode ? 'bx-arrow-back' : 'bx-power-off' ?> me-2"></i>
+              <span class="align-middle"><?= $studentPreviewMode ? 'Return to directory' : 'Log Out' ?></span>
             </a>
           </li>
         </ul>

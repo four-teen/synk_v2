@@ -25,6 +25,9 @@
 .dean-student-directory-table .dean-student-context { max-width: none; white-space: normal; overflow-wrap: anywhere; }
 .dean-student-row-actions { display: flex; justify-content: flex-end; gap: .35rem; }
 .dean-student-row-actions .btn { padding: .25rem .45rem; white-space: nowrap; }
+.dean-student-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .6rem; }
+.dean-student-account-actions .btn { display: inline-flex; align-items: center; gap: .3rem; padding: .28rem .5rem; font-size: .75rem; white-space: nowrap; }
+.dean-students-readonly [data-student-delete] { display: none !important; }
 @media (max-width: 1199.98px) {
   .dean-student-directory-table .dean-directory-name { width: 40%; }
   .dean-student-directory-table .dean-directory-sections { width: 21%; }

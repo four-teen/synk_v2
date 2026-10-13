@@ -819,7 +819,9 @@ function synk_reset_authenticated_session_context(): void
         $_SESSION['user_avatar_url'],
         $_SESSION['registrar_campus_access'],
         $_SESSION['student_google_sub'],
-        $_SESSION['student_login_at']
+        $_SESSION['student_login_at'],
+        $_SESSION['student_id'],
+        $_SESSION['student_view_term']
     );
 }
 

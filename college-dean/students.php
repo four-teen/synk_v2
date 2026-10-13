@@ -116,7 +116,7 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
       <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><div><h5 class="modal-title" id="deanStudentDeleteTitle">Delete Selected Term Records</h5><p class="small text-muted mb-0 mt-1" id="deanStudentDeleteTerm"></p></div><button type="button" class="btn-close" id="deanStudentDeleteClose" data-bs-dismiss="modal" aria-label="Close"></button></div>
         <div class="modal-body"><div id="deanStudentDeleteNotice" class="alert d-none" role="status"></div>
-          <div class="alert alert-warning">This removes the selected students from the matching class lists and manual directory entries for this academic term. Shared student profiles, login emails, and records in other terms stay available.</div>
+          <div class="alert alert-warning" id="deanStudentDeleteScope">This removes the selected students from the matching class lists and manual directory entries for this academic term. Shared student profiles, login emails, and records in other terms stay available.</div>
           <div id="deanStudentDeletePreview"></div>
           <div class="form-check mt-3"><input class="form-check-input" type="checkbox" id="deanStudentDeleteAcknowledge" disabled><label class="form-check-label" for="deanStudentDeleteAcknowledge">I reviewed the academic term and selected students above.</label></div>
         </div>
