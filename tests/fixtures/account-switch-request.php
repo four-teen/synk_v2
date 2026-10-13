@@ -136,6 +136,7 @@ if ($handler === '') {
         $moduleAccount['role_rows'] = synk_fetch_useraccount_role_rows($conn, $userId, 'admin');
     }
     if ($navbarPath !== null) {
+        if ($navbarPath === 'college-dean/navbar.php') require_once $root . '/backend/college_dean_term_helper.php';
         chdir(dirname($root . '/' . $navbarPath));
         require $root . '/' . $navbarPath;
     } else {

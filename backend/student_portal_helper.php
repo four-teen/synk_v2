@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/auth_useraccount.php';
+require_once __DIR__ . '/student_login_helper.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_block_helper.php';
@@ -9,13 +10,15 @@ require_once __DIR__ . '/schema_helper.php';
 
 function synk_student_preview_student_id_from_request(): int
 {
-    return max(0, (int)($_GET['preview_student_id'] ?? 0));
+    $value = $_GET['preview_student_id'] ?? null;
+    if (!is_int($value) && !is_string($value)) return 0;
+    return (int)(filter_var($value, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]) ?: 0);
 }
 
 function synk_student_preview_return_to_url(string $fallback = ''): string
 {
-    $rawReturnTo = trim((string)($_GET['return_to'] ?? ''));
-    if ($rawReturnTo === '' || preg_match('/[\r\n]/', $rawReturnTo)) {
+    $rawReturnTo = is_string($_GET['return_to'] ?? null) ? trim($_GET['return_to']) : '';
+    if ($rawReturnTo === '' || preg_match('/[\r\n]/', $rawReturnTo) || strpos($rawReturnTo, '\\') !== false) {
         return $fallback;
     }
 
@@ -46,9 +49,45 @@ function synk_student_is_admin_preview_mode(): bool
         && synk_student_preview_student_id_from_request() > 0;
 }
 
+function synk_student_is_staff_preview_mode(): bool
+{
+    return in_array((string)($_SESSION['role'] ?? ''), ['admin','college_dean'], true)
+        && synk_student_preview_student_id_from_request() > 0;
+}
+
+function synk_student_preview_back_url(): string
+{
+    return synk_student_preview_return_to_url(($_SESSION['role'] ?? '') === 'college_dean'
+        ? '../college-dean/students.php' : '../administrator/students/directory.php');
+}
+
+function synk_student_preview_label(): string
+{
+    return ($_SESSION['role'] ?? '') === 'college_dean' ? 'Dean preview' : 'Administrator preview';
+}
+
+function synk_student_preview_college_scope(mysqli $conn): ?array
+{
+    if (($_SESSION['role'] ?? '') !== 'college_dean' || !synk_student_is_staff_preview_mode()) return null;
+    require_once __DIR__ . '/college_dean_students_helper.php';
+    $scope = synk_college_dean_dashboard_scope($conn);
+    if (!$scope) throw new DomainException('Your Dean access or college assignment is no longer available.');
+    $source = synk_dean_students_source($scope, []);
+    $rows = synk_dean_students_query($conn, "SELECT DISTINCT s.student_id {$source['sql']} AND s.student_id=?",
+        $source['types'].'i', array_merge($source['params'], [synk_student_preview_student_id_from_request()]));
+    if (!$rows) throw new DomainException('This student is outside your college directory or has been removed.');
+    return $scope;
+}
+
+function synk_student_preview_subject_scope_sql(mysqli $conn): string
+{
+    $scope = synk_student_preview_college_scope($conn);
+    return $scope ? ' AND es.college_id='.(int)$scope['college_id'].' AND es.campus_id='.(int)$scope['campus_id'] : '';
+}
+
 function synk_student_build_portal_url(string $path, array $query = []): string
 {
-    if (synk_student_is_admin_preview_mode()) {
+    if (synk_student_is_staff_preview_mode()) {
         $query['preview_student_id'] = synk_student_preview_student_id_from_request();
 
         $returnTo = synk_student_preview_return_to_url('');
@@ -86,7 +125,18 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
     }
 
     $role = (string)($_SESSION['role'] ?? '');
-    if ($allowAdminPreview && $role === 'admin' && synk_student_preview_student_id_from_request() > 0) {
+    if ($allowAdminPreview && synk_student_is_staff_preview_mode()) {
+        try {
+            if (!($conn instanceof mysqli)) throw new DomainException('Student preview access is unavailable.');
+            if ($role === 'admin') synk_student_login_require_admin($conn);
+            else {
+                synk_student_preview_college_scope($conn);
+                if (!in_array(basename($_SERVER['PHP_SELF'] ?? ''), ['index.php','profile.php','prospectus.php'], true)) {
+                    throw new DomainException('Dean previews include the student profile, subjects and prospectus. Student evaluation responses remain confidential.');
+                }
+            }
+            if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') throw new DomainException('Student account previews are read-only.');
+        } catch (DomainException $e) { http_response_code(403); exit(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8')); }
         return;
     }
 
@@ -98,19 +148,10 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
             exit;
         }
 
-        if ($conn instanceof mysqli && !synk_student_directory_email_exists($conn, $studentEmail)) {
+        if ($conn instanceof mysqli && !synk_student_login_session_record($conn)) {
             synk_logout_session();
-            header('Location: login.php?auth_status=student_directory_access_denied');
+            header('Location: login.php?auth_status=student_session_changed');
             exit;
-        }
-
-        if ($conn instanceof mysqli) {
-            $profile = synk_student_fetch_portal_profile($conn, $studentEmail);
-            $currentPage = basename($_SERVER['PHP_SELF'] ?? '');
-            if (!synk_student_portal_profile_is_complete($profile) && $currentPage !== 'index.php') {
-                header('Location: index.php?profile_setup=required');
-                exit;
-            }
         }
 
         return;
@@ -272,7 +313,7 @@ function synk_student_fetch_directory_record_by_email(mysqli $conn, string $emai
             ON ca.campus_id = c.campus_id
         LEFT JOIN tbl_academic_years ay
             ON ay.ay_id = sm.ay_id
-        WHERE sm.email_address = ?
+        WHERE LOWER(TRIM(sm.email_address)) = ?
         ORDER BY sm.updated_at DESC, sm.created_at DESC, sm.student_id DESC
         LIMIT 1
     ");
@@ -313,6 +354,7 @@ function synk_student_fetch_subject_year_options(mysqli $conn, int $studentId): 
     }
 
     $tableName = synk_student_portal_enrollment_table_name();
+    $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
     $stmt = $conn->prepare("
         SELECT
             es.ay_id,
@@ -324,6 +366,7 @@ function synk_student_fetch_subject_year_options(mysqli $conn, int $studentId): 
             ON ay.ay_id = es.ay_id
         WHERE es.student_id = ?
           AND es.is_active = 1
+          {$previewScopeSql}
         GROUP BY es.ay_id, ay.ay
         ORDER BY es.ay_id DESC, latest_activity_at DESC
     ");
@@ -1791,6 +1834,7 @@ function synk_student_fetch_subject_rows_by_academic_year(mysqli $conn, int $stu
     }
 
     $tableName = synk_student_portal_enrollment_table_name();
+    $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
     $semesterWhereSql = '';
     if ($semester > 0) {
         $semesterWhereSql = " AND es.semester = ?";
@@ -1799,6 +1843,7 @@ function synk_student_fetch_subject_rows_by_academic_year(mysqli $conn, int $stu
     $stmt = $conn->prepare("
         SELECT
             es.student_enrollment_id,
+            es.faculty_id,
             es.ay_id,
             COALESCE(ay.ay, '') AS academic_year_label,
             es.semester,
@@ -1825,6 +1870,7 @@ function synk_student_fetch_subject_rows_by_academic_year(mysqli $conn, int $stu
           AND es.ay_id = ?
           {$semesterWhereSql}
           AND es.is_active = 1
+          {$previewScopeSql}
         ORDER BY
             es.semester ASC,
             es.subject_code ASC,
@@ -1850,6 +1896,7 @@ function synk_student_fetch_subject_rows_by_academic_year(mysqli $conn, int $stu
             $rows[] = [
                 'student_enrollment_id' => (int)($row['student_enrollment_id'] ?? 0),
                 'ay_id' => (int)($row['ay_id'] ?? 0),
+                'faculty_id' => (int)($row['faculty_id'] ?? 0),
                 'academic_year_label' => (string)($row['academic_year_label'] ?? ''),
                 'semester' => $semester,
                 'semester_label' => function_exists('synk_semester_label') ? synk_semester_label($semester) : '',
@@ -1892,7 +1939,7 @@ function synk_student_group_subject_rows_by_semester(array $rows): array
 
 function synk_student_resolve_portal_context(mysqli $conn): array
 {
-    $isAdminPreview = synk_student_is_admin_preview_mode();
+    $isAdminPreview = synk_student_is_staff_preview_mode();
     $previewStudentId = $isAdminPreview ? synk_student_preview_student_id_from_request() : 0;
     $studentEmail = synk_normalize_email((string)($_SESSION['email'] ?? ''));
     $directoryRecord = $isAdminPreview
@@ -1906,6 +1953,10 @@ function synk_student_resolve_portal_context(mysqli $conn): array
     $portalProfile = $studentEmail !== ''
         ? synk_student_fetch_portal_profile($conn, $studentEmail)
         : null;
+    if ($isAdminPreview && $portalProfile && $directoryRecord
+        && trim((string)$portalProfile['student_number']) !== trim((string)$directoryRecord['student_number'])) {
+        $portalProfile = null;
+    }
     $studentName = $directoryRecord
         ? trim(synk_student_directory_display_name($directoryRecord))
         : ($isAdminPreview ? 'Student Preview' : trim((string)($_SESSION['username'] ?? 'Student')));
@@ -2088,7 +2139,9 @@ function synk_student_resolve_suggested_program_id(array $programOptions, ?array
 
 function synk_student_fetch_portal_profile(mysqli $conn, string $email): ?array
 {
-    synk_student_portal_profile_ensure_schema($conn);
+    if (synk_student_is_staff_preview_mode()) {
+        if (!synk_table_exists($conn, synk_student_portal_profile_table_name())) return null;
+    } else synk_student_portal_profile_ensure_schema($conn);
 
     $normalizedEmail = synk_normalize_email($email);
     if ($normalizedEmail === '') {

@@ -5,7 +5,7 @@
   const escape=value=>String(value==null?'':value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const editor=new bootstrap.Modal($('deanStudentEditorModal'));
   const deletion=new bootstrap.Modal($('deanStudentDeleteModal'));
-  const state={selected:new Set(),rows:[],filters:{},key:'',ready:false,selecting:false,editorBusy:false,editorReady:false,editorShown:false,editorGeneration:0,deleteBusy:false,deleteShown:false,deleteToken:''};
+  const state={selected:new Set(),rows:[],filters:{},key:'',ready:false,selecting:false,editorBusy:false,editorReady:false,editorShown:false,editorGeneration:0,deleteBusy:false,deleteShown:false,deleteToken:'',deleteIds:[],deleteSingle:false};
   const key=filters=>JSON.stringify([filters.search,filters.term,filters.program_id,filters.section_id,filters.email_status || 'all']);
   function notice(id,message='',type='danger') { $(id).textContent=message; $(id).className=`alert ${id==='deanStudentManagementNotice'?'mt-3 mb-0 ':''}${message?'alert-'+type:'d-none'}`; }
   async function request(action,params={}) {
@@ -32,7 +32,7 @@
   }
   function rendered(data) {
     if (state.key!==key(data.filters)) state.selected.clear();
-    state.key=key(data.filters); state.filters=data.filters; state.rows=data.rows; state.ready=true; selectionControls();
+    state.key=key(data.filters); state.filters=data.filters; state.rows=data.rows; state.adminTerm=data.admin_term || `${config.ay_id}:${config.semester}`; state.ready=true; selectionControls();
   }
   $('deanStudentsRefresh').addEventListener('student-directory-loading',event=>{
     if (state.key!==key(event.detail.filters)) state.selected.clear();
@@ -129,31 +129,45 @@
   $('deanStudentEditorModal').addEventListener('shown.bs.modal',()=>{ state.editorShown=true; editorControls(); });
   $('deanStudentEditorModal').addEventListener('hide.bs.modal',event=>{ if (state.editorBusy) event.preventDefault(); else { state.editorShown=false; state.editorGeneration++; } });
   function deleteControls() {
-    ['deanStudentDeleteClose','deanStudentDeleteCancel'].forEach(id=>$(id).disabled=state.deleteBusy);
-    $('deanStudentDeleteAcknowledge').disabled=state.deleteBusy || !state.deleteToken;
+    ['deanStudentDeleteClose','deanStudentDeleteCancel'].forEach(id=>$(id).disabled=state.deleteBusy || !state.deleteShown);
+    $('deanStudentDeleteAcknowledge').disabled=state.deleteBusy || !state.deleteShown || !state.deleteToken;
     $('deanStudentDeleteConfirm').disabled=state.deleteBusy || !state.deleteShown || !state.deleteToken || !$('deanStudentDeleteAcknowledge').checked;
     $('deanStudentDeleteConfirm').textContent=state.deleteBusy?'Please wait...':'Delete Term Records';
     $('deanStudentDeleteModal').setAttribute('aria-busy',String(state.deleteBusy));
   }
-  $('deanStudentsDelete').addEventListener('click',async()=>{
-    if (!state.ready || !state.selected.size || state.filters.term==='all' || state.deleteBusy) return;
+  async function openDeletion(ids,single=false) {
+    if (!state.ready || !ids.length || state.filters.term==='all' || state.deleteBusy || config.read_only
+      || state.filters.term!==state.adminTerm) return;
+    state.deleteIds=[...ids]; state.deleteSingle=single;
+    $('deanStudentDeleteTitle').textContent=single?'Delete Student From This Term':'Delete Selected Term Records';
+    $('deanStudentDeleteScope').textContent=single
+      ? 'This removes this student from all class lists and manual directory entries in your college for the displayed semester. The student profile, login email, and other terms stay available.'
+      : 'This removes the selected students from the matching class lists and manual directory entries for this academic term. Shared student profiles, login emails, and records in other terms stay available.';
     state.deleteToken=''; state.deleteBusy=true; state.deleteShown=false; $('deanStudentDeleteAcknowledge').checked=false;
     $('deanStudentDeleteTerm').textContent=$('deanStudentsTerm').selectedOptions[0]?.textContent || state.filters.term;
     $('deanStudentDeletePreview').innerHTML='<p class="text-muted">Checking the selected students and matching class-list records...</p>';
     notice('deanStudentDeleteNotice'); deleteControls(); deletion.show();
     try {
-      const data=await request('delete_preview',{...state.filters,selected_ids:JSON.stringify([...state.selected])}); state.deleteToken=data.preview_token;
+      const deletionFilters=single ? {...state.filters,search:'',program_id:'0',section_id:'0',email_status:'all'} : state.filters;
+      const data=await request('delete_preview',{...deletionFilters,selected_ids:JSON.stringify(state.deleteIds)}); state.deleteToken=data.preview_token;
       const s=data.summary;
       $('deanStudentDeletePreview').innerHTML=`<p><strong>${s.students} selected students</strong> · ${s.class_records} class-list records · ${s.classes} classes${s.manual_records?` · ${s.manual_records} manual directory entries`:''}</p><div class="table-responsive"><table class="table dean-students-table"><thead><tr><th>Student ID</th><th>Student name</th><th>Class records to remove</th></tr></thead><tbody>${data.students.map(row=>`<tr><td class="dean-student-id">${escape(row.student_number)}</td><td>${escape(row.student_name)}</td><td>${row.class_records}</td></tr>`).join('')}</tbody></table></div>`;
     } catch (error) { $('deanStudentDeletePreview').innerHTML=''; notice('deanStudentDeleteNotice',error.message); }
     finally { state.deleteBusy=false; deleteControls(); }
+  }
+  $('deanStudentsDelete').addEventListener('click',()=>openDeletion([...state.selected]));
+  $('deanStudentsRows').addEventListener('click',event=>{
+    const button=event.target.closest('[data-student-delete]');
+    const id=Number(button?.dataset.studentDelete || 0);
+    if (state.rows.some(row=>row.student_id===id)) openDeletion([id],true);
   });
   $('deanStudentDeleteAcknowledge').addEventListener('change',deleteControls);
   $('deanStudentDeleteConfirm').addEventListener('click',async()=>{
     if (state.deleteBusy || !state.deleteShown || !state.deleteToken || !$('deanStudentDeleteAcknowledge').checked) return;
     state.deleteBusy=true; deleteControls(); notice('deanStudentDeleteNotice');
     try {
-      const data=await request('delete_save',{preview_token:state.deleteToken}); state.deleteToken=''; state.selected.clear();
+      const data=await request('delete_save',{preview_token:state.deleteToken}); state.deleteToken='';
+      if (state.deleteSingle) state.deleteIds.forEach(id=>state.selected.delete(id)); else state.selected.clear();
       state.deleteBusy=false; deleteControls(); deletion.hide();
       notice('deanStudentManagementNotice',data.message,'success'); $('deanStudentsRefresh').dispatchEvent(new CustomEvent('student-records-changed'));
     } catch (error) { state.deleteToken=''; notice('deanStudentDeleteNotice',error.message); }

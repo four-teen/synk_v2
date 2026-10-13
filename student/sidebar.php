@@ -7,8 +7,17 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-primary',
         'icon' => 'bx-home-circle',
         'title' => 'Dashboard',
-        'description' => 'Current term overview and student quick access',
+        'description' => 'Your imported subjects and class details',
         'pages' => ['index.php'],
+    ],
+    [
+        'key' => 'profile',
+        'href' => 'profile.php',
+        'icon_bg' => 'bg-label-secondary',
+        'icon' => 'bx-id-card',
+        'title' => 'My Profile',
+        'description' => 'Review your student details',
+        'pages' => ['profile.php'],
     ],
     [
         'key' => 'prospectus',
@@ -29,6 +38,9 @@ $studentSidebarItems = [
         'pages' => ['class-program.php'],
     ],
 ];
+if (($_SESSION['role'] ?? '') === 'college_dean' && function_exists('synk_student_is_staff_preview_mode') && synk_student_is_staff_preview_mode()) {
+    $studentSidebarItems = array_values(array_filter($studentSidebarItems, static function (array $item): bool { return $item['key'] !== 'class_program'; }));
+}
 
 $studentSidebarActiveKey = 'dashboard';
 foreach ($studentSidebarItems as $sidebarItem) {

@@ -136,7 +136,7 @@ switch ($scenario) {
     case 'bad_page': $_POST['page']=-1; break;
     case 'array_input': $_POST['search']=[$tag]; break;
     case 'bad_action': $_POST['action']='delete'; break;
-    default: throw new RuntimeException('Unknown students fixture scenario.');
+    default: if (strpos($scenario,'preview_')!==0) throw new RuntimeException('Unknown students fixture scenario.');
 }
 if (defined('SYNK_STUDENT_EMAIL_QA')) require __DIR__ . '/student-emails-scenarios.php';
 if (defined('SYNK_STUDENT_MANAGEMENT_QA')) require __DIR__ . '/student-management-scenarios.php';
@@ -145,6 +145,19 @@ $takeState=static function () use ($conn): string {
     foreach (['tbl_student_management','tbl_student_management_enrolled_subjects'] as $table) $rows[$table]=$conn->query('SELECT * FROM ' . $table . ' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return hash('sha256',json_encode($rows));
 };
+if (strpos($scenario,'preview_')===0) {
+    $handler='student/index.php'; $_SERVER['REQUEST_METHOD']='GET'; $_POST=[];
+    $_GET=['preview_student_id'=>$profiles['shared']['student_id'],'student_term'=>$term['ay_id'].':'.$term['semester'],'return_to'=>'../college-dean/students.php'];
+    $_SERVER['PHP_SELF']='/synk/'.$handler;
+    if ($scenario==='preview_foreign') $_GET['preview_student_id']=$profiles['foreign']['student_id'];
+    if ($scenario==='preview_historical') $_GET['student_term']=$term['ay_id'].':'.$otherSemester;
+    if ($scenario==='preview_revoked') $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='college_dean'");
+    if ($scenario==='preview_changed_scope') $conn->query("UPDATE tbl_useraccount SET college_dean_college_id={$foreignScope['college_id']} WHERE user_id={$userId}");
+    if ($scenario==='preview_changed_scope') $_GET['preview_student_id']=$profiles['own']['student_id'];
+    if ($scenario==='preview_profile') { $handler='student/profile.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
+    if ($scenario==='preview_post') { $_SERVER['REQUEST_METHOD']='POST'; $_POST=['complete_student_profile'=>'1','program_id'=>$scope['program_id'],'student_number'=>'forged']; $handler='student/profile.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
+    if ($scenario==='preview_evaluation') { $handler='student/class-program.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
+}
 $requestBefore=$takeState(); session_write_close(); ob_start();
 $scheduleSnapshot=static function () use ($conn): string {
     $values=[]; foreach (['tbl_faculty_workload_sched','tbl_class_schedule','tbl_prospectus_offering'] as $table) $values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
@@ -159,6 +172,9 @@ register_shutdown_function(static function () use ($conn,$scope,$foreignScope,$p
             'records_unchanged'=>$requestBefore===$takeState(),
             'email_profiles'=>$conn->query('SELECT student_id,student_number,first_name,last_name,middle_name,email_address FROM tbl_student_management WHERE student_id IN (' . implode(',',array_column($profiles,'student_id')) . ') ORDER BY student_id')->fetch_all(MYSQLI_ASSOC),
             'email_pending_count'=>count($_SESSION['dean_student_email_previews'] ?? [])];
+        $result['session_role']=$_SESSION['role'] ?? '';
+        $result['session_user_id']=$_SESSION['user_id'] ?? 0;
+        $result['schedules_unchanged']=$scheduleBefore===$scheduleSnapshot();
         if (defined('SYNK_STUDENT_MANAGEMENT_QA')) {
             $result['manage_students']=$conn->query("SELECT student_id,student_number,first_name,last_name,middle_name,email_address,source_sheet_name,ay_id,semester,program_id FROM tbl_student_management WHERE student_number LIKE '".$prefix."%' ORDER BY student_id")->fetch_all(MYSQLI_ASSOC);
             $result['manage_memberships']=$conn->query("SELECT es.student_id,es.ay_id,es.semester,es.college_id,es.section_id,es.subject_id,es.is_active,es.offering_id FROM tbl_student_management_enrolled_subjects es JOIN tbl_student_management s ON s.student_id=es.student_id WHERE s.student_number LIKE '".$prefix."%' ORDER BY es.student_enrollment_id")->fetch_all(MYSQLI_ASSOC);

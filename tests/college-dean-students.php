@@ -29,6 +29,14 @@ $request=static function (string $scenario) use ($routeName,$token,&$version,$ch
     return $r;
 };
 try {
+    $r=$request('preview_dashboard');
+    $check($r['http_status']===200 && strpos($r['response'],'Dean preview')!==false && strpos($r['response'],'Read only')!==false,'A Dean can open the real Student dashboard without a Student login.');
+    $check(substr_count($r['response'],'data-subject-card ' )===2 && strpos($r['response'],'for your college')!==false,'The shared student preview contains only the Dean’s current college subjects.');
+    $check($r['session_role']==='college_dean' && is_int($r['session_user_id']) && $r['schedules_unchanged'],'Preview preserves Dean authentication and scheduling/workloads.');
+    $check(strpos($r['response'],'../logout.php')===false && strpos($r['response'],'Faculty Evaluation')===false,'A Dean preview returns to its directory and keeps confidential evaluation responses outside the preview.');
+    $r=$request('preview_historical');$check($r['http_status']===200 && substr_count($r['response'],'data-subject-card ')===1,'The Dean preview can review earlier college subjects.');
+    $r=$request('preview_profile');$check($r['http_status']===200 && strpos($r['response'],'Dean preview')!==false && strpos($r['response'],'studentSetupModal')===false,'The student profile is visible without an editable setup form.');
+    foreach(['preview_foreign','preview_revoked','preview_changed_scope','preview_post','preview_evaluation'] as $scenario) { $r=$request($scenario);$check($r['http_status']===403 && $r['schedules_unchanged'],'Preview rejects unauthorized students, revoked access and writes: '.$scenario); }
     $r=$request('page');
     $check($r['http_status']===200 && is_string($r['response']) && !preg_match('/Fatal error|Parse error|Warning(?:<\/b>)?:|xdebug-error/i',$r['response']),'Student Management failed to render.');
     foreach (['Student Management','students.js','custom_css.css','deanStudentsRows','deanStudentDetailsModal','Import Students','Class Sections','Student Name','Add Student','Delete Selected Term Records'] as $feature) $check(strpos($r['response'],$feature)!==false,'Missing student directory feature: ' . $feature);

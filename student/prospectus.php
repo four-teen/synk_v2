@@ -2,7 +2,7 @@
 session_start();
 ob_start();
 
-include '../backend/db.php';
+require_once '../backend/db.php';
 require_once '../backend/student_portal_helper.php';
 
 synk_student_require_login($conn, true);
@@ -17,12 +17,12 @@ $studentPortalProfile = is_array($studentPortalContext['portal_profile'] ?? null
     : null;
 $selectedProgramId = (int)($studentPortalProfile['program_id'] ?? $studentDirectoryRecord['program_id'] ?? 0);
 $studentPortalDisplayName = (string)($studentPortalContext['student_name'] ?? 'Student');
-$studentPortalDisplayEmail = $studentEmail !== ''
+$studentPortalDisplayEmail = $studentEmail !== '' || !empty($studentPortalContext['is_admin_preview'])
     ? $studentEmail
     : trim((string)($_SESSION['email'] ?? ''));
 $studentPortalPreviewMode = !empty($studentPortalContext['is_admin_preview']);
 $studentPortalBackUrl = $studentPortalPreviewMode
-    ? synk_student_preview_return_to_url('../administrator/students/directory.php')
+    ? synk_student_preview_back_url()
     : '';
 
 $prospectusVersions = synk_student_fetch_prospectus_versions($conn, $selectedProgramId);

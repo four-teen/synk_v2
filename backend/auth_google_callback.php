@@ -5,67 +5,73 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth_google.php';
 
 $settings = synk_auth_settings();
-$portal = (string)($_SESSION['google_oauth_portal'] ?? '');
-$isStudentPortal = $portal === 'student'
-    || isset($_SESSION['student_google_oauth_state'])
-    || isset($_SESSION['student_google_oauth_nonce']);
+$incomingState = is_string($_GET['state'] ?? null) ? trim($_GET['state']) : '';
+$studentState = (string)($_SESSION['student_google_oauth_state'] ?? '');
+$mainState = (string)($_SESSION['google_oauth_state'] ?? '');
+$matchesStudent = $incomingState !== '' && $studentState !== '' && hash_equals($studentState, $incomingState);
+$matchesMain = $incomingState !== '' && $mainState !== '' && hash_equals($mainState, $incomingState);
+$isStudentPortal = $matchesStudent || (!$matchesMain && ($_SESSION['google_oauth_portal'] ?? '') === 'student');
 $redirectTarget = $isStudentPortal ? '../student/login.php' : '../index.php';
 $stateSessionKey = $isStudentPortal ? 'student_google_oauth_state' : 'google_oauth_state';
 $nonceSessionKey = $isStudentPortal ? 'student_google_oauth_nonce' : 'google_oauth_nonce';
-
-if (!synk_google_login_enabled($settings) || !synk_google_auth_ready($settings)) {
-    synk_auth_status_redirect('google_unavailable', $redirectTarget);
-}
-
-$incomingState = trim((string)($_GET['state'] ?? ''));
 $storedState = (string)($_SESSION[$stateSessionKey] ?? '');
 $storedNonce = (string)($_SESSION[$nonceSessionKey] ?? '');
-unset(
-    $_SESSION['google_oauth_state'],
-    $_SESSION['google_oauth_nonce'],
-    $_SESSION['student_google_oauth_state'],
-    $_SESSION['student_google_oauth_nonce'],
-    $_SESSION['google_oauth_portal']
-);
+$submittedStudentEmail = $isStudentPortal ? (string)($_SESSION['student_google_oauth_email'] ?? '') : '';
+$studentStartedAt = (int)($_SESSION['student_google_oauth_started_at'] ?? 0);
+$verifiedStudentEmail = '';
+$verifiedStudentName = '';
+if ($isStudentPortal) require_once __DIR__ . '/student_login_helper.php';
+$redirectStatus = static function (string $status, bool $record = true) use ($conn, $isStudentPortal, $redirectTarget,
+    $matchesStudent, $submittedStudentEmail, &$verifiedStudentEmail, &$verifiedStudentName): void {
+    if ($isStudentPortal && $matchesStudent && $record && $submittedStudentEmail !== '') {
+        try { synk_student_login_record_issue($conn, $submittedStudentEmail, $status, $verifiedStudentEmail, $verifiedStudentName); }
+        catch (Throwable $e) { error_log('Student sign-in diagnostics could not be saved.'); $status = 'student_portal_unavailable'; }
+    }
+    synk_auth_status_redirect($status, $redirectTarget);
+};
 
-if ($incomingState === '' || $storedState === '' || !hash_equals($storedState, $incomingState)) {
-    synk_auth_status_redirect('google_state_invalid', $redirectTarget);
-}
+if (!synk_google_login_enabled($settings) || !synk_google_auth_ready($settings)) $redirectStatus('google_unavailable');
+if ($incomingState === '' || $storedState === '' || !hash_equals($storedState, $incomingState)) $redirectStatus('google_state_invalid', false);
+// Consume only the matching flow. A Student and staff sign-in may be open in separate tabs.
+unset($_SESSION[$stateSessionKey], $_SESSION[$nonceSessionKey]);
+if ($isStudentPortal) unset($_SESSION['student_google_oauth_email'], $_SESSION['student_google_oauth_started_at']);
+if (($_SESSION['google_oauth_portal'] ?? '') === ($isStudentPortal ? 'student' : 'main')) unset($_SESSION['google_oauth_portal']);
+if ($isStudentPortal && ($submittedStudentEmail === '' || $studentStartedAt < time() - 900)) $redirectStatus('google_state_invalid');
 
 if (!empty($_GET['error'])) {
-    synk_auth_status_redirect('google_cancelled', $redirectTarget);
+    $redirectStatus('google_cancelled');
 }
 
-$code = trim((string)($_GET['code'] ?? ''));
+$code = is_string($_GET['code'] ?? null) ? trim($_GET['code']) : '';
 if ($code === '') {
-    synk_auth_status_redirect('google_code_missing', $redirectTarget);
+    $redirectStatus('google_code_missing');
 }
 
 $tokenResponse = synk_google_exchange_code($settings, $code);
 if (!$tokenResponse['ok']) {
-    synk_auth_status_redirect('google_token_failed', $redirectTarget);
+    $redirectStatus('google_token_failed');
 }
 
 $tokenJson = $tokenResponse['json'];
 $accessToken = trim((string)($tokenJson['access_token'] ?? ''));
 if ($accessToken === '') {
-    synk_auth_status_redirect('google_token_missing', $redirectTarget);
+    $redirectStatus('google_token_missing');
 }
 
 $idToken = trim((string)($tokenJson['id_token'] ?? ''));
 if ($idToken === '') {
-    synk_auth_status_redirect('google_id_token_missing', $redirectTarget);
+    $redirectStatus('google_id_token_missing');
 }
 
 $idTokenClaims = synk_google_decode_id_token($idToken);
 $idTokenStatus = synk_google_validate_id_token_claims($settings, $idToken, $idTokenClaims, $storedNonce);
 if ($idTokenStatus !== null) {
-    synk_auth_status_redirect($idTokenStatus, $redirectTarget);
+    $redirectStatus($idTokenStatus);
 }
 
 $userInfoResponse = synk_google_fetch_userinfo($accessToken);
 if (!$userInfoResponse['ok']) {
-    synk_auth_status_redirect('google_profile_failed', $redirectTarget);
+    $redirectStatus('google_profile_failed');
 }
 
 $userInfo = $userInfoResponse['json'];
@@ -78,40 +84,40 @@ $idTokenEmail = synk_normalize_email((string)($idTokenClaims['email'] ?? ''));
 $idTokenSub = trim((string)($idTokenClaims['sub'] ?? ''));
 
 if ($googleSub === '' || $email === '' || !$emailVerified) {
-    synk_auth_status_redirect('google_profile_invalid', $redirectTarget);
+    $redirectStatus('google_profile_invalid');
 }
 
 if (($idTokenEmail !== '' && !hash_equals($idTokenEmail, $email))
     || ($idTokenSub !== '' && !hash_equals($idTokenSub, $googleSub))) {
-    synk_auth_status_redirect('google_email_mismatch', $redirectTarget);
+    $redirectStatus('google_email_mismatch');
 }
 
+if ($isStudentPortal) { $verifiedStudentEmail = $email; $verifiedStudentName = $displayName; }
+
 if (!synk_is_allowed_email_domain($email, (string)$settings['allowed_domain'])) {
-    synk_auth_status_redirect('email_domain_denied', $redirectTarget);
+    $redirectStatus('email_domain_denied');
 }
 
 if ($isStudentPortal) {
-    if (!synk_student_directory_email_exists($conn, $email)) {
-        synk_auth_status_redirect('student_directory_access_denied', $redirectTarget);
-    }
-
+    try {
+        $directoryStudent = synk_student_login_verified_identity($conn, $submittedStudentEmail, $userInfo, (string)$settings['allowed_domain']);
+    } catch (DomainException $e) { $redirectStatus($e->getMessage(), false); }
+    catch (Throwable $e) { $redirectStatus('student_portal_unavailable', false); }
     synk_complete_student_login($email, $displayName, $googleSub);
-
-    if ($pictureUrl !== '') {
-        $_SESSION['user_avatar_url'] = $pictureUrl;
-    }
-
+    $_SESSION['student_id'] = (int)$directoryStudent['student_id'];
+    unset($_SESSION['student_login_last_email'], $_SESSION['student_login_csrf']);
+    if ($pictureUrl !== '') $_SESSION['user_avatar_url'] = $pictureUrl;
     header('Location: ../student/');
     exit;
 }
 
 $user = synk_find_useraccount_by_email($conn, $email);
 if (!$user) {
-    synk_auth_status_redirect('account_not_allowed', $redirectTarget);
+    $redirectStatus('account_not_allowed');
 }
 
 if (($user['status'] ?? '') !== 'active') {
-    synk_auth_status_redirect('account_inactive', $redirectTarget);
+    $redirectStatus('account_inactive');
 }
 
 $configuredRoleRows = synk_fetch_useraccount_role_rows(
@@ -131,19 +137,19 @@ if (empty($loginableRoleRows)) {
         }
     }
 
-    synk_auth_status_redirect($status, $redirectTarget);
+    $redirectStatus($status);
 }
 
 $existingGoogleSub = trim((string)($user['google_sub'] ?? ''));
 if ($existingGoogleSub !== '' && !hash_equals($existingGoogleSub, $googleSub)) {
-    synk_auth_status_redirect('google_identity_mismatch', $redirectTarget);
+    $redirectStatus('google_identity_mismatch');
 }
 
 synk_record_google_login($conn, (int)$user['user_id'], $googleSub, $emailVerified, $displayName);
 
 if (count($loginableRoleRows) > 1) {
     synk_store_pending_role_login($user, $loginableRoleRows, ['avatar_url' => $pictureUrl]);
-    synk_auth_status_redirect('choose_role', $redirectTarget);
+    $redirectStatus('choose_role');
 }
 
 $activeRole = synk_complete_user_login($user, $conn, null, $loginableRoleRows);
@@ -154,7 +160,7 @@ if ($pictureUrl !== '') {
 
 $redirectPath = synk_role_redirect_path($activeRole);
 if ($redirectPath === null) {
-    synk_auth_status_redirect('role_not_supported', $redirectTarget);
+    $redirectStatus('role_not_supported');
 }
 
 header('Location: ../' . $redirectPath);

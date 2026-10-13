@@ -1,0 +1,109 @@
+<?php
+// Loopback-only, token-protected fixtures; all database writes are rolled back.
+if (!defined('SYNK_STUDENT_PORTAL_QA') || !in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1','::1'], true)
+    || !is_string($_GET['qa'] ?? null) || !hash_equals(SYNK_STUDENT_PORTAL_QA,$_GET['qa'])) { http_response_code(404); exit; }
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$root = dirname(__DIR__,2);
+require_once $root.'/backend/db.php';
+require_once $root.'/backend/student_dashboard_helper.php';
+require_once $root.'/backend/auth_config.php';
+class StudentPortalQAConnection extends mysqli {
+    public $requestMode=false;
+    #[\ReturnTypeWillChange]
+    public function begin_transaction($flags=0,$name=null){return $this->requestMode?$this->query('SAVEPOINT student_portal_request'):parent::begin_transaction($flags);}
+    #[\ReturnTypeWillChange]
+    public function commit($flags=0,$name=null){return $this->requestMode?$this->query('RELEASE SAVEPOINT student_portal_request'):parent::commit($flags);}
+    #[\ReturnTypeWillChange]
+    public function rollback($flags=0,$name=null){return $this->requestMode?$this->query('ROLLBACK TO SAVEPOINT student_portal_request'):parent::rollback($flags);}
+    #[\ReturnTypeWillChange]
+    public function query($sql,$mode=MYSQLI_STORE_RESULT){if(preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i',$sql))throw new RuntimeException('Fixtures cannot change the schema.');return parent::query($sql,$mode);}
+}
+$conn->close();$conn=new StudentPortalQAConnection($servername,$username,$password,$dbase);$conn->set_charset('utf8mb4');$conn->begin_transaction();
+$scenario=is_string($_GET['scenario']??null)?$_GET['scenario']:'dashboard';
+$tag='PortalQA'.bin2hex(random_bytes(6));$domain=synk_auth_settings()['allowed_domain'];$email=strtolower($tag).'@'.$domain;
+$term=synk_fetch_current_academic_term($conn);
+$oldTerm=['ay_id'=>$term['ay_id'],'semester'=>max(1,$term['semester']-1)];
+if($term['semester']===1){$prior=$conn->query("SELECT ay_id FROM tbl_academic_years WHERE ay<'".$conn->real_escape_string($term['ay_label'])."' ORDER BY ay DESC LIMIT 1")->fetch_assoc();if(!$prior)throw new RuntimeException('A previous academic year is needed.');$oldTerm=['ay_id'=>(int)$prior['ay_id'],'semester'=>3];}
+$program=$conn->query("SELECT p.program_id,c.college_id,c.campus_id FROM tbl_program p JOIN tbl_college c ON c.college_id=p.college_id WHERE p.status='active' AND c.status='active' ORDER BY p.program_id LIMIT 1")->fetch_assoc();
+$students=[];
+foreach(['first','other'] as $i=>$key){$studentEmail=$key==='first'?$email:'other-'.$email;$number=$tag.'-'.$i;$first=$key==='first'?'Alex':'Other';
+    $stmt=$conn->prepare('INSERT INTO tbl_student_management (student_number,email_address,first_name,last_name,ay_id,semester,program_id,year_level) VALUES (?,?,?,?,?,?,?,2)');
+    $stmt->bind_param('ssssiii',$number,$studentEmail,$first,$tag,$term['ay_id'],$term['semester'],$program['program_id']);$stmt->execute();$students[$key]=(int)$conn->insert_id;$stmt->close();}
+$teachers=[];
+foreach(['Ada','Ben'] as $teacher){$conn->query("INSERT INTO tbl_faculty (first_name,last_name,status) VALUES ('{$teacher}','{$tag}','active')");$teachers[]=(int)$conn->insert_id;}
+$import=static function(int $studentId,array $period,string $code,string $title,int $teacher,int $active=1)use($conn,$tag,$program):void {
+    $section='QA 2A';$room='QA Lab 201';$schedule=$code==='QA-MATH101'?'T / Th · 1:00–2:30 PM':'M / W · 9:00–10:30 AM';
+    $subjectId = array_search($code,['QA-CS101','QA-MATH101','QA-HIST101','QA-INACTIVE','SECRET101'],true)+1;
+    $stmt=$conn->prepare('INSERT INTO tbl_student_management_enrolled_subjects (import_batch_key,campus_id,college_id,program_id,ay_id,semester,student_id,subject_id,subject_code,descriptive_title,faculty_id,section_text,room_text,schedule_text,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    $stmt->bind_param('siiiiiiississsi',$tag,$program['campus_id'],$program['college_id'],$program['program_id'],$period['ay_id'],$period['semester'],$studentId,$subjectId,$code,$title,$teacher,$section,$room,$schedule,$active);$stmt->execute();$stmt->close();
+};
+$import($students['first'],$term,'QA-CS101','Introduction to Computing',$teachers[0]);
+$import($students['first'],$term,'QA-MATH101','Discrete Mathematics',$teachers[1]);
+$import($students['first'],$oldTerm,'QA-HIST101','Prior Term Subject',$teachers[0]);
+$import($students['first'],$term,'QA-INACTIVE','Inactive Subject',$teachers[0],0);
+$import($students['other'],$term,'SECRET101','Other Student Only',$teachers[0]);
+if($scenario==='latest_import')$conn->query("UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id={$students['first']} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+if(in_array($scenario,['guard_duplicate','verified_duplicate','start_duplicate'],true))$conn->query("UPDATE tbl_student_management SET email_address='{$email}' WHERE student_id={$students['other']}");
+$conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id) VALUES ('Portal QA Admin','admin-{$email}','unusable-qa-password','admin','active',{$program['college_id']})");
+$adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['admin'],'admin');
+session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
+$_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
+$csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
+if ($scenario==='dean_preview') {
+    $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_dean_college_id) VALUES ('QA Dean','dean-{$email}','unusable-qa-password','college_dean','active',{$program['college_id']})");
+    $deanId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$deanId,['college_dean'],'college_dean');
+    $_SESSION=['user_id'=>$deanId,'role'=>'college_dean','username'=>'QA Dean','email'=>'dean-'.$email,'csrf_token'=>$csrf];
+    $_GET['preview_student_id']=$students['first'];$_GET['student_term']=$term['ay_id'].':'.$term['semester'];$_GET['return_to']='../college-dean/students.php';
+}
+if($scenario==='old_term')$_GET['student_term']=$oldTerm['ay_id'].':'.$oldTerm['semester'];
+if($scenario==='empty_term')$conn->query("UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id={$students['first']}");
+if($scenario==='foreign_parameters'){$_GET['preview_student_id']=(string)$students['other'];$_GET['student_id']=(string)$students['other'];}
+if($scenario==='foreign_term')$_GET['student_term']='999999:3';
+if($scenario==='guard_changed')$conn->query("UPDATE tbl_student_management SET email_address='changed-{$email}' WHERE student_id={$students['first']}");
+if($scenario==='guard_wrong_id')$_SESSION['student_id']=$students['other'];
+if(strpos($scenario,'login_')===0){$handler='student/login.php';$_SESSION['role']='admin';if($scenario==='login_error'){synk_student_login_record_issue($conn,'wrong-'.$email,'student_directory_access_denied');$_SESSION['student_login_last_email']='wrong-'.$email;$_GET['auth_status']='student_directory_access_denied';}}
+if(strpos($scenario,'start_')===0){$handler='backend/auth_google_student_start.php';unset($_SESSION['role'],$_SESSION['user_id']);$_POST=['csrf_token'=>$csrf,'email'=>$email];
+    if($scenario==='start_invalid')$_POST['email']='invalid email';if($scenario==='start_domain')$_POST['email']='qa@example.com';if($scenario==='start_bad_csrf')$_POST['csrf_token']='wrong';
+    if($scenario==='start_rate')$_SESSION['student_login_requests']=array_fill(0,10,time());}
+if($scenario==='start_unknown')$_POST['email']='unknown-'.$email;
+if(strpos($scenario,'callback_')===0){$handler='backend/auth_google_callback.php';$_SESSION['student_google_oauth_state']='qa-student-state';$_SESSION['student_google_oauth_nonce']='qa-student-nonce';$_SESSION['student_google_oauth_email']=$email;$_SESSION['student_google_oauth_started_at']=time();$_SESSION['google_oauth_state']='qa-main-state';$_SESSION['google_oauth_nonce']='qa-main-nonce';$_SESSION['google_oauth_portal']='main';$_GET['state']='qa-student-state';$_GET['error']='access_denied';
+    if($scenario==='callback_main_cancelled'){$_GET['state']='qa-main-state';$_SESSION['google_oauth_portal']='student';}
+    if($scenario==='callback_invalid_state'){$_GET['state']='wrong-state';$_SESSION['google_oauth_portal']='student';}
+    if($scenario==='callback_expired')$_SESSION['student_google_oauth_started_at']=time()-1800;
+    if($scenario==='callback_missing_code')unset($_GET['error']);}
+if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.php';$_SESSION=['user_id'=>$adminId,'role'=>'admin','email'=>'admin-'.$email,'username'=>'Portal QA Admin','college_id'=>(int)$program['college_id'],'csrf_token'=>SYNK_STUDENT_PORTAL_QA,'student_login_csrf'=>$csrf];
+    synk_student_login_record_issue($conn,$email,'student_directory_access_denied',$email,'Alex Portal QA');
+    synk_student_login_record_issue($conn,'<img src=x onerror=alert(1)>-'.$email,'student_email_invalid');
+    $_GET['search']=$tag;
+    $issueId=(int)$conn->query("SELECT issue_id FROM tbl_student_login_issues WHERE submitted_email='{$email}' LIMIT 1")->fetch_assoc()['issue_id'];
+    if($scenario==='admin_repeat'){synk_student_login_review_issue($conn,$issueId,'Previously checked.');synk_student_login_record_issue($conn,$email,'student_directory_access_denied',$email,'Alex Portal QA');synk_student_login_record_issue($conn,$email,'student_directory_access_denied',$email,'Alex Portal QA');}
+    if(in_array($scenario,['admin_review','admin_bad_csrf'],true))$_POST=['issue_id'=>(string)$issueId,'csrf_token'=>$scenario==='admin_bad_csrf'?'wrong':$csrf,'review_note'=>'Email checked in the Student Directory.'];
+    if($scenario==='admin_inactive')$conn->query("UPDATE tbl_useraccount SET status='inactive' WHERE user_id={$adminId}");
+    if($scenario==='admin_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$adminId} AND role='admin'");
+    if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
+$protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings'];
+$snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
+$protectedBefore=$snapshot($protected);
+ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0){$base=strpos($handler,'student/')===0?'student':'administrator';$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
+register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot):void {
+    $stmt=$conn->prepare('SELECT submitted_email,google_email,google_name,failure_code,identity_verified,attempt_count,review_status,review_note FROM tbl_student_login_issues WHERE submitted_email LIKE ? ORDER BY issue_id');$like='%'.$tag.'%';$stmt->bind_param('s',$like);$stmt->execute();$issues=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
+    // The deliberate invalid-address preflight scenarios use non-tagged emails.
+    if(isset($_POST['email'])&&in_array($_POST['email'],['invalid email','qa@example.com'],true))$issues=$conn->query("SELECT submitted_email,google_email,failure_code,identity_verified,attempt_count,review_status FROM tbl_student_login_issues WHERE submitted_email IN ('invalid email','qa@example.com')")->fetch_all(MYSQLI_ASSOC);
+    header('X-QA-Issues: '.rawurlencode(json_encode($issues)));header('X-QA-Students: '.rawurlencode(json_encode($students)));
+    header('X-QA-Protected-Unchanged: '.($snapshot($protected)===$protectedBefore?'yes':'no'));
+    header('X-QA-OAuth-Pending: '.rawurlencode(json_encode(['student'=>isset($_SESSION['student_google_oauth_state']),'main'=>isset($_SESSION['google_oauth_state'])])));
+    $conn->requestMode=false;$conn->rollback();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();
+});
+if(strpos($scenario,'verified_')===0){
+    $identity=['sub'=>'qa-sub-'.$tag,'email'=>$email,'email_verified'=>true,'name'=>'Alex Portal QA'];$submitted=$email;
+    if($scenario==='verified_unknown')$identity['email']=$submitted='unknown-'.$email;
+    if($scenario==='verified_mismatch')$submitted='wrong-'.$email;
+    if($scenario==='verified_unverified')$identity['email_verified']=false;
+    if($scenario==='verified_domain')$identity['email']=$submitted='outside-'.$tag.'@example.com';
+    header('Content-Type: application/json');
+    try{$record=synk_student_login_verified_identity($conn,$submitted,$identity,$domain);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id']]);}
+    catch(DomainException $e){http_response_code(403);echo json_encode(['status'=>'denied','reason'=>$e->getMessage()]);}
+    exit;
+}
+session_write_close();$_SERVER['REQUEST_METHOD']=$_POST?'POST':'GET';$_SERVER['PHP_SELF']='/synk/'.$handler;$conn->requestMode=true;
+chdir($root.'/'.dirname($handler));require $root.'/'.$handler;
