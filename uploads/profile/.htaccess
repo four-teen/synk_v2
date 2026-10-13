@@ -1,4 +1,4 @@
 Options -Indexes
-<FilesMatch "^(?!profile_[0-9]+\.jpg$)">
+<FilesMatch "^(?!(?:profile|faculty)_[0-9]+\.jpg$)">
     Require all denied
 </FilesMatch>

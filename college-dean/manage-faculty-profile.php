@@ -26,6 +26,7 @@ if (is_array($notice) && ($notice['faculty_id'] ?? 0) === $facultyId) {
 }
 try {
     synk_dean_profile_prepare_storage($conn);
+    $facultyNavigation = synk_dean_profile_faculties($conn, $scope, $term);
     $eligibilities = synk_faculty_profile_eligibility_catalog($conn);
     $ranks = synk_faculty_profile_ranks($conn);
     $locations = synk_faculty_profile_locations($conn);
@@ -141,6 +142,9 @@ $profileEditor = [
     'eyebrow'=>'COLLEGE DEAN / FACULTY PROFILE', 'title'=>'Manage faculty profile',
     'subtitle'=>$target['faculty_name'] . ($target['designation_name'] !== '' ? ' · ' . $target['designation_name'] : ''),
     'back_url'=>'faculty-profile.php', 'back_label'=>'Faculty directory',
+    'heading_actions_path'=>__DIR__ . '/faculty_profile_navigation.php',
+    'extra_styles'=>['faculty-profile-navigation.css?v=' . filemtime(__DIR__ . '/faculty-profile-navigation.css')],
+    'extra_scripts'=>['faculty-profile-navigation.js?v=' . filemtime(__DIR__ . '/faculty-profile-navigation.js')],
     'account_note'=>'You are managing the selected faculty member’s profile.', 'show_link_notice'=>false,
     'action'=>$action, 'education_url'=>'education-options.php', 'csrf_token'=>$_SESSION['dean_faculty_profile_csrf'],
     'hidden_fields'=>['profile_owner'=>$owner],

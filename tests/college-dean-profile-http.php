@@ -43,6 +43,13 @@ try {
     dean_profile_check(strpos($directory['headers'],'X-QA-Changed: no')!==false,'Viewing profiles does not change profile data.');
     $get=$request('get');
     dean_profile_check($get['status']===200 && strpos($get['body'],'Manage faculty profile')!==false,'Unlinked faculty have a working editor.');
+    preg_match('/<select id="dean-faculty-select"[^>]*>(.*?)<\/select>/s',$get['body'],$navigation);
+    dean_profile_check(isset($navigation[1]) && substr_count($navigation[1],'<option ')===10
+        && strpos($navigation[1],'Foreign QA Foreign')===false && strpos($navigation[1],'Old_roster')===false,
+        'The faculty switcher includes only records the Dean can manage, including current roster links.');
+    preg_match('/<option value="([0-9]+)" selected>/',$navigation[1],$selectedFaculty);
+    dean_profile_check(isset($selectedFaculty[1]) && strpos($get['headers'],'X-QA-Faculty-ID: '.$selectedFaculty[1]."\r\n")!==false,
+        'The faculty switcher identifies the profile currently being edited.');
     dean_profile_check(strpos($get['body'],'faculty-photo-crop-template')!==false && strpos($get['body'],'faculty-photo-crop.js')!==false,'The Dean editor includes its photo crop controls.');
     foreach (['foreign'=>404,'old_roster'=>404,'reassigned'=>404,'wrong_role'=>302,'revoked'=>302,'inactive'=>302,'bad_id'=>400] as $scenario=>$status) {
         $r=$request($scenario,$valid);
@@ -57,6 +64,8 @@ try {
     }
     $professorGet=$request('professor_get');
     dean_profile_check($professorGet['status']===200 && strpos($professorGet['body'],'José QA Record')!==false,'Professor opens the profile started by the Dean.');
+    dean_profile_check(strpos($professorGet['body'],'dean-faculty-select')===false
+        && strpos($professorGet['body'],'faculty-profile-navigation.')===false,'The faculty switcher and its assets are limited to the Dean editor.');
     $professorPost=$valid;$professorPost['revision']='1';$professorSave=$request('professor_save',$professorPost);
     dean_profile_check($professorSave['status']===303 && strpos($professorSave['headers'],'X-QA-Record-Revision: 2')!==false
         && strpos($professorSave['headers'],'X-QA-Account-Storage: faculty')!==false,'Professor edits update the same shared faculty profile.');
