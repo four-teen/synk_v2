@@ -1,0 +1,26 @@
+.faculty-profile-page .profile-page-heading.has-profile-actions { align-items: flex-start; flex-wrap: wrap; }
+.profile-page-heading.has-profile-actions > div:first-child { flex: 1 1 280px; min-width: 0; }
+.dean-profile-heading-actions { display: flex; align-items: flex-end; gap: .75rem; flex: 0 1 460px; min-width: 0; }
+.dean-profile-heading-actions > .btn { flex-shrink: 0; min-height: 43px; }
+.dean-faculty-switcher { flex: 1; min-width: 0; margin: 0; }
+.dean-faculty-switcher label { display: block; margin-bottom: .5rem; color: #566a7f; font-size: .78rem; font-weight: 600; }
+.dean-faculty-switcher .form-select { min-height: 43px; border-color: #dce3ed; border-radius: 8px; font-size: .85rem; }
+.dean-faculty-switcher .select2-container { max-width: 100%; }
+.dean-faculty-switcher .select2-container--default .select2-selection--single { display: flex; align-items: center; height: 43px; border: 1px solid #dce3ed; border-radius: 8px; font-size: .85rem; }
+.dean-faculty-switcher .select2-container--default .select2-selection--single .select2-selection__rendered { width: 100%; padding-left: 12px; padding-right: 30px; color: #40516a; }
+.dean-faculty-switcher .select2-container--default .select2-selection--single .select2-selection__arrow { height: 41px; right: 5px; }
+.dean-faculty-switcher .select2-container--default.select2-container--focus .select2-selection--single,
+.dean-faculty-switcher .select2-container--default.select2-container--open .select2-selection--single { border-color: #696cff; }
+.dean-faculty-dropdown .select2-search__field { padding: 8px !important; border: 1px solid #dce3ed !important; border-radius: 6px; }
+.dean-faculty-dropdown .select2-results__option { padding: 9px 12px; font-size: .85rem; white-space: normal; overflow-wrap: anywhere; }
+.dean-faculty-dropdown .select2-results__option--highlighted.select2-results__option--selectable { background: #696cff; }
+@media (max-width: 767.98px) {
+  .faculty-profile-page .profile-page-heading.has-profile-actions { flex-direction: column; }
+  .profile-page-heading.has-profile-actions > div:first-child { flex: auto; }
+  .dean-profile-heading-actions { flex: auto; width: 100%; }
+}
+@media (max-width: 575.98px) {
+  .dean-profile-heading-actions { flex-wrap: wrap; }
+  .dean-faculty-switcher { flex-basis: 100%; }
+  .dean-profile-heading-actions > .btn { padding: .55rem .65rem; font-size: .75rem; }
+}

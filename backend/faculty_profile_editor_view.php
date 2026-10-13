@@ -8,6 +8,7 @@ $profileEditor = array_merge([
     'title' => 'My faculty profile',
     'subtitle' => 'Keep your personal, employment, and academic qualifications in one place.',
     'back_url' => 'index.php', 'back_label' => 'Dashboard',
+    'heading_actions_path' => null, 'extra_styles' => [], 'extra_scripts' => [],
     'account_note' => 'This profile belongs to your signed-in account.',
     'show_link_notice' => empty($portal['faculty_is_linked']),
     'action' => 'manage-profile.php', 'education_url' => 'education-options.php',
@@ -30,6 +31,9 @@ $profileEditor = array_merge([
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
   <link rel="stylesheet" href="custom_css.css?v=<?php echo filemtime($profileEditor['theme_path']); ?>">
   <link rel="stylesheet" href="../professor/faculty-profile.css?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.css'); ?>">
+  <?php foreach ($profileEditor['extra_styles'] as $stylesheet): ?>
+    <link rel="stylesheet" href="<?php echo synk_faculty_profile_h($stylesheet); ?>">
+  <?php endforeach; ?>
   <?php if ($profileEditor['photo_crop_enabled']): ?>
     <link rel="stylesheet" href="../assets/css/faculty-photo-crop.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/faculty-photo-crop.css') ?>">
     <script src="../assets/js/faculty-photo-crop.js?v=<?= filemtime(dirname(__DIR__) . '/assets/js/faculty-photo-crop.js') ?>" defer></script>
@@ -45,13 +49,17 @@ $profileEditor = array_merge([
         <?php include $profileEditor['navbar_path']; ?>
         <div class="content-wrapper">
           <main class="container-xxl flex-grow-1 container-p-y faculty-profile-page">
-            <div class="profile-page-heading">
+            <div class="profile-page-heading<?php echo $profileEditor['heading_actions_path'] !== null ? ' has-profile-actions' : ''; ?>">
               <div>
                 <div class="profile-eyebrow"><?php echo synk_faculty_profile_h($profileEditor['eyebrow']); ?></div>
                 <h1><?php echo synk_faculty_profile_h($profileEditor['title']); ?></h1>
                 <p><?php echo synk_faculty_profile_h($profileEditor['subtitle']); ?></p>
               </div>
-              <a href="<?php echo synk_faculty_profile_h($profileEditor['back_url']); ?>" class="btn btn-outline-secondary"><i class="bx bx-arrow-back me-2" aria-hidden="true"></i><?php echo synk_faculty_profile_h($profileEditor['back_label']); ?></a>
+              <?php if ($profileEditor['heading_actions_path'] !== null): ?>
+                <?php include $profileEditor['heading_actions_path']; ?>
+              <?php else: ?>
+                <a href="<?php echo synk_faculty_profile_h($profileEditor['back_url']); ?>" class="btn btn-outline-secondary"><i class="bx bx-arrow-back me-2" aria-hidden="true"></i><?php echo synk_faculty_profile_h($profileEditor['back_label']); ?></a>
+              <?php endif; ?>
             </div>
 
             <?php if ($savedNotice !== ''): ?>
@@ -227,5 +235,8 @@ $profileEditor = array_merge([
   <script src="../assets/vendor/js/menu.js"></script>
   <script src="../assets/js/main.js"></script>
   <script src="../professor/faculty-profile.js?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.js'); ?>"></script>
+  <?php foreach ($profileEditor['extra_scripts'] as $script): ?>
+    <script src="<?php echo synk_faculty_profile_h($script); ?>"></script>
+  <?php endforeach; ?>
 </body>
 </html>
