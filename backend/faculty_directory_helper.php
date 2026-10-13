@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/schema_helper.php';
+require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 require_once __DIR__ . '/auth_useraccount.php';
 require_once __DIR__ . '/faculty_record_profile_helper.php';
 
@@ -100,8 +102,9 @@ function synk_faculty_directory_records(mysqli $conn): array
         $result->close();
     }
     $records = [];
-    $result = $conn->query('SELECT f.*, COALESCE(d.designation_name, \'\') AS designation_name FROM tbl_faculty f
-        LEFT JOIN tbl_designation d ON d.designation_id = f.designation_id ORDER BY f.last_name, f.first_name, f.faculty_id');
+    $term = synk_fetch_current_academic_term($conn);
+    $result = $conn->query('SELECT f.*, d.designation_id AS designation_id, COALESCE(d.designation_name, \'\') AS designation_name FROM tbl_faculty f
+        ' . synk_faculty_designation_join_sql($conn, (int)$term['ay_id'], (int)$term['semester']) . ' ORDER BY f.last_name, f.first_name, f.faculty_id');
     while ($faculty = $result->fetch_assoc()) {
         $id = (int)$faculty['faculty_id'];
         $userId = $links[$id] ?? 0;

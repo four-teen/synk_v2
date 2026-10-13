@@ -1,0 +1,22 @@
+.scheduler-copy-intro { color: #697a8d; font-size: .85rem; line-height: 1.6; }
+.scheduler-copy-context { padding: .85rem 1rem; margin: 1rem 0; background: #f4f5ff; border: 1px solid #e5e7fa; border-radius: 8px; }
+.scheduler-copy-context span { display: block; color: #8391a7; font-size: .72rem; }
+.scheduler-copy-context strong { display: block; margin-top: .25rem; color: #566a7f; font-size: .9rem; }
+.scheduler-copy-selection { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .75rem 0; font-size: .8rem; }
+.scheduler-copy-selection label { cursor: pointer; }
+.scheduler-copy-selection > span { color: #697a8d; }
+.scheduler-copy-table { table-layout: fixed; width: 100%; }
+.scheduler-copy-table th:first-child { width: 42px; }
+.scheduler-copy-table th:last-child { width: 31%; }
+.scheduler-copy-table td { vertical-align: middle; overflow-wrap: anywhere; font-size: .82rem; }
+.scheduler-copy-table td strong { display: block; font-weight: 600; }
+.scheduler-copy-table td small { display: block; margin-top: .25rem; color: #8391a7; }
+.scheduler-copy-table .text-success { color: #268160 !important; }
+.scheduler-copy-table tr.is-unavailable { background: #fafbfc; color: #8391a7; }
+#termListCopyModal .modal-header .btn-close { margin: 0 0 0 auto; transform: none; box-shadow: none; }
+#termListCopyModal .modal-header .btn-close:focus-visible { outline: 2px solid #696cff; outline-offset: 2px; }
+@media (max-width: 575.98px) {
+  .scheduler-copy-table th:first-child { width: 34px; }
+  .scheduler-copy-table th:last-child { width: 34%; }
+  .scheduler-copy-table td { padding-left: .45rem; padding-right: .45rem; font-size: .75rem; }
+}

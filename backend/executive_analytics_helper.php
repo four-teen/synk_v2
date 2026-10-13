@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
@@ -1175,8 +1176,7 @@ function synk_exec_analytics_faculty_health_summary(mysqli $conn, int $ayId, int
 
     if ($facultyHasDesignationId && $designationTableExists && $designationHasUnits) {
         $designationJoinSql = "
-            LEFT JOIN tbl_designation d
-                ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
                " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
         ";
         $designationUnitsExpr = 'COALESCE(d.designation_units, 0)';

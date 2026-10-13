@@ -1,7 +1,10 @@
 <?php
 session_start();
-include '../backend/db.php';
+require_once '../backend/db.php';
 require_once '../backend/academic_term_helper.php';
+require_once '../backend/scheduler_access_helper.php';
+require_once '../backend/scheduler_term_list_helper.php';
+synk_scheduler_bootstrap_session_scope($conn);
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'scheduler') {
     header("Location: ../index.php");
@@ -9,6 +12,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'scheduler') {
 }
 
 $college_id = (int)($_SESSION['college_id'] ?? 0);
+try { synk_scheduler_list_scope($conn, $college_id); }
+catch (DomainException $exception) { http_response_code(403); exit(htmlspecialchars($exception->getMessage(), ENT_QUOTES, 'UTF-8')); }
 $college_name = $_SESSION['college_name'] ?? '';
 $campus_id = 0;
 
@@ -48,6 +53,7 @@ while ($c = $cRes->fetch_assoc()) {
 <html lang="en" class="light-style layout-menu-fixed">
 <head>
     <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Room Management | Synk Scheduler</title>
 
     <link rel="icon" type="image/png" href="../assets/img/favicon/synk-icon.png" />
@@ -82,7 +88,7 @@ while ($c = $cRes->fetch_assoc()) {
 <div class="content-wrapper">
 <div class="container-xxl flex-grow-1 container-p-y">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-3">
         <h4 class="fw-bold">
             <i class="bx bx-building-house me-2"></i>
             Room Management <small class="text-muted">(<?= htmlspecialchars($college_name) ?>)</small>
@@ -90,7 +96,7 @@ while ($c = $cRes->fetch_assoc()) {
 
         <div class="d-flex gap-2">
             <button class="btn btn-outline-primary" id="btnOpenCopyRooms">
-                <i class="bx bx-copy-alt"></i> Copy Previous Term
+                <i class="bx bx-copy-alt"></i> Copy Previous List
             </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addRoomModal" id="btnOpenAddRoom">
                 <i class="bx bx-plus"></i> Add Room
@@ -160,55 +166,7 @@ while ($c = $cRes->fetch_assoc()) {
 
 </div>
 
-<div class="modal fade" id="copyRoomsModal">
-  <div class="modal-dialog modal-md modal-dialog-centered">
-    <div class="modal-content">
-
-      <div class="modal-header">
-        <h5 class="modal-title">Copy Rooms From Previous Term</h5>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-
-      <div class="modal-body">
-        <div class="alert alert-info mb-3">
-          This copies your owned rooms into the selected target term. Sharing will start blank so you can set fresh sharing for the new Academic Year and Semester, and you can remove any copied room that does not apply.
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Target Term</label>
-          <div class="form-control bg-light" id="copy_target_term_text">Select Academic Year and Semester first.</div>
-        </div>
-
-        <div class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Source Academic Year</label>
-            <select id="copy_source_ay_id" class="form-select">
-              <option value="">Select...</option>
-              <?php foreach ($ayOptions as $ay): ?>
-                <option value="<?= (int)$ay['ay_id'] ?>"><?= htmlspecialchars($ay['ay']) ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Source Semester</label>
-            <select id="copy_source_semester" class="form-select">
-              <option value="">Select...</option>
-              <option value="1">First Semester</option>
-              <option value="2">Second Semester</option>
-              <option value="3">Midyear</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button class="btn btn-primary" id="btnCopyRooms">Copy Rooms</button>
-      </div>
-
-    </div>
-  </div>
-</div>
+<?php $termCopyKind = 'rooms'; $termCopyCollegeId = $college_id; include __DIR__ . '/term-list-copy-modal.php'; ?>
 
 <div class="modal fade" id="addRoomModal">
   <div class="modal-dialog modal-md modal-dialog-centered">
@@ -340,6 +298,7 @@ while ($c = $cRes->fetch_assoc()) {
 <script>
 let roomTable;
 const CSRF_TOKEN = <?= json_encode($csrf_token) ?>;
+const ROOM_COLLEGE_ID = <?= $college_id ?>;
 
 function getTermOrWarn() {
     const ay_id = $("#ay_id").val();
@@ -351,51 +310,6 @@ function getTermOrWarn() {
     return { ay_id, semester };
 }
 
-function getSemesterLabel(semester) {
-    switch (String(semester || '')) {
-        case '1':
-            return 'First Semester';
-        case '2':
-            return 'Second Semester';
-        case '3':
-            return 'Midyear';
-        default:
-            return 'Select Semester';
-    }
-}
-
-function getTargetTermText() {
-    const ayText = $("#ay_id option:selected").text() || 'Select Academic Year';
-    return `${ayText} - ${getSemesterLabel($("#semester").val())}`;
-}
-
-function getSuggestedPreviousAyId() {
-    const currentAyId = $("#ay_id").val();
-    let matchedCurrent = false;
-    let suggestedAyId = '';
-
-    $("#copy_source_ay_id option").each(function () {
-        const value = $(this).val();
-        if (!value) return;
-
-        if (matchedCurrent) {
-            suggestedAyId = value;
-            return false;
-        }
-
-        if (value === currentAyId) {
-            matchedCurrent = true;
-        }
-    });
-
-    return suggestedAyId;
-}
-
-function seedCopyRoomsModal() {
-    $("#copy_target_term_text").text(getTargetTermText());
-    $("#copy_source_semester").val($("#semester").val() || '');
-    $("#copy_source_ay_id").val(getSuggestedPreviousAyId());
-}
 
 $(document).ready(function () {
     $('#add_shared_colleges').select2({
@@ -439,13 +353,7 @@ $(document).ready(function () {
         }
     });
 
-    $("#btnOpenCopyRooms").on("click", function () {
-        const term = getTermOrWarn();
-        if (!term) return;
 
-        seedCopyRoomsModal();
-        $("#copyRoomsModal").modal("show");
-    });
 
     if ($("#ay_id").val() && $("#semester").val()) {
         loadRooms();
@@ -460,7 +368,8 @@ function loadRooms() {
         load_rooms: 1,
         ay_id: term.ay_id,
         semester: term.semester,
-        csrf_token: CSRF_TOKEN
+        csrf_token: CSRF_TOKEN,
+        college_id: ROOM_COLLEGE_ID
     }, function (data) {
         const raw = (data || '').toString().trim();
 
@@ -495,7 +404,7 @@ $("#btnSaveRoom").click(function () {
 
     $.post('../backend/query_rooms.php',
         $("#addRoomForm").serialize() +
-        `&save_room=1&ay_id=${encodeURIComponent(term.ay_id)}&semester=${encodeURIComponent(term.semester)}&csrf_token=${encodeURIComponent(CSRF_TOKEN)}`,
+        `&save_room=1&college_id=${ROOM_COLLEGE_ID}&ay_id=${encodeURIComponent(term.ay_id)}&semester=${encodeURIComponent(term.semester)}&csrf_token=${encodeURIComponent(CSRF_TOKEN)}`,
         function(res) {
             if (res === "duplicate") {
                 Swal.fire({
@@ -527,97 +436,7 @@ $("#btnSaveRoom").click(function () {
     );
 });
 
-$("#btnCopyRooms").click(function () {
-    const targetTerm = getTermOrWarn();
-    if (!targetTerm) return;
 
-    const sourceAyId = $("#copy_source_ay_id").val();
-    const sourceSemester = $("#copy_source_semester").val();
-
-    if (!sourceAyId || !sourceSemester) {
-        Swal.fire({
-            icon: "warning",
-            title: "Missing Source Term",
-            text: "Select the source Academic Year and Semester to copy from.",
-            target: '#copyRoomsModal',
-            backdrop: false
-        });
-        return;
-    }
-
-    $.ajax({
-        url: '../backend/query_rooms.php',
-        type: 'POST',
-        dataType: 'json',
-        data: {
-            copy_rooms_from_term: 1,
-            source_ay_id: sourceAyId,
-            source_semester: sourceSemester,
-            ay_id: targetTerm.ay_id,
-            semester: targetTerm.semester,
-            csrf_token: CSRF_TOKEN
-        },
-        success: function (res) {
-            if (!res || !res.status) {
-                Swal.fire("Error", "Unable to copy rooms for the selected term.", "error");
-                return;
-            }
-
-            if (res.status === 'same_term') {
-                Swal.fire("Invalid Source", res.message || "Choose a different source term.", "warning");
-                return;
-            }
-
-            if (res.status === 'invalid_term') {
-                Swal.fire("Missing Term", res.message || "Select both source and target terms.", "warning");
-                return;
-            }
-
-            if (res.status === 'source_empty') {
-                Swal.fire("No Rooms Found", res.message || "No rooms were found in the selected source term.", "info");
-                return;
-            }
-
-            if (res.status === 'schema_missing') {
-                Swal.fire("Setup Required", res.message || "Run the room term-sharing setup first.", "warning");
-                return;
-            }
-
-            if (res.status === 'success') {
-                const copiedCount = Number(res.copied_count || 0);
-                const skippedCount = Number(res.skipped_count || 0);
-                let summary = copiedCount === 1
-                    ? '1 room was copied into the selected term.'
-                    : `${copiedCount} rooms were copied into the selected term.`;
-
-                if (copiedCount === 0) {
-                    summary = 'No new rooms were copied because they already exist in the selected term.';
-                }
-
-                if (skippedCount > 0) {
-                    summary += ` ${skippedCount} room(s) were skipped because they already exist in the target term.`;
-                }
-
-                summary += ' Sharing remains blank for this term.';
-
-                Swal.fire({
-                    icon: copiedCount > 0 ? "success" : "info",
-                    title: copiedCount > 0 ? "Rooms Copied" : "Nothing New To Copy",
-                    text: summary
-                });
-
-                $("#copyRoomsModal").modal("hide");
-                loadRooms();
-                return;
-            }
-
-            Swal.fire("Error", res.message || "Unable to copy rooms for the selected term.", "error");
-        },
-        error: function () {
-            Swal.fire("Server Error", "Unable to connect to the server.", "error");
-        }
-    });
-});
 
 $(document).on("click", ".btnEdit", function () {
     $("#edit_room_id").val($(this).data("id"));
@@ -639,7 +458,7 @@ $("#btnUpdateRoom").click(function () {
 
     $.post('../backend/query_rooms.php',
         $("#editRoomForm").serialize() +
-        `&update_room=1&ay_id=${encodeURIComponent(term.ay_id)}&semester=${encodeURIComponent(term.semester)}&csrf_token=${encodeURIComponent(CSRF_TOKEN)}`,
+        `&update_room=1&college_id=${ROOM_COLLEGE_ID}&ay_id=${encodeURIComponent(term.ay_id)}&semester=${encodeURIComponent(term.semester)}&csrf_token=${encodeURIComponent(CSRF_TOKEN)}`,
         function(res) {
             if (res === "duplicate") {
                 Swal.fire("Duplicate!", "Room code already exists.", "warning");
@@ -679,6 +498,7 @@ $(document).on("click", ".btnDelete", function () {
             $.post('../backend/query_rooms.php',
                 {
                     delete_room: 1,
+                    college_id: ROOM_COLLEGE_ID,
                     room_id: id,
                     ay_id: term.ay_id,
                     semester: term.semester,
