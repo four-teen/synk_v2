@@ -6,7 +6,7 @@ $checks=0;
 $check=static function (bool $value,string $message) use (&$checks): void { if (!$value) throw new RuntimeException($message); $checks++; };
 $snapshot=static function () use ($conn): array {
     $rows=[];
-    foreach (['tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_sections'] as $table) $rows[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM ' . $table . ' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));
+    foreach (['tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_sections','tbl_faculty','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'] as $table) $rows[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM ' . $table . ' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));
     return $rows;
 };
 $before=$snapshot(); $token=bin2hex(random_bytes(24));
@@ -33,10 +33,24 @@ try {
     $check($r['http_status']===200 && strpos($r['response'],'Dean preview')!==false && strpos($r['response'],'Read only')!==false,'A Dean can open the real Student dashboard without a Student login.');
     $check(substr_count($r['response'],'data-subject-card ' )===2 && strpos($r['response'],'for your college')!==false,'The shared student preview contains only the Dean’s current college subjects.');
     $check($r['session_role']==='college_dean' && is_int($r['session_user_id']) && $r['schedules_unchanged'],'Preview preserves Dean authentication and scheduling/workloads.');
-    $check(strpos($r['response'],'../logout.php')===false && strpos($r['response'],'Faculty Evaluation')===false,'A Dean preview returns to its directory and keeps confidential evaluation responses outside the preview.');
+    $check(strpos($r['response'],'../logout.php')===false && strpos($r['response'],'Faculty Evaluation')!==false,'A Dean preview returns to its directory and includes Faculty Evaluation.');
     $r=$request('preview_historical');$check($r['http_status']===200 && substr_count($r['response'],'data-subject-card ')===1,'The Dean preview can review earlier college subjects.');
     $r=$request('preview_profile');$check($r['http_status']===200 && strpos($r['response'],'Dean preview')!==false && strpos($r['response'],'studentSetupModal')===false,'The student profile is visible without an editable setup form.');
-    foreach(['preview_foreign','preview_revoked','preview_changed_scope','preview_post','preview_evaluation'] as $scenario) { $r=$request($scenario);$check($r['http_status']===403 && $r['schedules_unchanged'],'Preview rejects unauthorized students, revoked access and writes: '.$scenario); }
+    foreach(['preview_foreign','preview_revoked','preview_changed_scope','preview_post','preview_evaluation_foreign','preview_evaluation_revoked','preview_evaluation_draft_post','preview_evaluation_final_post'] as $scenario) { $r=$request($scenario);$check($r['http_status']===403 && $r['schedules_unchanged'],'Preview rejects unauthorized students, revoked access and writes: '.$scenario); }
+    foreach (['preview_evaluation','preview_evaluation_foreign_faculty','preview_evaluation_foreign_term','preview_evaluation_no_return'] as $scenario) {
+        $r=$request($scenario);$html=$r['response'];
+        $check($r['http_status']===200 && strpos($html,'Dean preview')!==false && strpos($html,'View Evaluation')!==false,'The Dean can review saved and submitted evaluations: '.$scenario);
+        $check(strpos($html,'Dean draft review comment &lt;script&gt;bad()&lt;/script&gt;')!==false && strpos($html,'Dean submitted review comment')!==false,'Draft and submitted comments are visible and escaped.');
+        $check(substr_count($html,'class="form-select" required disabled')===40 && substr_count($html,' readonly>')===2,'All draft and submitted rating controls and comments are read-only.');
+        $check(strpos($html,'FOREIGN_EVALUATION_RESPONSE')===false && strpos($html,'ForeignEvaluationQA')===false && strpos($html,'FOREIGN_SUBJECT_SUMMARY')===false,'Other college faculty, responses and saved subject summaries cannot leak.');
+        $check(strpos($html,'name="preview_student_id" value="'.$r['profiles']['shared']['student_id'].'"')!==false && strpos($html,'name="return_to" value="../college-dean/students.php"')!==false,'GET filters retain the selected student and Dean return link.');
+        $check($r['schedules_unchanged'] && $r['session_role']==='college_dean' && !preg_match('/Fatal error|Parse error|Warning(?:<\/b>)?:|xdebug-error/i',$html),'Reviewing evaluation leaves responses, scheduling and Dean authentication unchanged.');
+    }
+    foreach (['preview_evaluation_historical','preview_evaluation_filter'] as $scenario) {
+        $r=$request($scenario);$html=$r['response'];
+        $check($r['http_status']===200 && strpos($html,'Historical evaluation review comment')!==false && strpos($html,'Dean draft review comment')===false,'Evaluation opens the selected historical term: '.$scenario);
+        $check(strpos($html,'name="student_term" value="'.$r['term']['ay_id'].':'.($r['term']['semester']===1?2:1).'"')!==false && $r['schedules_unchanged'],'Term filtering keeps the selected student and does not change responses.');
+    }
     $r=$request('page');
     $check($r['http_status']===200 && is_string($r['response']) && !preg_match('/Fatal error|Parse error|Warning(?:<\/b>)?:|xdebug-error/i',$r['response']),'Student Management failed to render.');
     foreach (['Student Management','students.js','custom_css.css','deanStudentsRows','deanStudentDetailsModal','Import Students','Class Sections','Student Name','Add Student','Delete Selected Term Records'] as $feature) $check(strpos($r['response'],$feature)!==false,'Missing student directory feature: ' . $feature);

@@ -49,11 +49,27 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
-if ($scenario==='dean_preview') {
+if (in_array($scenario,['dean_preview','dean_evaluation'],true)) {
     $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_dean_college_id) VALUES ('QA Dean','dean-{$email}','unusable-qa-password','college_dean','active',{$program['college_id']})");
     $deanId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$deanId,['college_dean'],'college_dean');
     $_SESSION=['user_id'=>$deanId,'role'=>'college_dean','username'=>'QA Dean','email'=>'dean-'.$email,'csrf_token'=>$csrf];
     $_GET['preview_student_id']=$students['first'];$_GET['student_term']=$term['ay_id'].':'.$term['semester'];$_GET['return_to']='../college-dean/students.php';
+}
+if ($scenario==='dean_evaluation') {
+    $handler='student/class-program.php';
+    foreach ($teachers as $index=>$teacher) {
+        $comment=$index===0?'A saved draft comment for Dean review.':'A submitted comment for Dean review.';
+        $status=$index===0?'draft':'submitted';$rating=$index===0?4:5;$score=$rating*20;$average=(float)$rating;
+        $evaluationToken=$tag.'-'.$teacher;$finalToken=$index===0?'':$tag.'-final';
+        $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,ay_id,semester,comment_text,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token) VALUES (?,?,?,?,?,20,?,?,?,?,?)');
+        $stmt->bind_param('iiiisidsss',$students['first'],$teacher,$term['ay_id'],$term['semester'],$comment,$score,$average,$evaluationToken,$status,$finalToken);
+        $stmt->execute();$evaluationId=(int)$stmt->insert_id;$stmt->close();
+        foreach (synk_student_faculty_evaluation_flat_questions() as $question) {
+            $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,?)');
+            $stmt->bind_param('isssisi',$evaluationId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text'],$rating);
+            $stmt->execute();$stmt->close();
+        }
+    }
 }
 if($scenario==='old_term')$_GET['student_term']=$oldTerm['ay_id'].':'.$oldTerm['semester'];
 if($scenario==='empty_term')$conn->query("UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id={$students['first']}");
@@ -81,7 +97,7 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
     if($scenario==='admin_inactive')$conn->query("UPDATE tbl_useraccount SET status='inactive' WHERE user_id={$adminId}");
     if($scenario==='admin_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$adminId} AND role='admin'");
     if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
-$protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings'];
+$protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);
 ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0){$base=strpos($handler,'student/')===0?'student':'administrator';$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});

@@ -51,15 +51,19 @@ Prospectus and Faculty Evaluation pages are retained.
 
 **Show Account**, beside a student name in the Dean Student Management page,
 opens the actual Student dashboard in a new tab. The Dean remains signed in as
-Dean. Profile and Prospectus links retain the selected student's preview ID,
+Dean. Profile, Prospectus and Faculty Evaluation links retain the selected student's preview ID and term,
 and the return link goes to the Dean directory. All preview requests are
 read-only; server-side guards reject POST requests.
 
 The application rechecks the Dean's active role, college and campus on each
 request. The student must belong to that college's imported lists or its manual
 directory. Preview subjects and term choices are limited to that college.
-Confidential individual Faculty Evaluation responses are outside the Dean
-preview. Student and Administrator views retain their existing subject scopes.
+Faculty Evaluation includes the question forms, saved draft and submitted ratings,
+comments and completion status for faculty linked to active enrollments in the
+Dean's college and campus. Rating controls and comments are read-only, and both
+draft saves and final submissions are blocked on the server. Preview reads do
+not create or alter evaluation tables. Student and Administrator views retain
+their existing subject scopes.
 
 The individual **Delete** button uses the existing term-record removal process.
 Its preview includes only the clicked student, covering that student's class
