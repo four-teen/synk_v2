@@ -7,6 +7,7 @@ require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_block_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/schema_helper.php';
+require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
 
 function synk_student_preview_student_id_from_request(): int
 {
@@ -586,6 +587,17 @@ function synk_student_faculty_evaluation_answer_table_name(): string
     return 'tbl_student_faculty_evaluation_answers';
 }
 
+function synk_student_faculty_evaluation_has_version_column(mysqli $conn): bool
+{
+    // Do not use the shared column cache: this column may have just been added
+    // earlier in the same request during an automatic schema upgrade.
+    $table = synk_student_faculty_evaluation_table_name();
+    $result = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE 'instrument_version'");
+    $exists = $result instanceof mysqli_result && $result->num_rows > 0;
+    if ($result instanceof mysqli_result) $result->close();
+    return $exists;
+}
+
 function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
 {
     $headerTable = synk_student_faculty_evaluation_table_name();
@@ -604,6 +616,7 @@ function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
             `term_label` VARCHAR(120) NOT NULL DEFAULT '',
             `subject_summary` TEXT NULL,
             `comment_text` TEXT NULL,
+            `instrument_version` VARCHAR(64) NOT NULL DEFAULT 'legacy-20',
             `question_count` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
             `total_score` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
             `average_rating` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
@@ -691,108 +704,14 @@ function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
             throw new RuntimeException('Unable to normalize legacy faculty evaluation records.');
         }
     }
-}
 
-function synk_student_faculty_evaluation_scale(): array
-{
-    return [
-        5 => [
-            'label' => 'Outstanding',
-            'description' => 'The performance almost always exceeds the job requirements. The faculty is an exceptional role model.',
-        ],
-        4 => [
-            'label' => 'Very Satisfactory',
-            'description' => 'The performance meets and often exceeds the job requirements.',
-        ],
-        3 => [
-            'label' => 'Satisfactory',
-            'description' => 'The performance meets and sometimes exceeds the job requirements.',
-        ],
-        2 => [
-            'label' => 'Fair',
-            'description' => 'The performance needs some development to meet job requirements.',
-        ],
-        1 => [
-            'label' => 'Poor',
-            'description' => 'The faculty fails to meet job requirements.',
-        ],
-    ];
-}
-
-function synk_student_faculty_evaluation_question_bank(): array
-{
-    return [
-        [
-            'key' => 'commitment',
-            'title' => 'Commitment',
-            'items' => [
-                ['key' => 'COM1', 'text' => 'Demonstrates sensitivity to students’ ability to attend and absorb content information.'],
-                ['key' => 'COM2', 'text' => 'Integrates sensitivity to his/her learning objectives with those of the students in a collaborative process.'],
-                ['key' => 'COM3', 'text' => 'Makes her/himself available to students beyond official time.'],
-                ['key' => 'COM4', 'text' => 'Coordinates student needs with internal and external enabling groups.'],
-                ['key' => 'COM5', 'text' => 'Supplements available resources.'],
-            ],
-        ],
-        [
-            'key' => 'subject_matter',
-            'title' => 'Knowledge of Subject Matter',
-            'items' => [
-                ['key' => 'KSM1', 'text' => 'Discusses the subject matter without completely relying on the prescribed reading.'],
-                ['key' => 'KSM2', 'text' => 'Draws and shares information on the state-of-the-art theory and practice in his/her discipline.'],
-                ['key' => 'KSM3', 'text' => 'Integrates subject to practical circumstances and learning intents/purposes of students.'],
-                ['key' => 'KSM4', 'text' => 'Explains the relevance of present topics to the previous lessons, and relates the subject matter to relevant current issues and/or daily life activities.'],
-                ['key' => 'KSM5', 'text' => 'Demonstrates up-to-date knowledge and/or awareness on current trends and issues of the subject.'],
-            ],
-        ],
-        [
-            'key' => 'independent_learning',
-            'title' => 'Teaching for Independent Learning',
-            'items' => [
-                ['key' => 'TIL1', 'text' => 'Employs teaching strategies that allow students to practice using concepts they need to understand (interactive discussion).'],
-                ['key' => 'TIL2', 'text' => 'Provides exercises which develop critical and analytical thinking among the students.'],
-                ['key' => 'TIL3', 'text' => 'Enhances student self-esteem through proper recognition of their abilities.'],
-                ['key' => 'TIL4', 'text' => 'Allows students of the course to create their own use of well-defined objectives and realistic student-faculty rules.'],
-                ['key' => 'TIL5', 'text' => 'Empowers students to make their own decisions and be accountable for their performance.'],
-            ],
-        ],
-        [
-            'key' => 'management_of_learning',
-            'title' => 'Management of Learning',
-            'items' => [
-                ['key' => 'MOL1', 'text' => 'Creates opportunities for intensive and/or extensive contribution of students in the class activities (e.g. breaks class into dyads, triads or buzz/task groups).'],
-                ['key' => 'MOL2', 'text' => 'Assumes roles as facilitator, resource person, coach, inquisitor, integrator, referee in drawing students to contribute to knowledge and understanding of the concepts at hand.'],
-                ['key' => 'MOL3', 'text' => 'Designs and implements learning conditions and experience that promotes healthy exchange and/or confrontations.'],
-                ['key' => 'MOL4', 'text' => 'Structures/re-structures learning and teaching-learning context to enhance attainment of collective learning objectives.'],
-                ['key' => 'MOL5', 'text' => 'Stimulates students’ desire and interest to learn more about the subject matter.'],
-            ],
-        ],
-    ];
-}
-
-function synk_student_faculty_evaluation_flat_questions(): array
-{
-    $questions = [];
-    $order = 1;
-
-    foreach (synk_student_faculty_evaluation_question_bank() as $category) {
-        foreach ((array)($category['items'] ?? []) as $item) {
-            $questionKey = (string)($item['key'] ?? '');
-            if ($questionKey === '') {
-                continue;
-            }
-
-            $questions[$questionKey] = [
-                'category_key' => (string)($category['key'] ?? ''),
-                'category_title' => (string)($category['title'] ?? ''),
-                'question_key' => $questionKey,
-                'question_order' => $order,
-                'question_text' => (string)($item['text'] ?? ''),
-            ];
-            $order++;
+    // Existing responses keep the old instrument; this must not trigger the
+    // earlier workflow migration that finalizes legacy draft records.
+    if (!synk_student_faculty_evaluation_has_version_column($conn)) {
+        if (!$conn->query("ALTER TABLE `{$headerTable}` ADD COLUMN `instrument_version` VARCHAR(64) NOT NULL DEFAULT 'legacy-20' AFTER `comment_text`")) {
+            throw new RuntimeException('Unable to record the faculty evaluation instrument version.');
         }
     }
-
-    return $questions;
 }
 
 function synk_student_generate_faculty_evaluation_token(): string
@@ -832,6 +751,9 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
         synk_student_faculty_evaluation_ensure_schema($conn);
     }
     $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
+    $instrumentVersionSql = synk_student_faculty_evaluation_has_version_column($conn)
+        ? 'instrument_version'
+        : "'legacy-20' AS instrument_version";
     $evaluationScopeSql = '';
     if ($previewScopeSql !== '') {
         $enrollmentTable = synk_student_portal_enrollment_table_name();
@@ -856,6 +778,7 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
             term_label,
             subject_summary,
             comment_text,
+            {$instrumentVersionSql},
             question_count,
             total_score,
             average_rating,
@@ -902,6 +825,7 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
                 'term_label' => (string)($row['term_label'] ?? ''),
                 'subject_summary' => (string)($row['subject_summary'] ?? ''),
                 'comment_text' => (string)($row['comment_text'] ?? ''),
+                'instrument_version' => (string)($row['instrument_version'] ?? 'legacy-20'),
                 'question_count' => (int)($row['question_count'] ?? 0),
                 'total_score' => (int)($row['total_score'] ?? 0),
                 'average_rating' => (float)($row['average_rating'] ?? 0),
@@ -997,21 +921,13 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
         throw new RuntimeException('The faculty evaluation questionnaire is not available.');
     }
 
-    $normalizedAnswers = [];
-    $totalScore = 0;
-
-    foreach ($questionMap as $questionKey => $questionMeta) {
-        $rating = max(0, (int)($answers[$questionKey] ?? 0));
-        if ($rating < 1 || $rating > 5) {
-            throw new RuntimeException('All faculty evaluation questions must be answered using the 1 to 5 scale.');
-        }
-
-        $normalizedAnswers[$questionKey] = $rating;
-        $totalScore += $rating;
-    }
+    $normalizedAnswers = synk_student_faculty_evaluation_normalize_answers($answers);
+    $totalScore = array_sum($normalizedAnswers);
 
     $questionCount = count($normalizedAnswers);
-    $averageRating = $questionCount > 0 ? round($totalScore / $questionCount, 2) : 0;
+    $score = synk_student_faculty_evaluation_score($totalScore, $questionCount);
+    $averageRating = $score['mean'];
+    $instrumentVersion = synk_student_faculty_evaluation_current_version();
     $savedAt = date('Y-m-d H:i:s');
 
     $headerTable = synk_student_faculty_evaluation_table_name();
@@ -1070,6 +986,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                     term_label = ?,
                     subject_summary = ?,
                     comment_text = ?,
+                    instrument_version = ?,
                     question_count = ?,
                     total_score = ?,
                     average_rating = ?,
@@ -1088,12 +1005,13 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
             }
 
             $updateHeaderStmt->bind_param(
-                'sssssiidssi',
+                'ssssssiidssi',
                 $facultyName,
                 $studentNumber,
                 $termLabel,
                 $subjectSummary,
                 $commentText,
+                $instrumentVersion,
                 $questionCount,
                 $totalScore,
                 $averageRating,
@@ -1124,6 +1042,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                     term_label,
                     subject_summary,
                     comment_text,
+                    instrument_version,
                     question_count,
                     total_score,
                     average_rating,
@@ -1132,7 +1051,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                     final_submission_token,
                     final_submitted_at,
                     completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '', NULL, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '', NULL, ?)
             ");
 
             if (!$insertHeaderStmt) {
@@ -1140,7 +1059,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
             }
 
             $insertHeaderStmt->bind_param(
-                'iiiisssssiidss',
+                'iiiissssssiidss',
                 $studentId,
                 $facultyId,
                 $ayId,
@@ -1150,6 +1069,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                 $termLabel,
                 $subjectSummary,
                 $commentText,
+                $instrumentVersion,
                 $questionCount,
                 $totalScore,
                 $averageRating,
@@ -1220,6 +1140,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
             'term_label' => $termLabel,
             'subject_summary' => $subjectSummary,
             'comment_text' => $commentText,
+            'instrument_version' => $instrumentVersion,
             'question_count' => $questionCount,
             'total_score' => $totalScore,
             'average_rating' => $averageRating,
@@ -1278,6 +1199,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
                 evaluation_id,
                 faculty_id,
                 faculty_name,
+                instrument_version,
                 question_count,
                 submission_status,
                 final_submission_token
@@ -1320,6 +1242,9 @@ function synk_student_finalize_faculty_evaluations_for_term(
             $rowFinalToken = trim((string)($draftRows[$facultyId]['final_submission_token'] ?? ''));
             if ($rowStatus === 'submitted' || $rowFinalToken !== '') {
                 throw new RuntimeException('The final faculty evaluation has already been submitted for this academic term.');
+            }
+            if (!synk_student_faculty_evaluation_is_current($draftRows[$facultyId])) {
+                throw new RuntimeException('Please answer and save all 15 questions in the revised SET instrument for every faculty before final submission.');
             }
         }
 
@@ -1420,13 +1345,9 @@ function synk_student_build_term_evaluation_qr_payload(array $submission, array 
     }));
 }
 
-function synk_student_faculty_evaluation_percentage_from_mean(float $mean): float
+function synk_student_fetch_faculty_evaluation_report_term_options(mysqli $conn, string $instrumentVersion = ''): array
 {
-    return round((max(0, $mean) / 5) * 100, 2);
-}
-
-function synk_student_fetch_faculty_evaluation_report_term_options(mysqli $conn): array
-{
+    $instrumentVersion = $instrumentVersion !== '' ? $instrumentVersion : synk_student_faculty_evaluation_current_version();
     synk_student_faculty_evaluation_ensure_schema($conn);
 
     $headerTable = synk_student_faculty_evaluation_table_name();
@@ -1443,6 +1364,7 @@ function synk_student_fetch_faculty_evaluation_report_term_options(mysqli $conn)
         LEFT JOIN tbl_academic_years ay
             ON ay.ay_id = e.ay_id
         WHERE e.submission_status = 'submitted'
+          AND e.instrument_version = ?
         GROUP BY e.ay_id, e.semester, ay.ay
         ORDER BY e.ay_id DESC, e.semester DESC, latest_submitted_at DESC
     ");
@@ -1451,6 +1373,7 @@ function synk_student_fetch_faculty_evaluation_report_term_options(mysqli $conn)
         return [];
     }
 
+    $stmt->bind_param('s', $instrumentVersion);
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = [];
@@ -1484,8 +1407,9 @@ function synk_student_fetch_faculty_evaluation_report_term_options(mysqli $conn)
     return $rows;
 }
 
-function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int $ayId, int $semester): array
+function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int $ayId, int $semester, string $instrumentVersion = ''): array
 {
+    $instrumentVersion = $instrumentVersion !== '' ? $instrumentVersion : synk_student_faculty_evaluation_current_version();
     $summary = [
         'evaluation_count' => 0,
         'student_count' => 0,
@@ -1508,19 +1432,21 @@ function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int 
             COUNT(DISTINCT e.student_id) AS student_count,
             COUNT(DISTINCT e.faculty_id) AS faculty_count,
             COUNT(DISTINCT NULLIF(TRIM(e.final_submission_token), '')) AS final_submission_count,
-            AVG(e.average_rating) AS overall_mean,
+            SUM(e.total_score) AS total_points,
+            SUM(e.question_count) AS answer_count,
             MAX(COALESCE(e.final_submitted_at, e.completed_at)) AS latest_submitted_at
         FROM `{$headerTable}` e
         WHERE e.submission_status = 'submitted'
           AND e.ay_id = ?
           AND e.semester = ?
+          AND e.instrument_version = ?
     ");
 
     if (!$stmt) {
         return $summary;
     }
 
-    $stmt->bind_param('ii', $ayId, $semester);
+    $stmt->bind_param('iis', $ayId, $semester, $instrumentVersion);
     $stmt->execute();
     $result = $stmt->get_result();
     $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
@@ -1537,15 +1463,17 @@ function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int 
     $summary['student_count'] = (int)($row['student_count'] ?? 0);
     $summary['faculty_count'] = (int)($row['faculty_count'] ?? 0);
     $summary['final_submission_count'] = (int)($row['final_submission_count'] ?? 0);
-    $summary['overall_mean'] = round((float)($row['overall_mean'] ?? 0), 2);
-    $summary['overall_percentage'] = synk_student_faculty_evaluation_percentage_from_mean($summary['overall_mean']);
+    $score = synk_student_faculty_evaluation_score((float)($row['total_points'] ?? 0), (int)($row['answer_count'] ?? 0));
+    $summary['overall_mean'] = $score['mean'];
+    $summary['overall_percentage'] = $score['percentage'];
     $summary['latest_submitted_at'] = (string)($row['latest_submitted_at'] ?? '');
 
     return $summary;
 }
 
-function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, int $ayId, int $semester): array
+function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, int $ayId, int $semester, string $instrumentVersion = ''): array
 {
+    $instrumentVersion = $instrumentVersion !== '' ? $instrumentVersion : synk_student_faculty_evaluation_current_version();
     if ($ayId <= 0 || $semester <= 0) {
         return [];
     }
@@ -1562,6 +1490,9 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
             e.subject_summary,
             e.comment_text,
             e.average_rating,
+            e.total_score,
+            e.question_count,
+            e.instrument_version,
             e.evaluation_token,
             e.final_submission_token,
             e.final_submitted_at,
@@ -1587,6 +1518,7 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
         WHERE e.submission_status = 'submitted'
           AND e.ay_id = ?
           AND e.semester = ?
+          AND e.instrument_version = ?
         ORDER BY
             COALESCE(e.final_submitted_at, e.completed_at) DESC,
             e.faculty_name ASC,
@@ -1599,7 +1531,7 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
         return [];
     }
 
-    $stmt->bind_param('ii', $ayId, $semester);
+    $stmt->bind_param('iis', $ayId, $semester, $instrumentVersion);
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = [];
@@ -1614,7 +1546,7 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
                 $studentName = 'Student record';
             }
 
-            $averageMean = round((float)($row['average_rating'] ?? 0), 2);
+            $score = synk_student_faculty_evaluation_score((float)$row['total_score'], (int)$row['question_count']);
             $rows[] = [
                 'evaluation_id' => (int)($row['evaluation_id'] ?? 0),
                 'student_id' => (int)($row['student_id'] ?? 0),
@@ -1624,8 +1556,11 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
                 'faculty_name' => (string)($row['faculty_name'] ?? ''),
                 'subject_summary' => (string)($row['subject_summary'] ?? ''),
                 'comment_text' => (string)($row['comment_text'] ?? ''),
-                'average_mean' => $averageMean,
-                'average_percentage' => synk_student_faculty_evaluation_percentage_from_mean($averageMean),
+                'instrument_version' => (string)$row['instrument_version'],
+                'total_score' => (int)$row['total_score'],
+                'question_count' => (int)$row['question_count'],
+                'average_mean' => $score['mean'],
+                'average_percentage' => $score['percentage'],
                 'evaluation_token' => (string)($row['evaluation_token'] ?? ''),
                 'final_submission_token' => (string)($row['final_submission_token'] ?? ''),
                 'final_submitted_at' => (string)($row['final_submitted_at'] ?? ''),
@@ -1644,8 +1579,9 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
     return $rows;
 }
 
-function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $conn, int $ayId, int $semester): array
+function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $conn, int $ayId, int $semester, string $instrumentVersion = ''): array
 {
+    $instrumentVersion = $instrumentVersion !== '' ? $instrumentVersion : synk_student_faculty_evaluation_current_version();
     if ($ayId <= 0 || $semester <= 0) {
         return [];
     }
@@ -1661,6 +1597,8 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
             e.student_number,
             e.comment_text,
             e.average_rating,
+            e.total_score,
+            e.question_count,
             a.category_key,
             a.category_title,
             a.rating
@@ -1670,6 +1608,7 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
         WHERE e.submission_status = 'submitted'
           AND e.ay_id = ?
           AND e.semester = ?
+          AND e.instrument_version = ?
         ORDER BY
             e.faculty_name ASC,
             e.evaluation_id ASC,
@@ -1681,12 +1620,12 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
         return [];
     }
 
-    $stmt->bind_param('ii', $ayId, $semester);
+    $stmt->bind_param('iis', $ayId, $semester, $instrumentVersion);
     $stmt->execute();
     $result = $stmt->get_result();
     $rows = [];
     $categoryOrder = [];
-    foreach (synk_student_faculty_evaluation_question_bank() as $categoryIndex => $categoryMeta) {
+    foreach (synk_student_faculty_evaluation_question_bank($instrumentVersion) as $categoryIndex => $categoryMeta) {
         $categoryKey = (string)($categoryMeta['key'] ?? '');
         if ($categoryKey === '') {
             continue;
@@ -1736,8 +1675,8 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
             if ($evaluationId > 0 && !isset($rows[$groupKey]['_seen_evaluations'][$evaluationId])) {
                 $rows[$groupKey]['_seen_evaluations'][$evaluationId] = true;
                 $rows[$groupKey]['evaluations_count']++;
-                $rows[$groupKey]['overall_sum'] += (float)($row['average_rating'] ?? 0);
-                $rows[$groupKey]['overall_count']++;
+                $rows[$groupKey]['overall_sum'] += (float)($row['total_score'] ?? 0);
+                $rows[$groupKey]['overall_count'] += (int)($row['question_count'] ?? 0);
 
                 $studentNumber = trim((string)($row['student_number'] ?? ''));
                 if ($studentNumber !== '') {
@@ -1768,21 +1707,19 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
 
     foreach ($rows as &$facultyRow) {
         $facultyRow['student_count'] = count($facultyRow['students']);
-        $facultyRow['overall_mean'] = $facultyRow['overall_count'] > 0
-            ? round($facultyRow['overall_sum'] / $facultyRow['overall_count'], 2)
-            : 0.0;
-        $facultyRow['overall_percentage'] = synk_student_faculty_evaluation_percentage_from_mean($facultyRow['overall_mean']);
-        $facultyRow['student_component_percentage'] = round($facultyRow['overall_percentage'] * 0.60, 2);
+        $score = synk_student_faculty_evaluation_score($facultyRow['overall_sum'], $facultyRow['overall_count']);
+        $facultyRow['overall_mean'] = $score['mean'];
+        $facultyRow['overall_percentage'] = $score['percentage'];
+        $facultyRow['student_component_percentage'] = $score['student_component_percentage'];
 
         uasort($facultyRow['categories'], static function (array $left, array $right): int {
             return (int)($left['_index'] ?? 0) <=> (int)($right['_index'] ?? 0);
         });
 
         foreach ($facultyRow['categories'] as &$categoryRow) {
-            $categoryRow['mean'] = $categoryRow['_count'] > 0
-                ? round($categoryRow['_sum'] / $categoryRow['_count'], 2)
-                : 0.0;
-            $categoryRow['percentage'] = synk_student_faculty_evaluation_percentage_from_mean($categoryRow['mean']);
+            $categoryScore = synk_student_faculty_evaluation_score($categoryRow['_sum'], $categoryRow['_count']);
+            $categoryRow['mean'] = $categoryScore['mean'];
+            $categoryRow['percentage'] = $categoryScore['percentage'];
             unset($categoryRow['_sum'], $categoryRow['_count'], $categoryRow['_index']);
         }
         unset($categoryRow);

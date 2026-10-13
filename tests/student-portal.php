@@ -11,6 +11,12 @@ $request=static function(string $scenario,bool $authorized=true)use($route,$toke
 };
 $header=static function(array $response,string $name){preg_match('/'.preg_quote($name,'/').': ([^\r\n]+)/i',$response['headers'],$m);return isset($m[1])?json_decode(rawurldecode($m[1]),true):null;};
 try{
+    $r=$request('student_evaluation');
+    $check($r['status']===200&&substr_count($r['body'],'name="ratings[')===30&&strpos($r['body'],'Always manifested')!==false&&strpos($r['body'],'Content Knowledge, Pedagogy and Technology')!==false,'Student forms use 15 revised statements per faculty and the document frequency scale.');
+    $check(strpos($r['body'],'on the provided answer sheet')===false&&strpos($r['body'],'January 14, 2026')!==false,'The revised instrument has online instructions and its effective date.');
+    $r=$request('student_legacy_draft');
+    $check($r['status']===200&&substr_count($r['body'],'name="ratings[')===30&&strpos($r['body'],'Please answer and save the revised 15-question SET form')!==false&&strpos($r['body'],'value="4" selected')===false,'Old drafts require new answers and do not copy old numeric ratings to revised questions.');
+    $check(strpos($r['headers'],'X-QA-Protected-Unchanged: yes')!==false,'Viewing a revised form leaves existing evaluation records untouched.');
     $check($request('dashboard',false)['status']===404,'Fixtures require a private QA token.');
     foreach(['dashboard','foreign_parameters','foreign_term']as$scenario){$r=$request($scenario);$check($r['status']===200&&strpos($r['body'],'QA-CS101')!==false&&strpos($r['body'],'QA-MATH101')!==false,'The dashboard shows the signed-in student’s current imported subjects: '.$scenario.' '.substr(strip_tags($r['body']),0,200));$check(strpos($r['body'],'SECRET101')===false&&strpos($r['body'],'QA-INACTIVE')===false,'Other students and inactive imports cannot appear.');$check(strpos($r['body'],'studentSetupModal')===false,'A profile setup dialog does not block the dashboard.');$check(strpos($r['headers'],'X-QA-Protected-Unchanged: yes')!==false,'Student browsing leaves rosters, scheduling, workloads and settings unchanged.');}
     $r=$request('old_term');$check($r['status']===200&&strpos($r['body'],'QA-HIST101')!==false&&strpos($r['body'],'QA-CS101')===false,'Students can review their imported subjects in an earlier term.');

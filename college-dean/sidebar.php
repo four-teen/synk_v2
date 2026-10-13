@@ -47,6 +47,15 @@ $collegeDeanSidebarItems = [
         'pages' => ['students.php'],
     ],
     [
+        'key' => 'faculty-evaluations',
+        'href' => 'faculty-evaluations.php',
+        'icon_bg' => 'bg-label-info',
+        'icon' => 'bx-check-square',
+        'title' => 'Faculty Evaluation',
+        'description' => 'Current and previous student evaluation results',
+        'pages' => ['faculty-evaluations.php'],
+    ],
+    [
         'key' => 'reports',
         'href' => 'reports.php',
         'icon_bg' => 'bg-label-dark',

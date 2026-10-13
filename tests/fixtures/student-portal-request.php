@@ -16,7 +16,13 @@ class StudentPortalQAConnection extends mysqli {
     #[\ReturnTypeWillChange]
     public function rollback($flags=0,$name=null){return $this->requestMode?$this->query('ROLLBACK TO SAVEPOINT student_portal_request'):parent::rollback($flags);}
     #[\ReturnTypeWillChange]
-    public function query($sql,$mode=MYSQLI_STORE_RESULT){if(preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i',$sql))throw new RuntimeException('Fixtures cannot change the schema.');return parent::query($sql,$mode);}
+    public function query($sql,$mode=MYSQLI_STORE_RESULT){
+        if(preg_match('/^\s*CREATE TABLE IF NOT EXISTS `(tbl_student_faculty_evaluations|tbl_student_faculty_evaluation_answers|tbl_student_portal_profile)`/i',$sql,$match)){
+            if(!synk_table_exists($this,$match[1]))throw new RuntimeException('Prepare the evaluation schema before running fixtures.');
+            return true;
+        }
+        if(preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i',$sql))throw new RuntimeException('Fixtures cannot change the schema.');return parent::query($sql,$mode);
+    }
 }
 $conn->close();$conn=new StudentPortalQAConnection($servername,$username,$password,$dbase);$conn->set_charset('utf8mb4');$conn->begin_transaction();
 $scenario=is_string($_GET['scenario']??null)?$_GET['scenario']:'dashboard';
@@ -49,22 +55,53 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
-if (in_array($scenario,['dean_preview','dean_evaluation'],true)) {
+if (in_array($scenario,['dean_preview','dean_evaluation'],true) || strpos($scenario,'dean_faculty_evaluations_')===0) {
     $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_dean_college_id) VALUES ('QA Dean','dean-{$email}','unusable-qa-password','college_dean','active',{$program['college_id']})");
     $deanId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$deanId,['college_dean'],'college_dean');
     $_SESSION=['user_id'=>$deanId,'role'=>'college_dean','username'=>'QA Dean','email'=>'dean-'.$email,'csrf_token'=>$csrf];
     $_GET['preview_student_id']=$students['first'];$_GET['student_term']=$term['ay_id'].':'.$term['semester'];$_GET['return_to']='../college-dean/students.php';
 }
-if ($scenario==='dean_evaluation') {
+if (strpos($scenario,'dean_faculty_evaluations_')===0) {
+    $handler='college-dean/faculty-evaluations.php';
+    $seed=static function(int $student,int $faculty,array $period,string $version,string $status,int $rating,string $comment)use($conn,$tag):void{
+        $questions=synk_student_faculty_evaluation_flat_questions($version);$count=count($questions);$score=$count*$rating;$mean=(float)$rating;
+        $token=$tag.'-'.bin2hex(random_bytes(8));$final=$status==='submitted'?$token:'';
+        $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,ay_id,semester,faculty_name,instrument_version,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token,comment_text,final_submitted_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())');
+        $name='Evaluation QA';$stmt->bind_param('iiiissiidssss',$student,$faculty,$period['ay_id'],$period['semester'],$name,$version,$count,$score,$mean,$token,$status,$final,$comment);$stmt->execute();$evaluationId=(int)$stmt->insert_id;$stmt->close();
+        foreach($questions as $question){$stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,?)');$stmt->bind_param('isssisi',$evaluationId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text'],$rating);$stmt->execute();$stmt->close();}
+    };
+    if($scenario!=='dean_faculty_evaluations_empty'){
+        $seed($students['first'],$teachers[0],$term,synk_student_faculty_evaluation_current_version(),'submitted',4,'Current SET feedback <script>bad()</script>');
+        $seed($students['other'],$teachers[0],$term,'legacy-20','submitted',3,'Previous instrument feedback');
+        $seed($students['first'],$teachers[1],$term,synk_student_faculty_evaluation_current_version(),'draft',5,'PRIVATE_DRAFT_FEEDBACK');
+        $seed($students['first'],$teachers[0],$oldTerm,synk_student_faculty_evaluation_current_version(),'submitted',5,'Historical submitted feedback');
+        $conn->query('UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id='.$students['first'].' AND ay_id='.$oldTerm['ay_id'].' AND semester='.$oldTerm['semester']);
+        $foreignProgram=$conn->query('SELECT p.program_id,c.college_id,c.campus_id FROM tbl_program p JOIN tbl_college c ON c.college_id=p.college_id WHERE c.college_id<>'.$program['college_id'].' ORDER BY p.program_id LIMIT 1')->fetch_assoc();
+        if(!$foreignProgram)throw new RuntimeException('A second college is needed for access-boundary fixtures.');
+        $conn->query("INSERT INTO tbl_faculty (first_name,last_name,status) VALUES ('Foreign','FOREIGN_EVALUATION_FACULTY','active')");$foreignFaculty=(int)$conn->insert_id;
+        $stmt=$conn->prepare("INSERT INTO tbl_student_management_enrolled_subjects (import_batch_key,campus_id,college_id,program_id,ay_id,semester,student_id,subject_id,subject_code,descriptive_title,faculty_id,is_active) VALUES (?,?,?,?,?,?,?,1,'FOREIGN-QA','Foreign subject',?,1)");
+        $stmt->bind_param('siiiiiii',$tag,$foreignProgram['campus_id'],$foreignProgram['college_id'],$foreignProgram['program_id'],$term['ay_id'],$term['semester'],$students['other'],$foreignFaculty);$stmt->execute();$stmt->close();
+        $seed($students['other'],$foreignFaculty,$term,synk_student_faculty_evaluation_current_version(),'submitted',1,'FOREIGN_SUBMITTED_FEEDBACK');
+        $_GET['faculty_id']=$teachers[0];
+    }
+    if($scenario==='dean_faculty_evaluations_legacy')$_GET['instrument_version']='legacy-20';
+    if($scenario==='dean_faculty_evaluations_historical')$_SESSION['college_dean_view_term']=['user_id'=>$deanId,'ay_id'=>$oldTerm['ay_id'],'semester'=>$oldTerm['semester']];
+    if($scenario==='dean_faculty_evaluations_foreign')$_GET['faculty_id']=$foreignFaculty;
+    if($scenario==='dean_faculty_evaluations_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$deanId} AND role='college_dean'");
+    if($scenario==='dean_faculty_evaluations_post')$_POST=['clear'=>'1'];
+    if($scenario==='dean_faculty_evaluations_bad_filter')$_GET['instrument_version']=['legacy-20'];
+}
+if ($scenario==='student_evaluation') $handler='student/class-program.php';
+if (in_array($scenario, ['dean_evaluation', 'student_legacy_draft'], true)) {
     $handler='student/class-program.php';
     foreach ($teachers as $index=>$teacher) {
         $comment=$index===0?'A saved draft comment for Dean review.':'A submitted comment for Dean review.';
-        $status=$index===0?'draft':'submitted';$rating=$index===0?4:5;$score=$rating*20;$average=(float)$rating;
-        $evaluationToken=$tag.'-'.$teacher;$finalToken=$index===0?'':$tag.'-final';
+        $status=$scenario==='student_legacy_draft'||$index===0?'draft':'submitted';$rating=$index===0?4:5;$score=$rating*20;$average=(float)$rating;
+        $evaluationToken=$tag.'-'.$teacher;$finalToken=$status==='draft'?'':$tag.'-final';
         $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,ay_id,semester,comment_text,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token) VALUES (?,?,?,?,?,20,?,?,?,?,?)');
         $stmt->bind_param('iiiisidsss',$students['first'],$teacher,$term['ay_id'],$term['semester'],$comment,$score,$average,$evaluationToken,$status,$finalToken);
         $stmt->execute();$evaluationId=(int)$stmt->insert_id;$stmt->close();
-        foreach (synk_student_faculty_evaluation_flat_questions() as $question) {
+        foreach (synk_student_faculty_evaluation_flat_questions('legacy-20') as $question) {
             $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,?)');
             $stmt->bind_param('isssisi',$evaluationId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text'],$rating);
             $stmt->execute();$stmt->close();
@@ -100,7 +137,7 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
 $protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);
-ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0){$base=strpos($handler,'student/')===0?'student':'administrator';$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
+ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0||strpos($handler,'college-dean/')===0){$base=dirname($handler);$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
 register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot):void {
     $stmt=$conn->prepare('SELECT submitted_email,google_email,google_name,failure_code,identity_verified,attempt_count,review_status,review_note FROM tbl_student_login_issues WHERE submitted_email LIKE ? ORDER BY issue_id');$like='%'.$tag.'%';$stmt->bind_param('s',$like);$stmt->execute();$issues=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
     // The deliberate invalid-address preflight scenarios use non-tagged emails.
