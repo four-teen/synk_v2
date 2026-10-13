@@ -52,8 +52,13 @@ $collegeDeanSidebarItems = [
         'icon_bg' => 'bg-label-dark',
         'icon' => 'bx-bar-chart-alt-2',
         'title' => 'Reports',
-        'description' => 'College reports and workload summaries',
-        'pages' => ['reports.php'],
+        'description' => 'Student and faculty summaries',
+        'pages' => ['reports.php', 'student-statistics.php', 'faculty-statistics.php'],
+        'children' => [
+            ['href' => 'reports.php', 'title' => 'Faculty Student Summary', 'icon' => 'bx-list-ul'],
+            ['href' => 'student-statistics.php', 'title' => 'Student Statistics', 'icon' => 'bx-group'],
+            ['href' => 'faculty-statistics.php', 'title' => 'Faculty Statistics', 'icon' => 'bx-bar-chart-alt-2'],
+        ],
     ],
 ];
 
@@ -171,6 +176,16 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
       line-height: 0.92rem;
     }
 
+    #layout-menu .college-dean-report-group > summary { list-style: none; cursor: pointer; }
+    #layout-menu .college-dean-report-group > summary::-webkit-details-marker { display: none; }
+    #layout-menu .college-dean-report-chevron { margin-left: auto; flex-shrink: 0; color: #8391a7; }
+    #layout-menu .college-dean-report-group[open] .college-dean-report-chevron { transform: rotate(90deg); }
+    #layout-menu .college-dean-report-links { list-style: none; padding: 0 0 .4rem 1rem; margin: 0 .2rem; }
+    #layout-menu .college-dean-report-link { display: flex; align-items: center; gap: .55rem; padding: .7rem .6rem; margin: .15rem 0; border-radius: .5rem; color: #697a8d; font-size: .78rem; line-height: 1.3; }
+    #layout-menu .college-dean-report-link:hover, #layout-menu .college-dean-report-link:focus-visible { background: #f2f2ff; color: #696cff; }
+    #layout-menu .college-dean-report-link.is-active { background: #eeefff; color: #5457d5; font-weight: 600; }
+    #layout-menu .college-dean-report-link i { flex-shrink: 0; font-size: 1rem; }
+
     @keyframes college-dean-sidebar-border-orbit {
       to {
         offset-distance: 100%;
@@ -187,6 +202,20 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
 
     <?php foreach ($collegeDeanSidebarItems as $sidebarItem): ?>
       <li class="menu-item px-2<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>">
+        <?php if (!empty($sidebarItem['children'])): ?>
+          <details class="college-dean-report-group"<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' open' : ''; ?>>
+            <summary class="college-dean-menu-card<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>">
+              <span class="college-dean-menu-icon <?php echo htmlspecialchars($sidebarItem['icon_bg'], ENT_QUOTES, 'UTF-8'); ?>"><i class="bx <?php echo htmlspecialchars($sidebarItem['icon'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i></span>
+              <div class="college-dean-menu-content"><div class="college-dean-menu-title"><?php echo htmlspecialchars($sidebarItem['title'], ENT_QUOTES, 'UTF-8'); ?></div><small class="college-dean-menu-desc"><?php echo htmlspecialchars($sidebarItem['description'], ENT_QUOTES, 'UTF-8'); ?></small></div>
+              <i class="bx bx-chevron-right college-dean-report-chevron" aria-hidden="true"></i>
+            </summary>
+            <ul class="college-dean-report-links">
+              <?php foreach ($sidebarItem['children'] as $reportItem): $reportIsActive = $collegeDeanSidebarCurrentPage === $reportItem['href']; ?>
+                <li><a href="<?php echo htmlspecialchars($reportItem['href'], ENT_QUOTES, 'UTF-8'); ?>" class="college-dean-report-link<?php echo $reportIsActive ? ' is-active' : ''; ?>"<?php echo $reportIsActive ? ' aria-current="page"' : ''; ?>><i class="bx <?php echo htmlspecialchars($reportItem['icon'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i><span><?php echo htmlspecialchars($reportItem['title'], ENT_QUOTES, 'UTF-8'); ?></span></a></li>
+              <?php endforeach; ?>
+            </ul>
+          </details>
+        <?php else: ?>
         <a
           href="<?php echo htmlspecialchars($sidebarItem['href'], ENT_QUOTES, 'UTF-8'); ?>"
           class="menu-link college-dean-menu-card<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>"
@@ -199,6 +228,7 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
             <small class="college-dean-menu-desc"><?php echo htmlspecialchars($sidebarItem['description'], ENT_QUOTES, 'UTF-8'); ?></small>
           </div>
         </a>
+        <?php endif; ?>
       </li>
     <?php endforeach; ?>
   </ul>

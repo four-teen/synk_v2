@@ -187,7 +187,7 @@ if (empty($_SESSION['csrf_token'])) {
 }
 $csrfToken = (string)$_SESSION['csrf_token'];
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_dean_view_term($conn);
 $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
 $currentSem = (int)($currentTerm['semester'] ?? 0);
 $academicTermText = trim((string)($currentTerm['term_text'] ?? 'Current academic term'));
@@ -1633,7 +1633,7 @@ if ($consolidatedReportAssigneesJson === false) {
   <link rel="stylesheet" href="../assets/css/demo.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/apex-charts/apex-charts.css" />
-  <link rel="stylesheet" href="custom_css.css" />
+  <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
 
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
@@ -3292,7 +3292,7 @@ if ($consolidatedReportAssigneesJson === false) {
                   <div class="card-body">
                     <?php if (!$analyticsReady): ?>
                       <div class="alert alert-warning mb-0">
-                        Scheduling charts will appear once the current academic term is set.
+                        Choose an academic year and semester to view scheduling charts.
                       </div>
                     <?php else: ?>
                       <div class="row g-4 align-items-stretch">
@@ -3529,7 +3529,7 @@ if ($consolidatedReportAssigneesJson === false) {
                     <?php else: ?>
                       <div class="faculty-directory-empty">
                         <i class="bx bx-user-x"></i>
-                        No faculty assignments are available for the assigned college and current academic term.
+                        No faculty assignments are available for the assigned college and selected academic term.
                       </div>
                     <?php endif; ?>
                   </div>
@@ -3581,7 +3581,7 @@ if ($consolidatedReportAssigneesJson === false) {
         <div class="modal-header">
           <div>
             <h5 class="modal-title" id="campusConsolidatedReportModalLabel">Consolidated Faculty Workload</h5>
-            <small class="text-muted">Preview first, then print the legal landscape report for the current academic term.</small>
+            <small class="text-muted">Preview first, then print the legal landscape report for the selected academic term.</small>
           </div>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -3609,7 +3609,7 @@ if ($consolidatedReportAssigneesJson === false) {
         <div class="modal-footer justify-content-between">
           <div class="consolidated-report-toolbar-note">
             <i class="bx bx-info-circle"></i>
-            <span>Rows follow the assigned college dashboard scope and current academic term.</span>
+            <span>Rows follow the assigned college dashboard scope and selected academic term.</span>
           </div>
           <div class="d-flex flex-wrap gap-2">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -5457,6 +5457,8 @@ if ($consolidatedReportAssigneesJson === false) {
 
       function buildScheduleHeatmapRequestData() {
         return {
+          ay_id: currentAyId,
+          semester: currentSem,
           campus_id: campusIdParam,
           college_id: selectedCollegeId,
           room_id: scheduleHeatmapRoomSelection === "all" ? "" : scheduleHeatmapRoomSelection,
@@ -5592,7 +5594,7 @@ if ($consolidatedReportAssigneesJson === false) {
           if (occupiedSlotCount <= 0) {
             setInsight(
               "scheduleHeatmapInsight",
-              selectedRoomLabel + " has no scheduled occupancy between 7:00 AM and 6:00 PM on weekdays for the current term."
+              selectedRoomLabel + " has no scheduled occupancy between 7:00 AM and 6:00 PM on weekdays for the selected term."
             );
             return;
           }

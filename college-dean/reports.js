@@ -93,7 +93,7 @@
     clearTimeout(state.searchTimer); load();
   });
   function defaultTerm() {
-    const current = state.options.current_term;
+    const current = state.options.view_term || state.options.current_term;
     const key = `${current.ay_id}:${current.semester}`;
     return state.options.terms.some(term=>term.key===key) ? key : (state.options.terms[0] || {}).key || '';
   }

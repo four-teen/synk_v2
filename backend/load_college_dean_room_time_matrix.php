@@ -25,7 +25,8 @@ if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csr
 }
 
 $college_id = (int)$deanScope['college_id'];
-$term = synk_fetch_current_academic_term($conn);
+try { $term = synk_dean_read_term($conn, $_POST); }
+catch (DomainException $exception) { http_response_code(400); exit(htmlspecialchars($exception->getMessage(), ENT_QUOTES, 'UTF-8')); }
 $ay_id = (int)$term['ay_id'];
 $semester = (int)$term['semester'];
 

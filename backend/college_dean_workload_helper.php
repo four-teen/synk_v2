@@ -24,6 +24,9 @@ function synk_dean_roster_ready(mysqli $conn): bool
 function synk_dean_workload_faculties(mysqli $conn, array $scope, array $term, int $facultyId = 0): array
 {
     $source = synk_professor_workload_assignment_source_sql();
+    $current = synk_fetch_current_academic_term($conn);
+    $statusFilter = (int)$term['ay_id'] === (int)$current['ay_id'] && (int)$term['semester'] === (int)$current['semester']
+        ? "f.status = 'active' AND " : '';
     // Profile uploads belong to login accounts, not to faculty record IDs.
     $profileAccount = 'NULL';
     $profileJoin = '';
@@ -35,7 +38,7 @@ function synk_dean_workload_faculties(mysqli $conn, array $scope, array $term, i
     $stmt = $conn->prepare("SELECT DISTINCT f.faculty_id,
             CONCAT(f.last_name, ', ', TRIM(CONCAT_WS(' ', f.first_name, NULLIF(f.middle_name,''), NULLIF(f.ext_name,'')))) AS faculty_name,
             {$profileAccount} AS profile_user_id
-        FROM tbl_faculty f {$profileJoin} WHERE f.status = 'active' AND (
+        FROM tbl_faculty f {$profileJoin} WHERE {$statusFilter}(
             EXISTS (SELECT 1 FROM tbl_college_faculty cf WHERE cf.faculty_id=f.faculty_id
                 AND cf.college_id=? AND cf.status='active' AND cf.ay_id=? AND cf.semester=?)
             OR EXISTS (SELECT 1 {$source} INNER JOIN tbl_program p ON p.program_id=po.program_id

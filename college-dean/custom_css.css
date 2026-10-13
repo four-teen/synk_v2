@@ -79,3 +79,38 @@
     padding: 1.25rem;
   }
 }
+
+.dean-navbar { height: auto; min-height: 64px; padding-top: .65rem; padding-bottom: .65rem; }
+.dean-navbar-context { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; min-width: 0; }
+.dean-view-summary { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+.dean-view-summary > .bx { color: #8391a7; flex-shrink: 0; }
+.dean-view-label { color: #697a8d; font-size: .78rem; line-height: 1.4; }
+.dean-view-readonly { flex-shrink: 0; font-size: .62rem; }
+.dean-view-settings { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0; flex-shrink: 0; color: #697a8d; border: 1px solid #e4e8f0; border-radius: 8px; font-size: 1.15rem; }
+.dean-view-settings:hover, .dean-view-settings:focus-visible { color: #696cff; border-color: #696cff; background: #f2f2ff; }
+.dean-view-term { margin: 0; }
+.dean-term-settings-copy { color: #697a8d; font-size: .87rem; margin-bottom: 1.25rem; }
+#deanTermSettingsModal .modal-header .btn-close { margin: 0 0 0 auto; transform: none; box-shadow: none; }
+#deanTermSettingsModal .btn-close:focus-visible { outline: 2px solid #696cff; outline-offset: 2px; }
+.dean-view-term .form-label { font-size: .8rem; font-weight: 600; }
+.dean-term-default { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .9rem 1rem; margin-top: 1.25rem; border: 1px solid #e7ebf2; border-radius: 8px; background: #f8f9fc; }
+.dean-term-default > div { min-width: 0; }
+.dean-term-default span { display: block; color: #8391a7; font-size: .7rem; }
+.dean-term-default strong { display: block; margin-top: .2rem; color: #566a7f; font-size: .78rem; font-weight: 500; }
+.dean-view-current { flex-shrink: 0; white-space: nowrap; }
+.dean-term-settings-note { color: #8391a7; font-size: .75rem; margin: 1rem 0 0; }
+.dean-students-readonly #deanStudentAdd,
+.dean-students-readonly #deanStudentEmailsOpen,
+.dean-students-readonly a[href="faculty-workload.php"],
+.dean-students-readonly .dean-student-selection,
+.dean-students-readonly [data-student-edit],
+.dean-students-readonly [data-select-student],
+.dean-students-readonly #deanStudentsSelectPage { display: none !important; }
+.dean-navbar .navbar-nav-right { align-items: center; }
+@media (max-width: 1199.98px) { .dean-navbar .nav-item.text-end { display: none !important; } }
+@media (max-width: 575.98px) {
+  .dean-navbar-context { gap: .45rem; }
+  .dean-view-label { font-size: .72rem; }
+  .dean-view-summary > .bx { display: none; }
+  .dean-term-default { align-items: flex-start; flex-wrap: wrap; }
+}

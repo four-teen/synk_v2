@@ -23,34 +23,13 @@ function synk_dean_faculty_students_options(mysqli $conn, array $scope): array
         if (trim((string)$program['major']) !== '') $program['label'] .= ' - ' . $program['major'];
     }
     unset($program);
-    $source = synk_professor_workload_assignment_source_sql();
-    $terms = synk_dean_faculty_students_query($conn, "SELECT DISTINCT t.ay_id,t.semester,ay.ay AS ay_label
-        FROM (SELECT fw.ay_id,fw.semester {$source} JOIN tbl_program p ON p.program_id=po.program_id WHERE p.college_id=?
-            UNION SELECT cf.ay_id,cf.semester FROM tbl_college_faculty cf JOIN tbl_faculty f ON f.faculty_id=cf.faculty_id
-                WHERE cf.college_id=? AND cf.status='active' AND f.status='active') t
-        JOIN tbl_academic_years ay ON ay.ay_id=t.ay_id WHERE t.semester BETWEEN 1 AND 3
-        ORDER BY ay.ay DESC,t.semester DESC", 'ii', [$scope['college_id'], $scope['college_id']]);
     $current = synk_fetch_current_academic_term($conn);
-    if ($current['ay_id'] > 0 && $current['semester'] >= 1 && $current['semester'] <= 3) {
-        $terms[] = ['ay_id'=>$current['ay_id'], 'semester'=>$current['semester'], 'ay_label'=>$current['ay_label']];
-    }
-    $indexed = [];
-    foreach ($terms as $term) {
-        $term['ay_id'] = (int)$term['ay_id']; $term['semester'] = (int)$term['semester'];
-        $term['key'] = $term['ay_id'] . ':' . $term['semester'];
-        $term['label'] = ($term['ay_label'] ?: 'Academic Year ' . $term['ay_id']) . ' - ' . synk_semester_label($term['semester']);
-        $indexed[$term['key']] = $term;
-    }
-    $terms = array_values($indexed);
-    usort($terms, static function (array $a, array $b): int {
-        return strcmp($b['ay_label'], $a['ay_label']) ?: $b['semester'] - $a['semester'];
-    });
-    return ['programs'=>$programs, 'terms'=>$terms, 'current_term'=>$current];
+    return ['programs'=>$programs, 'terms'=>synk_dean_term_catalog($conn), 'current_term'=>$current, 'view_term'=>synk_dean_view_term($conn)];
 }
 
 function synk_dean_faculty_students_filters(array $input, array $options): array
 {
-    $current = $options['current_term'];
+    $current = $options['view_term'] ?? $options['current_term'];
     $termKey = trim((string)($input['term'] ?? 'current'));
     if ($termKey === '' || $termKey === 'current') $termKey = $current['ay_id'] . ':' . $current['semester'];
     $term = null;
@@ -136,9 +115,10 @@ function synk_dean_faculty_students_data(mysqli $conn, array $scope, array $filt
                 $collegeStudents[$studentId] = true;
                 $collegeEnrollments[$class['offering_id'] . ':' . $studentId] = true;
             }
-            $class['workload_url'] = $isCurrent ? 'faculty-workload.php?' . http_build_query([
-                'faculty_id'=>$id, 'offering_id'=>$class['offering_id'], 'list_status'=>$class['student_count'] ? 'all' : 'missing'
-            ]) : null;
+            $class['workload_url'] = 'faculty-workload.php?' . http_build_query([
+                'faculty_id'=>$id, 'offering_id'=>$class['offering_id'], 'list_status'=>$class['student_count'] ? 'all' : 'missing',
+                'dean_ay_id'=>$term['ay_id'], 'dean_semester'=>$term['semester']
+            ]);
         }
         unset($class);
         $detail[$id] = ['faculty'=>$row, 'classes'=>$facultyClasses, 'term'=>$term, 'is_current_term'=>$isCurrent];

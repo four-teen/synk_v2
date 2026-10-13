@@ -40,7 +40,7 @@ function element(id) {
             const index=renderedCards.size;
             const details={open:/<details[^>]*\bopen(?:\s|>)/.test(match[2])};
             renderedCards.set(Number(match[1]),{dataset:{offeringId:match[1]},details,
-              querySelector:()=>details,buttons:[{disabled:false},{disabled:false}],
+              querySelector:()=>details,buttons:[{disabled:false,hasAttribute:name=>name==='data-roster'},{disabled:false,hasAttribute:name=>name==='data-import'}],
               getBoundingClientRect:()=>({top:1800+index*260-viewport.scrollY,bottom:2050+index*260-viewport.scrollY})});
           }
         }

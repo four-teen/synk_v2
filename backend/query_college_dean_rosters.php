@@ -21,18 +21,23 @@ if (empty($_SESSION['csrf_token']) || !is_string($_POST['csrf_token'] ?? null)
     || !hash_equals((string)$_SESSION['csrf_token'], $_POST['csrf_token'])) {
     synk_dean_roster_response(['status'=>'error','message'=>'Your session token has changed. Reload the page and try again.'], 403);
 }
-$term = synk_fetch_current_academic_term($conn);
+try { $term = synk_dean_read_term($conn, $_POST); }
+catch (DomainException $exception) { synk_dean_roster_response(['status'=>'error','message'=>$exception->getMessage()], 400); }
 $action = (string)($_POST['action'] ?? '');
-if ($term['ay_id'] <= 0 || $term['semester'] <= 0) synk_dean_roster_response(['status'=>'error','message'=>'Set the current academic term before opening faculty workloads.'], 409);
+if ($term['ay_id'] <= 0 || $term['semester'] <= 0) synk_dean_roster_response(['status'=>'error','message'=>'Choose an academic term before opening faculty workloads.'], 409);
 foreach (['ay_id','semester'] as $key) {
     if (isset($_POST[$key]) && (string)$_POST[$key] !== (string)$term[$key]) {
         synk_dean_roster_response(['status'=>'error','message'=>'The academic term has changed. Reload this page.'], 409);
     }
 }
 try {
+    if (in_array($action, ['preview', 'confirm'], true)) {
+        try { synk_dean_require_current_term_for_write($conn, $_POST); }
+        catch (DomainException $exception) { synk_dean_roster_response(['status'=>'error','message'=>$exception->getMessage()], 409); }
+    }
     if ($action === 'bootstrap') synk_dean_roster_response([
         'status'=>'ok','scope'=>$scope,'term'=>$term,'faculties'=>synk_dean_workload_faculties($conn,$scope,$term),
-        'import_ready'=>synk_dean_roster_ready($conn),
+        'import_ready'=>synk_dean_roster_ready($conn), 'can_import'=>!empty($term['is_current']),
     ]);
     if (!in_array($action, ['classes','roster','preview','confirm','cancel'], true)) {
         synk_dean_roster_response(['status'=>'error','message'=>'Unknown workload action.'], 400);

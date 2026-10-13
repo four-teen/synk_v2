@@ -14,6 +14,7 @@ $profileEditor = array_merge([
     'action' => 'manage-profile.php', 'education_url' => 'education-options.php',
     'csrf_token' => (string)($_SESSION['faculty_profile_csrf'] ?? ''), 'hidden_fields' => [],
     'photo_crop_enabled' => false, 'photo_crop_field' => 'profile_photo_crop',
+    'read_only' => false,
 ], $profileEditor ?? []);
 ?>
 <!DOCTYPE html>
@@ -34,7 +35,7 @@ $profileEditor = array_merge([
   <?php foreach ($profileEditor['extra_styles'] as $stylesheet): ?>
     <link rel="stylesheet" href="<?php echo synk_faculty_profile_h($stylesheet); ?>">
   <?php endforeach; ?>
-  <?php if ($profileEditor['photo_crop_enabled']): ?>
+  <?php if ($profileEditor['photo_crop_enabled'] && !$profileEditor['read_only']): ?>
     <link rel="stylesheet" href="../assets/css/faculty-photo-crop.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/faculty-photo-crop.css') ?>">
     <script src="../assets/js/faculty-photo-crop.js?v=<?= filemtime(dirname(__DIR__) . '/assets/js/faculty-photo-crop.js') ?>" defer></script>
   <?php endif; ?>
@@ -65,6 +66,7 @@ $profileEditor = array_merge([
             <?php if ($savedNotice !== ''): ?>
               <div class="alert alert-success" role="status"><?php echo synk_faculty_profile_h($savedNotice); ?></div>
             <?php endif; ?>
+            <?php if ($profileEditor['read_only']): ?><div class="alert alert-info" role="status">This term is for viewing only. These are the faculty member’s latest saved profile details. Switch to the current term to make changes.</div><?php endif; ?>
             <?php if ($saveError !== '' || $errors): ?>
               <div class="alert alert-danger" role="alert" tabindex="-1" id="profile-errors">
                 <?php if ($saveError !== ''): ?><p class="mb-2"><?php echo synk_faculty_profile_h($saveError); ?></p><?php endif; ?>
@@ -136,6 +138,7 @@ $profileEditor = array_merge([
 
               <form method="post" action="<?php echo synk_faculty_profile_h($profileEditor['action']); ?>" enctype="multipart/form-data" id="faculty-profile-form" class="profile-form" data-education-url="<?php echo synk_faculty_profile_h($profileEditor['education_url']); ?>" data-today="<?php echo $today->format('Y-m-d'); ?>" data-has-errors="<?php echo ($errors || $saveError !== '') ? '1' : '0'; ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo synk_faculty_profile_h($profileEditor['csrf_token']); ?>">
+                <?php if ($profileEditor['read_only']): ?><fieldset disabled style="border:0;padding:0;margin:0;min-width:0"><?php endif; ?>
                 <input type="hidden" name="revision" value="<?php echo (int)$profile['revision']; ?>">
                 <?php foreach ($profileEditor['hidden_fields'] as $hiddenName => $hiddenValue): ?>
                   <input type="hidden" name="<?= synk_faculty_profile_h($hiddenName) ?>" value="<?= synk_faculty_profile_h($hiddenValue) ?>">
@@ -158,7 +161,7 @@ $profileEditor = array_merge([
                           <div class="form-text" id="profile-image-selection" role="status" aria-live="polite"><?php echo ($errors || $saveError !== '') ? 'If you selected an image, choose it again before retrying.' : ''; ?></div>
                         </div>
                       </div>
-                      <?php if ($profileEditor['photo_crop_enabled']) require __DIR__ . '/faculty_profile_photo_editor.php'; ?>
+                      <?php if ($profileEditor['photo_crop_enabled'] && !$profileEditor['read_only']) require __DIR__ . '/faculty_profile_photo_editor.php'; ?>
                     </div>
                     <div class="col-12"><?php faculty_profile_input('full_name', $fields, $profile, $errors, $today->format('Y-m-d')); ?></div>
                     <div class="col-12"><?php faculty_profile_input('faculty_id_number', $fields, $profile, $errors, $today->format('Y-m-d'), 'Enter your university-issued ID. Letters, numbers, and hyphens are accepted; leading zeros are kept.'); ?></div>
@@ -214,10 +217,12 @@ $profileEditor = array_merge([
                   <?php endforeach; ?>
                 </section>
 
-                <div class="profile-save-bar">
+                <?php if (!$profileEditor['read_only']): ?><div class="profile-save-bar">
                   <div><strong id="profile-save-status" role="status" aria-live="polite"><?php echo $storedProfile ? 'Your profile is up to date' : 'Ready when you are'; ?></strong><small>Save your changes before closing this window.</small></div>
                   <button type="submit" class="btn btn-primary" id="profile-save-button"><i class="bx bx-save me-2" aria-hidden="true"></i>Save profile</button>
                 </div>
+                <?php endif; ?>
+                <?php if ($profileEditor['read_only']): ?></fieldset><?php endif; ?>
               </form>
             </div>
           </main>
@@ -234,7 +239,7 @@ $profileEditor = array_merge([
   <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
   <script src="../assets/vendor/js/menu.js"></script>
   <script src="../assets/js/main.js"></script>
-  <script src="../professor/faculty-profile.js?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.js'); ?>"></script>
+  <?php if (!$profileEditor['read_only']): ?><script src="../professor/faculty-profile.js?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.js'); ?>"></script><?php endif; ?>
   <?php foreach ($profileEditor['extra_scripts'] as $script): ?>
     <script src="<?php echo synk_faculty_profile_h($script); ?>"></script>
   <?php endforeach; ?>

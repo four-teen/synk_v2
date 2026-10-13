@@ -1,0 +1,50 @@
+.dean-statistics-page { max-width: 1440px; }
+.dean-statistics-heading { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1.25rem; margin: .5rem 0 1.75rem; }
+.dean-statistics-heading h1 { margin: 0 0 .5rem; font-size: 1.8rem; letter-spacing: -.03em; color: #566a7f; }
+.dean-statistics-heading p:last-child { margin: 0; color: #697a8d; font-size: .88rem; }
+.dean-statistics-term { min-width: 0; max-width: 100%; }
+.dean-statistics-term label { display: block; font-size: .75rem; font-weight: 600; margin-bottom: .45rem; }
+.dean-statistics-term > div { display: flex; gap: .5rem; }
+.dean-statistics-term .form-select { width: 285px; min-width: 0; font-size: .82rem; }
+.dean-statistics-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.dean-statistics-page .card { border: 1px solid #e3e8f0; border-radius: 14px; box-shadow: 0 3px 14px rgba(49,72,103,.035); }
+.dean-statistics-kpi { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1.35rem; }
+.dean-statistics-kpi-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; font-size: 1.4rem; }
+.dean-statistics-kpi > div { min-width: 0; }
+.dean-statistics-kpi > div > span { display: block; color: #697a8d; font-size: .8rem; }
+.dean-statistics-kpi strong { display: block; margin-top: .3rem; color: #40516a; font-size: 1.9rem; line-height: 1.25; }
+.dean-statistics-charts { display: grid; gap: 1.25rem; align-items: start; }
+.dean-statistics-charts.has-two-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dean-statistics-chart { padding: 1.5rem; min-width: 0; }
+.dean-statistics-chart h2 { font-size: 1.05rem; color: #40516a; margin: 0 0 .4rem; }
+.dean-statistics-chart > p { color: #697a8d; font-size: .8rem; margin: 0 0 1.4rem; }
+.dean-statistics-bar-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.dean-statistics-bar-table thead th { color: #8391a7; font-size: .67rem; font-weight: 600; text-transform: uppercase; padding: 0 0 .7rem; }
+.dean-statistics-bar-table th:first-child { width: 35%; padding-right: .8rem; }
+.dean-statistics-bar-table thead th:last-child:not(:nth-child(2)) { width: 70px; text-align: right; }
+.dean-statistics-bar-table tbody th { color: #566a7f; font-size: .8rem; font-weight: 500; overflow-wrap: anywhere; }
+.dean-statistics-bar-table tbody th, .dean-statistics-bar-table tbody td { padding-top: .85rem; padding-bottom: .85rem; border-top: 1px solid #edf0f5; }
+.dean-statistics-bar-value { display: flex; align-items: center; gap: .75rem; }
+.dean-statistics-bar-value strong { color: #40516a; min-width: 36px; text-align: right; font-size: .83rem; font-variant-numeric: tabular-nums; }
+.dean-statistics-bar-track { height: 13px; background: #f0f1f8; border-radius: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.dean-statistics-bar-track > span { display: block; height: 100%; background: #777af0; border-radius: inherit; }
+.dean-statistics-chart.is-education .dean-statistics-bar-track > span { background: #46a687; }
+.dean-statistics-sections { text-align: right; color: #697a8d; font-size: .83rem; font-variant-numeric: tabular-nums; }
+.dean-statistics-note { color: #8391a7; font-size: .75rem; line-height: 1.65; margin: 1.1rem 0 0; }
+.dean-statistics-empty { padding: 2rem .5rem; text-align: center; color: #8391a7; font-size: .85rem; }
+@media (max-width: 991.98px) {
+  .dean-statistics-charts.has-two-charts { grid-template-columns: 1fr; }
+}
+@media (max-width: 575.98px) {
+  .dean-statistics-heading h1 { font-size: 1.5rem; }
+  .dean-statistics-term { width: 100%; }
+  .dean-statistics-term .form-select { width: 100%; }
+  .dean-statistics-kpis { grid-template-columns: 1fr; gap: .65rem; }
+  .dean-statistics-kpi { padding: 1rem; }
+  .dean-statistics-kpi strong { font-size: 1.65rem; }
+  .dean-statistics-chart { padding: 1.15rem; }
+  .dean-statistics-bar-table th:first-child { width: 38%; padding-right: .5rem; }
+  .dean-statistics-bar-table thead th:last-child:not(:nth-child(2)) { width: 55px; }
+  .dean-statistics-bar-value { gap: .4rem; }
+  .dean-statistics-bar-value strong { min-width: 28px; }
+}

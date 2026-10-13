@@ -5,6 +5,7 @@
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const state = { facultyId: 0, faculties: [], classes: [], metrics: [], rosterStatus: 'all', roster: [], selected: null, token: '', importReady: false, busy: false, loading: false, importView: null, generation: 0, rosterGeneration: 0 };
   const facultyPlaceholder = 'faculty-placeholder.svg';
+  state.canImport = true;
   const rosterModal = new bootstrap.Modal($('deanRosterModal'));
   const importModal = new bootstrap.Modal($('deanImportModal'));
   const label = row => `${row.subject_code} · ${row.section_display}`;
@@ -71,7 +72,10 @@
     state.loading = busy;
     $('deanRosterFilter').disabled = busy || !state.facultyId;
     $('deanClasses').setAttribute('aria-busy', String(busy));
-    $('deanClasses').querySelectorAll('[data-roster], [data-import]').forEach(button => { button.disabled = busy || !state.importReady; });
+    $('deanClasses').querySelectorAll('[data-roster], [data-import]').forEach(button => {
+      button.disabled = busy || !state.importReady || (button.hasAttribute('data-import') && !state.canImport);
+      if (button.hasAttribute('data-import')) button.hidden = !state.canImport;
+    });
   }
   function renderClasses(metrics = [], expanded = new Set()) {
     const bySchedule = new Map(metrics.map(row => [Number(row.schedule_id), row]));
@@ -81,7 +85,7 @@
     const visible = state.classes.filter(row => state.rosterStatus === 'all' || (state.rosterStatus === 'missing' ? row.roster_count === 0 : row.roster_count > 0));
     $('deanClassVisibility').textContent = `Showing ${visible.length} of ${state.classes.length} assigned classes.`;
     if (!state.classes.length) {
-      $('deanClasses').innerHTML = empty('No assigned classes', 'This faculty member has no scheduled class assignments in your college for the current term.');
+      $('deanClasses').innerHTML = empty('No assigned classes', 'This faculty member has no scheduled class assignments in your college for the selected term.');
       return;
     }
     if (!visible.length) {
@@ -114,7 +118,7 @@
       $('deanRefresh').disabled = false;
       state.classes = [];
       state.metrics = [];
-      $('deanClasses').innerHTML = empty('Select a faculty member', 'Their assigned classes for the current academic term will appear here.');
+      $('deanClasses').innerHTML = empty('Select a faculty member', 'Their assigned classes for the selected academic term will appear here.');
       return;
     }
     // Keep the existing page height during imports and refreshes so the browser
@@ -290,10 +294,11 @@
       const url = new URLSearchParams(window.location.search);
       state.rosterStatus = ['all','with','missing'].includes(url.get('list_status')) ? url.get('list_status') : 'all';
       $('deanRosterFilter').value = state.rosterStatus;
-      const data = await request('bootstrap'); state.importReady = data.import_ready; state.faculties = data.faculties;
+      const data = await request('bootstrap'); state.importReady = data.import_ready; state.canImport = data.can_import !== false; state.faculties = data.faculties;
       $('deanFaculty').innerHTML = `<option value="">Select faculty</option>${data.faculties.map(row=>`<option value="${row.faculty_id}">${escape(row.faculty_name)}</option>`).join('')}`;
       $('deanFaculty').disabled = false; $('deanRefresh').disabled = false;
-      if (!data.faculties.length) notice('deanNotice', 'No active faculty assignments are available for your college in the current term.', 'info');
+      if (!data.faculties.length) notice('deanNotice', 'No faculty assignments are available for your college in the selected term.', 'info');
+      else if (!state.canImport) notice('deanNotice', 'This term is for viewing only. Student lists and workload details are available; switch to the current term to import students.', 'info');
       else if (!state.importReady) notice('deanNotice', 'Workloads are available. Student roster storage is not available yet.', 'warning');
       const facultyId = Number(url.get('faculty_id'));
       if (data.faculties.some(row=>row.faculty_id === facultyId)) {

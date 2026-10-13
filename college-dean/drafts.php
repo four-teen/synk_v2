@@ -112,7 +112,7 @@ function program_chair_draft_student_label(array $row): string
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" type="text/css" href="custom_css.css" />
+    <link rel="stylesheet" type="text/css" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
     <style>

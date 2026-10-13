@@ -32,7 +32,7 @@ function synk_dean_students_filters(array $input, ?mysqli $conn=null): array
     $filters['page_size'] = min(100,$filters['page_size']);
     $defaultTerm='all';
     if ($conn) {
-        $current=synk_fetch_current_academic_term($conn);
+        $current=synk_dean_view_term($conn);
         if ($current['ay_id']>0 && $current['semester']>0) $defaultTerm=$current['ay_id'].':'.$current['semester'];
     }
     $term = trim((string)($input['term'] ?? $defaultTerm));
@@ -93,20 +93,7 @@ function synk_dean_students_options(mysqli $conn, array $scope): array
         if (trim((string)$row['major']) !== '') $row['label'].=' - ' . $row['major'];
     }
     unset($row);
-    $terms = synk_dean_students_query($conn,"SELECT DISTINCT COALESCE(es.ay_id,s.ay_id) AS ay_id,COALESCE(es.semester,s.semester) AS semester,
-        (SELECT ay.ay FROM tbl_academic_years ay WHERE ay.ay_id=COALESCE(es.ay_id,s.ay_id)) AS ay_label
-        {$source['sql']} ORDER BY ay_label DESC,es.semester DESC",$source['types'],$source['params']);
-    foreach ($terms as &$row) {
-        $row['ay_id']=(int)$row['ay_id']; $row['semester']=(int)$row['semester'];
-        $row['key']=$row['ay_id'] . ':' . $row['semester'];
-        $row['label']=($row['ay_label'] ?: 'Academic Year ' . $row['ay_id']) . ' - ' . (synk_semester_label($row['semester']) ?: 'Unspecified term');
-    }
-    unset($row);
-    $current=synk_fetch_current_academic_term($conn);
-    $currentKey=$current['ay_id'].':'.$current['semester'];
-    if ($current['ay_id']>0 && $current['semester']>0 && !in_array($currentKey,array_column($terms,'key'),true)) {
-        array_unshift($terms,['ay_id'=>$current['ay_id'],'semester'=>$current['semester'],'ay_label'=>$current['ay_label'],'key'=>$currentKey,'label'=>$current['term_text']]);
-    }
+    $terms = synk_dean_term_catalog($conn);
     $sections = synk_dean_students_query($conn,"SELECT DISTINCT es.section_id,es.program_id,es.ay_id,es.semester,
         COALESCE(NULLIF(sec.full_section,''),NULLIF(es.section_text,''),CONCAT(p.program_code,' ',es.year_level)) AS section_label
         {$source['sql']} AND es.section_id>0 ORDER BY section_label,es.ay_id DESC,es.semester",$source['types'],$source['params']);

@@ -17,6 +17,14 @@
       email_status:$('deanStudentsEmailStatus').value || 'all',
       sort:$('deanStudentsSort').value || 'name', page_size:$('deanStudentsPageSize').value || '25', page:state.page};
   }
+  function updateViewOnly() {
+    const selected = $('deanStudentsTerm').value;
+    const readonly = Boolean(config.read_only) || Boolean(state.adminTerm && selected !== state.adminTerm);
+    const root = document.getElementById('deanStudentDirectory');
+    if (root?.classList) root.classList.toggle('dean-students-readonly', readonly);
+    const viewNotice = document.getElementById('deanStudentViewOnlyNotice');
+    if (viewNotice) viewNotice.hidden = !readonly;
+  }
   async function request(action, params = {}) {
     const body = new FormData();
     Object.entries({...config,action,...params}).forEach(([key,value]) => body.append(key,value));
@@ -50,6 +58,7 @@
     if ($('deanStudentsRefresh').dispatchEvent) $('deanStudentsRefresh').dispatchEvent(new CustomEvent('student-directory-loading',{detail:{filters:filters()}}));
   }
   function render(data) {
+    updateViewOnly();
     state.rows = data.rows; state.page = data.pagination.page; state.pages = data.pagination.pages;
     $('deanUniqueStudents').textContent = number(data.summary.students);
     $('deanImportedClasses').textContent = number(data.summary.classes);
@@ -97,7 +106,10 @@
     try {
       const data = await request('bootstrap'); state.options = data.options;
       const currentKey = `${data.current_term.ay_id}:${data.current_term.semester}`;
-      state.currentTerm=data.options.terms.some(row=>row.key===currentKey) ? currentKey : 'all';
+      state.adminTerm = currentKey;
+      const view = data.view_term || data.current_term;
+      const viewKey = `${view.ay_id}:${view.semester}`;
+      state.currentTerm=data.options.terms.some(row=>row.key===viewKey) ? viewKey : 'all';
       $('deanStudentsProgram').innerHTML = '<option value="0">All programs</option>' + data.options.programs.map(row=>`<option value="${row.program_id}">${escape(row.label)}</option>`).join('');
       const years=[...new Map(data.options.terms.map(row=>[row.key.split(':')[0],row.ay_label || row.label.split(' - ')[0]])).entries()];
       $('deanStudentsTerm').innerHTML = '<option value="all">All academic terms</option>' + data.options.terms.map(row=>`<option value="${escape(row.key)}">${escape(row.label)}${row.key === currentKey ? ' (Current)' : ''}</option>`).join('') + years.map(([id,label])=>`<option value="year:${escape(id)}">${escape(label)} - All semesters</option>`).join('');
