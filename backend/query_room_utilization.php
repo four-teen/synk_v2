@@ -1,7 +1,8 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 require_once __DIR__ . '/schedule_tba_helper.php';
 session_start();
-include 'db.php';
+require_once 'db.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/offering_enrollee_helper.php';
 require_once __DIR__ . '/schema_helper.php';
@@ -439,8 +440,7 @@ function room_utilization_fetch_college_signatory_assignments(mysqli $conn, int 
         FROM tbl_college_faculty cf
         INNER JOIN tbl_faculty f
             ON f.faculty_id = cf.faculty_id
-        INNER JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
         WHERE " . implode("\n          AND ", $whereParts) . "
         ORDER BY f.last_name ASC, f.first_name ASC, cf.college_faculty_id ASC
     ";
@@ -1394,8 +1394,7 @@ if (isset($_POST['load_faculty_workload'])) {
             FROM tbl_college_faculty cf
             INNER JOIN tbl_faculty f
                 ON f.faculty_id = cf.faculty_id
-            LEFT JOIN tbl_designation d
-                ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, room_utilization_fetch_ay_id($conn, $ay), $semester) . "
                " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
             LEFT JOIN tbl_college col
                 ON col.college_id = cf.college_id

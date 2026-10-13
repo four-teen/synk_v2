@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/faculty_term_designation_helper.php';
 session_start();
 ob_start();
 include '../backend/db.php';
@@ -142,7 +143,7 @@ if (
     $designationHasUnits = $designationTableExists && synk_table_has_column($conn, 'tbl_designation', 'designation_units');
     $designationHasStatus = $designationTableExists && synk_table_has_column($conn, 'tbl_designation', 'status');
     $designationJoinSql = '';
-    $designationSelectId = $facultyHasDesignationId ? 'f.designation_id' : '0';
+    $designationSelectId = $facultyHasDesignationId ? 'd.designation_id' : '0';
     $facultyDesignationExpr = $facultyDesignationTextColumn !== null
         ? "NULLIF(TRIM(f.`{$facultyDesignationTextColumn}`), '')"
         : 'NULL';
@@ -151,8 +152,7 @@ if (
 
     if ($facultyHasDesignationId && $designationTableExists && $designationHasName) {
         $designationJoinSql = "
-            LEFT JOIN tbl_designation d
-                ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $currentAyId, $currentSem) . "
                " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
         ";
         $designationNameExpr = "COALESCE(NULLIF(TRIM(d.designation_name), ''), {$facultyDesignationExpr}, '')";

@@ -1,21 +1,25 @@
 <?php
 session_start();
 ob_start();
-include 'db.php';
+require_once 'db.php';
+require_once __DIR__ . '/scheduler_term_list_helper.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'scheduler') {
     echo "unauthorized";
     exit;
 }
 
-$college_id = (int)($_SESSION['college_id'] ?? 0);
-if ($college_id <= 0) {
+try {
+    $college_id = synk_scheduler_list_id($_POST['college_id'] ?? ($_SESSION['college_id'] ?? null));
+    synk_scheduler_list_scope($conn, $college_id);
+} catch (DomainException $exception) {
+    http_response_code($exception->getCode() ?: 403);
     echo "unauthorized";
     exit;
 }
 
 $csrf_token = $_POST['csrf_token'] ?? '';
-if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf_token)) {
+if (!is_string($csrf_token) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf_token)) {
     echo "csrf_failed";
     exit;
 }
@@ -102,136 +106,8 @@ if (!has_room_access_table($conn)) {
 }
 
 if (isset($_POST['copy_rooms_from_term'])) {
-    [$target_ay_id, $target_semester, $target_ok] = term_inputs_valid();
-    $source_ay_id = (int)($_POST['source_ay_id'] ?? 0);
-    $source_semester = (int)($_POST['source_semester'] ?? 0);
-
-    if (!$target_ok || $source_ay_id <= 0 || !in_array($source_semester, [1, 2, 3], true)) {
-        echo json_encode([
-            'status' => 'invalid_term',
-            'message' => 'Select both source and target academic terms.',
-        ]);
-        exit;
-    }
-
-    if ($source_ay_id === $target_ay_id && $source_semester === $target_semester) {
-        echo json_encode([
-            'status' => 'same_term',
-            'message' => 'Source and target terms must be different.',
-        ]);
-        exit;
-    }
-
-    $sourceSql = "
-        SELECT DISTINCT
-            src.room_id,
-            r.room_code,
-            CASE
-                WHEN EXISTS (
-                    SELECT 1
-                    FROM tbl_room_college_access target
-                    WHERE target.room_id = src.room_id
-                      AND target.college_id = ?
-                      AND target.ay_id = ?
-                      AND target.semester = ?
-                      AND target.access_type = 'owner'
-                ) THEN 1
-                ELSE 0
-            END AS exists_in_target
-        FROM tbl_room_college_access src
-        INNER JOIN tbl_rooms r ON r.room_id = src.room_id
-        WHERE src.college_id = ?
-          AND src.ay_id = ?
-          AND src.semester = ?
-          AND src.access_type = 'owner'
-          AND (r.status IS NULL OR r.status = 'active')
-        ORDER BY r.room_code ASC, src.room_id ASC
-    ";
-
-    $sourceStmt = $conn->prepare($sourceSql);
-    if (!($sourceStmt instanceof mysqli_stmt)) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Unable to prepare room copy query.',
-        ]);
-        exit;
-    }
-
-    $sourceStmt->bind_param(
-        "iiiiii",
-        $college_id,
-        $target_ay_id,
-        $target_semester,
-        $college_id,
-        $source_ay_id,
-        $source_semester
-    );
-    $sourceStmt->execute();
-    $sourceRes = $sourceStmt->get_result();
-
-    $roomIdsToCopy = [];
-    $sourceCount = 0;
-    $skippedCount = 0;
-
-    while ($row = $sourceRes->fetch_assoc()) {
-        $sourceCount++;
-        if ((int)($row['exists_in_target'] ?? 0) === 1) {
-            $skippedCount++;
-            continue;
-        }
-
-        $roomIdsToCopy[] = (int)$row['room_id'];
-    }
-    $sourceStmt->close();
-
-    if ($sourceCount === 0) {
-        echo json_encode([
-            'status' => 'source_empty',
-            'message' => 'No owner rooms were found in the selected source term.',
-            'copied_count' => 0,
-            'skipped_count' => 0,
-        ]);
-        exit;
-    }
-
-    $copiedCount = 0;
-
-    $conn->begin_transaction();
-    try {
-        $insertOwner = $conn->prepare("
-            INSERT INTO tbl_room_college_access (room_id, college_id, ay_id, semester, access_type)
-            VALUES (?, ?, ?, ?, 'owner')
-            ON DUPLICATE KEY UPDATE access_type = 'owner'
-        ");
-
-        if (!($insertOwner instanceof mysqli_stmt)) {
-            throw new RuntimeException('Unable to prepare room copy insert.');
-        }
-
-        foreach ($roomIdsToCopy as $roomIdToCopy) {
-            $insertOwner->bind_param("iiii", $roomIdToCopy, $college_id, $target_ay_id, $target_semester);
-            $insertOwner->execute();
-            $copiedCount++;
-        }
-
-        $conn->commit();
-    } catch (Throwable $e) {
-        $conn->rollback();
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Unable to copy rooms into the selected term.',
-        ]);
-        exit;
-    }
-
-    echo json_encode([
-        'status' => 'success',
-        'message' => 'Rooms copied successfully.',
-        'copied_count' => $copiedCount,
-        'skipped_count' => $skippedCount,
-        'source_count' => $sourceCount,
-        'sharing_copied' => false,
-    ]);
+    http_response_code(409);
+    echo json_encode(['status'=>'error','message'=>'Open Copy Previous List to preview and select rooms before copying.']);
     exit;
 }
 

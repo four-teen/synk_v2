@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 
 require_once __DIR__ . '/college_dean_dashboard_helper.php';
 require_once __DIR__ . '/faculty_profile_helper.php';
@@ -31,10 +32,10 @@ function synk_dean_profile_faculties(mysqli $conn, array $scope, array $term, in
 {
     // A permanent home college wins over teaching/roster links. A current roster
     // supplies scope only when no permanent college has been recorded.
-    $sql = "SELECT f.*, COALESCE(d.designation_name,'') AS designation_name,
+    $sql = "SELECT f.*, d.designation_id AS designation_id, COALESCE(d.designation_name,'') AS designation_name,
             COALESCE(l.user_id,0) AS profile_user_id, COALESCE(u.email,'') AS profile_email,
             COALESCE(u.username,'') AS account_name
-        FROM tbl_faculty f LEFT JOIN tbl_designation d ON d.designation_id=f.designation_id
+        FROM tbl_faculty f " . synk_faculty_designation_join_sql($conn, (int)$term['ay_id'], (int)$term['semester']) . "
         LEFT JOIN tbl_useraccount_faculty_links l ON l.faculty_id=f.faculty_id
         LEFT JOIN tbl_useraccount u ON u.user_id=l.user_id
         WHERE ((f.college_id=? AND (COALESCE(f.campus_id,0)=0 OR f.campus_id=?))

@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 session_start();
-include 'db.php';
+require_once 'db.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/offering_enrollee_helper.php';
 require_once __DIR__ . '/schema_helper.php';
@@ -284,8 +285,7 @@ function workload_fetch_college_dean_signatory(mysqli $conn, int $collegeId, int
         FROM tbl_college_faculty cf
         INNER JOIN tbl_faculty f
             ON f.faculty_id = cf.faculty_id
-        INNER JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
         WHERE " . implode("\n          AND ", $whereParts) . "
         ORDER BY f.last_name ASC, f.first_name ASC, cf.college_faculty_id ASC
     ");
@@ -859,8 +859,7 @@ if (!$isFacultyNeed && $college_id > 0 && $facultyHasDesignationId && $designati
         FROM tbl_college_faculty cf
         INNER JOIN tbl_faculty f
             ON f.faculty_id = cf.faculty_id
-        LEFT JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ay_id, $semester) . "
            " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
         WHERE " . implode("\n          AND ", $designationWhere) . "
         ORDER BY cf.college_faculty_id DESC

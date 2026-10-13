@@ -6,6 +6,7 @@ Live DB import order
    - `backend/sql/phase6_faculty_designation_fk.sql`
 3. Run `backend/sql/phase15_faculty_employment_classification.sql`.
 4. Run `backend/sql/live_performance_patch_no_views.sql`.
+5. Run `backend/sql/phase23_faculty_term_designations.sql` before enabling semester-specific designation editing.
 
 Notes
 - The current runtime does not use `vw_faculty_workload`.

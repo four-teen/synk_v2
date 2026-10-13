@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 
 require_once __DIR__ . '/schema_helper.php';
 
@@ -215,8 +216,7 @@ function synk_program_chair_signatory_fetch_faculty_options(
     $designationSelect = "'' AS designation_name";
     if ($facultyHasDesignationId && $designationExists) {
         $designationJoin = "
-        LEFT JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
            " . ($designationHasStatus ? "AND d.status = 'active'" : '');
         $designationSelect = "COALESCE(d.designation_name, '') AS designation_name";
     }
@@ -283,8 +283,7 @@ function synk_program_chair_signatory_fetch_assignments(mysqli $conn, int $colle
     $designationSelect = "'' AS designation_name";
     if ($facultyHasDesignationId && $designationExists) {
         $designationJoin = "
-        LEFT JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
            " . ($designationHasStatus ? "AND d.status = 'active'" : '');
         $designationSelect = "COALESCE(d.designation_name, '') AS designation_name";
     }
@@ -515,8 +514,7 @@ function synk_program_chair_signatory_fetch_for_program(
     $designationSelect = "'' AS designation_name";
     if ($facultyHasDesignationId && $designationExists) {
         $designationJoin = "
-        LEFT JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
            " . ($designationHasStatus ? "AND d.status = 'active'" : '');
         $designationSelect = "COALESCE(d.designation_name, '') AS designation_name";
     }

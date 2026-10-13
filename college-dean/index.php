@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../backend/faculty_term_designation_helper.php';
 session_start();
 ob_start();
 require_once '../backend/db.php';
@@ -855,15 +856,14 @@ if (
         : 'NULL';
 
     if ($facultyHasDesignationId) {
-        $designationSelectId = 'f.designation_id';
+        $designationSelectId = 'd.designation_id';
     } else {
         $designationSelectId = '0';
     }
 
     if ($facultyHasDesignationId && $designationTableExists && $designationHasName) {
         $designationJoinSql = "
-            LEFT JOIN tbl_designation d
-                ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $currentAyId, $currentSem) . "
                " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
         ";
         $designationNameExpr = "COALESCE(NULLIF(TRIM(d.designation_name), ''), {$facultyDesignationExpr}, '')";
@@ -1387,7 +1387,7 @@ if (
     $reportDesignationHasUnits = $reportDesignationTableExists && synk_table_has_column($conn, 'tbl_designation', 'designation_units');
     $reportDesignationHasStatus = $reportDesignationTableExists && synk_table_has_column($conn, 'tbl_designation', 'status');
     $reportDesignationJoinSql = '';
-    $reportDesignationSelectId = $reportFacultyHasDesignationId ? 'f.designation_id' : '0';
+    $reportDesignationSelectId = $reportFacultyHasDesignationId ? 'd.designation_id' : '0';
     $reportFacultyDesignationExpr = $reportFacultyDesignationTextColumn !== null
         ? "NULLIF(TRIM(f.`{$reportFacultyDesignationTextColumn}`), '')"
         : 'NULL';
@@ -1396,8 +1396,7 @@ if (
 
     if ($reportFacultyHasDesignationId && $reportDesignationTableExists && $reportDesignationHasName) {
         $reportDesignationJoinSql = "
-            LEFT JOIN tbl_designation d
-                ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $currentAyId, $currentSem) . "
                " . ($reportDesignationHasStatus ? "AND d.status = 'active'" : '') . "
         ";
         $reportDesignationNameExpr = "COALESCE(NULLIF(TRIM(d.designation_name), ''), {$reportFacultyDesignationExpr}, '')";

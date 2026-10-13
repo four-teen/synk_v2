@@ -1,4 +1,5 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
 require_once "db.php";
 require_once __DIR__ . '/faculty_directory_helper.php';
 
@@ -184,14 +185,22 @@ if (isset($_POST['load_faculty'])) {
         $schema['has_employment_classification'] ? "f.employment_classification" : "NULL AS employment_classification",
     ];
     $designationLookup = [];
+    $designationJoin = '';
+    $termDesignation = $schema['has_designation_id'] && $schema['designation_table_exists'] && $schema['designation_table_has_name'];
+    if ($termDesignation) {
+        $term = synk_fetch_current_academic_term($conn);
+        $designationJoin = synk_faculty_designation_join_sql($conn, (int)$term['ay_id'], (int)$term['semester']);
+    }
 
     if ($schema['has_designation_id']) {
-        $selectParts[] = "f.designation_id";
+        $selectParts[] = $termDesignation ? "d.designation_id" : "f.designation_id";
     } else {
         $selectParts[] = "NULL AS designation_id";
     }
 
-    if ($schema['designation_text_column'] !== null) {
+    if ($termDesignation) {
+        $selectParts[] = "d.designation_name";
+    } elseif ($schema['designation_text_column'] !== null) {
         $designationColumn = $schema['designation_text_column'];
         $selectParts[] = "f.`{$designationColumn}` AS designation_name";
     } else {
@@ -202,6 +211,7 @@ if (isset($_POST['load_faculty'])) {
         SELECT
             " . implode(",\n            ", $selectParts) . "
         FROM tbl_faculty f
+        {$designationJoin}
         ORDER BY f.last_name ASC, f.first_name ASC
     ");
 
@@ -557,7 +567,26 @@ if (isset($_POST['update_faculty'])) {
     }
 
     query_faculty_bind_params($stmt, $updateTypes, $updateValues);
-    $executed = $stmt->execute();
+    $executed = false;
+    $conn->begin_transaction();
+    try {
+        $settings = $conn->query('SELECT current_ay_id,current_semester FROM tbl_academic_settings LIMIT 1 FOR UPDATE')->fetch_assoc();
+        if (!$stmt->execute()) throw new RuntimeException('Unable to update the faculty record.');
+        if ($hasDesignationInput && synk_table_exists($conn, 'tbl_faculty_term_designations') && (int)$settings['current_ay_id'] > 0) {
+            $appointment = $designationRecord ?? [];
+            if ($designationId > 0) {
+                $unitsStmt = $conn->prepare("SELECT designation_id,designation_name,designation_units FROM tbl_designation WHERE designation_id=? AND status='active' FOR UPDATE");
+                $unitsStmt->bind_param('i', $designationId);
+                $unitsStmt->execute();
+                $appointment = $unitsStmt->get_result()->fetch_assoc();
+                $unitsStmt->close();
+                if (!$appointment) throw new RuntimeException('This designation is no longer available.');
+            }
+            synk_faculty_term_designation_record($conn, $id, (int)$settings['current_ay_id'], (int)$settings['current_semester'], $appointment, (int)($_SESSION['user_id'] ?? 0));
+        }
+        $conn->commit();
+        $executed = true;
+    } catch (Throwable $exception) { $conn->rollback(); }
     $stmt->close();
 
     echo $executed ? "success" : "update_failed";

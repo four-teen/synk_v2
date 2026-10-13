@@ -2,7 +2,7 @@
 session_start();
 ob_start();
 
-include '../backend/db.php';
+require_once '../backend/db.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 
@@ -478,6 +478,7 @@ if ($myCollege > 0) {
               <input type="hidden" id="college_id" value="<?= $myCollege ?>">
 
               <div class="d-flex flex-column flex-sm-row gap-2">
+                <button type="button" class="btn btn-outline-primary" id="btnCopyPreviousFaculty"><i class="bx bx-copy-alt"></i> Copy Previous List</button>
                 <a class="btn btn-outline-primary" href="manage-report-signatories.php">
                   <i class="bx bx-pen"></i> Report Signatories
                 </a>
@@ -513,7 +514,7 @@ if ($myCollege > 0) {
                         type="search"
                         id="facultySearch"
                         class="form-control"
-                        placeholder="Search by faculty name, designation, classification, or status"
+                        placeholder="Search by faculty name, designation, or classification"
                         autocomplete="off"
                       >
                     </div>
@@ -538,11 +539,10 @@ if ($myCollege > 0) {
                   <thead>
                     <tr>
                       <th style="width:5%;">#</th>
-                      <th style="width:21%;">Faculty Name</th>
+                      <th style="width:25%;">Faculty Name</th>
                       <th style="width:20%;">Designation</th>
                       <th style="width:15%;">Employment Classification</th>
-                      <th style="width:10%;">Assigned</th>
-                      <th style="width:9%;">Status</th>
+                      <th style="width:15%;">Assigned</th>
                       <th class="text-end" style="width:20%;">Actions</th>
                     </tr>
                   </thead>
@@ -639,10 +639,10 @@ if ($myCollege > 0) {
           <div class="mb-0">
             <label class="form-label">Designation</label>
             <select id="designation_id" class="form-select" style="width: 100%;">
-              <option value="">Select Designation...</option>
+              <option value="">No designation</option>
             </select>
-            <div class="form-text faculty-designation-note">
-              This page only allows designation updates for faculty assigned to your current college scope.
+            <div class="form-text faculty-designation-note" id="designationTermNote">
+              Choose No designation to remove the appointment for <?= htmlspecialchars($currentTerm['term_text'], ENT_QUOTES, 'UTF-8') ?>. Previous semesters keep their saved designations.
             </div>
           </div>
 
@@ -710,6 +710,7 @@ if ($myCollege > 0) {
 </div>
 
 <script src="../assets/vendor/libs/jquery/jquery.js"></script>
+<?php $termCopyKind = 'faculty'; $termCopyCollegeId = $myCollege; include __DIR__ . '/term-list-copy-modal.php'; ?>
 <script src="../assets/vendor/js/bootstrap.js"></script>
 <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
 <script src="../assets/vendor/js/menu.js"></script>
@@ -731,7 +732,9 @@ const facultyListState = {
   currentRequest: null,
   observer: null,
   requestToken: 0,
-  termText: $("#facultyTermText").text().trim()
+  termText: $("#facultyTermText").text().trim(),
+  termAyId: <?= (int)$currentTerm['ay_id'] ?>,
+  termSemester: <?= (int)$currentTerm['semester'] ?>
 };
 
 const addFacultyModalElement = document.getElementById("addFacultyModal");
@@ -761,7 +764,7 @@ $(document).ready(function () {
   $("#designation_id").select2({
     dropdownParent: $("#designationModal .modal-body"),
     width: "100%",
-    placeholder: "Select Designation...",
+    placeholder: "No designation",
     allowClear: true
   });
 
@@ -871,10 +874,8 @@ $(document).ready(function () {
 
         Swal.fire({
           icon: "success",
-          title: res.status === "reactivated" ? "Assignment Restored" : "Faculty Assigned",
-          text: res.status === "reactivated"
-            ? "The faculty assignment has been reactivated for this college."
-            : "Faculty has been successfully assigned to this college.",
+          title: "Faculty Assigned",
+          text: "Faculty added to the current college list.",
           timer: 1300,
           timerProgressBar: true,
           showConfirmButton: false
@@ -918,20 +919,22 @@ $(document).ready(function () {
 
   $("#designationForm").on("submit", function (e) {
     e.preventDefault();
+    if ($("#designation_id").prop("disabled")) return;
 
     const collegeId = Number($("#designation_college_id").val() || $("#college_id").val() || 0);
     const facultyId = Number($("#designation_faculty_id").val() || 0);
     const designationId = Number($("#designation_id").val() || 0);
 
-    if (!collegeId || !facultyId || !designationId) {
+    if (!collegeId || !facultyId) {
       Swal.fire({
         icon: "warning",
         title: "Missing Data",
-        text: "Please choose a designation before saving."
+        text: "Select a faculty member before saving."
       });
       return;
     }
 
+    $("#designation_id, button[form='designationForm']").prop("disabled", true);
     $.ajax({
       url: "../backend/query_college_faculty.php",
       type: "POST",
@@ -940,14 +943,16 @@ $(document).ready(function () {
         update_faculty_designation: 1,
         college_id: collegeId,
         faculty_id: facultyId,
-        designation_id: designationId
+        designation_id: designationId,
+        ay_id: facultyListState.termAyId,
+        semester: facultyListState.termSemester
       })
     }).done(function (res) {
       if (res && res.status === "updated") {
         Swal.fire({
           icon: "success",
-          title: "Designation Updated",
-          text: "Faculty designation has been updated successfully.",
+          title: designationId ? "Designation Updated" : "Designation Removed",
+          text: "Saved for the current semester. Previous semesters are unchanged.",
           timer: 1300,
           timerProgressBar: true,
           showConfirmButton: false
@@ -970,6 +975,8 @@ $(document).ready(function () {
       Swal.fire("Error", "Unable to update the faculty designation.", "error");
     }).fail(function (xhr) {
       Swal.fire("Error", extractErrorMessage(xhr, "Unable to update the faculty designation."), "error");
+    }).always(function () {
+      $("#designation_id, button[form='designationForm']").prop("disabled", false);
     });
   });
 
@@ -1038,8 +1045,8 @@ $(document).ready(function () {
     }
 
     Swal.fire({
-      title: "Remove Assignment?",
-      text: "This will mark the faculty as inactive for this college.",
+      title: "Remove from this list?",
+      text: "This removes the current college-list entry. The faculty record and scheduled workloads will be kept.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Yes, remove",
@@ -1055,14 +1062,16 @@ $(document).ready(function () {
         dataType: "json",
         data: buildRequestData({
           remove_assignment: 1,
-          college_faculty_id: collegeFacultyId
+          college_faculty_id: collegeFacultyId,
+          ay_id: facultyListState.termAyId,
+          semester: facultyListState.termSemester
         })
       }).done(function (res) {
         if (res.status === "removed") {
           Swal.fire({
             icon: "success",
             title: "Removed",
-            text: "Faculty assignment updated successfully.",
+            text: "Faculty removed from this list.",
             timer: 1300,
             showConfirmButton: false
           });
@@ -1077,46 +1086,6 @@ $(document).ready(function () {
     });
   });
 
-  $(document).on("click", ".btn-reactivate-assignment", function () {
-    const collegeId = Number($("#college_id").val() || 0);
-    const facultyId = Number($(this).data("facultyId") || 0);
-
-    if (!collegeId || !facultyId) {
-      return;
-    }
-
-    $.ajax({
-      url: "../backend/query_college_faculty.php",
-      type: "POST",
-      dataType: "json",
-      data: buildRequestData({
-        save_assignment: 1,
-        college_id: collegeId,
-        faculty_id: facultyId
-      })
-    }).done(function (res) {
-      if (res.status === "reactivated" || res.status === "inserted") {
-        Swal.fire({
-          icon: "success",
-          title: "Assignment Restored",
-          text: "Faculty assignment has been set back to active.",
-          timer: 1300,
-          showConfirmButton: false
-        });
-        refreshFacultyData({ preserveScroll: true });
-        return;
-      }
-
-      if (res.status === "duplicate") {
-        refreshFacultyData({ preserveScroll: true });
-        return;
-      }
-
-      Swal.fire("Error", "Unable to reactivate this assignment.", "error");
-    }).fail(function (xhr) {
-      Swal.fire("Error", extractErrorMessage(xhr, "Unable to connect to the server."), "error");
-    });
-  });
 });
 
 function buildRequestData(payload) {
@@ -1179,6 +1148,8 @@ function openDesignationModal($button) {
   $("#designation_college_id").val(collegeId);
   $("#designation_faculty_name").val(facultyName);
   $("#designationModalTitle").text(designationId > 0 ? "Update Designation" : "Add Designation");
+  $("#designationTermNote").text("Choose No designation to remove the appointment for " + facultyListState.termText + ". Previous semesters keep their saved designations.");
+  $("button[form='designationForm']").prop("disabled", true);
   $("#designation_id")
     .prop("disabled", true)
     .empty()
@@ -1224,7 +1195,7 @@ function loadDesignationOptions(selectedId) {
     })
   }).done(function (res) {
     const $designationSelect = $("#designation_id");
-    $designationSelect.empty().append('<option value=""></option>');
+    $designationSelect.empty().append('<option value=""></option><option value="0">No designation</option>');
 
     if (res && res.status === "success" && Array.isArray(res.data)) {
       $.each(res.data, function (index, item) {
@@ -1237,12 +1208,16 @@ function loadDesignationOptions(selectedId) {
     if (selectedId > 0) {
       $designationSelect.val(String(selectedId));
     } else {
-      $designationSelect.val(null);
+      $designationSelect.val("0");
     }
 
+    if (selectedId > 0 && !$designationSelect.find("option[value='" + selectedId + "']").length) {
+      $designationSelect.append($("<option>", {value: selectedId, text: "Previously saved designation (unavailable)"})).val(String(selectedId));
+    }
     $designationSelect.prop("disabled", false).trigger("change");
   }).always(function () {
     $("#designation_id").prop("disabled", false);
+    $("button[form='designationForm']").prop("disabled", false);
   });
 }
 
@@ -1408,6 +1383,8 @@ function loadCollegeFaculty() {
 
     if (res.term && res.term.term_text) {
       facultyListState.termText = String(res.term.term_text);
+      facultyListState.termAyId = Number(res.term.ay_id);
+      facultyListState.termSemester = Number(res.term.semester);
       $("#facultyTermText").text(facultyListState.termText);
       $("#facultyTermNote").text("Assigned count is scoped to " + facultyListState.termText + ".");
     }
@@ -1682,7 +1659,6 @@ function appendFacultyRows(rows, startIndex) {
     const designationHtml = buildDesignationHtml(row);
     const classificationHtml = buildEmploymentClassificationHtml(row);
     const assignedHtml = buildAssignedHtml(row);
-    const statusBadge = buildStatusBadge(row.status);
     const actionHtml = buildActionHtml(row);
     const safeName = escapeHtml(row.full_name || "Unnamed Faculty");
     const assignmentId = escapeHtml(String(row.college_faculty_id || 0));
@@ -1695,7 +1671,6 @@ function appendFacultyRows(rows, startIndex) {
         "<td class='faculty-designation-slot'>" + designationHtml + "</td>" +
         "<td class='faculty-classification-slot'>" + classificationHtml + "</td>" +
         "<td>" + assignedHtml + "</td>" +
-        "<td>" + statusBadge + "</td>" +
         "<td class='text-end faculty-action-cell faculty-actions-slot'>" + actionHtml + "</td>" +
       "</tr>"
     );
@@ -1709,7 +1684,6 @@ function appendFacultyRows(rows, startIndex) {
               "<h6 class='faculty-mobile-name'>" + safeName + "</h6>" +
               "<div class='faculty-designation-slot'>" + designationHtml + "</div>" +
             "</div>" +
-            "<div>" + statusBadge + "</div>" +
           "</div>" +
           "<div class='faculty-mobile-grid'>" +
             "<div class='faculty-mobile-meta'>" +
@@ -1739,7 +1713,7 @@ function buildDesignationHtml(row) {
   const designationName = String(row.designation_name || "").trim();
 
   if (designationName === "") {
-    return "<span class='text-muted'>Not Set</span>";
+    return "<span class='text-muted'>No designation</span>";
   }
 
   const styleAttr = row.designation_style
@@ -1779,13 +1753,6 @@ function buildAssignedHtml(row) {
   return "<span class='faculty-assigned-pill " + stateClass + "'>" + escapeHtml(label) + "</span>";
 }
 
-function buildStatusBadge(status) {
-  const normalizedStatus = String(status || "").toLowerCase() === "inactive" ? "inactive" : "active";
-  const badgeClass = normalizedStatus === "active" ? "bg-success" : "bg-danger";
-  const label = normalizedStatus === "active" ? "ACTIVE" : "INACTIVE";
-
-  return "<span class='badge " + badgeClass + "'>" + label + "</span>";
-}
 
 function applyFacultyDesignationUpdate(facultyId, response) {
   const normalizedFacultyId = String(facultyId || "").trim();
@@ -1847,7 +1814,6 @@ function applyFacultyClassificationUpdate(facultyId, response) {
 }
 
 function buildActionHtml(row) {
-  const isActive = String(row.status || "").toLowerCase() !== "inactive";
   const hasDesignation = String(row.designation_name || "").trim() !== "";
   const designationTitle = hasDesignation ? "Edit Designation" : "Add Designation";
   const employmentClassification = String(row.employment_classification || "").trim();
@@ -1885,8 +1851,7 @@ function buildActionHtml(row) {
     "</button>"
   );
 
-  if (isActive) {
-    return (
+  return (
       "<div class='btn-group faculty-action-group' role='group' aria-label='Faculty row actions'>" +
         designationButton +
         classificationButton +
@@ -1898,18 +1863,6 @@ function buildActionHtml(row) {
         "</button>" +
       "</div>"
     );
-  }
-
-  return (
-    "<div class='btn-group faculty-action-group' role='group' aria-label='Faculty row actions'>" +
-      "<button type='button' class='btn btn-sm btn-outline-success btn-reactivate-assignment' title='Reactivate Assignment' aria-label='Reactivate Assignment' data-faculty-id='" +
-      escapeHtml(String(row.faculty_id || 0)) +
-      "'>" +
-      "<i class='bx bx-refresh faculty-action-icon'></i>" +
-      "<span class='faculty-action-label'>Reactivate</span>" +
-      "</button>" +
-    "</div>"
-  );
 }
 
 function toggleFacultyLoading(isLoading) {

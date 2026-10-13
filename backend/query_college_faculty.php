@@ -6,6 +6,7 @@ require_once 'db.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
+require_once __DIR__ . '/scheduler_term_list_helper.php';
 
 header('Content-Type: application/json');
 
@@ -461,7 +462,7 @@ if (isset($_POST['load_college_faculty'])) {
     }
 
     if ($schema['has_designation_id']) {
-        $selectParts[] = 'f.designation_id';
+        $selectParts[] = 'd.designation_id';
     } else {
         $selectParts[] = 'NULL AS designation_id';
     }
@@ -471,8 +472,8 @@ if (isset($_POST['load_college_faculty'])) {
         && $schema['designation_table_exists']
         && $schema['designation_table_has_name']
     ) {
-        $joinSql .= "\n        LEFT JOIN tbl_designation d ON d.designation_id = f.designation_id";
-        $designationNameExpr = "COALESCE(NULLIF(TRIM(d.designation_name), ''), {$facultyDesignationExpr}, '')";
+        $joinSql .= synk_faculty_designation_join_sql($conn, $currentAyId, $currentSemester);
+        $designationNameExpr = "COALESCE(d.designation_name, '')";
     } elseif ($facultyDesignationExpr !== 'NULL') {
         $designationNameExpr = "COALESCE({$facultyDesignationExpr}, '')";
     }
@@ -486,7 +487,7 @@ if (isset($_POST['load_college_faculty'])) {
         . ($schema['has_ext_name'] ? 'f.ext_name' : 'NULL')
         . ')';
 
-    $whereParts = ['cf.college_id = ?'];
+    $whereParts = ['cf.college_id = ?', "LOWER(TRIM(cf.status)) = 'active'"];
     $whereParams = [$college_id];
     $whereTypes = 'i';
 
@@ -502,12 +503,10 @@ if (isset($_POST['load_college_faculty'])) {
         $searchParts = [
             "{$nameSearchExpr} LIKE ?",
             "{$designationNameExpr} LIKE ?",
-            "cf.status LIKE ?",
         ];
         $whereParams[] = $like;
         $whereParams[] = $like;
-        $whereParams[] = $like;
-        $whereTypes .= 'sss';
+        $whereTypes .= 'ss';
 
         if ($schema['has_employment_classification']) {
             $searchParts[] = "{$employmentClassificationExpr} LIKE ?";
@@ -935,104 +934,57 @@ if (isset($_POST['save_assignment'])) {
 
 if (isset($_POST['update_faculty_designation'])) {
     query_college_faculty_require_csrf();
-
-    $college_id = (int)($_POST['college_id'] ?? 0);
-    $faculty_id = (int)($_POST['faculty_id'] ?? 0);
-    $designationId = (int)($_POST['designation_id'] ?? 0);
-
-    if ($college_id <= 0 || $faculty_id <= 0 || $designationId <= 0) {
-        query_college_faculty_json_response(['status' => 'invalid'], 400);
-    }
-
-    query_college_faculty_require_college_scope($allowedCollegeIds, $college_id);
-
-    $schema = query_college_faculty_schema_info($conn);
-    if (
-        !$schema['designation_table_exists']
-        || !$schema['designation_table_has_name']
-        || !query_college_faculty_designation_persist_ready($schema)
-    ) {
-        query_college_faculty_json_response(['status' => 'schema_update_required'], 400);
-    }
-
-    $currentTerm = synk_fetch_current_academic_term($conn);
-    $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
-    $currentSemester = (int)($currentTerm['semester'] ?? 0);
-
-    if (query_college_faculty_term_ready($schema) && ($currentAyId <= 0 || $currentSemester <= 0)) {
-        query_college_faculty_json_response(['status' => 'error'], 500);
-    }
-
-    if (!query_college_faculty_faculty_is_assigned(
-        $conn,
-        $faculty_id,
-        $college_id,
-        $schema,
-        $currentAyId,
-        $currentSemester
-    )) {
+    $designationTransaction = false;
+    try {
+        $collegeId = synk_scheduler_list_id($_POST['college_id'] ?? null);
+        $facultyId = synk_scheduler_list_id($_POST['faculty_id'] ?? null);
+        $rawDesignation = $_POST['designation_id'] ?? null;
+        if (!is_scalar($rawDesignation) || !preg_match('/^(?:0|[1-9][0-9]*)$/D', (string)$rawDesignation)) {
+            query_college_faculty_json_response(['status' => 'invalid_designation'], 400);
+        }
+        $designationId = (int)$rawDesignation;
+        $expected = ['ay_id' => synk_scheduler_list_id($_POST['ay_id'] ?? null),
+            'semester' => synk_scheduler_list_id($_POST['semester'] ?? null)];
+        if ($collegeId <= 0 || $facultyId <= 0 || $expected['ay_id'] <= 0 || !in_array($expected['semester'], [1,2,3], true)) {
+            query_college_faculty_json_response(['status' => 'invalid', 'message' => 'Refresh the faculty list before updating a designation.'], 400);
+        }
+        if (!synk_table_exists($conn, 'tbl_faculty_term_designations')) throw new RuntimeException('Term designation storage is not ready.');
+        $conn->begin_transaction();
+        $designationTransaction = true;
+        synk_scheduler_list_lock_actor($conn);
+        synk_scheduler_list_scope($conn, $collegeId);
+        $term = synk_scheduler_list_lock_current_term($conn);
+        if ($term['ay_id'] !== $expected['ay_id'] || $term['semester'] !== $expected['semester']) {
+            throw new DomainException('The current academic term changed. Refresh the list before saving.', 409);
+        }
+        $faculty = synk_scheduler_list_query($conn, 'SELECT faculty_id FROM tbl_faculty WHERE faculty_id=? FOR UPDATE', 'i', [$facultyId]);
+        $assignments = synk_scheduler_list_query($conn, "SELECT college_faculty_id FROM tbl_college_faculty
+            WHERE faculty_id=? AND college_id=? AND status='active'
+            AND ((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL)) FOR UPDATE", 'iiii',
+            [$facultyId,$collegeId,$term['ay_id'],$term['semester']]);
+        if (!$faculty || !$assignments) throw new DomainException('This faculty member is not in the current college list.', 403);
+        $designation = ['designation_id' => null, 'designation_name' => '', 'designation_units' => 0];
+        if ($designationId > 0) {
+            $rows = synk_scheduler_list_query($conn, "SELECT designation_id,designation_name,designation_units FROM tbl_designation
+                WHERE designation_id=? AND status='active' FOR UPDATE", 'i', [$designationId]);
+            if (!$rows) throw new DomainException('Choose an active designation or No designation.', 422);
+            $designation = $rows[0];
+        }
+        synk_faculty_term_designation_record($conn, $facultyId, $term['ay_id'], $term['semester'], $designation, (int)$_SESSION['user_id']);
+        $conn->commit();
+        $designationTransaction = false;
         query_college_faculty_json_response([
-            'status' => 'forbidden',
-            'message' => 'This faculty member is not currently assigned to your college scope.',
-        ], 403);
+            'status' => 'updated', 'designation_id' => (int)$designation['designation_id'],
+            'designation_name' => $designation['designation_name'],
+            'designation_style' => query_college_faculty_designation_style((int)$designation['designation_id'], $designation['designation_name']),
+            'term' => $term,
+        ]);
+    } catch (Throwable $exception) {
+        if ($designationTransaction) $conn->rollback();
+        $code = $exception instanceof DomainException ? (int)$exception->getCode() : 500;
+        if ($code < 400 || $code > 599) $code = 500;
+        query_college_faculty_json_response(['status' => 'error', 'message' => $exception->getMessage()], $code);
     }
-
-    $designationRecord = query_college_faculty_lookup_designation($conn, $schema, $designationId);
-    if (!is_array($designationRecord) || $designationRecord['designation_name'] === '') {
-        query_college_faculty_json_response(['status' => 'invalid_designation'], 400);
-    }
-
-    $updateParts = [];
-    $updateValues = [];
-    $updateTypes = '';
-
-    if ($schema['has_designation_id']) {
-        $updateParts[] = 'designation_id = ?';
-        $updateValues[] = $designationRecord['designation_id'];
-        $updateTypes .= 'i';
-    }
-
-    if ($schema['designation_text_column'] !== null) {
-        $updateParts[] = "`{$schema['designation_text_column']}` = ?";
-        $updateValues[] = $designationRecord['designation_name'];
-        $updateTypes .= 's';
-    }
-
-    if (empty($updateParts)) {
-        query_college_faculty_json_response(['status' => 'schema_update_required'], 400);
-    }
-
-    $updateValues[] = $faculty_id;
-    $updateTypes .= 'i';
-
-    $stmt = $conn->prepare("
-        UPDATE tbl_faculty
-        SET " . implode(', ', $updateParts) . "
-        WHERE faculty_id = ?
-        LIMIT 1
-    ");
-
-    if (!($stmt instanceof mysqli_stmt)) {
-        query_college_faculty_json_response(['status' => 'error'], 500);
-    }
-
-    query_college_faculty_bind_params($stmt, $updateTypes, $updateValues);
-    $executed = $stmt->execute();
-    $stmt->close();
-
-    if (!$executed) {
-        query_college_faculty_json_response(['status' => 'error'], 500);
-    }
-
-    query_college_faculty_json_response([
-        'status' => 'updated',
-        'designation_id' => $designationRecord['designation_id'],
-        'designation_name' => $designationRecord['designation_name'],
-        'designation_style' => query_college_faculty_designation_style(
-            (int)$designationRecord['designation_id'],
-            (string)$designationRecord['designation_name']
-        ),
-    ]);
 }
 
 if (isset($_POST['update_employment_classification'])) {
@@ -1090,62 +1042,24 @@ if (isset($_POST['update_employment_classification'])) {
 
 if (isset($_POST['remove_assignment'])) {
     query_college_faculty_require_csrf();
-
-    $college_faculty_id = (int)($_POST['college_faculty_id'] ?? 0);
-
-    if ($college_faculty_id <= 0) {
-        echo json_encode(['status' => 'invalid']);
-        exit;
+    try {
+        $id = synk_scheduler_list_id($_POST['college_faculty_id'] ?? null);
+        $rows = synk_scheduler_list_query($conn, 'SELECT college_id FROM tbl_college_faculty WHERE college_faculty_id=?', 'i', [$id]);
+        if (!$rows) throw new DomainException('This assignment is no longer in the list.', 404);
+        $collegeId = (int)$rows[0]['college_id'];
+        $expected = synk_fetch_current_academic_term($conn);
+        if (isset($_POST['ay_id']) || isset($_POST['semester'])) {
+            $expected['ay_id'] = synk_scheduler_list_id($_POST['ay_id'] ?? null);
+            $expected['semester'] = synk_scheduler_list_id($_POST['semester'] ?? null);
+        }
+        synk_scheduler_list_remove_faculty($conn, $collegeId, $id, $expected);
+        query_college_faculty_json_response(['status'=>'removed','message'=>'Faculty removed from this college list.']);
+    } catch (DomainException $exception) {
+        query_college_faculty_json_response(['status'=>'error','message'=>$exception->getMessage()], $exception->getCode() ?: 422);
+    } catch (Throwable $exception) {
+        error_log('Remove college faculty assignment: ' . $exception->getMessage());
+        query_college_faculty_json_response(['status'=>'error','message'=>'The assignment could not be removed. Try again.'], 500);
     }
-
-    $schema = query_college_faculty_schema_info($conn);
-    $currentTerm = synk_fetch_current_academic_term($conn);
-    $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
-    $currentSemester = (int)($currentTerm['semester'] ?? 0);
-
-    if (query_college_faculty_term_ready($schema) && ($currentAyId <= 0 || $currentSemester <= 0)) {
-        echo json_encode(['status' => 'error']);
-        exit;
-    }
-
-    $assignmentRow = query_college_faculty_find_assignment_by_id(
-        $conn,
-        $college_faculty_id,
-        $schema,
-        $currentAyId,
-        $currentSemester
-    );
-
-    if (!is_array($assignmentRow)) {
-        echo json_encode(['status' => 'invalid']);
-        exit;
-    }
-
-    $college_id = (int)($assignmentRow['college_id'] ?? 0);
-    query_college_faculty_require_college_scope($allowedCollegeIds, $college_id);
-
-    $stmt = $conn->prepare("
-        UPDATE tbl_college_faculty
-        SET status = 'inactive'
-        WHERE college_faculty_id = ?
-          AND college_id = ?
-    ");
-
-    if (!($stmt instanceof mysqli_stmt)) {
-        echo json_encode(['status' => 'error']);
-        exit;
-    }
-
-    $stmt->bind_param('ii', $college_faculty_id, $college_id);
-
-    if ($stmt->execute()) {
-        echo json_encode(['status' => 'removed']);
-    } else {
-        echo json_encode(['status' => 'error']);
-    }
-
-    $stmt->close();
-    exit;
 }
 
 query_college_faculty_json_response([

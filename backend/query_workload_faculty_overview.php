@@ -1,6 +1,7 @@
 <?php
+require_once __DIR__ . '/faculty_term_designation_helper.php';
 session_start();
-include 'db.php';
+require_once 'db.php';
 require_once __DIR__ . '/faculty_need_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schema_helper.php';
@@ -98,8 +99,7 @@ if (!empty($facultyIds) && $facultyHasDesignationId && $designationTableExists) 
             d.designation_name,
             d.designation_units
         FROM tbl_faculty f
-        LEFT JOIN tbl_designation d
-            ON d.designation_id = f.designation_id
+" . synk_faculty_designation_join_sql($conn, $ayId, $semester) . "
            " . ($designationHasStatus ? "AND d.status = 'active'" : '') . "
         WHERE f.faculty_id IN ({$facultyIdList})
     ";
