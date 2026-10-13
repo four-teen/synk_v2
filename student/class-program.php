@@ -72,8 +72,6 @@ $studentPortalBackUrl = $studentPortalPreviewMode
 $studentRecord = is_array($ctx['directory_record'] ?? null) ? $ctx['directory_record'] : null;
 $studentId = (int)($studentRecord['student_id'] ?? 0);
 
-$questionBank = synk_student_faculty_evaluation_question_bank();
-$ratingScale = synk_student_faculty_evaluation_scale();
 $submittedRatings = is_array($_POST['ratings'] ?? null) ? $_POST['ratings'] : [];
 $submittedComment = trim((string)($_POST['comment_text'] ?? ''));
 $errorMessage = '';
@@ -141,7 +139,10 @@ foreach ($cards as $index => $card) {
 
     $cards[$index]['evaluation'] = $evaluation;
     $cards[$index]['has_saved_evaluation'] = is_array($evaluation);
-    $cards[$index]['is_draft_saved'] = is_array($evaluation) && $submissionStatus === 'draft';
+    $cards[$index]['requires_revised_evaluation'] = is_array($evaluation) && $submissionStatus === 'draft'
+        && !synk_student_faculty_evaluation_is_current($evaluation);
+    $cards[$index]['is_draft_saved'] = is_array($evaluation) && $submissionStatus === 'draft'
+        && ($studentPortalPreviewMode || empty($cards[$index]['requires_revised_evaluation']));
     $cards[$index]['is_final_submitted'] = is_array($evaluation) && $submissionStatus === 'submitted';
 }
 
@@ -211,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_final_faculty_
 
         $savedFacultyCount = 0;
         foreach ($cards as $card) {
-            if ((int)($card['faculty_id'] ?? 0) > 0 && !empty($card['has_saved_evaluation'])) {
+            if ((int)($card['faculty_id'] ?? 0) > 0 && (!empty($card['is_draft_saved']) || !empty($card['is_final_submitted']))) {
                 $savedFacultyCount++;
             }
         }
@@ -264,7 +265,7 @@ foreach ($cards as $card) {
         continue;
     }
 
-    if (!empty($card['has_saved_evaluation'])) {
+    if (!empty($card['is_draft_saved']) || !empty($card['is_final_submitted'])) {
         $savedCount++;
     }
 
@@ -747,6 +748,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                       <?php endif; ?>
                     <?php endif; ?>
                     <span class="badge bg-label-info">Average <?php echo number_format((float)($cardEval['average_rating'] ?? 0), 2); ?></span>
+                    <span class="badge bg-label-secondary"><?php echo synk_student_h(synk_student_faculty_evaluation_instrument(synk_student_faculty_evaluation_record_version($cardEval))['label']); ?></span>
                   </div>
 
                   <p class="mb-2 text-muted">
@@ -754,6 +756,8 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                       Read-only review of the student's <?php echo !empty($card['is_final_submitted']) ? 'submitted evaluation' : 'saved draft'; ?>.
                     <?php elseif (!empty($card['is_final_submitted'])): ?>
                       This faculty evaluation is now locked because the final submission for the term has already been sent.
+                    <?php elseif (!empty($card['requires_revised_evaluation'])): ?>
+                      Please answer and save the revised 15-question SET form. Ratings from the previous draft do not carry over to the new questions.
                     <?php else: ?>
                       This draft can still be reviewed and edited until the final term submission is sent.
                     <?php endif; ?>
@@ -789,6 +793,12 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
   $usePostedValues = $_SERVER['REQUEST_METHOD'] === 'POST'
       && isset($_POST['save_faculty_evaluation_draft'])
       && (string)($card['faculty_key'] ?? '') === $openModalFacultyKey;
+  $formVersion = $studentPortalPreviewMode && $cardEval
+      ? synk_student_faculty_evaluation_record_version($cardEval)
+      : synk_student_faculty_evaluation_current_version();
+  $formInstrument = synk_student_faculty_evaluation_instrument($formVersion);
+  $questionBank = synk_student_faculty_evaluation_question_bank($formVersion);
+  $ratingScale = synk_student_faculty_evaluation_scale($formVersion);
   $questionNumber = 0;
   ?>
   <div class="modal fade faculty-eval-modal" id="<?php echo synk_student_h($cardModalId); ?>" tabindex="-1" aria-labelledby="<?php echo synk_student_h($cardModalId); ?>Label" aria-hidden="true">
@@ -797,7 +807,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
         <form method="post" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>">
           <div class="modal-header">
             <div>
-              <h5 class="modal-title" id="<?php echo synk_student_h($cardModalId); ?>Label">Faculty Evaluation Form</h5>
+              <h5 class="modal-title" id="<?php echo synk_student_h($cardModalId); ?>Label">Student Evaluation of Teachers (SET)</h5>
               <small class="text-muted">
                 <?php echo synk_student_h((string)($card['faculty_name'] ?? 'Faculty')); ?>
                 <?php if ($selectedTermLabel !== ''): ?> - <?php echo synk_student_h($selectedTermLabel); ?><?php endif; ?>
@@ -809,6 +819,15 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <input type="hidden" name="save_faculty_evaluation_draft" value="1">
             <input type="hidden" name="term_key" value="<?php echo synk_student_h($selectedTermKey); ?>">
             <input type="hidden" name="faculty_key" value="<?php echo synk_student_h((string)($card['faculty_key'] ?? '')); ?>">
+
+            <p class="text-muted mb-3">
+              <?php echo synk_student_h($formInstrument['label']); ?>
+              <?php if ($formInstrument['effective_date'] !== ''): ?> · Effective <?php echo synk_student_h($formInstrument['effective_date']); ?><?php endif; ?>
+              · <?php echo (int)$formInstrument['question_count']; ?> questions
+            </p>
+            <?php if (!$studentPortalPreviewMode && !empty($card['requires_revised_evaluation'])): ?>
+              <p class="text-warning">Your previous draft uses a different questionnaire. Select a rating for every statement below to replace that draft with the revised instrument.</p>
+            <?php endif; ?>
 
             <div class="alert alert-primary">
               <strong>Dear Students:</strong><br>
@@ -843,12 +862,13 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             </div>
 
             <div class="alert alert-warning">
-              <strong>Instruction:</strong> Please write the number that corresponds with the performance of the teacher based on the given scale below on the provided answer sheet and utilize the back portion for your comments:
+              <strong>Instruction:</strong> Read the benchmark statements carefully. Please rate the faculty on each of the following statements using the rating scale above. Select the appropriate rating. Enter any additional feedback in the Comments field.
             </div>
 
             <?php foreach ($questionBank as $group): ?>
               <div class="border rounded-3 p-3 mb-4">
                 <h6 class="fw-bold mb-3"><?php echo synk_student_h((string)($group['title'] ?? 'Category')); ?></h6>
+                <?php if (!empty($group['description'])): ?><p class="text-muted mb-3"><?php echo synk_student_h($group['description']); ?></p><?php endif; ?>
                 <?php foreach ((array)($group['items'] ?? []) as $itemIndex => $item): ?>
                   <?php
                   $questionNumber++;
@@ -879,6 +899,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
               <label for="<?php echo synk_student_h($cardModalId); ?>_comment_text" class="form-label fw-semibold">Comments</label>
               <textarea id="<?php echo synk_student_h($cardModalId); ?>_comment_text" name="comment_text" class="form-control" rows="4" placeholder="Optional comments about the faculty performance..."<?php echo $studentPortalPreviewMode ? ' readonly' : ''; ?>><?php echo synk_student_h($usePostedValues ? $submittedComment : (string)($cardEval['comment_text'] ?? '')); ?></textarea>
             </div>
+            <p class="text-muted small mt-3 mb-0">Your feedback is important in enhancing the educational programs of State Universities and Colleges (SUCs). Please be informed that any information provided in this instrument will be treated as strictly confidential.</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
@@ -942,6 +963,8 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                     <div class="d-flex flex-wrap gap-2">
                       <?php if (!empty($card['is_final_submitted'])): ?>
                         <span class="badge bg-label-success">Final submitted</span>
+                      <?php elseif (!empty($card['requires_revised_evaluation'])): ?>
+                        <span class="badge bg-label-warning">Revised SET required</span>
                       <?php elseif (!empty($card['is_draft_saved'])): ?>
                         <span class="badge bg-label-warning">Draft saved</span>
                       <?php else: ?>

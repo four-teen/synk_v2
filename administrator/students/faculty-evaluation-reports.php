@@ -6,6 +6,11 @@ $reportError = $studentManagementPageError;
 $termOptions = [];
 $selectedTerm = null;
 $selectedTermKey = trim((string)($_GET['term_key'] ?? ''));
+$selectedInstrumentVersion = trim((string)($_GET['instrument_version'] ?? ''));
+if (!in_array($selectedInstrumentVersion, [synk_student_faculty_evaluation_current_version(), 'legacy-20'], true)) {
+    $selectedInstrumentVersion = synk_student_faculty_evaluation_current_version();
+}
+$selectedInstrument = synk_student_faculty_evaluation_instrument($selectedInstrumentVersion);
 $allowedViews = ['rating_sheet', 'individual', 'consolidated'];
 $selectedView = trim((string)($_GET['view'] ?? 'rating_sheet'));
 if (!in_array($selectedView, $allowedViews, true)) {
@@ -27,7 +32,7 @@ $consolidatedRows = [];
 if ($reportError === '') {
     try {
         synk_student_faculty_evaluation_ensure_schema($conn);
-        $termOptions = synk_student_fetch_faculty_evaluation_report_term_options($conn);
+        $termOptions = synk_student_fetch_faculty_evaluation_report_term_options($conn, $selectedInstrumentVersion);
 
         if ($selectedTermKey === '' && !empty($termOptions)) {
             $selectedTermKey = (string)($termOptions[0]['term_key'] ?? '');
@@ -48,9 +53,9 @@ if ($reportError === '') {
         if (is_array($selectedTerm) && !empty($selectedTerm)) {
             $selectedAyId = (int)($selectedTerm['ay_id'] ?? 0);
             $selectedSemester = (int)($selectedTerm['semester'] ?? 0);
-            $summary = synk_student_fetch_faculty_evaluation_report_summary($conn, $selectedAyId, $selectedSemester);
-            $ratingSheetRows = synk_student_fetch_faculty_evaluation_rating_sheet_rows($conn, $selectedAyId, $selectedSemester);
-            $individualRows = synk_student_fetch_faculty_evaluation_individual_report_rows($conn, $selectedAyId, $selectedSemester);
+            $summary = synk_student_fetch_faculty_evaluation_report_summary($conn, $selectedAyId, $selectedSemester, $selectedInstrumentVersion);
+            $ratingSheetRows = synk_student_fetch_faculty_evaluation_rating_sheet_rows($conn, $selectedAyId, $selectedSemester, $selectedInstrumentVersion);
+            $individualRows = synk_student_fetch_faculty_evaluation_individual_report_rows($conn, $selectedAyId, $selectedSemester, $selectedInstrumentVersion);
             $consolidatedRows = synk_student_build_faculty_evaluation_consolidated_rows($individualRows);
         }
     } catch (Throwable $e) {
@@ -62,7 +67,8 @@ $selectedTermLabel = is_array($selectedTerm) ? trim((string)($selectedTerm['term
 
 function faculty_evaluation_reports_page_url(string $view, string $termKey = ''): string
 {
-    $query = ['view' => $view];
+    global $selectedInstrumentVersion;
+    $query = ['view' => $view, 'instrument_version' => $selectedInstrumentVersion];
     if ($termKey !== '') {
         $query['term_key'] = $termKey;
     }
@@ -281,7 +287,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                 <div class="card-body p-4">
                   <form id="facultyEvaluationReportFilterForm" method="get" action="faculty-evaluation-reports.php" class="row g-3 align-items-end">
                     <input type="hidden" name="view" value="<?php echo htmlspecialchars($selectedView, ENT_QUOTES, 'UTF-8'); ?>" />
-                    <div class="col-lg-8">
+                    <div class="col-lg-5">
                       <label for="term_key" class="form-label fw-semibold">Academic Term</label>
                       <select class="form-select" id="term_key" name="term_key">
                         <option value="">Select submitted term</option>
@@ -295,7 +301,16 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                       </select>
                       <div class="form-text">Only one-time finalized student submissions are included here.</div>
                     </div>
-                    <div class="col-lg-4 d-flex gap-2">
+                    <div class="col-lg-4">
+                      <label for="instrument_version" class="form-label fw-semibold">Evaluation Instrument</label>
+                      <select class="form-select" id="instrument_version" name="instrument_version">
+                        <?php foreach ([synk_student_faculty_evaluation_current_version(), 'legacy-20'] as $version): ?>
+                          <option value="<?php echo htmlspecialchars($version, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $version === $selectedInstrumentVersion ? ' selected' : ''; ?>><?php echo htmlspecialchars(synk_student_faculty_evaluation_instrument($version)['label'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                      <div class="form-text">Each instrument is reported separately.</div>
+                    </div>
+                    <div class="col-lg-3 d-flex gap-2">
                       <button type="submit" class="btn btn-primary">
                         <i class="bx bx-filter-alt me-1"></i>
                         Load Reports
@@ -303,6 +318,10 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                       <a href="faculty-evaluation-reports.php" class="btn btn-outline-secondary">Reset</a>
                     </div>
                   </form>
+                  <p class="text-muted mt-3 mb-1"><?php echo htmlspecialchars($selectedInstrument['label'], ENT_QUOTES, 'UTF-8'); ?> · <?php echo (int)$selectedInstrument['question_count']; ?> questions per evaluation</p>
+                  <p class="text-muted small mb-1">Normalized score = total rating points ÷ (answered questions × 5) × 100. Each question has equal weight; calculations use unrounded totals. This percentage measures points earned out of the maximum possible points.</p>
+                  <?php if ($selectedInstrumentVersion !== 'legacy-20'): ?><p class="text-muted small mb-1">The instrument's frequency ranges describe the individual 1–5 choices. They are not exact observed percentages and are not converted into percentage midpoints.</p><?php endif; ?>
+                  <p class="text-muted small mb-0">The separate student component retains the existing 60% weighting. The SET attachment does not specify that weighting or an aggregate percentage formula.</p>
                 </div>
               </div>
 
@@ -336,7 +355,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                   </div>
                   <div class="col-sm-6 col-xl-3">
                     <div class="summary-card">
-                      <div class="label">Overall Student Rating</div>
+                      <div class="label">Overall Normalized Score</div>
                       <div class="value text-warning"><?php echo number_format((float)$summary['overall_percentage'], 2); ?>%</div>
                       <div class="text-muted small mt-1">Mean <?php echo number_format((float)$summary['overall_mean'], 2); ?> / 5.00</div>
                     </div>
@@ -406,7 +425,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                               <th>Student</th>
                               <th>Faculty</th>
                               <th>Subjects</th>
-                              <th>Rating</th>
+                              <th>Mean / Normalized Score</th>
                               <th>Comment/s</th>
                               <th>Submitted</th>
                             </tr>
@@ -447,7 +466,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                       <div>
                         <span class="badge bg-label-success mb-2">EFP-05</span>
                         <h5 class="mb-1">Individual Faculty Performance Evaluation</h5>
-                        <p class="text-muted mb-0">Student-rating component only. Supervisor and total rating remain manual by design.</p>
+                        <p class="text-muted mb-0">Submitted ratings for the selected instrument. Category percentages use each category's own maximum possible points.</p>
                       </div>
                       <div class="d-flex flex-wrap gap-2">
                         <span class="badge bg-label-info"><?php echo number_format(count($individualRows)); ?> faculty rows</span>
@@ -467,8 +486,8 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                               <div class="d-flex flex-wrap gap-2">
                                 <span class="badge bg-label-primary"><?php echo number_format((int)$facultyRow['student_count']); ?> students</span>
                                 <span class="badge bg-label-info"><?php echo number_format((int)$facultyRow['evaluations_count']); ?> evaluations</span>
-                                <span class="badge bg-label-success"><?php echo number_format((float)$facultyRow['overall_percentage'], 2); ?>% student rating</span>
-                                <span class="badge bg-label-warning"><?php echo number_format((float)$facultyRow['student_component_percentage'], 2); ?>% weighted 60%</span>
+                                <span class="badge bg-label-success"><?php echo number_format((float)$facultyRow['overall_percentage'], 2); ?>% normalized score</span>
+                                <span class="badge bg-label-warning"><?php echo number_format((float)$facultyRow['student_component_percentage'], 2); ?> / 60 student component</span>
                               </div>
                             </div>
                             <div class="text-lg-end">
@@ -552,8 +571,8 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                               <th>Name of Faculty</th>
                               <th>Students</th>
                               <th>Evaluations</th>
-                              <th>Students Rating (100%)</th>
-                              <th>Students Rating (60%)</th>
+                              <th>Normalized Student Score (100%)</th>
+                              <th>Student Component (out of 60)</th>
                               <th>Supervisors Rating (40%)</th>
                               <th>Total (100%)</th>
                             </tr>
@@ -568,7 +587,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                                   <div class="fw-semibold"><?php echo number_format((float)$row['student_rating_percentage'], 2); ?>%</div>
                                   <div class="small text-muted"><?php echo number_format((float)$row['student_rating_mean'], 2); ?> / 5.00</div>
                                 </td>
-                                <td><?php echo number_format((float)$row['student_rating_component'], 2); ?>%</td>
+                                <td><?php echo number_format((float)$row['student_rating_component'], 2); ?> / 60</td>
                                 <td><span class="badge bg-label-warning">Manual</span></td>
                                 <td><span class="badge bg-label-secondary">Pending supervisor input</span></td>
                               </tr>

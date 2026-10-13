@@ -180,7 +180,7 @@ if (strpos($scenario,'preview_')===0) {
             $finalToken=$status==='submitted' ? $tag.'-final' : '';
             $stmt->bind_param('iiiissidsss',$studentId,$facultyId,$term['ay_id'],$semester,$comment,$summary,$score,$average,$token,$status,$finalToken);
             $stmt->execute();$evaluationId=(int)$stmt->insert_id;$stmt->close();
-            foreach (synk_student_faculty_evaluation_flat_questions() as $question) {
+            foreach (synk_student_faculty_evaluation_flat_questions('legacy-20') as $question) {
                 $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,?)');
                 $stmt->bind_param('isssisi',$evaluationId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text'],$rating);
                 $stmt->execute();$stmt->close();
