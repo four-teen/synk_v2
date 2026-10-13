@@ -13,7 +13,7 @@ function synk_dean_students_response(array $payload, int $status=200): void
     exit;
 }
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') synk_dean_students_response(['status'=>'error','message'=>'Use a POST request.'],405);
-foreach (['action','csrf_token','college_id','campus_id','program_id','section_id','term','email_status','search','sort','page','page_size','student_id','preview_token','selected_ids',
+foreach (['action','csrf_token','college_id','campus_id','ay_id','semester','program_id','section_id','term','email_status','search','sort','page','page_size','student_id','preview_token','selected_ids',
     'student_number','first_name','last_name','middle_name','suffix_name','email_address','version','record_term','record_program_id','year_level'] as $field) {
     if (isset($_POST[$field]) && !is_scalar($_POST[$field])) synk_dean_students_response(['status'=>'error','message'=>'Invalid request.'],400);
 }
@@ -25,9 +25,10 @@ if (empty($_SESSION['csrf_token']) || !is_string($_POST['csrf_token'] ?? null)
 $action=(string)($_POST['action'] ?? '');
 try {
     if (!in_array($action,['bootstrap','list','detail','email_preview','email_save','form_options','edit_load','student_save','email_propose','selection','delete_preview','delete_save'],true)) throw new DomainException('Unknown student directory action.');
+    if (in_array($action, ['student_save', 'email_preview', 'email_save', 'delete_preview', 'delete_save'], true)) synk_dean_require_current_term_for_write($conn, $_POST);
     if (!synk_dean_students_ready($conn)) throw new DomainException('Imported student lists are not available yet.');
     if ($action === 'bootstrap') synk_dean_students_response(['status'=>'ok','options'=>synk_dean_students_options($conn,$scope),
-        'current_term'=>synk_fetch_current_academic_term($conn)]);
+        'current_term'=>synk_fetch_current_academic_term($conn), 'view_term'=>synk_dean_view_term($conn)]);
     if ($action==='form_options') synk_dean_students_response(['status'=>'ok']+synk_dean_student_manage_options($conn,$scope));
     if ($action==='student_save') synk_dean_students_response(['status'=>'ok']+synk_dean_student_manage_save($conn,$scope,$_POST));
     if ($action==='email_propose') {

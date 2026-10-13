@@ -6,7 +6,7 @@ require_once __DIR__ . '/../backend/faculty_profile_form_helper.php';
 synk_college_dean_require_login($conn);
 $scope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
-$term = synk_fetch_current_academic_term($conn);
+$term = synk_dean_view_term($conn);
 header('Cache-Control: no-store, private');
 $loadError = '';
 $faculties = [];
@@ -42,7 +42,7 @@ foreach ($faculties as $faculty) {
   <link rel="stylesheet" href="../assets/vendor/css/theme-default.css">
   <link rel="stylesheet" href="../assets/css/demo.css">
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
-  <link rel="stylesheet" href="custom_css.css">
+  <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>">
   <link rel="stylesheet" href="faculty-profile.css?v=<?= filemtime(__DIR__ . '/faculty-profile.css') ?>">
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>

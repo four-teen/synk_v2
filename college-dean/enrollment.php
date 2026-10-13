@@ -66,7 +66,7 @@ $initialDraftJson = json_encode($initialDraftDetail, JSON_UNESCAPED_SLASHES | JS
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" type="text/css" href="custom_css.css" />
+    <link rel="stylesheet" type="text/css" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
     <style>

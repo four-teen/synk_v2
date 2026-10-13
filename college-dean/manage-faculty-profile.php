@@ -7,7 +7,7 @@ require_once __DIR__ . '/faculty_photo_crop_helper.php';
 synk_college_dean_require_login($conn);
 $scope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
-$term = synk_fetch_current_academic_term($conn);
+$term = synk_dean_view_term($conn);
 header('Cache-Control: no-store, private');
 $facultyId = synk_dean_profile_id($_GET['faculty_id'] ?? null);
 if (!$facultyId) { http_response_code(400); exit('Select a valid faculty member from Faculty profile.'); }
@@ -47,6 +47,10 @@ if (empty($_SESSION['dean_faculty_profile_csrf'])) $_SESSION['dean_faculty_profi
 $action = 'manage-faculty-profile.php?faculty_id=' . $facultyId;
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    if (empty($term['is_current'])) {
+        http_response_code(403);
+        exit('This term is for viewing only. Switch to the current term to update a faculty profile.');
+    }
     $savedNotice = '';
     [$submitted, $errors] = synk_faculty_profile_validate($_POST, $today, $ranks, $storedProfile ?? [], $eligibilities, $locations);
     $profile = array_merge($profile, $submitted);
@@ -149,5 +153,6 @@ $profileEditor = [
     'action'=>$action, 'education_url'=>'education-options.php', 'csrf_token'=>$_SESSION['dean_faculty_profile_csrf'],
     'hidden_fields'=>['profile_owner'=>$owner],
     'photo_crop_enabled'=>true, 'photo_crop_field'=>'dean_photo_crop',
+    'read_only'=>empty($term['is_current']),
 ];
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';

@@ -197,7 +197,8 @@ if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token
     college_dean_heatmap_respond('error', 'CSRF validation failed.');
 }
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+try { $currentTerm = synk_dean_read_term($conn, $_POST); }
+catch (DomainException $exception) { college_dean_heatmap_respond('error', $exception->getMessage()); }
 $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
 $currentSemester = (int)($currentTerm['semester'] ?? 0);
 if ($currentAyId <= 0 || $currentSemester <= 0) {

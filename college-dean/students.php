@@ -8,7 +8,9 @@ require_once '../backend/college_dean_students_helper.php';
 synk_college_dean_require_login($conn);
 $deanStudentsScope = synk_college_dean_dashboard_require_scope($conn, [], true);
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-$deanStudentsConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'college_id'=>$deanStudentsScope['college_id'], 'campus_id'=>$deanStudentsScope['campus_id']];
+$deanStudentsViewTerm = synk_dean_view_term($conn);
+$deanStudentsConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'college_id'=>$deanStudentsScope['college_id'], 'campus_id'=>$deanStudentsScope['campus_id'],
+    'ay_id'=>$deanStudentsViewTerm['ay_id'], 'semester'=>$deanStudentsViewTerm['semester'], 'read_only'=>empty($deanStudentsViewTerm['is_current'])];
 
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
 $collegeDeanPortalDisplayName = (string)($collegeDeanPortalContext['account_name'] ?? 'College Dean');
@@ -26,7 +28,7 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" type="text/css" href="custom_css.css" />
+    <link rel="stylesheet" type="text/css" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
     <link rel="stylesheet" href="students.css?v=<?php echo (int)filemtime(__DIR__ . '/students.css'); ?>" />
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
@@ -38,7 +40,8 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
         <div class="layout-page">
           <?php include 'navbar.php'; ?>
           <div class="content-wrapper">
-            <main class="container-xxl flex-grow-1 container-p-y" id="deanStudentDirectory">
+            <main class="container-xxl flex-grow-1 container-p-y<?php echo $deanStudentsConfig['read_only'] ? ' dean-students-readonly' : ''; ?>" id="deanStudentDirectory">
+              <div id="deanStudentViewOnlyNotice" class="alert alert-info" role="status"<?php echo !$deanStudentsConfig['read_only'] ? ' hidden' : ''; ?>>This view is for reviewing records. Choose the current term to add students, edit details, fill emails, or delete term records.</div>
               <div class="card dean-page-card mb-4">
                 <div class="card-body p-4">
                   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">

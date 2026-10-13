@@ -164,6 +164,7 @@ function synk_dean_students_delete_save(mysqli $conn, array $scope, string $toke
 {
     $pending=$_SESSION['dean_student_delete_previews'][$token] ?? null;
     if (!$pending || $pending['expires_at']<time() || $pending['user_id']!==(int)$_SESSION['user_id'] || $pending['college_id']!==$scope['college_id'] || $pending['campus_id']!==$scope['campus_id']) throw new DomainException('The deletion preview expired or your college access changed. Preview again.');
+    synk_dean_require_current_term_for_write($conn, $pending['filters']);
     synk_student_email_lock($conn); $transaction=false;
     try {
         if (!$conn->begin_transaction()) throw new RuntimeException('Unable to begin student deletion.');

@@ -5,7 +5,7 @@ require_once '../backend/db.php';
 require_once '../backend/college_dean_workload_helper.php';
 synk_college_dean_require_login($conn);
 $deanScope = synk_college_dean_dashboard_require_scope($conn, [], true);
-$deanTerm = synk_fetch_current_academic_term($conn);
+$deanTerm = synk_dean_view_term($conn);
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
 $collegeDeanPortalDisplayName = (string)($collegeDeanPortalContext['account_name'] ?? 'College Dean');
 $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? '');
@@ -25,7 +25,7 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" href="custom_css.css" />
+    <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
     <link rel="stylesheet" href="faculty-workload.css?v=<?php echo (int)filemtime(__DIR__ . '/faculty-workload.css'); ?>" />
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
@@ -71,7 +71,7 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
                 <div><label for="deanRosterFilter" class="form-label">Student Lists</label><select id="deanRosterFilter" class="form-select"><option value="all">All classes</option><option value="with">With student lists</option><option value="missing">Without student lists</option></select></div>
                 <p id="deanClassVisibility" class="small text-muted mb-1" role="status"></p>
               </div>
-              <div id="deanClasses" aria-live="polite"><div class="dean-empty-state"><i class="bx bx-user" aria-hidden="true"></i><h5>Select a faculty member</h5><p class="mb-0">Their assigned classes for the current academic term will appear here.</p></div></div>
+              <div id="deanClasses" aria-live="polite"><div class="dean-empty-state"><i class="bx bx-user" aria-hidden="true"></i><h5>Select a faculty member</h5><p class="mb-0">Their assigned classes for the selected academic term will appear here.</p></div></div>
             </main>
             <?php include '../footer.php'; ?>
             <div class="content-backdrop fade"></div>

@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/program_chair_helper.php';
 require_once __DIR__ . '/enrollment_draft_helper.php';
+require_once __DIR__ . '/college_dean_term_helper.php';
 
 function synk_college_dean_enrollment_enabled(): bool
 {
@@ -37,6 +38,11 @@ function synk_college_dean_require_login(mysqli $conn): void
     $roleRows = synk_fetch_useraccount_role_rows($conn, (int)$account['user_id'], (string)$account['role']);
     $_SESSION['available_roles'] = array_column(synk_filter_loginable_role_rows($conn, $account, $roleRows), 'role');
     $_SESSION['primary_role'] = synk_useraccount_primary_role($roleRows, (string)$account['role']);
+    try { synk_dean_apply_view_term_request($conn, $_GET); }
+    catch (DomainException $exception) {
+        http_response_code(400);
+        exit(htmlspecialchars($exception->getMessage(), ENT_QUOTES, 'UTF-8'));
+    }
 }
 
 function synk_college_dean_portal_context(mysqli $conn): array

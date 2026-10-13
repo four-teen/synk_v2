@@ -27,7 +27,12 @@ $facultyNeedId = (int)($_POST['faculty_need_id'] ?? 0);
 $scopeCollegeId = (int)($_POST['college_id'] ?? 0);
 $scopeCampusId = (int)($_POST['campus_id'] ?? 0);
 $includeExternal = (int)($_POST['include_external'] ?? 0) === 1;
-$currentTerm = synk_fetch_current_academic_term($conn);
+try { $currentTerm = synk_dean_read_term($conn, $_POST); }
+catch (DomainException $exception) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => $exception->getMessage()]);
+    exit;
+}
 $ayId = (int)($currentTerm['ay_id'] ?? 0);
 $semester = (int)($currentTerm['semester'] ?? 0);
 $targetId = $isFacultyNeed ? $facultyNeedId : $facultyId;

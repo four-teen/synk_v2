@@ -63,7 +63,7 @@ try {
         $check($scenario==='home_verified' ? strpos($home,'QA 1')===0 : ($scenario==='home_conflict' ? $home==='Needs verification' : $home==='Not verified'),'Home section inferred from an unapproved, foreign, other-term or conflicting enrollment: '.$scenario.' '.$home);
     }
     $r=$request('delete_preview'); $check($r['records_unchanged'] && $r['response']['summary']['class_records']===3 && $r['response']['summary']['students']===2,'Deletion preview changed records or used the wrong term.');
-    foreach (['delete'=>3,'delete_year'=>4,'delete_section'=>1,'delete_count'=>3,'delete_manual_count'=>3] as $scenario=>$count) {
+    foreach (['delete'=>3,'delete_count'=>3,'delete_manual_count'=>3] as $scenario=>$count) {
         $r=$request($scenario); $check($r['http_status']===200 && $r['response']['removed']===$count,'Deleting selected term records failed: '.$scenario.' '.json_encode($r['response']));
         $links=$r['manage_memberships']; $active=array_values(array_filter($links,static function ($row) { return (int)$row['is_active']===1; }));
         $check(count($active)===6-$count && count($r['manage_students'])===5,'Deletion removed master identities or affected unexpected class lists.');
@@ -77,7 +77,7 @@ try {
     }
     $r=$request('delete_manual');
     $check($r['response']['manual_removed']===1 && count($r['manage_students'])===6 && count($r['manage_directory']['rows'])===2,'Deleting a manual term entry erased its shared identity or left it in the active directory.');
-    foreach (['delete_all_terms'=>422,'delete_foreign'=>422,'delete_empty'=>422,'delete_duplicate'=>422,'delete_expired'=>422,'delete_other_user'=>422,'delete_forged'=>422,'delete_stale'=>422,
+    foreach (['delete_year'=>422,'delete_section'=>422,'delete_all_terms'=>422,'delete_foreign'=>422,'delete_empty'=>422,'delete_duplicate'=>422,'delete_expired'=>422,'delete_other_user'=>422,'delete_forged'=>422,'delete_stale'=>422,
         'delete_reassigned'=>422,'delete_revoked'=>403,'delete_bad_csrf'=>403,'delete_count_failure'=>500,'delete_replay'=>422] as $scenario=>$status) {
         $r=$request($scenario); $check($r['http_status']===$status && $r['records_unchanged'],'Rejected deletion affected records or returned wrong status: '.$scenario.' '.json_encode($r['response']));
     }

@@ -98,7 +98,7 @@ switch ($scenario) {
         $emailId=$profiles['own']['student_id']; $stmt->bind_param('si',$value,$emailId); $stmt->execute(); $stmt->close();
         $_POST['email_status']=$scenario==='email_present' ? 'present' : 'missing';
         if ($scenario==='email_selection') $_POST['action']='selection';
-        if ($scenario==='email_preview_filtered') $_POST['action']='email_preview';
+        if ($scenario==='email_preview_filtered') { $_POST['action']='email_preview'; $_POST['term']=$term['ay_id'].':'.$term['semester']; }
         break;
     case 'bad_email_status': $_POST['email_status']='missing OR 1=1'; break;
     case 'array_email_status': $_POST['email_status']=['missing']; break;
