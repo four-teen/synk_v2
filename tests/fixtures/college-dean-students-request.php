@@ -156,11 +156,58 @@ if (strpos($scenario,'preview_')===0) {
     if ($scenario==='preview_changed_scope') $_GET['preview_student_id']=$profiles['own']['student_id'];
     if ($scenario==='preview_profile') { $handler='student/profile.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
     if ($scenario==='preview_post') { $_SERVER['REQUEST_METHOD']='POST'; $_POST=['complete_student_profile'=>'1','program_id'=>$scope['program_id'],'student_number'=>'forged']; $handler='student/profile.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
-    if ($scenario==='preview_evaluation') { $handler='student/class-program.php'; $_SERVER['PHP_SELF']='/synk/'.$handler; }
+    if (strpos($scenario,'preview_evaluation')===0) {
+        require_once $root.'/backend/student_portal_helper.php';
+        $handler='student/class-program.php'; $_SERVER['PHP_SELF']='/synk/'.$handler;
+        $evaluationFaculty=[];
+        foreach (['OwnDraftQA','OwnSubmittedQA','ForeignEvaluationQA'] as $name) {
+            $conn->query("INSERT INTO tbl_faculty (first_name,last_name,status) VALUES ('{$name}','{$tag}','active')");
+            $evaluationFaculty[]=(int)$conn->insert_id;
+        }
+        $studentId=$profiles['shared']['student_id'];
+        foreach ($subjectRows as $index=>$subject) {
+            $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id='.$evaluationFaculty[$index].' WHERE student_id='.$studentId.' AND college_id='.$scope['college_id'].' AND subject_id='.(int)$subject['sub_id']);
+        }
+        $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id='.$evaluationFaculty[2].' WHERE student_id='.$studentId.' AND college_id='.$foreignScope['college_id']);
+        $foreignSemester=6-$term['semester']-$otherSemester;
+        $link($studentId,$foreignScope,$foreignSection,$foreignSemester,$subjectRows[0]);
+        $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id='.$evaluationFaculty[2].' WHERE student_id='.$studentId.' AND college_id='.$foreignScope['college_id']);
+        $seedEvaluation=static function (int $facultyId,int $semester,string $status,string $comment,int $rating) use ($conn,$studentId,$term,$tag): void {
+            $token=$tag.'-'.$facultyId.'-'.$semester;
+            $summary='Saved subjects; FOREIGN_SUBJECT_SUMMARY';
+            $average=(float)$rating;$score=$rating*20;
+            $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,ay_id,semester,comment_text,subject_summary,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token,final_submitted_at) VALUES (?,?,?,?,?,?,20,?,?,?,?,?,NOW())');
+            $finalToken=$status==='submitted' ? $tag.'-final' : '';
+            $stmt->bind_param('iiiissidsss',$studentId,$facultyId,$term['ay_id'],$semester,$comment,$summary,$score,$average,$token,$status,$finalToken);
+            $stmt->execute();$evaluationId=(int)$stmt->insert_id;$stmt->close();
+            foreach (synk_student_faculty_evaluation_flat_questions() as $question) {
+                $stmt=$conn->prepare('INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,?)');
+                $stmt->bind_param('isssisi',$evaluationId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text'],$rating);
+                $stmt->execute();$stmt->close();
+            }
+        };
+        $seedEvaluation($evaluationFaculty[0],$term['semester'],'draft','Dean draft review comment <script>bad()</script>',4);
+        $seedEvaluation($evaluationFaculty[1],$term['semester'],'submitted','Dean submitted review comment',5);
+        $seedEvaluation($evaluationFaculty[2],$term['semester'],'submitted','FOREIGN_EVALUATION_RESPONSE',1);
+        $seedEvaluation($evaluationFaculty[0],$otherSemester,'draft','Historical evaluation review comment',3);
+        if ($scenario==='preview_evaluation_historical') $_GET['student_term']=$term['ay_id'].':'.$otherSemester;
+        if ($scenario==='preview_evaluation_filter') { $_GET['term_key']=$term['ay_id'].'-'.$otherSemester; $_GET['faculty_key']='faculty-'.$evaluationFaculty[0]; }
+        if ($scenario==='preview_evaluation_foreign_faculty') $_GET['faculty_key']='faculty-'.$evaluationFaculty[2];
+        if ($scenario==='preview_evaluation_foreign_term') $_GET['term_key']=$term['ay_id'].'-'.$foreignSemester;
+        if ($scenario==='preview_evaluation_foreign') $_GET['preview_student_id']=$profiles['foreign']['student_id'];
+        if ($scenario==='preview_evaluation_revoked') $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='college_dean'");
+        if ($scenario==='preview_evaluation_no_return') unset($_GET['return_to']);
+        if (in_array($scenario,['preview_evaluation_draft_post','preview_evaluation_final_post'],true)) {
+            $_SERVER['REQUEST_METHOD']='POST';
+            $_POST=['term_key'=>$term['ay_id'].'-'.$term['semester'],'faculty_key'=>'faculty-'.$evaluationFaculty[0],
+                'ratings'=>array_fill_keys(array_keys(synk_student_faculty_evaluation_flat_questions()),1),'comment_text'=>'Unauthorized preview edit',
+                ($scenario==='preview_evaluation_draft_post' ? 'save_faculty_evaluation_draft' : 'submit_final_faculty_evaluation')=>'1'];
+        }
+    }
 }
 $requestBefore=$takeState(); session_write_close(); ob_start();
 $scheduleSnapshot=static function () use ($conn): string {
-    $values=[]; foreach (['tbl_faculty_workload_sched','tbl_class_schedule','tbl_prospectus_offering'] as $table) $values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    $values=[]; foreach (['tbl_faculty_workload_sched','tbl_class_schedule','tbl_prospectus_offering','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'] as $table) $values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return hash('sha256',json_encode($values));
 };
 $scheduleBefore=$scheduleSnapshot();

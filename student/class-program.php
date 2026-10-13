@@ -2,7 +2,7 @@
 session_start();
 ob_start();
 
-include '../backend/db.php';
+require_once '../backend/db.php';
 require_once '../backend/student_portal_helper.php';
 
 synk_student_require_login($conn, true);
@@ -64,10 +64,10 @@ function synk_student_eval_term_qr_filename(array $submission): string
 
 $ctx = synk_student_resolve_portal_context($conn);
 $studentPortalDisplayName = (string)($ctx['student_name'] ?? 'Student');
-$studentPortalDisplayEmail = trim((string)($ctx['student_email'] ?? (string)($_SESSION['email'] ?? '')));
+$studentPortalDisplayEmail = trim((string)($ctx['student_email'] ?? ''));
 $studentPortalPreviewMode = !empty($ctx['is_admin_preview']);
 $studentPortalBackUrl = $studentPortalPreviewMode
-    ? synk_student_preview_return_to_url('../administrator/students/directory.php')
+    ? synk_student_preview_back_url()
     : '';
 $studentRecord = is_array($ctx['directory_record'] ?? null) ? $ctx['directory_record'] : null;
 $studentId = (int)($studentRecord['student_id'] ?? 0);
@@ -83,6 +83,10 @@ $openReviewModal = false;
 $currentTerm = synk_fetch_current_academic_term($conn);
 $termOptions = synk_student_fetch_faculty_term_options($conn, $studentId);
 $requestedTermKey = trim((string)($_POST['term_key'] ?? ($_GET['term_key'] ?? '')));
+if ($studentPortalPreviewMode && $requestedTermKey === '' && is_string($_GET['student_term'] ?? null)
+    && preg_match('/^[1-9][0-9]*:[123]$/', $_GET['student_term'])) {
+    $requestedTermKey = str_replace(':', '-', $_GET['student_term']);
+}
 $requestedFacultyKey = trim((string)($_POST['faculty_key'] ?? ($_GET['faculty_key'] ?? '')));
 $currentTermKey = ((int)($currentTerm['ay_id'] ?? 0) > 0 && (int)($currentTerm['semester'] ?? 0) > 0)
     ? ((int)$currentTerm['ay_id'] . '-' . (int)$currentTerm['semester'])
@@ -113,6 +117,7 @@ $selectedTermKey = (string)($selectedTerm['term_key'] ?? '');
 $selectedAyId = (int)($selectedTerm['ay_id'] ?? 0);
 $selectedSemester = (int)($selectedTerm['semester'] ?? 0);
 $selectedTermLabel = (string)($selectedTerm['term_label'] ?? '');
+$studentPortalViewTerm = $selectedTerm ? ['ay_id'=>$selectedAyId, 'semester'=>$selectedSemester, 'term_text'=>$selectedTermLabel] : $currentTerm;
 
 $cards = ($studentId > 0 && $selectedAyId > 0 && $selectedSemester > 0)
     ? synk_student_fetch_faculty_cards_for_term($conn, $studentId, $selectedAyId, $selectedSemester)
@@ -129,6 +134,9 @@ $evaluations = ($studentId > 0 && $selectedAyId > 0 && $selectedSemester > 0)
 foreach ($cards as $index => $card) {
     $facultyId = (int)($card['faculty_id'] ?? 0);
     $evaluation = $facultyId > 0 ? ($evaluations[$facultyId] ?? null) : null;
+    if (is_array($evaluation) && ($_SESSION['role'] ?? '') === 'college_dean' && $studentPortalPreviewMode) {
+        $evaluation['subject_summary'] = synk_student_eval_subject_summary($card);
+    }
     $submissionStatus = strtolower(trim((string)($evaluation['submission_status'] ?? '')));
 
     $cards[$index]['evaluation'] = $evaluation;
@@ -440,6 +448,15 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
       max-height: calc(100vh - 190px);
     }
 
+    .faculty-evaluation-page .badge,
+    .faculty-eval-modal .badge,
+    .faculty-final-review-modal .badge {
+      max-width: 100%;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.4;
+    }
+
     @media (max-width: 575.98px) {
       .faculty-eval-modal .modal-content,
       .faculty-final-review-modal .modal-content {
@@ -453,7 +470,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     }
   </style>
 </head>
-<body>
+<body class="faculty-evaluation-page">
 <div class="layout-wrapper layout-content-navbar"><div class="layout-container">
 <?php include 'sidebar.php'; ?>
 <div class="layout-page"><?php include 'navbar.php'; ?>
@@ -465,7 +482,8 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 
   <?php if ($studentPortalPreviewMode): ?>
     <div class="alert alert-warning">
-      You are reviewing this page in student preview mode. Drafts and final submission are locked, but the evaluation forms and review flow can still be checked here.
+      <strong><?php echo synk_student_h(synk_student_preview_label()); ?> &middot; Read only.</strong>
+      Review the evaluation forms, saved ratings, comments and completion status<?php echo ($_SESSION['role'] ?? '') === 'college_dean' ? ' for your college' : ''; ?>. Saving drafts and final submission are disabled.
     </div>
   <?php endif; ?>
 
@@ -564,6 +582,11 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     </div>
 
     <form method="get" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>" class="row g-3">
+      <?php if ($studentPortalPreviewMode): ?>
+        <input type="hidden" name="preview_student_id" value="<?php echo synk_student_preview_student_id_from_request(); ?>">
+        <input type="hidden" name="return_to" value="<?php echo synk_student_h($studentPortalBackUrl); ?>">
+        <input type="hidden" name="student_term" value="<?php echo synk_student_h($selectedAyId . ':' . $selectedSemester); ?>">
+      <?php endif; ?>
       <div class="col-md-6">
         <label for="term_key" class="form-label fw-semibold">Academic Term</label>
         <select id="term_key" name="term_key" class="form-select">
@@ -657,6 +680,8 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
               <div class="d-flex flex-wrap gap-2">
                 <?php if ((int)($card['faculty_id'] ?? 0) <= 0): ?>
                   <span class="badge bg-label-warning">Faculty Link Required</span>
+                <?php elseif ($studentPortalPreviewMode): ?>
+                  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>"><?php echo !empty($card['has_saved_evaluation']) ? 'View Evaluation' : 'Preview Evaluation Form'; ?></button>
                 <?php elseif ($allFacultyFinalized || !empty($card['is_final_submitted'])): ?>
                   <button type="button" class="btn btn-success btn-sm" disabled>Final Submission Locked</button>
                 <?php elseif (!empty($card['has_saved_evaluation'])): ?>
@@ -725,7 +750,9 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                   </div>
 
                   <p class="mb-2 text-muted">
-                    <?php if (!empty($card['is_final_submitted'])): ?>
+                    <?php if ($studentPortalPreviewMode): ?>
+                      Read-only review of the student's <?php echo !empty($card['is_final_submitted']) ? 'submitted evaluation' : 'saved draft'; ?>.
+                    <?php elseif (!empty($card['is_final_submitted'])): ?>
                       This faculty evaluation is now locked because the final submission for the term has already been sent.
                     <?php else: ?>
                       This draft can still be reviewed and edited until the final term submission is sent.
@@ -755,7 +782,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
   <?php
   $facultyId = (int)($card['faculty_id'] ?? 0);
   $cardEval = is_array($card['evaluation'] ?? null) ? $card['evaluation'] : null;
-  if ($facultyId <= 0 || !empty($card['is_final_submitted'])) {
+  if ($facultyId <= 0 || (!$studentPortalPreviewMode && !empty($card['is_final_submitted']))) {
       continue;
   }
   $cardModalId = 'facultyEvaluationModal_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string)($card['faculty_key'] ?? 'card'));
@@ -791,7 +818,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <div class="row g-3 mb-4">
               <?php foreach ($ratingScale as $ratingValue => $ratingInfo): ?>
                 <div class="col-md-4 col-lg">
-                  <div class="border rounded-3 p-3 h-100 bg-label-light">
+                  <div class="border rounded-3 p-3 h-100 bg-light text-body">
                     <div class="fw-bold text-primary"><?php echo (int)$ratingValue; ?></div>
                     <div class="fw-semibold"><?php echo synk_student_h((string)($ratingInfo['label'] ?? '')); ?></div>
                     <small class="text-muted"><?php echo synk_student_h((string)($ratingInfo['description'] ?? '')); ?></small>
@@ -835,7 +862,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                     <label class="form-label fw-semibold" for="<?php echo synk_student_h($cardModalId . '_' . $key); ?>">
                       <?php echo (int)$questionNumber; ?>. <?php echo synk_student_h((string)($item['text'] ?? 'Question')); ?>
                     </label>
-                    <select id="<?php echo synk_student_h($cardModalId . '_' . $key); ?>" name="ratings[<?php echo synk_student_h($key); ?>]" class="form-select" required>
+                    <select id="<?php echo synk_student_h($cardModalId . '_' . $key); ?>" name="ratings[<?php echo synk_student_h($key); ?>]" class="form-select" required<?php echo $studentPortalPreviewMode ? ' disabled' : ''; ?>>
                       <option value="">Select rating</option>
                       <?php foreach ($ratingScale as $ratingValue => $ratingInfo): ?>
                         <option value="<?php echo (int)$ratingValue; ?>"<?php echo $value === (string)$ratingValue ? ' selected' : ''; ?>>
@@ -850,7 +877,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 
             <div>
               <label for="<?php echo synk_student_h($cardModalId); ?>_comment_text" class="form-label fw-semibold">Comments</label>
-              <textarea id="<?php echo synk_student_h($cardModalId); ?>_comment_text" name="comment_text" class="form-control" rows="4" placeholder="Optional comments about the faculty performance..."><?php echo synk_student_h($usePostedValues ? $submittedComment : (string)($cardEval['comment_text'] ?? '')); ?></textarea>
+              <textarea id="<?php echo synk_student_h($cardModalId); ?>_comment_text" name="comment_text" class="form-control" rows="4" placeholder="Optional comments about the faculty performance..."<?php echo $studentPortalPreviewMode ? ' readonly' : ''; ?>><?php echo synk_student_h($usePostedValues ? $submittedComment : (string)($cardEval['comment_text'] ?? '')); ?></textarea>
             </div>
           </div>
           <div class="modal-footer">

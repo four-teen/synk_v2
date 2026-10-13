@@ -94,6 +94,17 @@ function synk_student_build_portal_url(string $path, array $query = []): string
         if ($returnTo !== '') {
             $query['return_to'] = $returnTo;
         }
+
+        if (!array_key_exists('student_term', $query)) {
+            $termKey = is_string($_GET['student_term'] ?? null) ? $_GET['student_term'] : '';
+            $evaluationTermKey = is_string($_GET['term_key'] ?? null) ? $_GET['term_key'] : '';
+            if (basename($_SERVER['PHP_SELF'] ?? '') === 'class-program.php' && preg_match('/^[1-9][0-9]*-[123]$/', $evaluationTermKey)) {
+                $termKey = str_replace('-', ':', $evaluationTermKey);
+            }
+            if (preg_match('/^[1-9][0-9]*:[123]$/', $termKey)) {
+                $query['student_term'] = $termKey;
+            }
+        }
     }
 
     $normalizedQuery = [];
@@ -131,8 +142,8 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
             if ($role === 'admin') synk_student_login_require_admin($conn);
             else {
                 synk_student_preview_college_scope($conn);
-                if (!in_array(basename($_SERVER['PHP_SELF'] ?? ''), ['index.php','profile.php','prospectus.php'], true)) {
-                    throw new DomainException('Dean previews include the student profile, subjects and prospectus. Student evaluation responses remain confidential.');
+                if (!in_array(basename($_SERVER['PHP_SELF'] ?? ''), ['index.php','profile.php','prospectus.php','class-program.php'], true)) {
+                    throw new DomainException('This page is unavailable in the Dean student preview.');
                 }
             }
             if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') throw new DomainException('Student account previews are read-only.');
@@ -414,6 +425,7 @@ function synk_student_fetch_faculty_term_options(mysqli $conn, int $studentId): 
     }
 
     $tableName = synk_student_portal_enrollment_table_name();
+    $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
     $stmt = $conn->prepare("
         SELECT
             es.ay_id,
@@ -426,6 +438,7 @@ function synk_student_fetch_faculty_term_options(mysqli $conn, int $studentId): 
             ON ay.ay_id = es.ay_id
         WHERE es.student_id = ?
           AND es.is_active = 1
+          {$previewScopeSql}
         GROUP BY es.ay_id, es.semester, ay.ay
         ORDER BY es.ay_id DESC, es.semester DESC, latest_activity_at DESC
     ");
@@ -478,6 +491,7 @@ function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId,
     }
 
     $tableName = synk_student_portal_enrollment_table_name();
+    $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
     $stmt = $conn->prepare("
         SELECT
             es.student_enrollment_id,
@@ -503,6 +517,7 @@ function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId,
           AND es.ay_id = ?
           AND es.semester = ?
           AND es.is_active = 1
+          {$previewScopeSql}
         ORDER BY
             CASE
                 WHEN TRIM(CONCAT_WS(' ', f.first_name, NULLIF(f.middle_name, ''), f.last_name, NULLIF(f.ext_name, ''))) = '' THEN 1
@@ -808,8 +823,27 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
         return [];
     }
 
-    synk_student_faculty_evaluation_ensure_schema($conn);
     $tableName = synk_student_faculty_evaluation_table_name();
+    if (synk_student_is_staff_preview_mode()) {
+        if (!synk_table_exists($conn, $tableName) || !synk_table_exists($conn, synk_student_faculty_evaluation_answer_table_name())) {
+            return [];
+        }
+    } else {
+        synk_student_faculty_evaluation_ensure_schema($conn);
+    }
+    $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
+    $evaluationScopeSql = '';
+    if ($previewScopeSql !== '') {
+        $enrollmentTable = synk_student_portal_enrollment_table_name();
+        $evaluationScopeSql = " AND EXISTS (
+            SELECT 1 FROM `{$enrollmentTable}` es
+            WHERE es.student_id = `{$tableName}`.student_id
+              AND es.faculty_id = `{$tableName}`.faculty_id
+              AND es.ay_id = `{$tableName}`.ay_id
+              AND es.semester = `{$tableName}`.semester
+              AND es.is_active = 1 {$previewScopeSql}
+        )";
+    }
     $stmt = $conn->prepare("
         SELECT
             evaluation_id,
@@ -836,6 +870,7 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
         WHERE student_id = ?
           AND ay_id = ?
           AND semester = ?
+          {$evaluationScopeSql}
         ORDER BY completed_at DESC, evaluation_id DESC
     ");
 

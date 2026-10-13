@@ -38,10 +38,6 @@ $studentSidebarItems = [
         'pages' => ['class-program.php'],
     ],
 ];
-if (($_SESSION['role'] ?? '') === 'college_dean' && function_exists('synk_student_is_staff_preview_mode') && synk_student_is_staff_preview_mode()) {
-    $studentSidebarItems = array_values(array_filter($studentSidebarItems, static function (array $item): bool { return $item['key'] !== 'class_program'; }));
-}
-
 $studentSidebarActiveKey = 'dashboard';
 foreach ($studentSidebarItems as $sidebarItem) {
     if (in_array($studentSidebarCurrentPage, $sidebarItem['pages'], true)) {
