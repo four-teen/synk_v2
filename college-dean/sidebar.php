@@ -1,5 +1,6 @@
 <?php
 $collegeDeanSidebarCurrentPage = basename($_SERVER['PHP_SELF'] ?? '');
+$collegePortalIsChair = ($_SESSION['role'] ?? '') === 'program_chair';
 $collegeDeanSidebarItems = [
     [
         'key' => 'dashboard',
@@ -70,6 +71,15 @@ $collegeDeanSidebarItems = [
         ],
     ],
 ];
+
+if ($collegePortalIsChair) {
+    array_splice($collegeDeanSidebarItems, 1, 0, [[
+        'key' => 'manage-college-faculty', 'href' => 'manage-college-faculty.php',
+        'icon_bg' => 'bg-label-success', 'icon' => 'bx-user-plus',
+        'title' => 'College Faculty', 'description' => 'Manage faculty assignments and lists',
+        'pages' => ['manage-college-faculty.php'],
+    ]]);
+}
 
 $collegeDeanSidebarActiveKey = 'dashboard';
 foreach ($collegeDeanSidebarItems as $sidebarItem) {
@@ -206,7 +216,7 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
 
   <ul class="menu-inner py-1">
     <li class="menu-header small text-uppercase mt-1">
-      <span class="menu-header-text">College Dean Portal</span>
+      <span class="menu-header-text"><?php echo $collegePortalIsChair ? 'Program Chair Portal' : 'College Dean Portal'; ?></span>
     </li>
 
     <?php foreach ($collegeDeanSidebarItems as $sidebarItem): ?>

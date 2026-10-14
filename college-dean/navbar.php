@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/user_avatar_helper.php';
+$collegePortalRoleLabel = ($_SESSION['role'] ?? '') === 'program_chair' ? 'Program Chair' : 'College Dean';
 
 $collegeDeanCollege = is_array($collegeDeanPortalContext['college'] ?? null)
     ? $collegeDeanPortalContext['college']
@@ -70,7 +71,7 @@ foreach (['faculty_id', 'offering_id', 'list_status'] as $key) {
 
                 <div class="flex-grow-1">
                   <span class="fw-semibold d-block"><?php echo htmlspecialchars($collegeDeanName, ENT_QUOTES, 'UTF-8'); ?></span>
-                  <small class="text-muted d-block">College Dean</small>
+                  <small class="text-muted d-block"><?php echo $collegePortalRoleLabel; ?></small>
                   <small class="text-muted d-block mt-1"><?php echo htmlspecialchars($collegeDeanEmail, ENT_QUOTES, 'UTF-8'); ?></small>
                 </div>
               </div>
@@ -102,7 +103,7 @@ foreach (['faculty_id', 'offering_id', 'list_status'] as $key) {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="dean-term-settings-copy">Choose the academic year and semester to review in your Dean portal.</p>
+          <p class="dean-term-settings-copy">Choose the academic year and semester to review in your <?php echo $collegePortalRoleLabel; ?> portal.</p>
           <?php foreach ($deanNavbarContext as $key => $value): ?><input type="hidden" name="<?php echo $key; ?>" value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>"><?php endforeach; ?>
           <input type="hidden" id="dean-view-current-choice" name="dean_term" value="current" disabled>
           <div class="row g-3">

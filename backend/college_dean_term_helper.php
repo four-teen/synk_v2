@@ -1,6 +1,11 @@
 <?php
 require_once __DIR__ . '/academic_term_helper.php';
 
+function synk_college_portal_view_term_key(): string
+{
+    return ($_SESSION['role'] ?? '') === 'program_chair' ? 'program_chair_view_term' : 'college_dean_view_term';
+}
+
 function synk_dean_academic_years(mysqli $conn): array
 {
     $rows = $conn->query('SELECT ay_id,ay FROM tbl_academic_years ORDER BY ay DESC,ay_id DESC')->fetch_all(MYSQLI_ASSOC);
@@ -37,17 +42,17 @@ function synk_dean_term_from_ids(mysqli $conn, $ayId, $semester): array
 function synk_dean_select_view_term(mysqli $conn, $ayId, $semester): array
 {
     $term = synk_dean_term_from_ids($conn, $ayId, $semester);
-    $_SESSION['college_dean_view_term'] = ['user_id' => (int)($_SESSION['user_id'] ?? 0),
+    $_SESSION[synk_college_portal_view_term_key()] = ['user_id' => (int)($_SESSION['user_id'] ?? 0),
         'ay_id' => $term['ay_id'], 'semester' => $term['semester']];
     return $term;
 }
 
 function synk_dean_view_term(mysqli $conn): array
 {
-    $stored = $_SESSION['college_dean_view_term'] ?? null;
+    $stored = $_SESSION[synk_college_portal_view_term_key()] ?? null;
     if (is_array($stored) && ($stored['user_id'] ?? 0) === (int)($_SESSION['user_id'] ?? 0)) {
         try { return synk_dean_term_from_ids($conn, $stored['ay_id'] ?? null, $stored['semester'] ?? null); }
-        catch (DomainException $exception) { unset($_SESSION['college_dean_view_term']); }
+        catch (DomainException $exception) { unset($_SESSION[synk_college_portal_view_term_key()]); }
     }
     $current = synk_fetch_current_academic_term($conn);
     if ($current['ay_id'] > 0 && $current['semester'] > 0) return synk_dean_term_from_ids($conn, $current['ay_id'], $current['semester']);
@@ -60,7 +65,7 @@ function synk_dean_apply_view_term_request(mysqli $conn, array $input): void
 {
     if (isset($input['dean_term'])) {
         if ($input['dean_term'] !== 'current') throw new DomainException('Choose a valid viewing term.');
-        unset($_SESSION['college_dean_view_term']);
+        unset($_SESSION[synk_college_portal_view_term_key()]);
     } elseif (isset($input['dean_ay_id']) || isset($input['dean_semester'])) {
         synk_dean_select_view_term($conn, $input['dean_ay_id'] ?? null, $input['dean_semester'] ?? null);
     }

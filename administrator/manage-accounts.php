@@ -880,7 +880,7 @@
                     <input type="checkbox" class="form-check-input account-role-checkbox" data-mode="add" name="roles[]" id="add_role_program_chair" value="program_chair">
                     <div class="form-check-label">
                       <span class="account-role-title">Program Chair</span>
-                      <span class="account-role-note">Open the shared login for program-chair enrollment and curriculum workflows.</span>
+                      <span class="account-role-note">Open the college portal and add faculty in the administrator-assigned college.</span>
                     </div>
                   </div>
                 </label>
@@ -1069,7 +1069,7 @@
                     <input type="checkbox" class="form-check-input account-role-checkbox" data-mode="edit" name="roles[]" id="edit_role_program_chair" value="program_chair">
                     <div class="form-check-label">
                       <span class="account-role-title">Program Chair</span>
-                      <span class="account-role-note">Open the shared login for program-chair enrollment and curriculum workflows.</span>
+                      <span class="account-role-note">Open the college portal and add faculty in the administrator-assigned college.</span>
                     </div>
                   </div>
                 </label>
