@@ -32,6 +32,19 @@ if ($role === 'college_dean') {
     $myCollege = (int)$account['college_dean_college_id'];
 }
 
+if ($role === 'program_chair') {
+    require_once __DIR__ . '/auth_useraccount.php';
+    $account = synk_find_useraccount_by_id($conn, (int)$_SESSION['user_id']);
+    if (!$account || !synk_program_chair_account_has_access($conn, $account)) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Unauthorized']);
+        exit;
+    }
+    $_SESSION['college_id'] = (int)$account['college_id'];
+    $_SESSION['college_name'] = (string)($account['college_name'] ?? '');
+    $myCollege = (int)$account['college_id'];
+}
+
 $pid = intval($_GET['prospectus_id'] ?? 0);
 if ($pid <= 0) {
     echo json_encode(["error" => "Invalid prospectus id"]);

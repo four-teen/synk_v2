@@ -17,6 +17,10 @@ function synk_college_dean_store_session_scope(array $account): void
 
 function synk_college_dean_require_login(mysqli $conn): void
 {
+    if (defined('SYNK_PROGRAM_CHAIR_VIEW') && SYNK_PROGRAM_CHAIR_VIEW) {
+        synk_program_chair_require_login($conn);
+        return;
+    }
     if (!isset($_SESSION['user_id']) || (string)($_SESSION['role'] ?? '') !== 'college_dean') {
         $redirectPath = synk_role_redirect_path((string)($_SESSION['role'] ?? ''));
         header('Location: ../' . ($redirectPath ?? 'index.php'));
@@ -49,9 +53,10 @@ function synk_college_dean_portal_context(mysqli $conn): array
 {
     // Programs, terms, and college details use the same proven queries as Program Chair.
     $context = synk_program_chair_portal_context($conn);
-    $context['account_name'] = trim((string)($_SESSION['username'] ?? '')) ?: 'College Dean';
+    $activeRole = (string)($_SESSION['role'] ?? 'college_dean');
+    $context['account_name'] = trim((string)($_SESSION['username'] ?? '')) ?: synk_role_label($activeRole);
     foreach ($context['role_badges'] as &$badge) {
-        $badge['is_active'] = synk_normalize_role_code((string)$badge['role']) === 'college_dean';
+        $badge['is_active'] = synk_normalize_role_code((string)$badge['role']) === $activeRole;
     }
     unset($badge);
     return $context;

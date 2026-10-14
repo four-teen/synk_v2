@@ -523,6 +523,26 @@ function synk_college_dean_account_has_access(mysqli $conn, array $account): boo
     return $exists;
 }
 
+function synk_program_chair_account_has_access(mysqli $conn, array $account): bool
+{
+    $collegeId = (int)($account['college_id'] ?? 0);
+    if (($account['status'] ?? '') !== 'active' || $collegeId <= 0
+        || !synk_useraccount_has_active_role($conn, $account, 'program_chair')) {
+        return false;
+    }
+    $stmt = $conn->prepare("SELECT c.college_id FROM tbl_college c
+        INNER JOIN tbl_campus cp ON cp.campus_id = c.campus_id
+        WHERE c.college_id = ? AND c.status = 'active' AND cp.status = 'active' LIMIT 1");
+    if (!$stmt) return false;
+    $stmt->bind_param('i', $collegeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $exists = $result instanceof mysqli_result && $result->num_rows > 0;
+    if ($result instanceof mysqli_result) $result->close();
+    $stmt->close();
+    return $exists;
+}
+
 function synk_filter_loginable_role_rows(mysqli $conn, array $row, array $roleRows): array
 {
     $supportedLookup = array_fill_keys(synk_supported_module_roles(), true);
@@ -543,6 +563,10 @@ function synk_filter_loginable_role_rows(mysqli $conn, array $row, array $roleRo
         }
 
         if ($role === 'college_dean' && !synk_college_dean_account_has_access($conn, $row)) {
+            continue;
+        }
+
+        if ($role === 'program_chair' && !synk_program_chair_account_has_access($conn, $row)) {
             continue;
         }
 
