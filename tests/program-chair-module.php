@@ -7,6 +7,7 @@ $snapshot=static function () use ($conn): array {
 };
 $before=$snapshot(); $checks=0;
 $http=in_array('--http',$argv,true);
+$accountsOnly=in_array('--accounts',$argv,true);
 $route=$root.'/tmp/chair-module-'.bin2hex(random_bytes(8)).'.php';
 $token=bin2hex(random_bytes(24));
 if ($http) {
@@ -31,6 +32,7 @@ $request=static function (string $scenario) use ($root,$http,$route,$token): arr
     if (!is_array($result) || isset($result['fixture_error'])) throw new RuntimeException($scenario.': '.substr($body,0,1200));
     return $result;
 };
+if (!$accountsOnly) {
 $r=$request('login');
 $check($r['response']['status']==='success' && $r['response']['redirect']==='program-chair/' && $r['session_role']==='program_chair' && $r['session_college']===$r['college_id'], 'Shared faculty login did not open Program Chair with the assigned college.');
 $r=$request('missing_scope');
@@ -89,10 +91,17 @@ $check(!in_array($r['faculty_id'],array_column($r['response'],'id'),true),'The f
 $r=$request('manage_catalog');
 $check($r['response']['status']==='success' && count($r['response']['data'])>0,'Active designation choices did not load.');
 $r=$request('account_list');
-$check(count($r['response']['data'])===1 && $r['response']['data'][0]['faculty_email']===strtolower($r['login_email']) && $r['response']['data'][0]['login_can_manage']===true,'Faculty email search and linked login details did not populate the assigned list.');
+$check(count($r['response']['data'])===1 && !isset($r['response']['data'][0]['faculty_email']) && $r['response']['data'][0]['login_roles']===['professor'] && $r['response']['data'][0]['login_can_manage']===true,'The faculty list must return only relevant login roles without credentials.');
+}
 $r=$request('account_load');
 $check($r['response']['status']==='ok' && $r['response']['account']['can_manage'] && $r['response']['account']['roles']===['professor'] && $r['response']['account']['revision']!=='','The login dialog did not load the linked faculty account.');
-foreach (['account_create','account_create_inactive','account_create_scheduler','account_deactivate','account_activate','account_scheduler_only','account_professor_only'] as $scenario) {
+$publicAccountSafe=static function (array $account) use ($check): void {
+    $check(!array_intersect(array_keys($account),['email','username','password','protected_roles','user_id'])
+        && !array_diff($account['roles'],['professor','scheduler'])
+        && in_array($account['primary_role'],['','professor','scheduler'],true),'Program Chair responses exposed credentials or unrelated roles.');
+};
+$publicAccountSafe($r['response']['account']);
+foreach (['account_create','account_create_inactive','account_create_scheduler','account_deactivate','account_activate','account_scheduler_only','account_professor_only','account_existing_no_credentials'] as $scenario) {
     $r=$request($scenario);
     $check($r['http_status']===200 && $r['response']['status']==='saved' && $r['protected_unchanged'] && $r['credentials_unchanged'], 'Faculty login account could not be saved without changing existing credentials/workloads: '.$scenario.' '.json_encode($r['response']));
     $check($r['login_status']===(in_array($scenario,['account_create_inactive','account_deactivate'],true)?'inactive':'active') && !array_diff($r['login_roles'],['professor','scheduler']), 'The saved status or roles are incorrect: '.$scenario);
@@ -102,17 +111,28 @@ foreach (['account_create','account_create_inactive','account_create_scheduler',
     }
     if ($scenario==='account_professor_only') $check(!$r['login_scopes'],'Removing Scheduler left its college access enabled.');
     $check($r['login_email']!=='' && $r['login_email']===strtolower($r['login_email']),'Faculty identity link was lost when saving login roles: '.$scenario);
+    $publicAccountSafe($r['response']['account']);
 }
 $r=$request('account_login_scheduler');
 $check($r['response']['status']==='success' && $r['response']['redirect']==='scheduler/' && $r['session_role']==='scheduler' && $r['session_college']===$r['college_id'],'The real login chooser did not use the Chair-assigned Scheduler role and college.');
 $r=$request('account_login_inactive');
 $check($r['response']['status']==='inactive','The real shared login accepted a Chair-deactivated account.');
-foreach (['account_protected'=>403,'account_other_scope'=>403,'account_other_home'=>403,'account_inactive_privilege'=>403,'account_escalation'=>403,'account_empty_roles'=>422,'account_duplicate_roles'=>422,'account_bad_primary'=>422,'account_invalid_status'=>422,'account_email_change'=>403,'account_duplicate_email'=>409,'account_invalid_email'=>422,'account_long_email'=>422,'account_stale'=>409,'account_cross_college'=>403,'account_unassigned'=>403,'account_bad_csrf'=>403,'account_old_term'=>409,'account_extra_fields'=>400,'account_array_input'=>400,'account_inactive_faculty'=>422,'account_wrong_role'=>403,'account_revoked'=>403,'account_reassigned'=>403,'account_create_failure'=>500] as $scenario=>$status) {
+foreach (['account_protected','account_protected_primary','account_inactive_privilege','account_legacy_primary','account_empty_primary','account_legacy_protected'] as $scenario) {
+    $r=$request($scenario);
+    $check($r['http_status']===200 && $r['response']['status']==='saved' && in_array('scheduler',$r['login_roles'],true)
+        && $r['credentials_unchanged'] && $r['protected_unchanged'],'Faculty/Scheduler editing failed on an administrator-managed or legacy account: '.$scenario.' '.json_encode($r['response']));
+    if ($scenario!=='account_legacy_protected') $check($r['admin_roles_unchanged'],'Administrator role rows changed: '.$scenario);
+    if ($scenario==='account_inactive_privilege') $check($r['admin_roles'][0]['status']==='inactive','Editing faculty access reactivated an inactive DI role.');
+    if (in_array($scenario,['account_protected_primary','account_legacy_protected'],true)) $check($r['login_primary']==='admin' && $r['response']['account']['can_manage_primary']===false,'The administrator default workspace was replaced.');
+    $publicAccountSafe($r['response']['account']);
+}
+foreach (['account_protected_status'=>403,'account_protected_default'=>403,'account_protected_failure'=>500,'account_other_scope'=>403,'account_other_home'=>403,'account_escalation'=>403,'account_empty_roles'=>422,'account_duplicate_roles'=>422,'account_bad_primary'=>422,'account_invalid_status'=>422,'account_email_change'=>403,'account_duplicate_email'=>409,'account_invalid_email'=>422,'account_long_email'=>422,'account_stale'=>409,'account_cross_college'=>403,'account_unassigned'=>403,'account_bad_csrf'=>403,'account_old_term'=>409,'account_extra_fields'=>400,'account_array_input'=>400,'account_inactive_faculty'=>422,'account_wrong_role'=>403,'account_revoked'=>403,'account_reassigned'=>403,'account_create_failure'=>500] as $scenario=>$status) {
     $r=$request($scenario);
     $check($r['http_status']===$status && $r['response']['status']==='error' && $r['protected_unchanged'] && $r['credentials_unchanged'] && $r['account_unchanged'] && $r['account_count_unchanged'],'Login permission, validation, or transaction rollback failed: '.$scenario.' '.json_encode($r['response']));
     if (in_array($scenario,['account_create_failure','account_duplicate_email','account_invalid_email','account_long_email'],true)) $check($r['login_email']==='','An invalid or failed request left a new login linked to the faculty.');
     else $check(!in_array('scheduler',$r['login_roles'],true) || $scenario==='account_other_scope','A denied request still granted Scheduler: '.$scenario);
 }
+if (!$accountsOnly) {
 foreach (['manage_designation','manage_clear','manage_classification','manage_remove'] as $scenario) {
     $r=$request($scenario);
     $check($r['http_status']===200 && $r['response']['status']===($scenario==='manage_remove'?'removed':'updated') && $r['protected_unchanged'],'Faculty management failed or changed schedules/workloads: '.$scenario);
@@ -150,6 +170,7 @@ foreach (['dashboard_college_dean_schedule_heatmap.php'=>'dashboard_program_chai
     $expected=preg_replace('/^<\?php\r?\n/', "<?php\ndefine('SYNK_PROGRAM_CHAIR_API', true);\n", $expected);
     $expected=str_replace("\r\n", "\n", $expected);
     $check(str_replace("\r\n", "\n", file_get_contents($root.'/backend/'.$copy))===$expected,'Chair chart calculations differ from the unchanged Dean endpoint.');
+}
 }
 $check($before===$snapshot(),'Fixture requests changed real faculty, account, scheduling, or workload data.');
 echo 'Program Chair module ', $http?'HTTP':'CLI', ': ',$checks,' checks passed. All fixture records rolled back.',PHP_EOL;

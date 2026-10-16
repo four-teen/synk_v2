@@ -44,11 +44,14 @@ class ProgramChairFailedWrite extends mysqli_stmt
 $conn->close();
 $conn = new ProgramChairRequestConnection($servername, $username, $password, $dbase);
 $conn->set_charset('utf8mb4');
-foreach (['tbl_useraccount', 'tbl_useraccount_roles', 'tbl_useraccount_faculty_links', 'tbl_user_college_access', 'tbl_faculty', 'tbl_college_faculty', 'tbl_faculty_term_designations', 'tbl_academic_settings', 'tbl_class_schedule', 'tbl_faculty_workload_sched'] as $table) {
+$scenario = PHP_SAPI === 'cli' ? ($argv[1] ?? 'login') : (string)($_GET['scenario'] ?? '');
+$accountScenario = strpos($scenario,'account_')===0;
+$requiredTables = ['tbl_useraccount', 'tbl_useraccount_roles', 'tbl_useraccount_faculty_links', 'tbl_user_college_access', 'tbl_faculty', 'tbl_college_faculty', 'tbl_academic_settings', 'tbl_class_schedule', 'tbl_faculty_workload_sched'];
+if (!$accountScenario || $scenario==='account_list') $requiredTables[]='tbl_faculty_term_designations';
+foreach ($requiredTables as $table) {
     $engine = $conn->query("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='{$table}'")->fetch_assoc();
     if (strtolower($engine['ENGINE'] ?? '') !== 'innodb') throw new RuntimeException('Transactional table required: ' . $table);
 }
-$scenario = PHP_SAPI === 'cli' ? ($argv[1] ?? 'login') : (string)($_GET['scenario'] ?? '');
 $conn->startFixtures();
 $term = synk_fetch_current_academic_term($conn);
 $colleges = $conn->query("SELECT c.college_id,c.campus_id FROM tbl_college c JOIN tbl_campus cp ON cp.campus_id=c.campus_id WHERE c.status='active' AND cp.status='active' ORDER BY c.college_id LIMIT 2")->fetch_all(MYSQLI_ASSOC);
@@ -90,8 +93,18 @@ switch ($case) {
             $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id) VALUES ('Faculty Login {$tag}Target','{$email}','unusable-faculty-login-password','professor','active',{$collegeId})");
             $targetAccountId=(int)$conn->insert_id;
             $targetRoles=['professor'];
-            if ($scenario==='account_protected') $targetRoles[]='admin';
+            if (in_array($scenario,['account_protected','account_protected_primary','account_protected_status','account_protected_default','account_protected_failure'],true)) $targetRoles[]='admin';
             synk_persist_useraccount_roles($conn,$targetAccountId,$targetRoles,'professor');
+            if (in_array($scenario,['account_protected_primary','account_protected_default'],true)) {
+                synk_persist_useraccount_roles($conn,$targetAccountId,$targetRoles,'admin');
+                $conn->query("UPDATE tbl_useraccount SET role='admin' WHERE user_id={$targetAccountId}");
+            }
+            if ($scenario==='account_legacy_protected') {
+                $conn->query("DELETE FROM tbl_useraccount_roles WHERE user_id={$targetAccountId}");
+                $conn->query("UPDATE tbl_useraccount SET role='admin' WHERE user_id={$targetAccountId}");
+            }
+            if ($scenario==='account_legacy_primary') $conn->query("UPDATE tbl_useraccount SET role='viewer' WHERE user_id={$targetAccountId}");
+            if ($scenario==='account_empty_primary') $conn->query("UPDATE IGNORE tbl_useraccount SET role='' WHERE user_id={$targetAccountId}");
             if (synk_professor_insert_auto_account_link($conn,$targetAccountId,$facultyId)!==null) throw new RuntimeException('Could not link the faculty login fixture.');
             if ($scenario==='account_other_scope') {
                 synk_persist_useraccount_roles($conn,$targetAccountId,['professor','scheduler'],'professor');
@@ -110,7 +123,11 @@ switch ($case) {
         $target=synk_chair_account_target($conn,$scope,$viewTerm,$facultyId);
         $_POST['account_revision']=$target['revision'];
         if ($scenario==='account_load') $_POST['action']='load';
-        if ($scenario==='account_list') { $_POST=['load_college_faculty'=>'1','search'=>$email,'college_id'=>(string)$collegeId,'ay_id'=>(string)$term['ay_id'],'semester'=>(string)$term['semester'],'csrf_token'=>'chair-qa']; $handler='backend/query_program_chair_faculty.php'; break; }
+        if (in_array($scenario,['account_protected_primary','account_legacy_protected'],true)) $_POST['primary_role']='admin';
+        if ($scenario==='account_protected_status') $_POST['status']='inactive';
+        if ($scenario==='account_list') { $_POST=['load_college_faculty'=>'1','search'=>$tag.'Target','college_id'=>(string)$collegeId,'ay_id'=>(string)$term['ay_id'],'semester'=>(string)$term['semester'],'csrf_token'=>'chair-qa']; $handler='backend/query_program_chair_faculty.php'; break; }
+        if ($scenario==='account_existing_no_credentials') unset($_POST['email']);
+        if ($scenario==='account_protected_primary') unset($_POST['email'],$_POST['primary_role']);
         if ($scenario==='account_deactivate' || $scenario==='account_create_inactive' || $scenario==='account_login_inactive') $_POST['status']='inactive';
         if ($scenario==='account_create_scheduler' || $scenario==='account_scheduler_only') { $_POST['roles_json']='["scheduler"]'; $_POST['primary_role']='scheduler'; }
         if ($scenario==='account_professor_only') $_POST['roles_json']='["professor"]';
@@ -137,7 +154,7 @@ switch ($case) {
         if ($scenario==='account_wrong_role') $_SESSION['role']='professor';
         if ($scenario==='account_revoked') $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='program_chair'");
         if ($scenario==='account_reassigned') $conn->query("UPDATE tbl_useraccount SET college_id={$otherCollege} WHERE user_id={$userId}");
-        if ($scenario==='account_create_failure') {
+        if (in_array($scenario,['account_create_failure','account_protected_failure'],true)) {
             $conn->failAccountWrite=true; $logPath=$root.'/tmp/chair-account-failure-'.bin2hex(random_bytes(8)).'.log';
             ini_set('error_log',$logPath); register_shutdown_function(static function () use ($logPath): void { if (is_file($logPath)) unlink($logPath); });
         }
@@ -318,15 +335,19 @@ $accountSnapshot=static function () use ($conn,$facultyId): string {
     return hash('sha256',json_encode([$account,$roles,$scope]));
 };
 $accountSnapshotBefore=$accountSnapshot();
+$adminRoleSnapshot=static function () use ($conn,$targetAccountId): array {
+    return $targetAccountId ? $conn->query("SELECT * FROM tbl_useraccount_roles WHERE user_id={$targetAccountId} AND role NOT IN ('professor','scheduler') ORDER BY role")->fetch_all(MYSQLI_ASSOC) : [];
+};
+$adminRolesBefore=$adminRoleSnapshot();
 $accountCountBefore=(int)$conn->query('SELECT COUNT(*) AS total FROM tbl_useraccount')->fetch_assoc()['total'];
-register_shutdown_function(static function () use ($conn, $userId, $facultyId, $collegeId, $otherCollege, $handler, $protectedBefore, $accountBefore, $accountSnapshot, $accountSnapshotBefore, $accountCountBefore): void {
+register_shutdown_function(static function () use ($conn, $userId, $facultyId, $collegeId, $otherCollege, $handler, $protectedBefore, $accountBefore, $accountSnapshot, $accountSnapshotBefore, $accountCountBefore, $adminRoleSnapshot, $adminRolesBefore, $accountScenario): void {
     $body='';
     while (ob_get_level()>0) $body=ob_get_clean().$body;
     try {
         $response=json_decode($body,true);
         $assignments=$conn->query("SELECT college_id,ay_id,semester,status FROM tbl_college_faculty WHERE faculty_id={$facultyId} ORDER BY college_faculty_id")->fetch_all(MYSQLI_ASSOC);
         $classification=$conn->query("SELECT employment_classification FROM tbl_faculty WHERE faculty_id={$facultyId}")->fetch_assoc()['employment_classification'];
-        $designationRows=$conn->query("SELECT ay_id,semester,designation_id,designation_name,record_source FROM tbl_faculty_term_designations WHERE faculty_id={$facultyId} ORDER BY ay_id,semester")->fetch_all(MYSQLI_ASSOC);
+        $designationRows=$accountScenario ? [] : $conn->query("SELECT ay_id,semester,designation_id,designation_name,record_source FROM tbl_faculty_term_designations WHERE faculty_id={$facultyId} ORDER BY ay_id,semester")->fetch_all(MYSQLI_ASSOC);
         $login=$conn->query("SELECT u.* FROM tbl_useraccount u JOIN tbl_useraccount_faculty_links l ON l.user_id=u.user_id WHERE l.faculty_id={$facultyId}")->fetch_assoc();
         $loginRoles=$login?synk_fetch_useraccount_role_rows($conn,(int)$login['user_id'],$login['role']):[];
         $loginScopes=$login?$conn->query("SELECT college_id,status FROM tbl_user_college_access WHERE user_id=".(int)$login['user_id']." ORDER BY college_id")->fetch_all(MYSQLI_ASSOC):[];
@@ -337,6 +358,7 @@ register_shutdown_function(static function () use ($conn, $userId, $facultyId, $
             'assignments'=>$assignments,'classification'=>$classification,'designation_rows'=>$designationRows,
             'login_email'=>$login['email'] ?? '', 'login_status'=>$login['status'] ?? '', 'login_roles'=>array_column($loginRoles,'role'),
             'login_primary'=>$login['role'] ?? '', 'login_scopes'=>$loginScopes,'login_college'=>(int)($login['college_id'] ?? 0),
+            'admin_roles'=>$adminRoleSnapshot(),'admin_roles_unchanged'=>$adminRolesBefore===$adminRoleSnapshot(),
             'credentials_unchanged'=>!$accountBefore || ($login && $login['email']===$accountBefore['email'] && $login['password']===$accountBefore['password']),
             'account_unchanged'=>$accountSnapshotBefore===$accountSnapshot(),
             'account_count_unchanged'=>$accountCountBefore===(int)$conn->query('SELECT COUNT(*) AS total FROM tbl_useraccount')->fetch_assoc()['total'],

@@ -29,15 +29,15 @@ function synk_chair_faculty_management_list(mysqli $conn, array $scope, array $t
     if ($search !== '') {
         $where .= " AND (CONCAT_WS(' ',f.last_name,f.first_name,f.middle_name,f.ext_name) LIKE ?
             OR COALESCE(d.designation_name,'') LIKE ? OR f.employment_classification LIKE ?
-            OR REPLACE(f.employment_classification,'_',' ') LIKE ? OR login_account.email LIKE ?)";
-        $types .= 'sssss'; $params = array_merge($params, array_fill(0, 5, '%' . $search . '%'));
+            OR REPLACE(f.employment_classification,'_',' ') LIKE ?)";
+        $types .= 'ssss'; $params = array_merge($params, array_fill(0, 4, '%' . $search . '%'));
     }
     $total = (int)synk_chair_faculty_query($conn, "SELECT COUNT(*) AS total {$base} {$where}", $types, $params)[0]['total'];
     // Same read-only assigned-class count and live-offering joins used by Scheduler.
     $liveJoins = synk_section_curriculum_live_offering_join_sql('o', 'sec', 'sc', 'ps', 'pys', 'ph');
     $rows = synk_chair_faculty_query($conn, "SELECT cf.college_faculty_id,f.faculty_id,f.first_name,f.middle_name,f.last_name,f.ext_name,
         f.college_id,f.campus_id,f.status AS faculty_status,COALESCE(login_account.user_id,0) AS login_user_id,
-        COALESCE(login_account.email,'') AS faculty_email,COALESCE(login_account.role,'') AS login_primary_role,
+        COALESCE(login_account.role,'') AS login_primary_role,
         COALESCE(login_account.college_id,0) AS login_college_id,COALESCE(login_account.status,'') AS login_status,
         COALESCE(d.designation_id,0) AS designation_id,COALESCE(d.designation_name,'') AS designation_name,
         COALESCE(f.employment_classification,'') AS employment_classification,LOWER(TRIM(cf.status)) AS status,
@@ -58,7 +58,7 @@ function synk_chair_faculty_management_list(mysqli $conn, array $scope, array $t
             'employment_classification'=>$row['employment_classification'],
             'employment_classification_label'=>synk_chair_faculty_classifications()[$row['employment_classification']] ?? '',
             'status'=>$row['status'], 'assigned_count'=>(int)$row['assigned_count'],
-            'faculty_email'=>$row['faculty_email'],'login_status'=>$row['login_status'],'login_roles'=>$row['login_roles'],
+            'login_status'=>$row['login_status'],'login_roles'=>$row['login_roles'],
             'login_can_manage'=>$row['login_can_manage'],'login_reason'=>$row['login_reason']];
     }
     return ['status'=>'success', 'data'=>$data, 'term'=>$term,
