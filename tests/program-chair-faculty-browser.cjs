@@ -10,7 +10,7 @@ const historicalConfig = JSON.parse(historicalHtml.match(/<script id="chairFacul
 const term = () => ({ay_id:(historical ? historicalConfig : pageConfig).ay_id,semester:(historical ? historicalConfig : pageConfig).semester,term_text:'Selected academic term',is_current:!historical});
 const faculties = [
   { faculty_id: 101, faculty_name: 'Alpha, Faculty', faculty_status: 'active', employment_classification: 'permanent', classification_label: 'Permanent', can_manage_profile: true,faculty_email:'FACULTY.ALPHA@SKSU.EDU.PH',login_status:'active',login_roles:['professor'],login_can_manage:true },
-  { faculty_id: 202, faculty_name: 'Beta, <img src=x onerror=alert(1)>', faculty_status: 'active', employment_classification: 'part_time', classification_label: 'Part Time', can_manage_profile: false,faculty_email:'faculty.beta@sksu.edu.ph',login_status:'active',login_roles:['professor','admin'],login_can_manage:false,login_reason:'This account has roles managed by an administrator.' },
+  { faculty_id: 202, faculty_name: 'Beta, <img src=x onerror=alert(1)>', faculty_status: 'active', employment_classification: 'part_time', classification_label: 'Part Time', can_manage_profile: false,faculty_email:'faculty.beta@sksu.edu.ph',login_status:'active',login_roles:['professor','admin'],login_can_manage:true,login_admin_managed:true,login_reason:'' },
 ];
 let browser, ws, call, session, checks = 0, historical = false, assigned = [], mode = 'success';
 let loginMode='success';
@@ -52,11 +52,11 @@ async function main() {
       if (request.url.includes('/program-chair/manage-college-faculty.php')) { body = historical ? historicalHtml : pageHtml; type = 'text/html'; }
       else if (request.url.includes('query_program_chair_faculty_account.php')) {
         const faculty=assigned.find(f=>String(f.faculty_id)===data.faculty_id);
-        if (data.action==='load') body={status:'ok',account:{faculty_id:faculty.faculty_id,faculty_name:faculty.full_name,exists:!!faculty.faculty_email,email:faculty.faculty_email,status:faculty.login_status||'active',roles:faculty.login_roles,primary_role:'professor',can_manage:faculty.login_can_manage,reason:faculty.login_reason||'',revision:'chair-account-1',allowed_domain:'sksu.edu.ph',email_max_length:150}};
+        if (data.action==='load') body={status:'ok',account:{faculty_id:faculty.faculty_id,faculty_name:faculty.full_name,exists:!!faculty.faculty_email,status:faculty.login_status||'active',roles:faculty.login_roles.filter(role=>['professor','scheduler'].includes(role)),primary_role:faculty.login_admin_managed?'':'professor',can_manage_status:!faculty.login_admin_managed,can_manage_primary:!faculty.login_admin_managed,can_manage:faculty.login_can_manage,reason:faculty.login_reason||'',revision:'chair-account-1',allowed_domain:'sksu.edu.ph',email_max_length:150}};
         else if (data.action==='save') {
           await delay(200);
           if (loginMode==='error') { status=409; body={status:'error',message:'This account changed since you opened it. Reopen Login Access before saving.'}; }
-          else { assigned=assigned.map(f=>String(f.faculty_id)===data.faculty_id?{...f,faculty_email:data.email,login_status:data.status,login_roles:JSON.parse(data.roles_json)}:f); body={status:'saved',message:'Faculty login access saved.'}; }
+          else { assigned=assigned.map(f=>String(f.faculty_id)===data.faculty_id?{...f,faculty_email:data.email||f.faculty_email,login_status:data.status,login_roles:[...JSON.parse(data.roles_json),...f.login_roles.filter(role=>!['professor','scheduler'].includes(role))]}:f); body={status:'saved',message:'Faculty login access saved.'}; }
         } else throw Error('Unexpected faculty login action.');
       }
       else if (request.url.includes('query_program_chair_term_lists.php')) {
@@ -130,13 +130,13 @@ async function main() {
   const saved = requests.filter(r => r.data.save_assignment).at(-1).data;
   check(saved.faculty_id === '101' && saved.employment_classification === 'permanent' && saved.csrf_token === 'chair-qa' && saved.college_id && saved.ay_id && saved.semester, 'Saving includes faculty, classification, assigned college, current term, and CSRF.');
   check(await evaluate('document.querySelectorAll("#collegeFacultyMobileList .faculty-mobile-card").length===1 && document.getElementById("facultyResultsSummary").textContent.includes("1 of 1")'), 'Success refreshes desktop and mobile faculty lists.');
-  check(await evaluate('[...document.querySelectorAll(".faculty-email")].every(e=>e.textContent==="faculty.alpha@sksu.edu.ph" && getComputedStyle(e).fontStyle==="italic")'),'The linked faculty email appears below the name in lowercase and italics in both layouts.');
+  check(await evaluate('!document.querySelector(".faculty-email,.faculty-email-empty") && [...document.querySelectorAll(".faculty-login-summary")].every(e=>e.querySelectorAll(".faculty-login-state,.btn-manage-login").length<=4 && !e.textContent.includes("@"))'),'Faculty identities show at most four login details without credentials in both layouts.');
   check(await evaluate('(()=>{const b=[...document.querySelectorAll("#collegeFacultyTableBody .faculty-action-group .btn")].map(e=>e.getBoundingClientRect());return b.length===3 && b[0].top<b[1].top && b[1].top<b[2].top && Math.abs(b[0].left-b[2].left)<1})()'),'The three clearly labelled action buttons occupy separate vertical rows.');
   await act('Swal.close();document.querySelector("#collegeFacultyTableBody .btn-manage-login").click()');
   await until('document.getElementById("facultyLoginModal").classList.contains("show") && !document.getElementById("facultyLoginFields").disabled && !bootstrap.Modal.getInstance(document.getElementById("facultyLoginModal"))._isTransitioning');
-  check(await evaluate('document.getElementById("facultyLoginEmail").readOnly && document.getElementById("facultyLoginEmail").value==="faculty.alpha@sksu.edu.ph" && [...document.querySelectorAll("#facultyLoginFields input[type=checkbox]")].map(e=>e.value).join(",")==="professor,scheduler"'),'Login Access preserves the existing email and offers only Professor and Scheduler.');
+  check(await evaluate('document.getElementById("facultyLoginEmailField").hidden && document.getElementById("facultyLoginEmail").disabled && document.getElementById("facultyLoginEmail").value==="" && [...document.querySelectorAll("#facultyLoginFields input[type=checkbox]")].map(e=>e.value).join(",")==="professor,scheduler"'),'Existing Login Access offers only Faculty/Scheduler without loading account credentials.');
   await act('document.getElementById("facultyLoginProfessor").checked=false;document.getElementById("facultyLoginProfessor").dispatchEvent(new Event("change"));document.getElementById("facultyLoginForm").dispatchEvent(new Event("submit",{bubbles:true,cancelable:true}))');
-  check(await evaluate('document.getElementById("facultyLoginNotice").textContent.includes("Select Professor")'),'Login Access requires at least one permitted role.');
+  check(await evaluate('document.getElementById("facultyLoginNotice").textContent.includes("Select Faculty")'),'Login Access requires at least one permitted role.');
   await act('document.getElementById("facultyLoginProfessor").checked=true;document.getElementById("facultyLoginScheduler").checked=true;document.getElementById("facultyLoginScheduler").dispatchEvent(new Event("change"));document.getElementById("facultyLoginPrimary").value="scheduler";document.getElementById("facultyLoginStatus").value="inactive"');
   loginMode='error';
   await act('document.getElementById("facultyLoginForm").requestSubmit()');
@@ -150,12 +150,12 @@ async function main() {
   check(true,'Saved login status refreshes desktop and mobile faculty details.');
   assigned=assigned.map(f=>({...f,faculty_email:'',login_status:'',login_roles:[]}));
   await act('Swal.close();refreshFacultyData({preserveScroll:true})');
-  await until('document.querySelector("#collegeFacultyTableBody .btn-manage-login")?.textContent.includes("Set Up Login")');
+  await until('document.querySelector("#collegeFacultyTableBody .btn-manage-login")?.textContent.includes("Login Access") && !document.querySelector("#collegeFacultyTableBody .faculty-login-state")');
   await act('document.querySelector("#collegeFacultyTableBody .btn-manage-login").click()');
   await until('!document.getElementById("facultyLoginFields").disabled && !bootstrap.Modal.getInstance(document.getElementById("facultyLoginModal"))._isTransitioning');
-  check(await evaluate('!document.getElementById("facultyLoginEmail").readOnly && document.getElementById("facultyLoginEmail").value==="" && document.getElementById("facultyLoginEmail").maxLength===150 && document.getElementById("facultyLoginProfessor").checked && !document.getElementById("facultyLoginScheduler").checked'),'Set Up Login requests the institutional email and starts with Professor only.');
+  check(await evaluate('!document.getElementById("facultyLoginEmailField").hidden && !document.getElementById("facultyLoginEmail").disabled && document.getElementById("facultyLoginEmail").value==="" && document.getElementById("facultyLoginEmail").maxLength===150 && document.getElementById("facultyLoginProfessor").checked && !document.getElementById("facultyLoginScheduler").checked'),'Creating a login requests an institutional email and starts with Faculty only.');
   await act('document.getElementById("facultyLoginEmail").value="NEW.FACULTY@SKSU.EDU.PH";document.getElementById("facultyLoginEmail").dispatchEvent(new Event("blur"));document.getElementById("facultyLoginForm").requestSubmit()');
-  await until('!document.getElementById("facultyLoginModal").classList.contains("show") && document.querySelector("#collegeFacultyTableBody .faculty-email")?.textContent==="new.faculty@sksu.edu.ph"');
+  await until('!document.getElementById("facultyLoginModal").classList.contains("show") && document.querySelector("#collegeFacultyTableBody .faculty-login-state.is-active")');
   check(requests.filter(r=>r.url.includes('faculty_account.php') && r.data.action==='save').at(-1).data.roles_json==='["professor"]','Creating a login saves the normalized email and chosen permitted role.');
   await act('Swal.close();document.querySelector("#collegeFacultyTableBody .btn-edit-designation").click()');
   await until('document.getElementById("designation_id").value==="7" && !document.querySelector("button[form=designationForm]").disabled && !bootstrap.Modal.getInstance(document.getElementById("designationModal"))._isTransitioning');
@@ -179,7 +179,14 @@ async function main() {
   await act('document.getElementById("termListCopyConfirm").click()');
   await until('document.querySelectorAll("#collegeFacultyTableBody tr").length===2 && !document.getElementById("termListCopyModal").classList.contains("show")');
   check(requests.filter(r=>r.data.action==='copy').at(-1).data.selected_ids==='[202]','Copy submits only selected faculty from the preview.');
-  check(await evaluate(`!document.querySelector('#collegeFacultyTableBody [data-faculty-id="202"] .btn-manage-login') && document.querySelector('#collegeFacultyTableBody [data-faculty-id="202"] .faculty-login-summary').textContent.includes('Managed by administrator')`),'Accounts with higher roles stay under administrator control.');
+  check(await evaluate(`!!document.querySelector('#collegeFacultyTableBody [data-faculty-id="202"] .btn-manage-login') && !document.querySelector('#collegeFacultyTableBody [data-faculty-id="202"] .faculty-login-summary').textContent.includes('administrator') && !document.querySelector('#collegeFacultyTableBody [data-faculty-id="202"] .faculty-login-summary').textContent.includes('Administrator')`),'Accounts show Faculty/Scheduler details without unrelated role labels.');
+  await act('Swal.close();document.querySelector(\'#collegeFacultyTableBody [data-faculty-id="202"] .btn-manage-login\').click()');
+  await until('!document.getElementById("facultyLoginFields").disabled && !bootstrap.Modal.getInstance(document.getElementById("facultyLoginModal"))._isTransitioning');
+  check(await evaluate('!document.getElementById("facultyLoginAdminRoleLabels") && document.getElementById("facultyLoginEmailField").hidden && document.getElementById("facultyLoginPrimaryField").hidden && document.getElementById("facultyLoginStatus").disabled && !document.getElementById("facultyLoginScheduler").disabled'),'Other roles and credentials are omitted while Faculty/Scheduler remain editable.');
+  await act('document.getElementById("facultyLoginScheduler").checked=true;document.getElementById("facultyLoginScheduler").dispatchEvent(new Event("change"));document.getElementById("facultyLoginForm").requestSubmit()');
+  await until('!document.getElementById("facultyLoginModal").classList.contains("show") && document.querySelector(\'#collegeFacultyTableBody [data-faculty-id="202"] .faculty-login-summary\').textContent.includes("Scheduler")');
+  const protectedSave=requests.filter(r=>r.url.includes('faculty_account.php') && r.data.action==='save').at(-1).data;
+  check(!('primary_role' in protectedSave) && !('email' in protectedSave) && protectedSave.status==='active' && protectedSave.roles_json==='["professor","scheduler"]','Saving Faculty/Scheduler leaves protected settings to the server without sending account credentials.');
   await act('Swal.close();document.querySelector("#collegeFacultyTableBody .btn-remove-assignment").click()');
   await until('document.getElementById("swal2-html-container")?.textContent.includes("scheduled workloads will be kept")');
   check(true,'Removing confirms that the faculty record and prepared workloads are retained.');

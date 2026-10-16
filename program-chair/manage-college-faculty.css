@@ -283,22 +283,13 @@
         margin-top: 1rem;
       }
 
-      .faculty-email {
-        display: block;
-        margin-top: 0.2rem;
-        color: #6f7f96;
-        font-size: 0.78rem;
-        font-style: italic;
-        text-transform: lowercase;
-        overflow-wrap: anywhere;
-      }
-
-      .faculty-email-empty { display: block; color: #8392a8; margin-top: 0.2rem; }
-      .faculty-login-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; margin-top: 0.55rem; }
+      .faculty-login-summary { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; margin-top: 0.55rem; }
+      .faculty-login-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; min-height: 1.5rem; }
       .faculty-login-summary .btn { font-size: 0.72rem; padding: 0.25rem 0.5rem; white-space: normal; }
       .faculty-login-state { font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 0.4rem; }
       .faculty-login-state.is-active { background: #e8f7ef; color: #146c43; }
       .faculty-login-state.is-inactive { background: #f2f5f9; color: #667a93; }
+      .faculty-login-state.is-role { background: #eef2ff; color: #4b4e99; }
       .faculty-login-role { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.75rem; border: 1px solid #dfe7f0; border-radius: 0.6rem; }
       .faculty-login-role .form-check-input { margin-top: 0.2rem; flex-shrink: 0; }
 

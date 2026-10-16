@@ -69,11 +69,11 @@ $currentTermText = (string)$currentTerm['term_text'];
                 <i class="bx bx-group me-2"></i> Faculty Assignment per College
               </h4>
               <p class="mb-0 text-muted">
-                Review assigned faculty, update designation, and monitor workload coverage for this college.
+                Review assigned faculty, update login access and designation, and monitor workload coverage for this college.
               </p>
               <div class="faculty-page-note">
                 <i class="bx bx-shield-quarter"></i>
-                <span>Manage designation and employment classification for faculty in your assigned college.</span>
+                <span>Manage Faculty and Scheduler login access, designation, and employment classification for your assigned college.</span>
               </div>
             </div>
 
@@ -118,7 +118,7 @@ $currentTermText = (string)$currentTerm['term_text'];
                         type="search"
                         id="facultySearch"
                         class="form-control"
-                        placeholder="Search by name, email, designation, or classification"
+                        placeholder="Search by name, designation, or classification"
                         autocomplete="off"
                       >
                     </div>
@@ -319,16 +319,16 @@ $currentTermText = (string)$currentTerm['term_text'];
       <div class="modal-header"><h5 class="modal-title" id="facultyLoginTitle">Faculty Login Access</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
       <div class="modal-body">
         <h6 id="facultyLoginName" class="mb-2"></h6>
-        <p class="text-muted small">Manage the faculty member’s shared login. Scheduler access is limited to your assigned college.</p>
+        <p class="text-muted small">Assign Faculty, Scheduler, or both roles. Scheduler access is limited to your assigned college.</p>
         <div id="facultyLoginNotice" class="alert alert-info" role="status" aria-live="polite" hidden></div>
         <fieldset id="facultyLoginFields" disabled>
-          <div class="mb-3"><label for="facultyLoginEmail" class="form-label">Faculty Email</label><input type="email" class="form-control" id="facultyLoginEmail" maxlength="150" required autocomplete="off"><div class="form-text" id="facultyLoginEmailNote"></div></div>
-          <div class="mb-3"><label for="facultyLoginStatus" class="form-label">Login Status</label><select class="form-select" id="facultyLoginStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select><div class="form-text">Inactive accounts cannot sign in.</div></div>
+          <div class="mb-3" id="facultyLoginEmailField" hidden><label for="facultyLoginEmail" class="form-label">Institutional Email for New Login</label><input type="email" class="form-control" id="facultyLoginEmail" maxlength="150" required autocomplete="off" disabled><div class="form-text" id="facultyLoginEmailNote"></div></div>
+          <div class="mb-3"><label for="facultyLoginStatus" class="form-label">Login Status</label><select class="form-select" id="facultyLoginStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select><div class="form-text" id="facultyLoginStatusNote">Inactive accounts cannot sign in.</div></div>
           <div class="mb-3"><span class="form-label d-block">Assigned Roles</span>
-            <label class="faculty-login-role mb-2" for="facultyLoginProfessor"><input type="checkbox" class="form-check-input" id="facultyLoginProfessor" value="professor"><span><strong>Professor</strong><small class="text-muted d-block">Faculty workspace and teaching assignments</small></span></label>
+            <label class="faculty-login-role mb-2" for="facultyLoginProfessor"><input type="checkbox" class="form-check-input" id="facultyLoginProfessor" value="professor"><span><strong>Faculty</strong><small class="text-muted d-block">Faculty workspace and teaching assignments</small></span></label>
             <label class="faculty-login-role" for="facultyLoginScheduler"><input type="checkbox" class="form-check-input" id="facultyLoginScheduler" value="scheduler"><span><strong>Scheduler</strong><small class="text-muted d-block"><?= htmlspecialchars($collegeLabel, ENT_QUOTES, 'UTF-8') ?></small></span></label>
           </div>
-          <div class="mb-0"><label for="facultyLoginPrimary" class="form-label">Default Workspace</label><select class="form-select" id="facultyLoginPrimary" required></select></div>
+          <div class="mb-0" id="facultyLoginPrimaryField"><label for="facultyLoginPrimary" class="form-label">Default Workspace</label><select class="form-select" id="facultyLoginPrimary" required></select></div>
         </fieldset>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" id="facultyLoginSave" disabled>Save Login Access</button></div>

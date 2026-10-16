@@ -38,6 +38,22 @@ function synk_chair_account_scope_rows(mysqli $conn, array $userIds, bool $lock 
     return $byUser;
 }
 
+function synk_chair_account_role_state(?array $account, array $rows): array
+{
+    // Explicit role assignments take precedence over legacy/empty account.role values.
+    if (!$rows && $account && trim((string)$account['role']) !== '') {
+        $rows = [['role'=>$account['role'],'status'=>'active','is_primary'=>1]];
+    }
+    $active = array_values(array_filter($rows, static function (array $row): bool { return $row['status']==='active'; }));
+    $protected = array_values(array_filter($rows, static function (array $row): bool {
+        return !in_array($row['role'], ['professor','scheduler'], true);
+    }));
+    $primary = synk_useraccount_primary_role($active, (string)($account['role'] ?? '')) ?: 'professor';
+    $primaryLocked = !in_array($primary, ['professor','scheduler'], true);
+    return ['roles'=>array_column($active,'role'), 'protected_roles'=>$protected, 'primary_role'=>$primary,
+        'can_manage_status'=>!$protected, 'can_manage_primary'=>!$primaryLocked];
+}
+
 function synk_chair_account_permission(array $faculty, ?array $account, array $roleRows, array $accessRows, array $scope): string
 {
     if (((int)($faculty['college_id'] ?? 0) !== 0 && (int)$faculty['college_id'] !== $scope['college_id'])
@@ -45,10 +61,8 @@ function synk_chair_account_permission(array $faculty, ?array $account, array $r
         return 'This faculty member’s home college is outside your assigned college. Ask an administrator to manage this login.';
     }
     if (!$account) return '';
-    $codes = array_column($roleRows,'role');
-    $codes[] = (string)$account['role'];
-    if (array_diff($codes,['professor','scheduler'])) {
-        return 'This account has roles managed by an administrator. Its login access must be managed there.';
+    if (!$roleRows && trim((string)$account['role']) !== '' && !in_array($account['role'],synk_supported_module_roles(),true)) {
+        return 'This legacy account needs administrator review before its login access can be updated.';
     }
     if ((int)($account['college_id'] ?? 0) !== 0 && (int)$account['college_id'] !== $scope['college_id']) {
         return 'This account belongs to another college. Ask an administrator to manage this login.';
@@ -68,11 +82,11 @@ function synk_chair_account_enrich_rows(mysqli $conn, array $rows, array $scope)
         $id = (int)$row['login_user_id'];
         $account = $id ? ['role'=>$row['login_primary_role'],'college_id'=>$row['login_college_id']] : null;
         $roleRows = $roles[$id] ?? [];
-        $row['faculty_email'] = synk_normalize_email((string)$row['faculty_email']);
         $reason = synk_chair_account_permission($row,$account,$roleRows,$access[$id] ?? [],$scope);
         $row['login_can_manage'] = $reason === '';
         $row['login_reason'] = $reason;
-        $row['login_roles'] = $roleRows ? array_values(array_column(array_filter($roleRows,static function (array $role): bool { return $role['status']==='active'; }),'role')) : ($id ? [$row['login_primary_role']] : []);
+        $state = synk_chair_account_role_state($account,$roleRows);
+        $row['login_roles'] = array_values(array_intersect($state['roles'],['professor','scheduler']));
     }
     unset($row);
     return $rows;
@@ -99,9 +113,8 @@ function synk_chair_account_target(mysqli $conn, array $scope, array $term, int 
     }
     $reason = synk_chair_account_permission($faculty,$account,$roles,$access,$scope);
     $revision = hash('sha256',json_encode([$faculty,$account,$roles,$access]));
-    $activeRoles = $roles ? array_values(array_column(array_filter($roles,static function (array $row): bool { return $row['status']==='active'; }),'role')) : ($account ? [$account['role']] : []);
     return ['faculty'=>$faculty,'account'=>$account,'role_rows'=>$roles,'scope_rows'=>$access,
-        'roles'=>$activeRoles,'can_manage'=>$reason==='', 'reason'=>$reason, 'revision'=>$revision];
+        'can_manage'=>$reason==='', 'reason'=>$reason, 'revision'=>$revision] + synk_chair_account_role_state($account,$roles);
 }
 
 function synk_chair_account_public(mysqli $conn, array $target, array $term): array
@@ -110,27 +123,45 @@ function synk_chair_account_public(mysqli $conn, array $target, array $term): ar
     $reason = $target['reason'];
     if (empty($term['is_current'])) $reason = 'This term is for viewing only. Switch to the current term to manage login access.';
     return ['faculty_id'=>(int)$target['faculty']['faculty_id'],'faculty_name'=>synk_professor_full_name_from_row($target['faculty']),
-        'exists'=>$account!==null, 'email'=>$account ? synk_normalize_email((string)$account['email']) : '',
-        'status'=>$account['status'] ?? 'active','roles'=>$target['roles'],'primary_role'=>$account['role'] ?? 'professor',
+        'exists'=>$account!==null,
+        'status'=>$account['status'] ?? 'active','roles'=>array_values(array_intersect($target['roles'],['professor','scheduler'])),
+        'primary_role'=>$target['can_manage_primary'] ? $target['primary_role'] : '',
+        'can_manage_status'=>$target['can_manage_status'],'can_manage_primary'=>$target['can_manage_primary'],
         'can_manage'=>$reason==='', 'reason'=>$reason, 'revision'=>$target['revision'],
         'allowed_domain'=>synk_auth_settings()['allowed_domain'],'email_max_length'=>synk_chair_account_field_limits($conn)['email']];
+}
+
+function synk_chair_account_save_roles(mysqli $conn, int $userId, array $target, array $roles, string $primary): void
+{
+    // Never delete, reactivate, or change the default flag on administrator-managed roles.
+    if (!$target['role_rows']) {
+        foreach ($target['protected_roles'] as $role) {
+            synk_chair_faculty_query($conn,"INSERT INTO tbl_useraccount_roles (user_id,role,is_primary,status) VALUES (?,?,?,?)",
+                'isis',[$userId,$role['role'],(int)$role['is_primary'],$role['status']]);
+        }
+    }
+    synk_chair_faculty_query($conn,"DELETE FROM tbl_useraccount_roles WHERE user_id=? AND role IN ('professor','scheduler')",'i',[$userId]);
+    foreach ($roles as $role) {
+        synk_chair_faculty_query($conn,"INSERT INTO tbl_useraccount_roles (user_id,role,is_primary,status) VALUES (?,?,?,'active')",
+            'isi',[$userId,$role,$role===$primary ? 1 : 0]);
+    }
 }
 
 function synk_chair_account_save(mysqli $conn, array $input): array
 {
     $allowed = ['action','faculty_id','college_id','campus_id','ay_id','semester','csrf_token','account_revision','email','status','roles_json','primary_role'];
     if (array_diff(array_keys($input),$allowed)) throw new DomainException('This request contains account fields you cannot manage.',400);
-    foreach (['account_revision','email','status','roles_json','primary_role'] as $field) if (!is_string($input[$field] ?? null)) throw new DomainException('Complete the login access form.',400);
+    foreach (['account_revision','status','roles_json'] as $field) if (!is_string($input[$field] ?? null)) throw new DomainException('Complete the login access form.',400);
+    foreach (['email','primary_role'] as $field) if (array_key_exists($field,$input) && !is_string($input[$field])) throw new DomainException('Complete the login access form.',400);
     $roles = json_decode($input['roles_json'],true);
-    if (!is_array($roles) || !$roles || array_values($roles)!==$roles || count($roles)>2) throw new DomainException('Select Professor, Scheduler, or both roles.',422);
-    foreach ($roles as $role) if (!is_string($role) || !in_array($role,['professor','scheduler'],true)) throw new DomainException('Program Chair can assign only Professor and Scheduler roles.',403);
+    if (!is_array($roles) || !$roles || array_values($roles)!==$roles || count($roles)>2) throw new DomainException('Select Faculty, Scheduler, or both roles.',422);
+    foreach ($roles as $role) if (!is_string($role) || !in_array($role,['professor','scheduler'],true)) throw new DomainException('Program Chair can assign only Faculty and Scheduler roles.',403);
     if (count(array_unique($roles))!==count($roles)) throw new DomainException('Select each role once.',422);
-    $primary = $input['primary_role'];
-    if (!in_array($primary,$roles,true)) throw new DomainException('Choose a default workspace from the selected roles.',422);
+    $primary = $input['primary_role'] ?? '';
     $status = $input['status'];
     if (!in_array($status,['active','inactive'],true)) throw new DomainException('Choose Active or Inactive login access.',422);
     $facultyId = synk_scheduler_list_id($input['faculty_id'] ?? null);
-    $email = synk_normalize_email($input['email']);
+    $email = synk_normalize_email($input['email'] ?? '');
     $conn->begin_transaction();
     try {
         $context = synk_chair_faculty_lock_write($conn,$input);
@@ -138,10 +169,19 @@ function synk_chair_account_save(mysqli $conn, array $input): array
         $target = synk_chair_account_target($conn,$context['scope'],$term,$facultyId,true);
         if (!$target['can_manage']) throw new DomainException($target['reason'],403);
         if (!hash_equals($target['revision'],$input['account_revision'])) throw new DomainException('This account changed since you opened it. Reopen Login Access before saving.',409);
+        if (!$target['can_manage_primary']) {
+            if (isset($input['primary_role']) && $primary!==$target['primary_role']) throw new DomainException('This default workspace is managed by the administrator.',403);
+            $primary = $target['primary_role'];
+        } elseif (!in_array($primary,$roles,true)) {
+            throw new DomainException('Choose a default workspace from the selected roles.',422);
+        }
+        if (!$target['can_manage_status'] && $status!==$target['account']['status']) {
+            throw new DomainException('The shared login status is managed by the administrator for this account.',403);
+        }
         if (($status==='active' || !$target['account']) && $target['faculty']['status']!=='active') throw new DomainException('Activate the faculty record through the administrator before enabling its login.',422);
         $account = $target['account'];
         if ($account) {
-            if ($email!==synk_normalize_email((string)$account['email'])) throw new DomainException('An existing account’s email must be changed by an administrator.',403);
+            if (isset($input['email']) && $email!==synk_normalize_email((string)$account['email'])) throw new DomainException('An existing account’s email must be changed by an administrator.',403);
             $userId = (int)$account['user_id'];
             synk_chair_faculty_query($conn,'UPDATE tbl_useraccount SET role=?,status=? WHERE user_id=?','ssi',[$primary,$status,$userId]);
         } else {
@@ -165,7 +205,7 @@ function synk_chair_account_save(mysqli $conn, array $input): array
             $error = synk_professor_insert_auto_account_link($conn,$userId,$facultyId);
             if ($error!==null) throw new RuntimeException('Unable to link the faculty login account.');
         }
-        if (synk_persist_useraccount_roles($conn,$userId,$roles,$primary)!==null) throw new RuntimeException('Unable to save faculty login roles.');
+        synk_chair_account_save_roles($conn,$userId,$target,$roles,$primary);
         if (synk_persist_scheduler_college_access($conn,$userId,$roles,[$context['scope']['college_id']],$context['scope']['college_id'])!==null) throw new RuntimeException('Unable to save faculty login college access.');
         // Shared-login setup clears the fallback college when Scheduler is absent.
         // Preserve the assigned college for these faculty logins as their account scope.

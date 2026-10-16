@@ -956,8 +956,6 @@ function appendFacultyRows(rows, startIndex) {
     const assignedHtml = buildAssignedHtml(row);
     const actionHtml = buildActionHtml(row);
     const safeName = escapeHtml(row.full_name || "Unnamed Faculty");
-    const email = String(row.faculty_email || "").trim().toLowerCase();
-    const emailHtml = email ? "<em class='faculty-email'>" + escapeHtml(email) + "</em>" : "<small class='faculty-email-empty'>No login account</small>";
     const loginHtml = buildFacultyLoginHtml(row);
     const assignmentId = escapeHtml(String(row.college_faculty_id || 0));
     const facultyId = escapeHtml(String(row.faculty_id || 0));
@@ -965,7 +963,7 @@ function appendFacultyRows(rows, startIndex) {
     tableRows.push(
       "<tr data-assignment-id='" + assignmentId + "' data-faculty-id='" + facultyId + "'>" +
         "<td class='faculty-index'>" + sequence + "</td>" +
-        "<td><div class='faculty-name'>" + safeName + "</div>" + emailHtml + loginHtml + "</td>" +
+        "<td><div class='faculty-name'>" + safeName + "</div>" + loginHtml + "</td>" +
         "<td class='faculty-designation-slot'>" + designationHtml + "</td>" +
         "<td class='faculty-classification-slot'>" + classificationHtml + "</td>" +
         "<td>" + assignedHtml + "</td>" +
@@ -980,7 +978,7 @@ function appendFacultyRows(rows, startIndex) {
             "<div>" +
               "<span class='faculty-mobile-index'>#" + sequence + "</span>" +
               "<h6 class='faculty-mobile-name'>" + safeName + "</h6>" +
-              emailHtml + loginHtml +
+              loginHtml +
               "<div class='faculty-designation-slot'>" + designationHtml + "</div>" +
             "</div>" +
           "</div>" +
@@ -1169,9 +1167,14 @@ function buildFacultyLoginHtml(row) {
   const status = String(row.login_status || "");
   const statusText = status === "active" ? "Login active" : status === "inactive" ? "Login inactive" : "Set up login";
   const badge = status ? "<span class='faculty-login-state " + (status === "active" ? "is-active" : "is-inactive") + "'>" + escapeHtml(statusText) + "</span>" : "";
-  if (!facultyCanManage) return "<div class='faculty-login-summary'>" + badge + "</div>";
-  if (row.login_can_manage === false) return "<div class='faculty-login-summary'>" + badge + "<small class='text-muted' title='" + escapeHtml(row.login_reason || "") + "'>Managed by administrator</small></div>";
-  return "<div class='faculty-login-summary'>" + badge + "<button type='button' class='btn btn-sm btn-outline-info btn-manage-login' data-faculty-id='" + escapeHtml(String(row.faculty_id || 0)) + "'><i class='bx bx-lock-open-alt' aria-hidden='true'></i> " + (status ? "Login Access" : "Set Up Login") + "</button></div>";
+  const roleLabels = {professor:"Faculty",scheduler:"Scheduler"};
+  const assignedRoles = Array.isArray(row.login_roles) ? row.login_roles : [];
+  const roles = Object.keys(roleLabels).filter(role => assignedRoles.includes(role)).map(role =>
+    "<span class='faculty-login-state is-role'>" + escapeHtml(roleLabels[role] || role) + "</span>"
+  ).join("");
+  const button = facultyCanManage ? "<button type='button' class='btn btn-sm btn-outline-info btn-manage-login' data-faculty-id='" + escapeHtml(String(row.faculty_id || 0)) + "' aria-label='Login Access for " + escapeHtml(row.full_name || "faculty") + "'><i class='bx bx-lock-open-alt' aria-hidden='true'></i> Login Access</button>" : "";
+  return "<div class='faculty-login-summary'><div class='faculty-login-labels'>" + badge + roles + "</div>" +
+    (button ? "<div class='faculty-login-action'>" + button + "</div>" : "") + "</div>";
 }
 
 function toggleFacultyLoading(isLoading) {
