@@ -79,6 +79,27 @@ if ($collegePortalIsChair) {
         'title' => 'College Faculty', 'description' => 'Manage faculty assignments and lists',
         'pages' => ['manage-college-faculty.php'],
     ]]);
+    $programMenuIndex = array_search('programs',array_column($collegeDeanSidebarItems,'key'),true);
+    array_splice($collegeDeanSidebarItems,$programMenuIndex+1,0,[[
+        'key'=>'curriculum','href'=>'manage-prospectus-browser.php','icon_bg'=>'bg-label-warning','icon'=>'bx-book-open',
+        'title'=>'Curriculum','description'=>'Manage prospectuses and subjects in your college',
+        'pages'=>['manage-prospectus.php','manage-prospectus-browser.php','view-prospectus.php'],
+        'children'=>[
+            ['href'=>'manage-prospectus-browser.php','title'=>'Curriculum Browser','icon'=>'bx-search-alt'],
+            ['href'=>'manage-prospectus.php','title'=>'Curriculum Builder','icon'=>'bx-edit-alt'],
+        ],
+    ]]);
+
+    $chairSidebarByKey = array_column($collegeDeanSidebarItems, null, 'key');
+    $chairSidebarByKey['manage-college-faculty']['section'] = 'Faculty Management';
+    $chairSidebarByKey['faculty-profile']['title'] = 'Faculty Profiles';
+    $chairSidebarByKey['programs']['section'] = 'Academic Management';
+    $chairSidebarByKey['reports']['section_separator'] = true;
+    $chairSidebarByKey['reports']['children'][0]['title'] = 'Faculty & Student Summary';
+    $collegeDeanSidebarItems = array_map(static function (string $key) use ($chairSidebarByKey): array {
+        return $chairSidebarByKey[$key];
+    }, ['dashboard','manage-college-faculty','faculty-profile','faculty-workload','faculty-evaluations',
+        'programs','curriculum','students','reports']);
 }
 
 $collegeDeanSidebarActiveKey = 'dashboard';
@@ -195,6 +216,21 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
       line-height: 0.92rem;
     }
 
+    #layout-menu .chair-sidebar-section {
+      margin: 0.8rem 0 0.15rem;
+      padding: 0.25rem 1.1rem;
+      font-size: 0.65rem;
+      font-weight: 600;
+      line-height: 1rem;
+      letter-spacing: 0.06em;
+      color: #8391a7;
+    }
+    #layout-menu .chair-sidebar-section-start {
+      margin-top: 0.7rem;
+      padding-top: 0.45rem;
+      border-top: 1px solid #e4e8f0;
+    }
+
     #layout-menu .college-dean-report-group > summary { list-style: none; cursor: pointer; }
     #layout-menu .college-dean-report-group > summary::-webkit-details-marker { display: none; }
     #layout-menu .college-dean-report-chevron { margin-left: auto; flex-shrink: 0; color: #8391a7; }
@@ -220,7 +256,10 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
     </li>
 
     <?php foreach ($collegeDeanSidebarItems as $sidebarItem): ?>
-      <li class="menu-item px-2<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>">
+      <?php if (!empty($sidebarItem['section'])): ?>
+        <li class="menu-header small text-uppercase chair-sidebar-section"><span class="menu-header-text"><?= htmlspecialchars($sidebarItem['section'], ENT_QUOTES, 'UTF-8') ?></span></li>
+      <?php endif; ?>
+      <li class="menu-item px-2<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?><?php echo !empty($sidebarItem['section_separator']) ? ' chair-sidebar-section-start' : ''; ?>">
         <?php if (!empty($sidebarItem['children'])): ?>
           <details class="college-dean-report-group"<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' open' : ''; ?>>
             <summary class="college-dean-menu-card<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>">
@@ -229,7 +268,9 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
               <i class="bx bx-chevron-right college-dean-report-chevron" aria-hidden="true"></i>
             </summary>
             <ul class="college-dean-report-links">
-              <?php foreach ($sidebarItem['children'] as $reportItem): $reportIsActive = $collegeDeanSidebarCurrentPage === $reportItem['href']; ?>
+              <?php foreach ($sidebarItem['children'] as $reportItem):
+                $reportIsActive = $collegeDeanSidebarCurrentPage === $reportItem['href']
+                  || ($collegePortalIsChair && $collegeDeanSidebarCurrentPage === 'view-prospectus.php' && $reportItem['href'] === 'manage-prospectus-browser.php'); ?>
                 <li><a href="<?php echo htmlspecialchars($reportItem['href'], ENT_QUOTES, 'UTF-8'); ?>" class="college-dean-report-link<?php echo $reportIsActive ? ' is-active' : ''; ?>"<?php echo $reportIsActive ? ' aria-current="page"' : ''; ?>><i class="bx <?php echo htmlspecialchars($reportItem['icon'], ENT_QUOTES, 'UTF-8'); ?>" aria-hidden="true"></i><span><?php echo htmlspecialchars($reportItem['title'], ENT_QUOTES, 'UTF-8'); ?></span></a></li>
               <?php endforeach; ?>
             </ul>
@@ -238,6 +279,7 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
         <a
           href="<?php echo htmlspecialchars($sidebarItem['href'], ENT_QUOTES, 'UTF-8'); ?>"
           class="menu-link college-dean-menu-card<?php echo $collegeDeanSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>"
+          <?php if ($collegePortalIsChair && $collegeDeanSidebarActiveKey === $sidebarItem['key']): ?>aria-current="page"<?php endif; ?>
         >
           <span class="college-dean-menu-icon <?php echo htmlspecialchars($sidebarItem['icon_bg'], ENT_QUOTES, 'UTF-8'); ?>">
             <i class="bx <?php echo htmlspecialchars($sidebarItem['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i>

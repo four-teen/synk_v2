@@ -1,6 +1,9 @@
 <?php
-session_start();
-include '../backend/db.php';
+if (session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/program_chair_curriculum_helper.php';
+$collegeDeanPortalContext = synk_chair_curriculum_prepare_view($conn);
+$curriculumIsChair = $collegeDeanPortalContext!==null;
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
@@ -17,6 +20,7 @@ if ($pid <= 0) {
 <html lang="en" class="light-style layout-menu-fixed">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Prospectus Builder | Synk</title>
 
     <link rel="icon" type="image/png" href="../assets/img/favicon/synk-icon.png" />
@@ -63,10 +67,10 @@ table.prospectus-table td {
 <body>
 <div class="layout-wrapper layout-content-navbar">
 <div class="layout-container">
-<?php include 'sidebar.php'; ?>
+<?php include $curriculumIsChair ? __DIR__ . '/../program-chair/sidebar.php' : __DIR__ . '/sidebar.php'; ?>
 
 <div class="layout-page">
-<?php include 'navbar.php'; ?>
+<?php include $curriculumIsChair ? __DIR__ . '/../program-chair/navbar.php' : __DIR__ . '/navbar.php'; ?>
 
 <div class="content-wrapper">
 <div class="container-xxl container-p-y">
