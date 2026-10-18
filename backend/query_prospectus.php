@@ -1,8 +1,8 @@
 <?php
-session_start();
+if (session_status()!==PHP_SESSION_ACTIVE) session_start();
 ob_start();
 
-include '../backend/db.php';
+require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/schedule_block_helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
@@ -12,7 +12,12 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 
 $role = $_SESSION['role'];
 $myCollege = intval($_SESSION['college_id'] ?? 0);
-if (!in_array($role, ['admin', 'scheduler'], true)) {
+$isProgramChair = $role==='program_chair';
+if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
+    require_once __DIR__ . '/program_chair_curriculum_helper.php';
+    $myCollege = synk_chair_curriculum_authorize($conn,'builder');
+}
+if (!in_array($role, ['admin', 'scheduler', 'program_chair'], true)) {
     echo "ERROR|Unauthorized access.";
     exit;
 }
@@ -40,7 +45,7 @@ if ($requires_csrf) {
         exit;
     }
 
-    if ($role !== 'admin') {
+    if ($role !== 'admin' && !$isProgramChair) {
         echo "ERROR|Administrator access required.";
         exit;
     }
@@ -209,7 +214,7 @@ if (isset($_POST['delete_year_sem'])) {
 
     global $conn;
 
-    $conn->begin_transaction();
+    if (!$isProgramChair) $conn->begin_transaction();
     try {
         // Delete all subject mappings under this PYS
         $sql = "DELETE FROM tbl_prospectus_subjects WHERE pys_id = ?";
@@ -229,10 +234,10 @@ if (isset($_POST['delete_year_sem'])) {
             throw new Exception("Unable to delete Year & Semester.");
         }
 
-        $conn->commit();
+        if (!$isProgramChair) $conn->commit();
         echo "OK|Year & Semester removed successfully.";
     } catch (Exception $e) {
-        $conn->rollback();
+        if (!$isProgramChair) $conn->rollback();
         echo "ERROR|" . $e->getMessage();
     }
     exit;
@@ -278,7 +283,12 @@ if (isset($_POST['load_prospectus_list'])) {
     // ADMIN: All colleges, but ONLY prospectuses
     //        that already contain at least one subject
     // --------------------------------------------------
-    if ($role === 'admin') {
+    if ($isProgramChair) {
+        $sql = "SELECT h.prospectus_id,h.cmo_no,h.effective_sy,p.program_name,p.program_code,p.major,ca.campus_code
+            FROM tbl_prospectus_header h JOIN tbl_program p ON p.program_id=h.program_id
+            JOIN tbl_college c ON c.college_id=p.college_id JOIN tbl_campus ca ON ca.campus_id=c.campus_id
+            WHERE p.college_id=? ORDER BY h.prospectus_id DESC";
+    } elseif ($role === 'admin') {
 
         $sql = "
             SELECT DISTINCT
@@ -361,6 +371,15 @@ if (isset($_POST['load_prospectus_list'])) {
 
 
 if (isset($_POST['list_headers'])) {
+
+    if ($isProgramChair) {
+        $rows = synk_chair_curriculum_query($conn,"SELECT h.prospectus_id,h.cmo_no,h.effective_sy,p.program_code
+            FROM tbl_prospectus_header h JOIN tbl_program p ON p.program_id=h.program_id WHERE p.college_id=? ORDER BY h.prospectus_id DESC",'i',[$myCollege]);
+        foreach ($rows as $row) {
+            echo '<option value="'.(int)$row['prospectus_id'].'">'.htmlspecialchars($row['program_code'].' - '.$row['cmo_no'].' - '.$row['effective_sy'],ENT_QUOTES,'UTF-8').'</option>';
+        }
+        exit;
+    }
 
     $sql = "
         SELECT h.prospectus_id, h.cmo_no, h.effective_sy,

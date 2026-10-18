@@ -1,8 +1,14 @@
 <?php
-session_start();
-include 'db.php';
+if (session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__ . '/db.php';
+$isProgramChair = ($_SESSION['role'] ?? '')==='program_chair';
+$myCollege = 0;
+if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
+    require_once __DIR__ . '/program_chair_curriculum_helper.php';
+    $myCollege = synk_chair_curriculum_authorize($conn,'copy');
+}
 
-if (!isset($_SESSION['user_id']) || (string)($_SESSION['role'] ?? '') !== 'admin') {
+if (!isset($_SESSION['user_id']) || (!in_array((string)($_SESSION['role'] ?? ''),['admin','program_chair'],true))) {
     if (isset($_POST['load_programs'])) {
         header('Content-Type: application/json');
         echo json_encode([]);
@@ -31,7 +37,8 @@ if (isset($_POST['load_programs'])) {
             p.program_name,
             p.program_code,
             p.major,
-            c.campus_code
+            c.campus_code,
+            (SELECT COUNT(*) FROM tbl_prospectus_header h WHERE h.program_id=p.program_id) AS curriculum_count
         FROM tbl_program p
         INNER JOIN tbl_college col
             ON col.college_id = p.college_id
@@ -41,6 +48,11 @@ if (isset($_POST['load_programs'])) {
         ORDER BY c.campus_code, p.program_name, p.major
     ";
 
+    if ($isProgramChair) {
+        $sql = str_replace("WHERE p.status = 'active'","WHERE p.status = 'active' AND p.college_id = ?",$sql);
+        $data = synk_chair_curriculum_query($conn,$sql,'i',[$myCollege]);
+        header('Content-Type: application/json'); echo json_encode($data); exit;
+    }
     $res = $conn->query($sql);
 
     $data = [];

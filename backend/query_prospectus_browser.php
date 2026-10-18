@@ -1,6 +1,6 @@
 <?php
-session_start();
-include 'db.php';
+if (session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/saved_schedule_helper.php';
 
@@ -12,6 +12,11 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 
 $role = (string)$_SESSION['role'];
 $myCollege = (int)($_SESSION['college_id'] ?? 0);
+$isProgramChair = $role==='program_chair';
+if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
+    require_once __DIR__ . '/program_chair_curriculum_helper.php';
+    $myCollege = synk_chair_curriculum_authorize($conn,'browser');
+}
 
 $writeActions = ['update_prospectus_header', 'transfer_prospectus', 'delete_prospectus'];
 foreach ($writeActions as $action) {
@@ -29,7 +34,7 @@ foreach ($writeActions as $action) {
         exit;
     }
 
-    if ($role !== 'admin') {
+    if ($role !== 'admin' && !$isProgramChair) {
         echo "ERROR|Administrator access required.";
         exit;
     }
@@ -109,6 +114,24 @@ function synk_delete_rows_by_id_list(mysqli $conn, string $tableName, string $co
     }
 
     return max(0, (int)$conn->affected_rows);
+}
+
+if (isset($_POST['load_browser_filters']) || isset($_POST['load_browser_prospectuses'])) {
+    header('Content-Type: application/json');
+    require_once __DIR__ . '/prospectus_browser_helper.php';
+    try {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') throw new DomainException('Use a POST request.', 405);
+        if (isset($_POST['load_browser_filters'], $_POST['load_browser_prospectuses'])) throw new DomainException('Choose one browser action.', 400);
+        $result = isset($_POST['load_browser_filters'])
+            ? synk_prospectus_browser_filters($conn, $role, $myCollege)
+            : synk_prospectus_browser_rows($conn, $role, $myCollege, $_POST);
+        echo json_encode($result);
+    } catch (Throwable $exception) {
+        http_response_code($exception instanceof DomainException ? $exception->getCode() : 500);
+        if (!$exception instanceof DomainException) error_log('Prospectus browser: ' . $exception->getMessage());
+        echo json_encode(['error'=>$exception instanceof DomainException ? $exception->getMessage() : 'Unable to load prospectuses. Please try again.']);
+    }
+    exit;
 }
 
 if (isset($_POST['load_prospectus_by_program'])) {
@@ -351,7 +374,7 @@ if (isset($_POST['delete_prospectus'])) {
         exit;
     }
 
-    $conn->begin_transaction();
+    if (!$isProgramChair) $conn->begin_transaction();
 
     try {
         $offeringIds = [];
@@ -522,10 +545,10 @@ if (isset($_POST['delete_prospectus'])) {
         }
         $deleteHeaderStmt->close();
 
-        $conn->commit();
+        if (!$isProgramChair) $conn->commit();
         echo "OK|Prospectus removed successfully.|" . trim((string)$header['cmo_no']) . "|" . trim((string)$header['effective_sy']);
     } catch (Throwable $e) {
-        $conn->rollback();
+        if (!$isProgramChair) $conn->rollback();
         echo "ERROR|" . $e->getMessage();
     }
     exit;
