@@ -27,7 +27,12 @@ campus. Historical inactive imports remain evidence of original membership, so
 past evaluations can be reviewed after a list is superseded. Guessed faculty IDs
 outside the college and term are rejected.
 
-This page reads the existing evaluation tables without schema changes. It accepts
-GET requests only. The clarified request was a clean start before the first
-official evaluation; the local inventory found zero headers and zero answers, so
-no cleanup was required and no continuing reset feature was added.
+The Dean can separately open/close student evaluations and release/hide faculty
+results for the selected college and term. Student collection can open only for
+the current academic year and semester. Historical result releases remain
+independent. Program Chairs retain result viewing but cannot change these
+controls. Changes use authenticated, CSRF-protected POST requests, reject stale
+versions, and write an audit record. No reset or response-deletion action exists.
+
+See `docs/evaluation-access.md` for preparation, student and faculty behavior,
+and historical response ownership.

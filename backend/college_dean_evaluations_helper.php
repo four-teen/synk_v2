@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/college_dean_workload_helper.php';
 require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
+require_once __DIR__ . '/evaluation_access_helper.php';
 
 function synk_dean_evaluations_query(mysqli $conn, string $sql, string $types, array $params): array
 {
@@ -30,17 +31,12 @@ function synk_dean_evaluations_filters(array $input): array
 function synk_dean_evaluations_source(mysqli $conn, array $scope, array $term, string $version): array
 {
     $versionExpr = synk_table_has_column($conn, 'tbl_student_faculty_evaluations', 'instrument_version') ? 'e.instrument_version' : "'legacy-20'";
-    // Match the original student/faculty/term membership in the Dean's college.
-    // Historical imports may be inactive; they remain evidence of that scope.
+    $ownerSql = synk_evaluation_owner_sql($conn, 'e', (int)$scope['college_id']);
     $sql = "FROM tbl_student_faculty_evaluations e
         LEFT JOIN tbl_faculty f ON f.faculty_id=e.faculty_id
-        WHERE e.ay_id=? AND e.semester=? AND EXISTS (
-            SELECT 1 FROM tbl_student_management_enrolled_subjects es
-            WHERE es.student_id=e.student_id AND es.faculty_id=e.faculty_id
-              AND es.ay_id=e.ay_id AND es.semester=e.semester
-              AND es.college_id=? AND es.campus_id=?)";
-    $types = 'iiii';
-    $params = [$term['ay_id'], $term['semester'], $scope['college_id'], $scope['campus_id']];
+        WHERE e.ay_id=? AND e.semester=? AND {$ownerSql}";
+    $types = 'ii';
+    $params = [$term['ay_id'], $term['semester']];
     if ($version !== 'all') { $sql .= ' AND ' . $versionExpr . '=?'; $types .= 's'; $params[] = $version; }
     return ['sql' => $sql, 'types' => $types, 'params' => $params, 'version_expr' => $versionExpr];
 }

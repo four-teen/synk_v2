@@ -55,6 +55,12 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
+if (in_array($scenario,['student_evaluation','student_legacy_draft'],true)) {
+    $conn->query('INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,student_open) VALUES ('.(int)$program['college_id'].','.(int)$term['ay_id'].','.(int)$term['semester'].',1) ON DUPLICATE KEY UPDATE student_open=1');
+}
+if (in_array($scenario,['dean_preview','dean_evaluation'],true)) {
+    $conn->query('INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,student_open) VALUES ('.(int)$program['college_id'].','.(int)$term['ay_id'].','.(int)$term['semester'].',0) ON DUPLICATE KEY UPDATE student_open=0');
+}
 if (in_array($scenario,['dean_preview','dean_evaluation'],true) || strpos($scenario,'dean_faculty_evaluations_')===0) {
     $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_dean_college_id) VALUES ('QA Dean','dean-{$email}','unusable-qa-password','college_dean','active',{$program['college_id']})");
     $deanId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$deanId,['college_dean'],'college_dean');
@@ -134,16 +140,23 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
     if($scenario==='admin_inactive')$conn->query("UPDATE tbl_useraccount SET status='inactive' WHERE user_id={$adminId}");
     if($scenario==='admin_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$adminId} AND role='admin'");
     if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
+if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-access-scenarios.php';
 $protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);
-ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0||strpos($handler,'college-dean/')===0){$base=dirname($handler);$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
+ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0||strpos($handler,'college-dean/')===0||strpos($handler,'professor/')===0||strpos($handler,'program-chair/')===0){$base=dirname($handler);$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
 register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot):void {
     $stmt=$conn->prepare('SELECT submitted_email,google_email,google_name,failure_code,identity_verified,attempt_count,review_status,review_note FROM tbl_student_login_issues WHERE submitted_email LIKE ? ORDER BY issue_id');$like='%'.$tag.'%';$stmt->bind_param('s',$like);$stmt->execute();$issues=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
     // The deliberate invalid-address preflight scenarios use non-tagged emails.
     if(isset($_POST['email'])&&in_array($_POST['email'],['invalid email','qa@example.com'],true))$issues=$conn->query("SELECT submitted_email,google_email,failure_code,identity_verified,attempt_count,review_status FROM tbl_student_login_issues WHERE submitted_email IN ('invalid email','qa@example.com')")->fetch_all(MYSQLI_ASSOC);
     header('X-QA-Issues: '.rawurlencode(json_encode($issues)));header('X-QA-Students: '.rawurlencode(json_encode($students)));
     header('X-QA-Protected-Unchanged: '.($snapshot($protected)===$protectedBefore?'yes':'no'));
+    if (strpos($_GET['scenario'] ?? '','evaluation_access_')===0) {
+        $state=$conn->query('SELECT college_id,faculty_id,submission_status FROM tbl_student_faculty_evaluations WHERE student_id='.(int)$students['first'].' ORDER BY college_id,faculty_id')->fetch_all(MYSQLI_ASSOC);
+        $controls=$conn->query('SELECT college_id,ay_id,semester,student_open,faculty_released,version FROM tbl_college_evaluation_settings ORDER BY college_id,ay_id,semester')->fetch_all(MYSQLI_ASSOC);
+        $audit=$conn->query("SELECT control_name,previous_value,new_value FROM tbl_college_evaluation_audit WHERE user_id=".(int)($_SESSION['user_id'] ?? 0).' ORDER BY audit_id')->fetch_all(MYSQLI_ASSOC);
+        header('X-QA-Evaluation-State: '.rawurlencode(json_encode(['responses'=>$state,'controls'=>$controls,'audit'=>$audit])));
+    }
     header('X-QA-OAuth-Pending: '.rawurlencode(json_encode(['student'=>isset($_SESSION['student_google_oauth_state']),'main'=>isset($_SESSION['google_oauth_state'])])));
     $conn->requestMode=false;$conn->rollback();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();
 });

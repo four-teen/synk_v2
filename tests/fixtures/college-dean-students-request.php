@@ -146,6 +146,7 @@ $takeState=static function () use ($conn): string {
     return hash('sha256',json_encode($rows));
 };
 if (strpos($scenario,'preview_')===0) {
+    $conn->query('INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,student_open) VALUES ('.(int)$scope['college_id'].','.(int)$term['ay_id'].','.(int)$term['semester'].',0) ON DUPLICATE KEY UPDATE student_open=0');
     $handler='student/index.php'; $_SERVER['REQUEST_METHOD']='GET'; $_POST=[];
     $_GET=['preview_student_id'=>$profiles['shared']['student_id'],'student_term'=>$term['ay_id'].':'.$term['semester'],'return_to'=>'../college-dean/students.php'];
     $_SERVER['PHP_SELF']='/synk/'.$handler;

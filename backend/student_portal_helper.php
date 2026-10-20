@@ -8,6 +8,7 @@ require_once __DIR__ . '/schedule_block_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
+require_once __DIR__ . '/evaluation_access_helper.php';
 
 function synk_student_preview_student_id_from_request(): int
 {
@@ -84,6 +85,29 @@ function synk_student_preview_subject_scope_sql(mysqli $conn): string
 {
     $scope = synk_student_preview_college_scope($conn);
     return $scope ? ' AND es.college_id='.(int)$scope['college_id'].' AND es.campus_id='.(int)$scope['campus_id'] : '';
+}
+
+// Student navigation, including Show Account, follows current collection access.
+// Historical responses remain available to authorized read-only review routes.
+function synk_student_evaluation_navigation(mysqli $conn, int $studentId): ?array
+{
+    if ($studentId <= 0 || !synk_evaluation_table_exists($conn, 'tbl_college_evaluation_settings')) return null;
+    $current = synk_fetch_current_academic_term($conn);
+    if ((int)$current['ay_id'] <= 0 || (int)$current['semester'] <= 0) return null;
+
+    $scope = synk_student_preview_college_scope($conn);
+    $scopeSql = $scope ? ' AND c.college_id='.(int)$scope['college_id'].' AND c.campus_id='.(int)$scope['campus_id'] : '';
+    $colleges = synk_evaluation_query($conn, "SELECT c.college_id
+        FROM tbl_college_evaluation_settings s
+        JOIN tbl_college c ON c.college_id=s.college_id AND c.status='active'
+        JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
+        WHERE s.ay_id=? AND s.semester=? AND s.student_open=1 {$scopeSql}
+          AND EXISTS (SELECT 1 FROM tbl_student_management_enrolled_subjects es
+              WHERE es.student_id=? AND es.college_id=c.college_id AND es.campus_id=c.campus_id
+                AND es.ay_id=s.ay_id AND es.semester=s.semester AND es.is_active=1 AND es.faculty_id>0)
+        ORDER BY c.college_name,c.college_id LIMIT 1", 'iii', [(int)$current['ay_id'],(int)$current['semester'],$studentId]);
+    if (!$colleges) return null;
+    return ['term_key'=>$current['ay_id'].'-'.$current['semester'], 'evaluation_college_id'=>(int)$colleges[0]['college_id']];
 }
 
 function synk_student_build_portal_url(string $path, array $query = []): string
@@ -438,7 +462,6 @@ function synk_student_fetch_faculty_term_options(mysqli $conn, int $studentId): 
         LEFT JOIN tbl_academic_years ay
             ON ay.ay_id = es.ay_id
         WHERE es.student_id = ?
-          AND es.is_active = 1
           {$previewScopeSql}
         GROUP BY es.ay_id, es.semester, ay.ay
         ORDER BY es.ay_id DESC, es.semester DESC, latest_activity_at DESC
@@ -477,10 +500,24 @@ function synk_student_fetch_faculty_term_options(mysqli $conn, int $studentId): 
     }
 
     $stmt->close();
+    // Saved responses remain discoverable even after their roster is superseded or removed.
+    if (synk_evaluation_table_exists($conn,'tbl_student_faculty_evaluations')) {
+        $preview=synk_student_preview_college_scope($conn);
+        $scope=$preview ? ' AND '.synk_evaluation_owner_sql($conn,'e',(int)$preview['college_id']) : '';
+        $saved=synk_evaluation_query($conn,"SELECT DISTINCT e.ay_id,e.semester,COALESCE(ay.ay,'') AS ay_label FROM tbl_student_faculty_evaluations e LEFT JOIN tbl_academic_years ay ON ay.ay_id=e.ay_id WHERE e.student_id=? {$scope}",'i',[$studentId]);
+        $known=array_column($rows,'term_key');
+        foreach ($saved as $term) {
+            $key=$term['ay_id'].'-'.$term['semester'];
+            if (!in_array($key,$known,true)) $rows[]=['term_key'=>$key,'ay_id'=>(int)$term['ay_id'],'semester'=>(int)$term['semester'],
+                'academic_year_label'=>$term['ay_label'],'semester_label'=>synk_semester_label((int)$term['semester']),
+                'term_label'=>trim($term['ay_label'].' - '.synk_semester_label((int)$term['semester'])),'subject_count'=>0];
+        }
+        usort($rows,static function(array $a,array $b):int { return [$b['ay_id'],$b['semester']]<=>[$a['ay_id'],$a['semester']]; });
+    }
     return $rows;
 }
 
-function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId, int $ayId, int $semester): array
+function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId, int $ayId, int $semester, int $collegeId = 0): array
 {
     if (
         $studentId <= 0
@@ -493,6 +530,9 @@ function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId,
 
     $tableName = synk_student_portal_enrollment_table_name();
     $previewScopeSql = synk_student_preview_subject_scope_sql($conn);
+    if ($collegeId > 0) $previewScopeSql .= ' AND es.college_id=' . $collegeId . ' AND es.campus_id=(SELECT campus_id FROM tbl_college WHERE college_id='.$collegeId.')';
+    $historical = !synk_evaluation_is_current(['ay_id'=>$ayId,'semester'=>$semester], synk_fetch_current_academic_term($conn));
+    $activeSql = $historical ? '' : ' AND es.is_active=1';
     $stmt = $conn->prepare("
         SELECT
             es.student_enrollment_id,
@@ -517,7 +557,7 @@ function synk_student_fetch_faculty_cards_for_term(mysqli $conn, int $studentId,
         WHERE es.student_id = ?
           AND es.ay_id = ?
           AND es.semester = ?
-          AND es.is_active = 1
+          {$activeSql}
           {$previewScopeSql}
         ORDER BY
             CASE
@@ -636,7 +676,7 @@ function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ";
 
-    if (!$conn->query($headerSql)) {
+    if (!synk_evaluation_table_exists($conn, $headerTable) && !$conn->query($headerSql)) {
         throw new RuntimeException('Unable to prepare the faculty evaluation records table.');
     }
 
@@ -657,7 +697,7 @@ function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ";
 
-    if (!$conn->query($answerSql)) {
+    if (!synk_evaluation_table_exists($conn, $answerTable) && !$conn->query($answerSql)) {
         throw new RuntimeException('Unable to prepare the faculty evaluation answer records table.');
     }
 
@@ -712,6 +752,7 @@ function synk_student_faculty_evaluation_ensure_schema(mysqli $conn): void
             throw new RuntimeException('Unable to record the faculty evaluation instrument version.');
         }
     }
+    synk_evaluation_ensure_access_schema($conn);
 }
 
 function synk_student_generate_faculty_evaluation_token(): string
@@ -736,7 +777,7 @@ function synk_student_generate_faculty_final_submission_token(): string
     return 'FEV-FINAL-' . date('YmdHis') . '-' . $random;
 }
 
-function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $studentId, int $ayId, int $semester): array
+function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $studentId, int $ayId, int $semester, int $collegeId = 0): array
 {
     if ($studentId <= 0 || $ayId <= 0 || $semester <= 0) {
         return [];
@@ -755,15 +796,16 @@ function synk_student_fetch_faculty_evaluations_for_term(mysqli $conn, int $stud
         ? 'instrument_version'
         : "'legacy-20' AS instrument_version";
     $evaluationScopeSql = '';
+    if ($collegeId > 0) $evaluationScopeSql = ' AND ' . synk_evaluation_owner_sql($conn, $tableName, $collegeId);
     if ($previewScopeSql !== '') {
         $enrollmentTable = synk_student_portal_enrollment_table_name();
-        $evaluationScopeSql = " AND EXISTS (
+        $evaluationScopeSql .= " AND EXISTS (
             SELECT 1 FROM `{$enrollmentTable}` es
             WHERE es.student_id = `{$tableName}`.student_id
               AND es.faculty_id = `{$tableName}`.faculty_id
               AND es.ay_id = `{$tableName}`.ay_id
               AND es.semester = `{$tableName}`.semester
-              AND es.is_active = 1 {$previewScopeSql}
+              {$previewScopeSql}
         )";
     }
     $stmt = $conn->prepare("
@@ -900,6 +942,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
 
     $studentId = (int)($payload['student_id'] ?? 0);
     $facultyId = (int)($payload['faculty_id'] ?? 0);
+    $collegeId = (int)($payload['college_id'] ?? 0);
     $ayId = (int)($payload['ay_id'] ?? 0);
     $semester = (int)($payload['semester'] ?? 0);
     $facultyName = trim((string)($payload['faculty_name'] ?? ''));
@@ -908,7 +951,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
     $subjectSummary = trim((string)($payload['subject_summary'] ?? ''));
     $commentText = trim((string)($payload['comment_text'] ?? ''));
 
-    if ($studentId <= 0 || $facultyId <= 0 || $ayId <= 0 || $semester <= 0) {
+    if ($studentId <= 0 || $facultyId <= 0 || $collegeId <= 0 || $ayId <= 0 || $semester <= 0) {
         throw new RuntimeException('The selected faculty evaluation scope is incomplete.');
     }
 
@@ -936,6 +979,8 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
     $conn->begin_transaction();
 
     try {
+        synk_evaluation_require_student_write($conn,$studentId,$collegeId,$ayId,$semester,[$facultyId]);
+        $ownerSql = synk_evaluation_owner_sql($conn,$headerTable,$collegeId);
         $checkStmt = $conn->prepare("
             SELECT
                 evaluation_id,
@@ -947,6 +992,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
               AND faculty_id = ?
               AND ay_id = ?
               AND semester = ?
+              AND {$ownerSql}
             LIMIT 1
             FOR UPDATE
         ");
@@ -981,6 +1027,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
             $updateHeaderStmt = $conn->prepare("
                 UPDATE `{$headerTable}`
                 SET
+                    college_id = {$collegeId},
                     faculty_name = ?,
                     student_number = ?,
                     term_label = ?,
@@ -1035,6 +1082,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                 INSERT INTO `{$headerTable}` (
                     student_id,
                     faculty_id,
+                    college_id,
                     ay_id,
                     semester,
                     faculty_name,
@@ -1051,7 +1099,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
                     final_submission_token,
                     final_submitted_at,
                     completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '', NULL, ?)
+                ) VALUES (?, ?, {$collegeId}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', '', NULL, ?)
             ");
 
             if (!$insertHeaderStmt) {
@@ -1133,6 +1181,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
             'evaluation_id' => $evaluationId,
             'student_id' => $studentId,
             'faculty_id' => $facultyId,
+            'college_id' => $collegeId,
             'ay_id' => $ayId,
             'semester' => $semester,
             'faculty_name' => $facultyName,
@@ -1165,6 +1214,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
     array $payload = []
 ): array {
     synk_student_faculty_evaluation_ensure_schema($conn);
+    $collegeId = (int)($payload['college_id'] ?? 0);
 
     $normalizedFacultyIds = [];
     foreach ($facultyIds as $facultyId) {
@@ -1174,7 +1224,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
         }
     }
 
-    if ($studentId <= 0 || $ayId <= 0 || $semester <= 0 || empty($normalizedFacultyIds)) {
+    if ($studentId <= 0 || $collegeId <= 0 || $ayId <= 0 || $semester <= 0 || empty($normalizedFacultyIds)) {
         throw new RuntimeException('The final faculty evaluation scope is incomplete.');
     }
 
@@ -1194,6 +1244,10 @@ function synk_student_finalize_faculty_evaluations_for_term(
     $conn->begin_transaction();
 
     try {
+        $allowedFacultyIds=synk_evaluation_require_student_write($conn,$studentId,$collegeId,$ayId,$semester,$expectedFacultyIds);
+        sort($allowedFacultyIds);
+        if ($allowedFacultyIds!==$expectedFacultyIds) throw new DomainException('Review every linked faculty member in this college before final submission.');
+        $ownerSql=synk_evaluation_owner_sql($conn,$headerTable,$collegeId);
         $selectSql = "
             SELECT
                 evaluation_id,
@@ -1208,6 +1262,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
               AND ay_id = ?
               AND semester = ?
               AND faculty_id IN ({$placeholders})
+              AND {$ownerSql}
             FOR UPDATE
         ";
 
@@ -1251,6 +1306,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
         $updateSql = "
             UPDATE `{$headerTable}`
             SET
+                college_id = {$collegeId},
                 submission_status = 'submitted',
                 final_submission_token = ?,
                 final_submitted_at = ?,
@@ -1260,6 +1316,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
               AND ay_id = ?
               AND semester = ?
               AND faculty_id IN ({$placeholders})
+              AND {$ownerSql}
         ";
 
         $updateStmt = $conn->prepare($updateSql);
@@ -1333,6 +1390,7 @@ function synk_student_build_term_evaluation_qr_payload(array $submission, array 
             (string)($studentRecord['suffix_name'] ?? ''),
         ]))),
         'Term: ' . trim((string)($submission['term_label'] ?? '')),
+        !empty($submission['college_name']) ? 'College: ' . trim((string)$submission['college_name']) : '',
         'Faculty Count: ' . (int)($submission['faculty_count'] ?? 0),
         'Subject Count: ' . (int)($submission['subject_count'] ?? 0),
         'Faculty: ' . implode(', ', array_filter($facultyNames)),

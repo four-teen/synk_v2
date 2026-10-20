@@ -1,5 +1,17 @@
 # Student Evaluation of Teachers
 
+## College access and academic terms
+
+Student drafts and final submissions require the current academic year and
+semester and an open evaluation period in the enrollment's college. Both checks
+run again in the persistence transaction. Each college is submitted separately,
+so a closed college cannot block another college's evaluation. The same professor
+can have separate responses for the same student and term in different colleges.
+
+Previous terms are read only. Responses and original instruments are preserved;
+new terms create separate responses and default to closed with faculty results
+hidden. See `docs/evaluation-access.md` for the complete workflow.
+
 New student evaluations use SKSU-INS-EFP-01 Revision 01, effective January 14,
 2026. The questionnaire contains 15 statements, in this order:
 

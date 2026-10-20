@@ -38,6 +38,14 @@ $studentSidebarItems = [
         'pages' => ['class-program.php'],
     ],
 ];
+$studentSidebarStudentId = synk_student_is_staff_preview_mode()
+    ? synk_student_preview_student_id_from_request() : (int)($_SESSION['student_id'] ?? 0);
+$studentSidebarEvaluationQuery = synk_student_evaluation_navigation($conn, $studentSidebarStudentId);
+foreach ($studentSidebarItems as $index => $sidebarItem) {
+    if ($sidebarItem['key'] !== 'class_program') continue;
+    if ($studentSidebarEvaluationQuery === null) unset($studentSidebarItems[$index]);
+    else $studentSidebarItems[$index]['query'] = $studentSidebarEvaluationQuery;
+}
 $studentSidebarActiveKey = 'dashboard';
 foreach ($studentSidebarItems as $sidebarItem) {
     if (in_array($studentSidebarCurrentPage, $sidebarItem['pages'], true)) {
@@ -177,7 +185,7 @@ foreach ($studentSidebarItems as $sidebarItem) {
     <?php foreach ($studentSidebarItems as $sidebarItem): ?>
       <li class="menu-item px-2<?php echo $studentSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>">
         <a
-          href="<?php echo htmlspecialchars(function_exists('synk_student_build_portal_url') ? synk_student_build_portal_url($sidebarItem['href']) : $sidebarItem['href'], ENT_QUOTES, 'UTF-8'); ?>"
+          href="<?php echo htmlspecialchars(function_exists('synk_student_build_portal_url') ? synk_student_build_portal_url($sidebarItem['href'], $sidebarItem['query'] ?? []) : $sidebarItem['href'], ENT_QUOTES, 'UTF-8'); ?>"
           class="menu-link student-menu-card<?php echo $studentSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>"
         >
           <span class="student-menu-icon <?php echo htmlspecialchars($sidebarItem['icon_bg'], ENT_QUOTES, 'UTF-8'); ?>">

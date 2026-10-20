@@ -51,9 +51,15 @@ Prospectus and Faculty Evaluation pages are retained.
 
 **Show Account**, beside a student name in the Dean Student Management page,
 opens the actual Student dashboard in a new tab. The Dean remains signed in as
-Dean. Profile, Prospectus and Faculty Evaluation links retain the selected student's preview ID and term,
+Dean. Profile, Prospectus and available Faculty Evaluation links retain the selected student's preview ID and term,
 and the return link goes to the Dean directory. All preview requests are
 read-only; server-side guards reject POST requests.
+
+The Faculty Evaluation menu follows the student's current college collection
+access, including in Show Account. It is hidden when collection is closed and
+appears when the college opens the current term. Faculty result release does not
+control this student menu. The Dean can still review saved evaluations through
+the Dean's own Faculty Evaluation reports.
 
 The application rechecks the Dean's active role, college and campus on each
 request. The student must belong to that college's imported lists or its manual
