@@ -40,6 +40,10 @@ Philippine Time timestamps. History records authentication outcomes only;
 Show Account and page views do not increase the counts. See
 `docs/student-login-activity.md` for access rules and event details.
 
+The **Student Login Activity** sidebar page shows all college student sign-in
+attempts together, with a default five-day date range, daily statistics, search,
+failure tracing and newest-first history. It reuses the same activity table.
+
 Login activity adds `tbl_student_login_activity`; run
 `backend/sql/phase27_student_login_activity.sql` on the target database before
 deploying the new files. Existing tables are unchanged. Student management uses
