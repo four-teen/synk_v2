@@ -17,7 +17,7 @@ function synk_dean_student_statistics(mysqli $conn, array $scope, array $term): 
     $filters = ['ay_id' => (int)$term['ay_id'], 'semester' => (int)$term['semester']];
     $counts = [];
     if ($statistics['available'] && $filters['ay_id'] > 0 && $filters['semester'] > 0) {
-        $source = synk_dean_students_source($scope, $filters);
+        $source = synk_dean_students_source($scope, $filters, $conn);
         $statistics['students'] = (int)synk_dean_students_query($conn,
             "SELECT COUNT(DISTINCT s.student_id) AS total {$source['sql']}", $source['types'], $source['params'])[0]['total'];
         foreach (synk_dean_students_query($conn, "SELECT p.program_id,COUNT(DISTINCT s.student_id) AS students

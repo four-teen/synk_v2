@@ -8,6 +8,11 @@
 .dean-faculty-photo-panel { display: flex; flex-direction: column; align-items: flex-end; gap: .75rem; }
 .dean-faculty-photo { width: 8rem; height: 8rem; object-fit: cover; border: 1px solid var(--dean-border); border-radius: .75rem; background: var(--dean-primary-soft); }
 .dean-roster-search { max-width: 22rem; }
+.dean-manual-number { flex: 1 1 16rem; min-width: 0; }
+.dean-manual-note { overflow-wrap: anywhere; white-space: pre-wrap; max-width: 34rem; }
+#deanManualRosterModal [hidden],#deanRosterAddStudent[hidden] { display: none !important; }
+#deanManualRosterModal .modal-body { overflow-wrap: anywhere; }
+.dean-class-actions { flex-wrap: wrap; row-gap: .4rem; }
 .dean-csv-input { max-width: 34rem; }
 .dean-class-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; }
 .dean-class-code { color: var(--dean-primary); font-size: 1.125rem; font-weight: 600; }

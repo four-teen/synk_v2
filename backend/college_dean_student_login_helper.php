@@ -4,7 +4,7 @@ require_once __DIR__.'/student_login_activity_helper.php';
 
 function synk_dean_student_login_history(mysqli $conn, array $scope, int $studentId, array $input): ?array
 {
-    $source=synk_dean_students_source($scope,[]);
+    $source=synk_dean_students_source($scope,[],$conn);
     $students=synk_dean_students_query($conn,"SELECT DISTINCT s.student_id,s.student_number,s.first_name,s.last_name,s.middle_name,s.suffix_name,s.email_address
         {$source['sql']} AND s.student_id=?",$source['types'].'i',array_merge($source['params'],[$studentId]));
     if (!$students) return null;

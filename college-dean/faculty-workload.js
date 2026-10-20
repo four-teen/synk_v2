@@ -6,6 +6,10 @@
   const state = { facultyId: 0, faculties: [], classes: [], metrics: [], rosterStatus: 'all', roster: [], selected: null, token: '', importReady: false, busy: false, loading: false, importView: null, generation: 0, rosterGeneration: 0 };
   const facultyPlaceholder = 'faculty-placeholder.svg';
   state.canImport = true;
+  state.canAdd = false;
+  function manualButton(row) {
+    return config.manual_roster_enabled && state.canAdd ? `<button type="button" class="btn btn-sm btn-outline-primary me-sm-1" data-manual-add="${row.offering_id}"><i class="bx bx-user-plus me-1" aria-hidden="true"></i>Add Student</button>` : '';
+  }
   const rosterModal = new bootstrap.Modal($('deanRosterModal'));
   const importModal = new bootstrap.Modal($('deanImportModal'));
   const label = row => `${row.subject_code} · ${row.section_display}`;
@@ -72,7 +76,7 @@
     state.loading = busy;
     $('deanRosterFilter').disabled = busy || !state.facultyId;
     $('deanClasses').setAttribute('aria-busy', String(busy));
-    $('deanClasses').querySelectorAll('[data-roster], [data-import]').forEach(button => {
+    $('deanClasses').querySelectorAll('[data-roster], [data-import], [data-manual-add]').forEach(button => {
       button.disabled = busy || !state.importReady || (button.hasAttribute('data-import') && !state.canImport);
       if (button.hasAttribute('data-import')) button.hidden = !state.canImport;
     });
@@ -102,8 +106,9 @@
         const metric = bySchedule.get(Number(schedule.schedule_id));
         return `<tr><td>${typeBadge(schedule)}</td><td>${escape(schedule.days || '—')}</td><td class="text-nowrap">${scheduleTime(schedule)}</td><td>${escape(schedule.room || '—')}</td><td>${metric ? number(metric.units) : '—'}</td><td>${metric ? number(metric.lec) : '—'}</td><td>${metric ? number(metric.lab_hours) : '—'}</td><td>${metric ? number(metric.faculty_load) : '—'}</td></tr>`;
       }).join('');
-      return `<article class="card dean-page-card mb-3" data-offering-id="${row.offering_id}"><div class="card-body p-3"><div class="dean-class-header mb-3"><div><h5 class="dean-class-code mb-1">${escape(row.subject_code)} <span class="badge bg-label-secondary ms-1">${escape(row.section_display)}</span></h5><div class="dean-class-title">${escape(row.descriptive_title)}</div><p class="small ${row.roster_count > 0 ? 'dean-student-count-populated' : 'text-muted'} mt-2 mb-0">${number(row.roster_count)} students in class list</p></div><div class="dean-class-actions"><button type="button" class="btn btn-sm btn-outline-primary me-sm-1" data-roster="${row.offering_id}" ${state.importReady ? '' : 'disabled'}><i class="bx bx-group me-1" aria-hidden="true"></i>View Students</button><button type="button" class="btn btn-sm btn-primary" data-import="${row.offering_id}" ${state.importReady ? '' : 'disabled'}><i class="bx bx-upload me-1" aria-hidden="true"></i>Import CSV</button></div></div><details class="dean-workload-details"${expanded.has(row.offering_id) ? ' open' : ''}><summary aria-label="Workload details for ${escape(label(row))}" aria-describedby="dean-schedule-preview-${row.offering_id}"><span class="dean-schedule-preview" id="dean-schedule-preview-${row.offering_id}">${preview}</span><span class="dean-workload-toggle"><i class="bx bx-chevron-down" aria-hidden="true"></i>Workload details</span></summary><div class="table-responsive"><table class="table dean-workload-table" aria-label="Workload details for ${escape(label(row))}"><thead><tr><th scope="col">Type</th><th scope="col">Days</th><th scope="col">Time</th><th scope="col">Room</th><th scope="col">Units</th><th scope="col">Lec</th><th scope="col">Lab Hrs</th><th scope="col">Load</th></tr></thead><tbody>${details}</tbody></table></div></details></div></article>`;
+      return `<article class="card dean-page-card mb-3" data-offering-id="${row.offering_id}"><div class="card-body p-3"><div class="dean-class-header mb-3"><div><h5 class="dean-class-code mb-1">${escape(row.subject_code)} <span class="badge bg-label-secondary ms-1">${escape(row.section_display)}</span></h5><div class="dean-class-title">${escape(row.descriptive_title)}</div><p class="small ${row.roster_count > 0 ? 'dean-student-count-populated' : 'text-muted'} mt-2 mb-0">${number(row.roster_count)} students in class list</p></div><div class="dean-class-actions">${manualButton(row)}<button type="button" class="btn btn-sm btn-outline-primary me-sm-1" data-roster="${row.offering_id}" ${state.importReady ? '' : 'disabled'}><i class="bx bx-group me-1" aria-hidden="true"></i>View Students</button><button type="button" class="btn btn-sm btn-primary" data-import="${row.offering_id}" ${state.importReady ? '' : 'disabled'}><i class="bx bx-upload me-1" aria-hidden="true"></i>Import CSV</button></div></div><details class="dean-workload-details"${expanded.has(row.offering_id) ? ' open' : ''}><summary aria-label="Workload details for ${escape(label(row))}" aria-describedby="dean-schedule-preview-${row.offering_id}"><span class="dean-schedule-preview" id="dean-schedule-preview-${row.offering_id}">${preview}</span><span class="dean-workload-toggle"><i class="bx bx-chevron-down" aria-hidden="true"></i>Workload details</span></summary><div class="table-responsive"><table class="table dean-workload-table" aria-label="Workload details for ${escape(label(row))}"><thead><tr><th scope="col">Type</th><th scope="col">Days</th><th scope="col">Time</th><th scope="col">Room</th><th scope="col">Units</th><th scope="col">Lec</th><th scope="col">Lab Hrs</th><th scope="col">Load</th></tr></thead><tbody>${details}</tbody></table></div></details></div></article>`;
     }).join('');
+    setWorkloadBusy(state.loading);
   }
   async function loadFaculty(clearNotice = true, view = null) {
     const generation = ++state.generation;
@@ -167,12 +172,22 @@
     const query = $('deanStudentSearch').value.trim().toLocaleLowerCase();
     const rows = state.roster.filter(row => `${row.student_number} ${row.student_name}`.toLocaleLowerCase().includes(query));
     $('deanStudentTotal').textContent = `${state.roster.length} students`;
-    $('deanRosterContent').innerHTML = !rows.length ? empty(state.roster.length ? 'No matching students' : 'No students imported yet', state.roster.length ? 'Try another name or student ID.' : 'Use Import CSV on this class to preview and add its student list.') :
-      `<div class="table-responsive"><table class="table dean-workload-table"><thead><tr><th>#</th><th>Student ID</th><th>Student Name</th></tr></thead><tbody>${rows.map((row,i) => `<tr><td>${i+1}</td><td>${escape(row.student_number)}</td><td>${escape(row.student_name)}</td></tr>`).join('')}</tbody></table></div>`;
+    $('deanRosterContent').innerHTML = !rows.length ? empty(state.roster.length ? 'No matching students' : 'No students in this class yet', state.roster.length ? 'Try another name or student ID.' : state.canAdd ? 'Use Add Student to Class for an individual student, or Import CSV for a class list.' : 'Use Import CSV on this class to preview and add its student list.') :
+      `<div class="table-responsive"><table class="table dean-workload-table"><thead><tr><th>#</th><th>Student ID</th><th>Student Name</th><th>Entry details</th></tr></thead><tbody>${rows.map((row,i) => `<tr><td>${i+1}</td><td>${escape(row.student_number)}</td><td>${escape(row.student_name)}</td><td>${rosterSource(row)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  function rosterSource(row) {
+    if (row.entry_source !== 'manual') return '<span class="badge bg-label-secondary">Imported</span>';
+    const date = row.manually_added_at ? new Date(row.manually_added_at.replace(' ','T')+'Z') : null;
+    const time = date && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('en-PH',{timeZone:'Asia/Manila',year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(date) : '';
+    return `<span class="badge bg-label-info">Manual</span><small class="d-block mt-1">${escape(row.manual_reason_label)}</small><details class="small mt-1"><summary>Addition details</summary><div class="dean-manual-note">${escape(row.added_by || 'College Dean')}${time ? ' · '+escape(time)+' (PH)' : ''}${row.manual_note ? '<br>'+escape(row.manual_note) : ''}</div></details>`;
   }
   async function openRoster(row) {
     const generation = ++state.rosterGeneration;
     state.roster = [];
+    state.rosterLoaded = false;
+    state.rosterClass = row;
+    if ($('deanRosterClearStudents')) { $('deanRosterClearStudents').hidden = !state.canClear; $('deanRosterClearStudents').disabled = true; }
+    if ($('deanRosterAddStudent')) { $('deanRosterAddStudent').hidden = !state.canAdd; $('deanRosterAddStudent').disabled = true; }
     $('deanRosterSubtitle').textContent = `${label(row)} · ${row.term_text}`;
     $('deanStudentSearch').value = '';
     $('deanStudentSearch').disabled = true;
@@ -183,6 +198,8 @@
       const data = await request('roster', {faculty_id:state.facultyId, offering_id:row.offering_id});
       if (generation !== state.rosterGeneration) return;
       state.roster = data.students; $('deanStudentSearch').disabled = false; renderRoster();
+      state.rosterLoaded = true;
+      if ($('deanRosterClearStudents')) $('deanRosterClearStudents').disabled = !state.canClear || !state.roster.length;
     } catch (error) {
       if (generation !== state.rosterGeneration) return;
       $('deanStudentTotal').textContent = 'Unavailable';
@@ -273,12 +290,41 @@
   $('deanCsvFile').addEventListener('change', clearPreview);
   $('deanClasses').addEventListener('click', event => {
     if (state.loading) return;
-    const button = event.target.closest('[data-roster], [data-import]');
+    const button = event.target.closest('[data-roster], [data-import], [data-manual-add]');
     if (!button || button.disabled) return;
-    const row = state.classes.find(item => item.offering_id === Number(button.dataset.roster || button.dataset.import));
+    const row = state.classes.find(item => item.offering_id === Number(button.dataset.roster || button.dataset.import || button.dataset.manualAdd));
     if (!row) return;
-    if (button.dataset.roster) openRoster(row); else openImport(row);
+    if (button.dataset.roster) openRoster(row); else if (button.dataset.manualAdd) openManual(row); else openImport(row);
   });
+  async function openManual(row, returnRoster = false) {
+    if (!state.canAdd || !config.manual_roster_enabled) return;
+    const context = {class:row, view:captureWorkloadView(), returnRoster};
+    if (returnRoster) await new Promise(resolve => { $('deanRosterModal').addEventListener('hidden.bs.modal', resolve, {once:true}); rosterModal.hide(); });
+    $('deanWorkload').dispatchEvent(new CustomEvent('manual-roster-open', {detail:context}));
+  }
+  if (config.manual_roster_enabled) {
+    $('deanRosterClearStudents').addEventListener('click', async () => {
+      if (!state.canClear || !state.rosterLoaded || !state.roster.length || !state.rosterClass) return;
+      const context = {class:state.rosterClass, view:captureWorkloadView(), returnRoster:true};
+      await new Promise(resolve => { $('deanRosterModal').addEventListener('hidden.bs.modal', resolve, {once:true}); rosterModal.hide(); });
+      $('deanWorkload').dispatchEvent(new CustomEvent('clear-roster-open',{detail:context}));
+    });
+    $('deanWorkload').addEventListener('clear-roster-closed', async event => {
+      const {context,result} = event.detail;
+      if (!context || context.class.faculty_id !== state.facultyId) return;
+      if (result) notice('deanNotice',result.message,'success');
+      if (result || context.needsRefresh) await loadFaculty(false,context.view);
+      await openRoster(state.classes.find(row=>row.offering_id===context.class.offering_id) || context.class);
+    });
+    $('deanRosterModal').addEventListener('shown.bs.modal', () => { $('deanRosterAddStudent').disabled = !state.canAdd; });
+    $('deanRosterAddStudent').addEventListener('click', () => { if (state.rosterClass) openManual(state.rosterClass,true); });
+    $('deanWorkload').addEventListener('manual-roster-closed', async event => {
+      const {context,result} = event.detail;
+      if (!context || context.class.faculty_id !== state.facultyId) return;
+      if (result) { notice('deanNotice',result.message,'success'); await loadFaculty(false,context.view); }
+      if (context.returnRoster) await openRoster(state.classes.find(row=>row.offering_id===context.class.offering_id) || context.class);
+    });
+  }
   $('deanStudentSearch').addEventListener('input', renderRoster);
   $('deanRosterModal').addEventListener('hide.bs.modal', () => { state.rosterGeneration++; });
   $('deanFaculty').addEventListener('change', () => loadFaculty());
@@ -295,6 +341,8 @@
       state.rosterStatus = ['all','with','missing'].includes(url.get('list_status')) ? url.get('list_status') : 'all';
       $('deanRosterFilter').value = state.rosterStatus;
       const data = await request('bootstrap'); state.importReady = data.import_ready; state.canImport = data.can_import !== false; state.faculties = data.faculties;
+      state.canAdd = config.manual_roster_enabled && data.can_add_students === true;
+      state.canClear = config.manual_roster_enabled && data.can_clear_students === true;
       $('deanFaculty').innerHTML = `<option value="">Select faculty</option>${data.faculties.map(row=>`<option value="${row.faculty_id}">${escape(row.faculty_name)}</option>`).join('')}`;
       $('deanFaculty').disabled = false; $('deanRefresh').disabled = false;
       if (!data.faculties.length) notice('deanNotice', 'No faculty assignments are available for your college in the selected term.', 'info');

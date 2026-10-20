@@ -10,7 +10,13 @@ The compact **Student Name** column shows the student ID first, the full name on
 
 Choose **Add Student**, enter the exact student ID, full first name, last name, optional middle name/suffix, and verified school email. Choose a program in your college, year level, academic year, and semester. Leading zeros in student IDs are preserved. Duplicate student IDs are rejected.
 
-New profiles appear in the directory even before their first class list is imported. They have no invented class membership or verified home section. Import their actual subjects later through Faculty Workload.
+New profiles appear in the directory even before their first class list is imported. They have no invented class membership or verified home section. Attach their actual subjects through Faculty Workload using CSV import or **Add Student** on the relevant assigned class. See `docs/manual-class-roster.md` for manual additions, section transfers and the audit-table migration.
+
+**Faculty Workload → View Students → Clear Student List** removes only that
+class's active memberships. Students remain in this directory for the same
+college/program and term, including students with zero remaining subjects.
+See [Clearing a class list](clear-class-roster.md) for the workflow and phase29
+history-table migration. Class-section filters show active class memberships.
 
 Use a row's **Edit** button, **Edit Student** in Student Details, or **Edit Student** in the email preview to correct the profile. Enter all given names in **Complete first name**. **Suggest Email** proposes the existing first-name/last-name formula while checking for duplicate proposals. You can instead enter the actual institutional address when the formula differs. Saved addresses must end in `@sksu.edu.ph` and must not already belong to another student. Blank email is allowed while awaiting verification.
 
@@ -27,6 +33,10 @@ Student login uses the existing school Google sign-in. These actions manage the 
 5. Tick the review acknowledgement and choose **Delete Term Records**.
 
 Only matching active class-list memberships are marked inactive. A manual directory entry created for that term can also be removed from the active directory. Shared student profiles, their login emails, other colleges, other semesters, and registrar enrollment records are preserved. Students with other active matching class lists can still appear in the directory.
+
+When no class-section filter is selected, deletion also removes retained
+directory connections created by class clearing for the selected program/term.
+The preview reports these connections. Original clearing history remains saved.
 
 Student counts derived from CSV rosters are refreshed after removal. Manually entered offering counts and scheduling calculations/assignments remain unchanged. Reimporting a correct CSV can restore a removed membership through the existing import workflow.
 

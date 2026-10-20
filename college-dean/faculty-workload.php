@@ -11,7 +11,8 @@ $collegeDeanPortalDisplayName = (string)($collegeDeanPortalContext['account_name
 $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? '');
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$deanTerm['ay_id'],
-    'semester'=>$deanTerm['semester'], 'college_id'=>$deanScope['college_id'], 'campus_id'=>$deanScope['campus_id']];
+    'semester'=>$deanTerm['semester'], 'college_id'=>$deanScope['college_id'], 'campus_id'=>$deanScope['campus_id'],
+    'manual_roster_enabled'=>($_SESSION['role'] ?? '')==='college_dean'];
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
@@ -87,7 +88,7 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
           <div class="d-flex flex-wrap gap-2 justify-content-between mb-3"><span class="badge bg-label-primary align-self-center" id="deanStudentTotal">0 students</span><input type="search" id="deanStudentSearch" class="form-control dean-roster-search" placeholder="Search name or student ID" aria-label="Search class students" /></div>
           <div id="deanRosterContent"></div>
         </div>
-        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+        <div class="modal-footer"><?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><button type="button" class="btn btn-outline-danger me-auto" id="deanRosterClearStudents" hidden>Clear Student List</button><button type="button" class="btn btn-primary" id="deanRosterAddStudent" hidden>Add Student to Class</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
       </div></div>
     </div>
     <div class="modal fade" id="deanImportModal" tabindex="-1" aria-labelledby="deanImportTitle" aria-hidden="true" data-bs-backdrop="static">
@@ -107,6 +108,8 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
         <div class="modal-footer"><button type="button" id="deanImportCancel" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" id="deanConfirmButton" class="btn btn-primary" disabled hidden>Confirm Import</button></div>
       </div></div>
     </div>
+    <?php include __DIR__.'/manual-roster-modal.php'; ?>
+    <?php include __DIR__.'/clear-roster-modal.php'; ?>
     <script id="deanWorkloadConfig" type="application/json"><?php echo json_encode($deanWorkloadConfig, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
     <script src="../assets/vendor/libs/jquery/jquery.js"></script>
     <script src="../assets/vendor/js/bootstrap.js"></script>
@@ -114,5 +117,7 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
     <script src="../assets/vendor/js/menu.js"></script>
     <script src="../assets/js/main.js"></script>
     <script src="faculty-workload.js?v=<?php echo (int)filemtime(__DIR__ . '/faculty-workload.js'); ?>"></script>
+    <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><script src="manual-roster.js?v=<?php echo (int)filemtime(__DIR__.'/manual-roster.js'); ?>"></script><?php endif; ?>
+    <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><script src="clear-roster.js?v=<?php echo (int)filemtime(__DIR__.'/clear-roster.js'); ?>"></script><?php endif; ?>
   </body>
 </html>

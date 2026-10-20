@@ -44,7 +44,7 @@ function synk_dean_login_report(mysqli $conn, array $scope, array $filters): arr
 {
     if (!synk_student_login_activity_ready($conn)) throw new DomainException('Student login activity tracking is not available yet.');
     // DISTINCT membership prevents multiplying events for students with several subjects/programs.
-    $source=synk_dean_students_source($scope,['program_id'=>$filters['program_id']]);
+    $source=synk_dean_students_source($scope,['program_id'=>$filters['program_id']],$conn);
     $members='SELECT DISTINCT s.student_id '.$source['sql'];
     $join="FROM tbl_student_login_activity a JOIN ({$members}) members ON members.student_id=a.student_id
         JOIN tbl_student_management s ON s.student_id=a.student_id";
@@ -110,7 +110,7 @@ function synk_dean_login_report(mysqli $conn, array $scope, array $filters): arr
         foreach (['first_name','last_name','middle_name','suffix_name'] as $key) unset($row[$key]);
     }
     unset($row);
-    $allSource=synk_dean_students_source($scope,[]);
+    $allSource=synk_dean_students_source($scope,[],$conn);
     $programs=synk_dean_students_query($conn,"SELECT DISTINCT p.program_id,p.program_code,p.program_name,p.major {$allSource['sql']} ORDER BY p.program_code,p.major,p.program_id",$allSource['types'],$allSource['params']);
     foreach ($programs as &$program) {
         $program=['program_id'=>(int)$program['program_id'],'label'=>(trim((string)$program['program_code']) ?: $program['program_name']).(trim((string)$program['major'])!==''?' - '.$program['major']:'')];

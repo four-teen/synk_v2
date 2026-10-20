@@ -43,6 +43,7 @@ foreach (['index','programs','students','reports','faculty-workload','faculty-pr
     $check(strpos($body,'Program Chair Portal')!==false && strpos($body,'href="manage-college-faculty.php"')!==false, 'Chair navigation missing: '.$page);
     $check(strpos($body,'College Dean Portal')===false && $r['session_role']==='program_chair' && $r['session_college']===$r['college_id'], 'Page used Dean identity or stale college: '.$page);
     if ($page!=='manage-college-faculty') $check(strpos($body,'../college-dean/custom_css.css')!==false, 'Shared theme path missing: '.$page);
+    if ($page==='faculty-workload') $check(strpos($body,'id="deanManualRosterModal"')===false && strpos($body,'manual-roster.js')===false && strpos($body,'id="deanRosterAddStudent"')===false && strpos($body,'id="deanClearRosterModal"')===false && strpos($body,'clear-roster.js')===false && strpos($body,'id="deanRosterClearStudents"')===false,'Program Chair workload exposed Dean roster management controls.');
     if ($page==='students') $check(strpos($body,'Login Activity')===false && strpos($body,'id="deanStudentLoginModal"')===false && strpos($body,'student-login-activity.js')===false,'The shared Chair student page exposed Dean login activity controls.');
     if ($page==='index') {
         $check(strpos($body,'dashboard_program_chair_schedule_heatmap.php')!==false && strpos($body,'load_program_chair_room_time_matrix.php')!==false, 'Chair dashboard chart endpoints missing.');

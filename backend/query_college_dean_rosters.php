@@ -2,6 +2,7 @@
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/college_dean_workload_helper.php';
+require_once __DIR__ . '/student_class_clear_history_helper.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -38,6 +39,8 @@ try {
     if ($action === 'bootstrap') synk_dean_roster_response([
         'status'=>'ok','scope'=>$scope,'term'=>$term,'faculties'=>synk_dean_workload_faculties($conn,$scope,$term),
         'import_ready'=>synk_dean_roster_ready($conn), 'can_import'=>!empty($term['is_current']),
+        'can_add_students'=>($_SESSION['role'] ?? '')==='college_dean' && !empty($term['is_current']) && synk_dean_roster_ready($conn) && synk_roster_audit_ready($conn),
+        'can_clear_students'=>($_SESSION['role'] ?? '')==='college_dean' && !empty($term['is_current']) && synk_dean_roster_ready($conn) && synk_class_clear_ready($conn),
     ]);
     if (!in_array($action, ['classes','roster','preview','confirm','cancel'], true)) {
         synk_dean_roster_response(['status'=>'error','message'=>'Unknown workload action.'], 400);

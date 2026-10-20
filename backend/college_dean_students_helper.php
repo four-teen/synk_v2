@@ -3,6 +3,7 @@ require_once __DIR__ . '/college_dean_dashboard_helper.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/student_identity_helper.php';
 require_once __DIR__ . '/student_login_activity_helper.php';
+require_once __DIR__ . '/student_class_clear_history_helper.php';
 
 function synk_dean_students_ready(mysqli $conn): bool
 {
@@ -54,16 +55,24 @@ function synk_dean_students_filters(array $input, ?mysqli $conn=null): array
     return $filters;
 }
 
-function synk_dean_students_source(array $scope, array $filters): array
+function synk_dean_students_source(array $scope, array $filters, ?mysqli $conn=null): array
 {
     // A shared profile's first program/term is not its current college membership.
+    // A cleared class retains a directory connection, with no active subject or section.
+    $members='SELECT student_id,student_enrollment_id,program_id,ay_id,semester FROM tbl_student_management_enrolled_subjects WHERE is_active=1 AND college_id=? AND campus_id=?';
+    $params=[$scope['college_id'],$scope['campus_id']]; $types='ii';
+    if ($conn && synk_class_clear_ready($conn)) {
+        $members.=' UNION ALL SELECT DISTINCT student_id,NULL AS student_enrollment_id,program_id,ay_id,semester FROM tbl_student_class_clear_history WHERE directory_retained=1 AND college_id=? AND campus_id=?';
+        $params[]=$scope['college_id']; $params[]=$scope['campus_id']; $types.='ii';
+    }
     $sql = "FROM tbl_student_management s
-        LEFT JOIN tbl_student_management_enrolled_subjects es ON es.student_id=s.student_id AND es.is_active=1 AND es.college_id=? AND es.campus_id=?
-        JOIN tbl_program p ON p.program_id=COALESCE(es.program_id,s.program_id)
+        LEFT JOIN ({$members}) dm ON dm.student_id=s.student_id
+        LEFT JOIN tbl_student_management_enrolled_subjects es ON es.student_enrollment_id=dm.student_enrollment_id AND es.is_active=1
+        JOIN tbl_program p ON p.program_id=COALESCE(dm.program_id,s.program_id)
         LEFT JOIN tbl_sections sec ON sec.section_id=es.section_id
-        WHERE p.college_id=? AND (es.student_enrollment_id IS NOT NULL OR s.source_sheet_name='DEAN MANUAL')";
-    $params = [$scope['college_id'],$scope['campus_id'],$scope['college_id']]; $types = 'iii';
-    foreach (['program_id'=>'COALESCE(es.program_id,s.program_id)','section_id'=>'es.section_id','ay_id'=>'COALESCE(es.ay_id,s.ay_id)','semester'=>'COALESCE(es.semester,s.semester)'] as $field=>$column) {
+        WHERE p.college_id=? AND (dm.student_id IS NOT NULL OR s.source_sheet_name='DEAN MANUAL')";
+    $params[]=$scope['college_id']; $types.='i';
+    foreach (['program_id'=>'COALESCE(dm.program_id,s.program_id)','section_id'=>'es.section_id','ay_id'=>'COALESCE(dm.ay_id,s.ay_id)','semester'=>'COALESCE(dm.semester,s.semester)'] as $field=>$column) {
         if (!empty($filters[$field])) { $sql .= ' AND ' . $column . '=?'; $params[]=$filters[$field]; $types.='i'; }
     }
     if (($filters['email_status'] ?? 'all')==='missing') $sql.=" AND (s.email_address IS NULL OR TRIM(s.email_address)='')";
@@ -86,7 +95,7 @@ function synk_dean_students_name(array $row): string
 
 function synk_dean_students_options(mysqli $conn, array $scope): array
 {
-    $source = synk_dean_students_source($scope,[]);
+    $source = synk_dean_students_source($scope,[],$conn);
     $programs = synk_dean_students_query($conn,"SELECT DISTINCT p.program_id,p.program_code,p.program_name,p.major {$source['sql']} ORDER BY p.program_code,p.major,p.program_id",$source['types'],$source['params']);
     foreach ($programs as &$row) {
         $row['program_id']=(int)$row['program_id'];
@@ -107,7 +116,7 @@ function synk_dean_students_options(mysqli $conn, array $scope): array
 
 function synk_dean_students_list(mysqli $conn, array $scope, array $filters): array
 {
-    $source=synk_dean_students_source($scope,$filters);
+    $source=synk_dean_students_source($scope,$filters,$conn);
     $classKey="IF(es.student_enrollment_id IS NULL,NULL,CONCAT_WS(':',es.program_id,es.ay_id,es.semester,es.section_id,es.subject_id))";
     $summary=synk_dean_students_query($conn,"SELECT COUNT(DISTINCT s.student_id) AS students,
         COUNT(DISTINCT {$classKey}) AS classes,COUNT(DISTINCT p.program_id) AS programs
@@ -145,7 +154,7 @@ function synk_dean_students_list(mysqli $conn, array $scope, array $filters): ar
 function synk_dean_students_detail(mysqli $conn, array $scope, int $studentId, array $filters): ?array
 {
     // Check imported membership even when a guessed ID points to an existing master record.
-    $source=synk_dean_students_source($scope,[]);
+    $source=synk_dean_students_source($scope,[],$conn);
     $profiles=synk_dean_students_query($conn,"SELECT DISTINCT s.student_id,s.student_number,s.last_name,s.first_name,s.middle_name,s.suffix_name,s.email_address
         {$source['sql']} AND s.student_id=?",$source['types'].'i',array_merge($source['params'],[$studentId]));
     if (!$profiles) return null;
@@ -153,7 +162,7 @@ function synk_dean_students_detail(mysqli $conn, array $scope, int $studentId, a
     $profile['student_number']=(string)$profile['student_number']; $profile['student_name']=synk_dean_students_name($profile);
     $profile['home_section']=synk_dean_students_verified_home_sections($conn,$scope,$filters,[$studentId])[$studentId] ?? 'Not verified';
     // Detail shows every class in this college for the selected term, independent of program/section/search filters.
-    $source=synk_dean_students_source($scope,['ay_id'=>$filters['ay_id'],'semester'=>$filters['semester']]);
+    $source=synk_dean_students_source($scope,['ay_id'=>$filters['ay_id'],'semester'=>$filters['semester']],$conn);
     $rows=synk_dean_students_query($conn,"SELECT es.offering_id,es.subject_id,es.subject_code,es.descriptive_title,
         es.program_id,p.program_code,p.program_name,p.major,es.section_id,
         COALESCE(NULLIF(sec.full_section,''),NULLIF(es.section_text,''),CONCAT(p.program_code,' ',es.year_level)) AS section_label,
