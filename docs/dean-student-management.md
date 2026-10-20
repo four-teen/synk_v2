@@ -34,12 +34,25 @@ Delete previews expire after 15 minutes and are tied to the signed-in Dean and a
 
 ## Deployment and verification
 
-No new or altered tables are required. This uses the existing student directory, enrolled-subject links, portal profile, and approved enrollment tables. No real students are added, edited, or removed merely by deploying the code.
+The **Login Activity** column shows successful sign-ins and failed attempts. Click
+its count for a wide statistics/history modal, with newest attempts first and
+Philippine Time timestamps. History records authentication outcomes only;
+Show Account and page views do not increase the counts. See
+`docs/student-login-activity.md` for access rules and event details.
+
+Login activity adds `tbl_student_login_activity`; run
+`backend/sql/phase27_student_login_activity.sql` on the target database before
+deploying the new files. Existing tables are unchanged. Student management uses
+the existing student directory, enrolled-subject links, portal profile, and
+approved enrollment tables. No real students are added, edited, or removed
+merely by deploying the code.
 
 Run database tests sequentially:
 
 ```powershell
 php tests/student-management.php
+php tests/student-login-activity.php
+node tests/student-login-activity-browser.cjs
 node tests/student-management-browser.cjs
 php tests/college-dean-students.php
 node tests/college-dean-students-ui.js

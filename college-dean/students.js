@@ -5,6 +5,12 @@
   const escape = value => String(value == null ? '' : value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const number = value => Number(value || 0).toLocaleString();
   const state = {options:{programs:[],terms:[],sections:[]}, rows:[], page:1, pages:1, generation:0, detailGeneration:0, ready:false,currentTerm:'all'};
+  const columnCount = config.login_activity_enabled ? 7 : 6;
+  function loginActivityCell(row) {
+    if (!config.login_activity_enabled) return '';
+    if (row.login_tracking_available === false) return '<td class="dean-student-login-cell"><span class="small text-muted">Unavailable</span></td>';
+    return `<td class="dean-student-login-cell"><button type="button" class="btn btn-sm btn-outline-primary dean-student-login-count" data-student-login="${row.student_id}" aria-label="${escape('View login activity for ' + row.student_name)}"><i class="bx bx-log-in" aria-hidden="true"></i><span data-login-count>${number(row.login_success_count)}</span> logins</button><small class="dean-student-login-failures text-muted" data-login-failures>${number(row.login_failure_count)} failed</small></td>`;
+  }
   const modal = new bootstrap.Modal($('deanStudentDetailsModal'));
   let searchTimer;
   function notice(message = '') {
@@ -49,7 +55,7 @@
   }
   function loading() {
     state.rows = [];
-    $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Loading students...</td></tr>';
+    $('deanStudentsRows').innerHTML = '<tr><td colspan="' + columnCount + '" class="text-center text-muted py-5">Loading students...</td></tr>';
     $('deanStudentsPrevious').disabled = true; $('deanStudentsNext').disabled = true;
     $('deanStudentsPageInfo').textContent = '';
     ['deanUniqueStudents','deanImportedClasses','deanImportedPrograms'].forEach(id=>{ $(id).textContent = '—'; });
@@ -66,11 +72,11 @@
     if (!data.rows.length) {
       const query = filters();
       const filtered = query.search || query.term !== 'all' || query.program_id !== '0' || query.section_id !== '0' || query.email_status !== 'all';
-      $('deanStudentsRows').innerHTML = `<tr><td colspan="6"><div class="dean-empty-state my-2"><i class="bx bx-user-pin" aria-hidden="true"></i><h5>${filtered ? 'No matching students' : 'No students yet'}</h5><p class="mb-0">${filtered ? 'Try another name or ID, or choose another academic term.' : 'Add a student or import students through Faculty Workload.'}</p></div></td></tr>`;
+      $('deanStudentsRows').innerHTML = `<tr><td colspan="${columnCount}"><div class="dean-empty-state my-2"><i class="bx bx-user-pin" aria-hidden="true"></i><h5>${filtered ? 'No matching students' : 'No students yet'}</h5><p class="mb-0">${filtered ? 'Try another name or ID, or choose another academic term.' : 'Add a student or import students through Faculty Workload.'}</p></div></td></tr>`;
     } else {
       $('deanStudentsRows').innerHTML = data.rows.map(row=>{
         const email=String(row.email_address || '').trim().toLowerCase();
-        return `<tr><td><input type="checkbox" class="form-check-input" data-select-student="${row.student_id}" aria-label="${escape('Select '+row.student_name)}"></td><td class="dean-student-name"><div class="dean-student-id">${escape(row.student_number)}</div><div class="dean-student-full-name" title="${escape(row.student_name)}">${escape(row.student_name)}</div><div class="dean-student-contact${email ? '' : ' text-warning'}" title="${escape(email)}"><em>${escape(email || 'missing email')}</em></div><div class="dean-student-account-actions"><a class="btn btn-sm btn-outline-primary" href="../student/index.php?preview_student_id=${row.student_id}&amp;student_term=${encodeURIComponent(filters().term)}&amp;return_to=${encodeURIComponent('../college-dean/students.php')}" target="_blank" rel="noopener" aria-label="${escape('Show account for '+row.student_name+' in a new tab')}"><i class="bx bx-show-alt" aria-hidden="true"></i>Show Account</a><button type="button" class="btn btn-sm btn-outline-danger" data-student-delete="${row.student_id}" aria-label="${escape('Delete current-term records for '+row.student_name)}"><i class="bx bx-trash" aria-hidden="true"></i>Delete</button></div></td><td><div class="dean-student-context" title="${escape(row.programs)}">${escape(row.programs || '—')}</div></td><td><div class="dean-student-context" title="${escape(row.sections)}">${escape(row.sections || '—')}</div></td><td class="text-center"><span class="badge bg-label-primary">${number(row.subject_count)}</span></td><td><div class="dean-student-row-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-student="${row.student_id}" aria-label="${escape('View details for ' + row.student_name)}">View</button><button type="button" class="btn btn-sm btn-outline-secondary" data-student-edit="${row.student_id}" aria-label="${escape('Edit '+row.student_name)}">Edit</button></div></td></tr>`;
+        return `<tr><td><input type="checkbox" class="form-check-input" data-select-student="${row.student_id}" aria-label="${escape('Select '+row.student_name)}"></td><td class="dean-student-name"><div class="dean-student-id">${escape(row.student_number)}</div><div class="dean-student-full-name" title="${escape(row.student_name)}">${escape(row.student_name)}</div><div class="dean-student-contact${email ? '' : ' text-warning'}" title="${escape(email)}"><em>${escape(email || 'missing email')}</em></div><div class="dean-student-account-actions"><a class="btn btn-sm btn-outline-primary" href="../student/index.php?preview_student_id=${row.student_id}&amp;student_term=${encodeURIComponent(filters().term)}&amp;return_to=${encodeURIComponent('../college-dean/students.php')}" target="_blank" rel="noopener" aria-label="${escape('Show account for '+row.student_name+' in a new tab')}"><i class="bx bx-show-alt" aria-hidden="true"></i>Show Account</a><button type="button" class="btn btn-sm btn-outline-danger" data-student-delete="${row.student_id}" aria-label="${escape('Delete current-term records for '+row.student_name)}"><i class="bx bx-trash" aria-hidden="true"></i>Delete</button></div></td><td><div class="dean-student-context" title="${escape(row.programs)}">${escape(row.programs || '—')}</div></td><td><div class="dean-student-context" title="${escape(row.sections)}">${escape(row.sections || '—')}</div></td><td class="text-center"><span class="badge bg-label-primary">${number(row.subject_count)}</span></td>${loginActivityCell(row)}<td><div class="dean-student-row-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-student="${row.student_id}" aria-label="${escape('View details for ' + row.student_name)}">View</button><button type="button" class="btn btn-sm btn-outline-secondary" data-student-edit="${row.student_id}" aria-label="${escape('Edit '+row.student_name)}">Edit</button></div></td></tr>`;
       }).join('');
     }
     $('deanStudentsPageInfo').textContent = data.pagination.total ? `${number(data.pagination.from)}–${number(data.pagination.to)} of ${number(data.pagination.total)} students · Page ${state.page} of ${state.pages}` : '0 students';
@@ -92,7 +98,7 @@
     } catch (error) {
       if (generation !== state.generation) return;
       notice(error.message);
-      $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
+      $('deanStudentsRows').innerHTML = '<tr><td colspan="' + columnCount + '" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
     } finally {
       if (generation === state.generation) $('deanStudentDirectory').setAttribute('aria-busy','false');
     }
@@ -124,7 +130,7 @@
       state.ready = true; await load();
     } catch (error) {
       notice(error.message);
-      $('deanStudentsRows').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
+      $('deanStudentsRows').innerHTML = '<tr><td colspan="' + columnCount + '" class="text-center text-muted py-5">Students could not be loaded. Use Refresh to try again.</td></tr>';
     } finally { $('deanStudentsRefresh').disabled = false; $('deanStudentEmailsOpen').disabled = !state.ready; $('deanStudentAdd').disabled = !state.ready; $('deanStudentDirectory').setAttribute('aria-busy','false'); }
   }
   async function details(row) {

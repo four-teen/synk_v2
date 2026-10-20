@@ -2,6 +2,7 @@
 require_once __DIR__ . '/college_dean_dashboard_helper.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/student_identity_helper.php';
+require_once __DIR__ . '/student_login_activity_helper.php';
 
 function synk_dean_students_ready(mysqli $conn): bool
 {
@@ -131,6 +132,12 @@ function synk_dean_students_list(mysqli $conn, array $scope, array $filters): ar
     unset($row);
     $homes=synk_dean_students_verified_home_sections($conn,$scope,$filters,array_column($rows,'student_id'));
     foreach ($rows as &$row) $row['home_section']=$homes[$row['student_id']] ?? 'Not verified';
+    unset($row);
+    if (($_SESSION['role'] ?? '')==='college_dean') {
+        $logins=synk_student_login_activity_counts($conn,array_column($rows,'student_id'));
+        foreach ($rows as &$row) $row+=$logins[$row['student_id']];
+        unset($row);
+    }
     return ['rows'=>$rows,'summary'=>$summary,'pagination'=>['page'=>$page,'page_size'=>$filters['page_size'],
         'pages'=>$pages,'total'=>$summary['students'],'from'=>$rows ? $offset+1 : 0,'to'=>$offset+count($rows)]];
 }

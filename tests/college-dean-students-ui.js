@@ -103,6 +103,7 @@ const openDetails=()=>fire('deanStudentsRows','click',{target:{closest:()=>({dat
   await fire('deanStudentsReset','click');
   element('deanStudentsSearch').value='absent'; await fire('deanStudentsFilters','submit');
   check(element('deanStudentsRows').innerHTML.includes('No matching students') && element('deanUniqueStudents').textContent==='0','Empty search results did not display a clear empty state.');
+  check(element('deanStudentsRows').innerHTML.includes('colspan="6"'),'The shared directory empty state did not span its six columns.');
   listError='Your access changed.'; await fire('deanStudentsRefresh','click');
   check(element('deanStudentsNotice').textContent===listError && !element('deanStudentsRefresh').disabled,'A failed list request did not offer a working refresh.');
   listError=''; element('deanStudentsSearch').value=''; await fire('deanStudentsRefresh','click');

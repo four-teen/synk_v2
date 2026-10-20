@@ -309,6 +309,7 @@ switch ($case) {
     case 'matrix': $handler='backend/load_program_chair_room_time_matrix.php'; break;
     case 'rosters': $_POST['action']='bootstrap'; $handler='backend/query_program_chair_rosters.php'; break;
     case 'students': $_POST['action']='list'; $handler='backend/query_program_chair_students.php'; break;
+    case 'student_login_activity': $_POST['action']='login_activity'; $handler='backend/query_program_chair_students.php'; break;
     case 'reports': $_POST['action']='list'; $handler='backend/query_program_chair_faculty_students.php'; break;
     case 'script_workload': $_GET=['file'=>'faculty-workload.js']; $handler='program-chair/shared-script.php'; break;
     case 'script_students': $_GET=['file'=>'student-management.js']; $handler='program-chair/shared-script.php'; break;

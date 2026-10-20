@@ -23,15 +23,21 @@ $verifiedStudentName = '';
 if ($isStudentPortal) require_once __DIR__ . '/student_login_helper.php';
 $redirectStatus = static function (string $status, bool $record = true) use ($conn, $isStudentPortal, $redirectTarget,
     $matchesStudent, $submittedStudentEmail, &$verifiedStudentEmail, &$verifiedStudentName): void {
-    if ($isStudentPortal && $matchesStudent && $record && $submittedStudentEmail !== '') {
-        try { synk_student_login_record_issue($conn, $submittedStudentEmail, $status, $verifiedStudentEmail, $verifiedStudentName); }
-        catch (Throwable $e) { error_log('Student sign-in diagnostics could not be saved.'); $status = 'student_portal_unavailable'; }
+    if ($isStudentPortal && $record) {
+        if ($matchesStudent && $submittedStudentEmail !== '') {
+            try { synk_student_login_record_issue($conn, $submittedStudentEmail, $status, $verifiedStudentEmail, $verifiedStudentName); }
+            catch (Throwable $e) { error_log('Student sign-in diagnostics could not be saved.'); $status = 'student_portal_unavailable'; }
+        } else synk_student_login_activity_record($conn,'','failure',$status);
     }
     synk_auth_status_redirect($status, $redirectTarget);
 };
 
 if (!synk_google_login_enabled($settings) || !synk_google_auth_ready($settings)) $redirectStatus('google_unavailable');
-if ($incomingState === '' || $storedState === '' || !hash_equals($storedState, $incomingState)) $redirectStatus('google_state_invalid', false);
+if ($incomingState === '' || $storedState === '' || !hash_equals($storedState, $incomingState)) {
+    // An unbound callback cannot be attributed to the student in a pending flow.
+    if ($isStudentPortal) synk_student_login_activity_record($conn,'','failure','google_state_invalid');
+    $redirectStatus('google_state_invalid', false);
+}
 // Consume only the matching flow. A Student and staff sign-in may be open in separate tabs.
 unset($_SESSION[$stateSessionKey], $_SESSION[$nonceSessionKey]);
 if ($isStudentPortal) unset($_SESSION['student_google_oauth_email'], $_SESSION['student_google_oauth_started_at']);
@@ -102,9 +108,8 @@ if ($isStudentPortal) {
     try {
         $directoryStudent = synk_student_login_verified_identity($conn, $submittedStudentEmail, $userInfo, (string)$settings['allowed_domain']);
     } catch (DomainException $e) { $redirectStatus($e->getMessage(), false); }
-    catch (Throwable $e) { $redirectStatus('student_portal_unavailable', false); }
-    synk_complete_student_login($email, $displayName, $googleSub);
-    $_SESSION['student_id'] = (int)$directoryStudent['student_id'];
+    catch (Throwable $e) { $redirectStatus('student_portal_unavailable'); }
+    synk_student_login_complete($conn,$directoryStudent,$email,$displayName,$googleSub);
     unset($_SESSION['student_login_last_email'], $_SESSION['student_login_csrf']);
     if ($pictureUrl !== '') $_SESSION['user_avatar_url'] = $pictureUrl;
     header('Location: ../student/');

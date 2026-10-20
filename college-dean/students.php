@@ -10,7 +10,8 @@ $deanStudentsScope = synk_college_dean_dashboard_require_scope($conn, [], true);
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $deanStudentsViewTerm = synk_dean_view_term($conn);
 $deanStudentsConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'college_id'=>$deanStudentsScope['college_id'], 'campus_id'=>$deanStudentsScope['campus_id'],
-    'ay_id'=>$deanStudentsViewTerm['ay_id'], 'semester'=>$deanStudentsViewTerm['semester'], 'read_only'=>empty($deanStudentsViewTerm['is_current'])];
+    'ay_id'=>$deanStudentsViewTerm['ay_id'], 'semester'=>$deanStudentsViewTerm['semester'], 'read_only'=>empty($deanStudentsViewTerm['is_current']),
+    'login_activity_enabled'=>($_SESSION['role'] ?? '')==='college_dean'];
 
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
 $collegeDeanPortalDisplayName = (string)($collegeDeanPortalContext['account_name'] ?? 'College Dean');
@@ -69,11 +70,11 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
                 <div class="card-body p-4">
                   <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                     <h5 class="mb-0" id="deanStudentsListTitle">Student Directory</h5>
-                    <div class="d-flex gap-2"><label class="visually-hidden" for="deanStudentsSort">Sort students</label><select id="deanStudentsSort" class="form-select form-select-sm"><option value="name">Name A–Z</option><option value="id">Student ID A–Z</option><option value="newest">Recently imported</option></select><label class="visually-hidden" for="deanStudentsPageSize">Students per page</label><select id="deanStudentsPageSize" class="form-select form-select-sm"><option value="25">25 per page</option><option value="50">50 per page</option><option value="100">100 per page</option></select></div>
+                    <div class="d-flex gap-2 dean-student-list-controls"><label class="visually-hidden" for="deanStudentsSort">Sort students</label><select id="deanStudentsSort" class="form-select form-select-sm"><option value="name">Name A–Z</option><option value="id">Student ID A–Z</option><option value="newest">Recently imported</option></select><label class="visually-hidden" for="deanStudentsPageSize">Students per page</label><select id="deanStudentsPageSize" class="form-select form-select-sm"><option value="25">25 per page</option><option value="50">50 per page</option><option value="100">100 per page</option></select></div>
                   </div>
-                  <p class="small text-muted">Class Sections list the groups where a student takes subjects for the selected academic term.</p>
+                  <p class="small text-muted">Class Sections list the groups where a student takes subjects for the selected academic term.<?php if ($deanStudentsConfig['login_activity_enabled']): ?> Login counts show successful sign-ins across all recorded terms. Open a count for statistics and failed attempts.<?php endif; ?></p>
                   <div class="dean-student-selection d-flex flex-wrap align-items-center gap-2 mb-3"><span id="deanStudentsSelectedCount" class="small fw-semibold" role="status">0 selected</span><button type="button" class="btn btn-sm btn-outline-primary" id="deanStudentsSelectResults" disabled>Select All Matching Students</button><button type="button" class="btn btn-sm btn-outline-secondary" id="deanStudentsClearSelection" disabled>Clear Selection</button><button type="button" class="btn btn-sm btn-outline-danger ms-sm-auto" id="deanStudentsDelete" disabled><i class="bx bx-trash me-1" aria-hidden="true"></i>Delete Selected Term Records</button><span id="deanStudentsDeleteHint" class="small text-muted w-100"></span></div>
-                  <div class="table-responsive"><table class="table dean-students-table dean-student-directory-table"><colgroup><col class="dean-directory-select"><col class="dean-directory-name"><col class="dean-directory-program"><col class="dean-directory-sections"><col class="dean-directory-subjects"><col class="dean-directory-actions"></colgroup><thead><tr><th><input type="checkbox" class="form-check-input" id="deanStudentsSelectPage" aria-label="Select students on this page" disabled></th><th>Student Name</th><th>Programs</th><th>Class Sections</th><th class="text-center" aria-label="Number of subjects">Subjects</th><th class="text-end">Actions</th></tr></thead><tbody id="deanStudentsRows"><tr><td colspan="6" class="text-center text-muted py-5">Loading students...</td></tr></tbody></table></div>
+                  <div class="table-responsive"><table class="table dean-students-table dean-student-directory-table<?php echo $deanStudentsConfig['login_activity_enabled']?' dean-directory-with-logins':''; ?>"><colgroup><col class="dean-directory-select"><col class="dean-directory-name"><col class="dean-directory-program"><col class="dean-directory-sections"><col class="dean-directory-subjects"><?php if ($deanStudentsConfig['login_activity_enabled']): ?><col class="dean-directory-logins"><?php endif; ?><col class="dean-directory-actions"></colgroup><thead><tr><th><input type="checkbox" class="form-check-input" id="deanStudentsSelectPage" aria-label="Select students on this page" disabled></th><th>Student Name</th><th>Programs</th><th>Class Sections</th><th class="text-center" aria-label="Number of subjects">Subjects</th><?php if ($deanStudentsConfig['login_activity_enabled']): ?><th class="text-center">Login Activity</th><?php endif; ?><th class="text-end">Actions</th></tr></thead><tbody id="deanStudentsRows"><tr><td colspan="<?php echo $deanStudentsConfig['login_activity_enabled']?7:6; ?>" class="text-center text-muted py-5">Loading students...</td></tr></tbody></table></div>
                   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"><span class="small text-muted" id="deanStudentsPageInfo" role="status"></span><nav aria-label="Student directory pages"><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-primary" type="button" id="deanStudentsPrevious" disabled>Previous</button><button class="btn btn-sm btn-outline-primary" type="button" id="deanStudentsNext" disabled>Next</button></div></nav></div>
                 </div>
               </section>
@@ -139,6 +140,26 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
         <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="deanStudentEmailsCancel" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-outline-primary" id="deanStudentEmailsReload">Preview Again</button><button type="button" class="btn btn-primary" id="deanStudentEmailsSave" disabled>Save Selected (0)</button></div>
       </div></div>
     </div>
+    <?php if ($deanStudentsConfig['login_activity_enabled']): ?>
+    <div class="modal fade" id="deanStudentLoginModal" tabindex="-1" aria-labelledby="deanStudentLoginTitle" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable dean-student-login-dialog"><div class="modal-content">
+        <div class="modal-header"><div><h5 class="modal-title mb-1" id="deanStudentLoginTitle">Student login activity</h5><p class="small text-muted mb-0" id="deanStudentLoginIdentity"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close login activity"></button></div>
+        <div class="modal-body">
+          <div id="deanStudentLoginNotice" class="alert alert-danger d-none" role="alert"></div>
+          <div class="dean-student-login-summary" id="deanStudentLoginSummary" aria-live="polite"></div>
+          <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+            <div><label for="deanStudentLoginOutcome" class="form-label">Sign-in outcome</label><select id="deanStudentLoginOutcome" class="form-select"><option value="all">All attempts</option><option value="success">Successful logins</option><option value="failure">Failed attempts</option></select></div>
+            <button type="button" class="btn btn-outline-primary" id="deanStudentLoginRefresh"><i class="bx bx-refresh me-1" aria-hidden="true"></i>Refresh history</button>
+          </div>
+          <p class="small text-muted">Latest attempts appear first. All times are Philippine Time (Asia/Manila). Unverified failures are attempts using the student's email; they do not prove that the student made the attempt.</p>
+          <div class="table-responsive"><table class="table dean-student-login-table"><thead><tr><th>Date and time</th><th>Result</th><th>Details</th><th>Email and verification</th><th>Device and browser</th><th>IP address</th></tr></thead><tbody id="deanStudentLoginRows"></tbody></table></div>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3"><span id="deanStudentLoginPageInfo" class="small text-muted" role="status"></span><div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-secondary" id="deanStudentLoginPrevious" disabled>Previous</button><button type="button" class="btn btn-sm btn-outline-secondary" id="deanStudentLoginNext" disabled>Next</button></div></div>
+          <p class="small text-muted mt-3 mb-0">Only sign-in outcomes are recorded. Viewing pages or using Show Account does not add logins. History starts when login activity tracking was enabled.</p>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
+      </div></div>
+    </div>
+    <?php endif; ?>
     <div class="modal fade" id="deanStudentDetailsModal" tabindex="-1" aria-labelledby="deanStudentDetailsTitle" aria-hidden="true">
       <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
         <div class="modal-header"><div><h5 class="modal-title" id="deanStudentDetailsTitle">Student Details</h5><p class="small text-muted mt-1 mb-0" id="deanStudentDetailsTerm"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
@@ -153,6 +174,7 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
     <script src="../assets/vendor/js/menu.js"></script>
     <script src="../assets/js/main.js"></script>
     <script src="students.js?v=<?php echo (int)filemtime(__DIR__ . '/students.js'); ?>"></script>
+    <?php if ($deanStudentsConfig['login_activity_enabled']): ?><script src="student-login-activity.js?v=<?php echo (int)filemtime(__DIR__ . '/student-login-activity.js'); ?>"></script><?php endif; ?>
     <script src="student-emails.js?v=<?php echo (int)filemtime(__DIR__ . '/student-emails.js'); ?>"></script>
     <script src="student-management.js?v=<?php echo (int)filemtime(__DIR__ . '/student-management.js'); ?>"></script>
   </body>
