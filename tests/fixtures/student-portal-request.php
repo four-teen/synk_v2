@@ -9,6 +9,12 @@ require_once $root.'/backend/student_dashboard_helper.php';
 require_once $root.'/backend/auth_config.php';
 class StudentPortalQAConnection extends mysqli {
     public $requestMode=false;
+    public $failActivityWrite=false;
+    #[\ReturnTypeWillChange]
+    public function prepare($sql){
+        if($this->failActivityWrite && preg_match('/^\s*INSERT INTO tbl_student_login_activity\b/i',$sql)) throw new RuntimeException('Deliberate activity storage failure.');
+        return parent::prepare($sql);
+    }
     #[\ReturnTypeWillChange]
     public function begin_transaction($flags=0,$name=null){return $this->requestMode?$this->query('SAVEPOINT student_portal_request'):parent::begin_transaction($flags);}
     #[\ReturnTypeWillChange]
@@ -26,6 +32,7 @@ class StudentPortalQAConnection extends mysqli {
 }
 $conn->close();$conn=new StudentPortalQAConnection($servername,$username,$password,$dbase);$conn->set_charset('utf8mb4');$conn->begin_transaction();
 $scenario=is_string($_GET['scenario']??null)?$_GET['scenario']:'dashboard';
+$loginActivityFloor=(int)$conn->query('SELECT COALESCE(MAX(activity_id),0) AS n FROM tbl_student_login_activity')->fetch_assoc()['n'];
 $tag='PortalQA'.bin2hex(random_bytes(6));$domain=synk_auth_settings()['allowed_domain'];$email=strtolower($tag).'@'.$domain;
 $term=synk_fetch_current_academic_term($conn);
 $oldTerm=['ay_id'=>$term['ay_id'],'semester'=>max(1,$term['semester']-1)];
@@ -141,16 +148,21 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
     if($scenario==='admin_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$adminId} AND role='admin'");
     if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
 if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-access-scenarios.php';
-$protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers'];
+if (strpos($scenario,'login_activity_')===0) require __DIR__.'/student-login-activity-scenarios.php';
+$protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_login_activity'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);
 ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0||strpos($handler,'college-dean/')===0||strpos($handler,'professor/')===0||strpos($handler,'program-chair/')===0){$base=dirname($handler);$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
-register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot):void {
+register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot,$loginActivityFloor):void {
     $stmt=$conn->prepare('SELECT submitted_email,google_email,google_name,failure_code,identity_verified,attempt_count,review_status,review_note FROM tbl_student_login_issues WHERE submitted_email LIKE ? ORDER BY issue_id');$like='%'.$tag.'%';$stmt->bind_param('s',$like);$stmt->execute();$issues=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
     // The deliberate invalid-address preflight scenarios use non-tagged emails.
     if(isset($_POST['email'])&&in_array($_POST['email'],['invalid email','qa@example.com'],true))$issues=$conn->query("SELECT submitted_email,google_email,failure_code,identity_verified,attempt_count,review_status FROM tbl_student_login_issues WHERE submitted_email IN ('invalid email','qa@example.com')")->fetch_all(MYSQLI_ASSOC);
     header('X-QA-Issues: '.rawurlencode(json_encode($issues)));header('X-QA-Students: '.rawurlencode(json_encode($students)));
     header('X-QA-Protected-Unchanged: '.($snapshot($protected)===$protectedBefore?'yes':'no'));
+    if (preg_match('/^(start_|callback_|verified_)/',$_GET['scenario'] ?? '')) {
+        $activity=$conn->query('SELECT student_id,submitted_email,outcome,reason_code,identity_verified,auth_method,ip_address,browser,operating_system,device_type FROM tbl_student_login_activity WHERE activity_id>'.$loginActivityFloor.' ORDER BY activity_id')->fetch_all(MYSQLI_ASSOC);
+        header('X-QA-Login-Activity: '.rawurlencode(json_encode($activity)));
+    }
     if (strpos($_GET['scenario'] ?? '','evaluation_access_')===0) {
         $state=$conn->query('SELECT college_id,faculty_id,submission_status FROM tbl_student_faculty_evaluations WHERE student_id='.(int)$students['first'].' ORDER BY college_id,faculty_id')->fetch_all(MYSQLI_ASSOC);
         $controls=$conn->query('SELECT college_id,ay_id,semester,student_open,faculty_released,version FROM tbl_college_evaluation_settings ORDER BY college_id,ay_id,semester')->fetch_all(MYSQLI_ASSOC);
@@ -164,10 +176,13 @@ if(strpos($scenario,'verified_')===0){
     $identity=['sub'=>'qa-sub-'.$tag,'email'=>$email,'email_verified'=>true,'name'=>'Alex Portal QA'];$submitted=$email;
     if($scenario==='verified_unknown')$identity['email']=$submitted='unknown-'.$email;
     if($scenario==='verified_mismatch')$submitted='wrong-'.$email;
+    if($scenario==='verified_mismatch_known_student')$identity['email']='other-'.$email;
     if($scenario==='verified_unverified')$identity['email_verified']=false;
     if($scenario==='verified_domain')$identity['email']=$submitted='outside-'.$tag.'@example.com';
+    if(strpos($scenario,'verified_login_')===0) $_SESSION=[];
     header('Content-Type: application/json');
-    try{$record=synk_student_login_verified_identity($conn,$submitted,$identity,$domain);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id']]);}
+    if($scenario==='verified_login_storage_failure') $conn->failActivityWrite=true;
+    try{$record=synk_student_login_verified_identity($conn,$submitted,$identity,$domain);if(in_array($scenario,['verified_login_success','verified_login_storage_failure'],true))synk_student_login_complete($conn,$record,$identity['email'],$identity['name'],$identity['sub']);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id'],'authenticated'=>(($_SESSION['role'] ?? '')==='student' && (int)($_SESSION['student_id'] ?? 0)===(int)$record['student_id'])]);}
     catch(DomainException $e){http_response_code(403);echo json_encode(['status'=>'denied','reason'=>$e->getMessage()]);}
     exit;
 }

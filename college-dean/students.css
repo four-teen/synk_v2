@@ -8,6 +8,8 @@
 .dean-student-context { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #deanStudentsSort { min-width: 10rem; }
 #deanStudentsPageSize { min-width: 7.5rem; }
+.dean-student-list-controls { flex-wrap: wrap; }
+.dean-student-list-controls .form-select { width: auto; max-width: 100%; }
 .dean-student-profile { background: var(--dean-primary-soft); border-radius: var(--dean-card-radius); padding: 1.25rem; margin-bottom: 1.5rem; }
 .dean-student-file { max-width: 15rem; overflow-wrap: anywhere; }
 .dean-student-email { min-width: 12rem; max-width: 20rem; overflow-wrap: anywhere; }
@@ -18,6 +20,28 @@
 .dean-student-directory-table .dean-directory-sections { width: 22%; }
 .dean-student-directory-table .dean-directory-subjects { width: 7%; }
 .dean-student-directory-table .dean-directory-actions { width: 12%; }
+.dean-directory-with-logins .dean-directory-name { width: 35%; }
+.dean-directory-with-logins .dean-directory-program { width: 10%; }
+.dean-directory-with-logins .dean-directory-sections { width: 20%; }
+.dean-directory-with-logins .dean-directory-logins { width: 13%; }
+.dean-directory-with-logins .dean-directory-actions { width: 11%; }
+.dean-student-login-cell { text-align: center; }
+.dean-student-login-count { display: inline-flex; align-items: center; justify-content: center; gap: .3rem; white-space: nowrap; padding: .3rem .5rem; }
+.dean-student-login-failures { display: block; font-size: .75rem; margin-top: .25rem; }
+.dean-student-login-dialog { max-width: 1320px; }
+.dean-student-login-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.dean-student-login-stat { border: 1px solid var(--dean-border,#e4e8f0); border-radius: .75rem; padding: 1rem; min-width: 0; }
+.dean-student-login-stat .dean-login-stat-label { display: block; color: var(--dean-text); font-size: .8rem; margin-bottom: .5rem; }
+.dean-login-stat-value { display: block; font-weight: 600; color: var(--dean-heading); font-size: 1.5rem; overflow-wrap: anywhere; }
+.dean-login-stat-date { font-size: .95rem; line-height: 1.6; }
+.dean-student-login-table { min-width: 1050px; font-size: .85rem; }
+.dean-student-login-table th { white-space: nowrap; }
+.dean-student-login-table td { vertical-align: top; }
+.dean-login-date,.dean-login-ip { white-space: nowrap; }
+.dean-login-reason { min-width: 12rem; max-width: 16rem; overflow-wrap: anywhere; }
+.dean-login-email { min-width: 12rem; max-width: 17rem; overflow-wrap: anywhere; }
+.dean-login-agent { max-width: 17rem; overflow-wrap: anywhere; white-space: normal; }
+@media (max-width: 767.98px) { .dean-student-login-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; } .dean-student-login-stat { padding: .8rem; } }
 .dean-student-directory-table th, .dean-student-directory-table td { padding: .75rem .5rem; }
 .dean-student-directory-table th { font-size: .7rem; letter-spacing: .025rem; }
 .dean-student-directory-table .dean-student-name { min-width: 0; }

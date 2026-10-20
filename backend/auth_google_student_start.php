@@ -7,11 +7,16 @@ require_once __DIR__ . '/student_login_helper.php';
 
 $settings = synk_auth_settings();
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !synk_student_login_check_csrf($_POST['csrf_token'] ?? null)) {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') synk_auth_status_redirect('student_login_request_invalid', '../student/login.php');
+if (!synk_student_login_check_csrf($_POST['csrf_token'] ?? null)) {
+    synk_student_login_activity_record($conn,is_string($_POST['email'] ?? null)?$_POST['email']:'','failure','student_login_request_invalid');
     synk_auth_status_redirect('student_login_request_invalid', '../student/login.php');
 }
 $requests = array_values(array_filter($_SESSION['student_login_requests'] ?? [], static function ($timestamp): bool { return $timestamp > time() - 900; }));
-if (count($requests) >= 10) synk_auth_status_redirect('student_login_rate_limited', '../student/login.php');
+if (count($requests) >= 10) {
+    synk_student_login_activity_record($conn,is_string($_POST['email'] ?? null)?$_POST['email']:'','failure','student_login_rate_limited');
+    synk_auth_status_redirect('student_login_rate_limited', '../student/login.php');
+}
 $requests[] = time();
 $_SESSION['student_login_requests'] = $requests;
 $email = is_string($_POST['email'] ?? null) ? synk_normalize_email($_POST['email']) : '';

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/auth_useraccount.php';
 require_once __DIR__ . '/schema_helper.php';
+require_once __DIR__ . '/student_login_activity_helper.php';
 
 function synk_student_login_csrf(): string
 {
@@ -34,6 +35,7 @@ function synk_student_login_issue_label(string $code): string
 
 function synk_student_login_record_issue(mysqli $conn, string $submitted, string $code, string $verifiedEmail = '', string $googleName = ''): void
 {
+    synk_student_login_activity_record($conn,$submitted,'failure',$code,$verifiedEmail!=='');
     $submitted = synk_normalize_email($submitted);
     $submitted = function_exists('mb_substr') ? mb_substr($submitted, 0, 255, 'UTF-8') : substr($submitted, 0, 255);
     if ($submitted === '') return;
@@ -74,6 +76,7 @@ function synk_student_login_verified_identity(mysqli $conn, string $submitted, a
     $email = synk_normalize_email((string)($identity['email'] ?? ''));
     $name = (string)($identity['name'] ?? '');
     if (($identity['email_verified'] ?? false) !== true || trim((string)($identity['sub'] ?? '')) === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        synk_student_login_activity_record($conn,$submitted,'failure','google_profile_invalid');
         throw new DomainException('google_profile_invalid');
     }
     $failure = '';
@@ -87,6 +90,13 @@ function synk_student_login_verified_identity(mysqli $conn, string $submitted, a
         throw new DomainException($failure);
     }
     return $rows[0];
+}
+
+function synk_student_login_complete(mysqli $conn, array $student, string $email, string $name, string $googleSub): void
+{
+    synk_complete_student_login($email,$name,$googleSub);
+    $_SESSION['student_id']=(int)$student['student_id'];
+    synk_student_login_activity_record($conn,$email,'success','login_success',true,(int)$student['student_id']);
 }
 
 function synk_student_login_session_record(mysqli $conn): ?array

@@ -43,6 +43,7 @@ foreach (['index','programs','students','reports','faculty-workload','faculty-pr
     $check(strpos($body,'Program Chair Portal')!==false && strpos($body,'href="manage-college-faculty.php"')!==false, 'Chair navigation missing: '.$page);
     $check(strpos($body,'College Dean Portal')===false && $r['session_role']==='program_chair' && $r['session_college']===$r['college_id'], 'Page used Dean identity or stale college: '.$page);
     if ($page!=='manage-college-faculty') $check(strpos($body,'../college-dean/custom_css.css')!==false, 'Shared theme path missing: '.$page);
+    if ($page==='students') $check(strpos($body,'Login Activity')===false && strpos($body,'id="deanStudentLoginModal"')===false && strpos($body,'student-login-activity.js')===false,'The shared Chair student page exposed Dean login activity controls.');
     if ($page==='index') {
         $check(strpos($body,'dashboard_program_chair_schedule_heatmap.php')!==false && strpos($body,'load_program_chair_room_time_matrix.php')!==false, 'Chair dashboard chart endpoints missing.');
         preg_match_all('/<script(?:\s[^>]*)?>(.*?)<\/script>/s',$body,$matches);
@@ -61,7 +62,10 @@ foreach (['heatmap','matrix','rosters','students','reports','prospectus'] as $sc
     if ($scenario==='matrix') $check(is_string($r['response']) && strpos($r['response'],'Unauthorized')===false && strpos($r['response'],'CSRF validation failed')===false, 'Read-only room matrix did not render.');
     elseif ($scenario==='prospectus') $check(!isset($r['response']['error']), 'Assigned-college prospectus failed.');
     else $check(($r['response']['status']??'')==='ok', 'Shared endpoint returned an error: '.$scenario.' '.json_encode($r['response']));
+    if ($scenario==='students') $check(strpos(json_encode($r['response']),'login_success_count')===false && strpos(json_encode($r['response']),'login_failure_count')===false,'The Chair student directory exposed Dean login statistics.');
 }
+$r=$request('student_login_activity');
+$check($r['http_status']===403 && strpos($r['response']['message'] ?? '','Only the assigned College Dean')!==false,'An authorized Program Chair could read student login history.');
 $r=$request('prospectus_outside');
 $check($r['http_status']===403,'Program Chair could view another college prospectus.');
 foreach (['script_workload'=>'query_program_chair_rosters.php','script_students'=>'query_program_chair_students.php','script_reports'=>'query_program_chair_faculty_students.php'] as $scenario=>$endpoint) {
