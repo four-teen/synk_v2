@@ -4,11 +4,34 @@ ob_start();
 require_once '../backend/db.php';
 require_once '../backend/college_dean_evaluations_helper.php';
 header('Cache-Control: no-store');
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') { http_response_code(405); header('Allow: GET'); exit('This evaluation page is for viewing results.'); }
+if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET','POST'],true)
+    || (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST' && !isset($_POST['save_evaluation_control']))) {
+    http_response_code(405); header('Allow: GET, POST'); exit('Use the evaluation controls to change access.');
+}
 synk_college_dean_require_login($conn);
 $deanEvaluationScope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $deanEvaluationTerm = synk_dean_view_term($conn);
 $deanEvaluationError = '';
+$deanEvaluationControlError = '';
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST') {
+    try {
+        synk_evaluation_save_control($conn,$_POST);
+        header('Location: faculty-evaluations.php?' . http_build_query(['dean_ay_id'=>(int)$_POST['ay_id'],'dean_semester'=>(int)$_POST['semester'],'access_saved'=>'1']));
+        exit;
+    } catch (DomainException $exception) {
+        http_response_code(422); $deanEvaluationControlError=$exception->getMessage();
+    } catch (Throwable $exception) {
+        http_response_code(500); error_log('Evaluation control: '.$exception->getMessage());
+        $deanEvaluationControlError='Unable to save evaluation access. Please try again.';
+    }
+}
+$deanEvaluationSettings=synk_evaluation_settings($conn,(int)$deanEvaluationScope['college_id'],(int)$deanEvaluationTerm['ay_id'],(int)$deanEvaluationTerm['semester']);
+$deanEvaluationCurrent=synk_evaluation_is_current($deanEvaluationTerm,synk_fetch_current_academic_term($conn));
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token']=bin2hex(random_bytes(32));
+$deanEvaluationAudit=[];
+if (($_SESSION['role'] ?? '')==='college_dean' && synk_evaluation_table_exists($conn,'tbl_college_evaluation_audit')) {
+    $deanEvaluationAudit=synk_evaluation_query($conn,'SELECT a.control_name,a.new_value,a.changed_at,u.username FROM tbl_college_evaluation_audit a LEFT JOIN tbl_useraccount u ON u.user_id=a.user_id WHERE a.college_id=? AND a.ay_id=? AND a.semester=? ORDER BY a.audit_id DESC LIMIT 5','iii',[(int)$deanEvaluationScope['college_id'],(int)$deanEvaluationTerm['ay_id'],(int)$deanEvaluationTerm['semester']]);
+}
 $deanEvaluationFilters = ['faculty_id' => 0, 'instrument_version' => 'all', 'search' => ''];
 $deanEvaluationData = ['rows' => [], 'detail' => null, 'summary' => ['faculty_count' => 0, 'submitted_count' => 0, 'draft_count' => 0, 'student_count' => 0]];
 try {
@@ -86,6 +109,7 @@ function synk_dean_evaluation_url(array $term, array $filters, int $facultyId = 
           </form>
           <p class="small text-muted mt-3 mb-0">Selected term: <strong><?php echo synk_dean_evaluation_h($deanEvaluationTerm['term_text'] ?? 'No academic term configured'); ?></strong>. This selection follows the Dean portal's viewing term.</p>
         </div></div>
+        <?php include __DIR__ . '/evaluation-access-controls.php'; ?>
         <?php if ($deanEvaluationError !== ''): ?><div class="alert alert-danger" role="alert"><?php echo synk_dean_evaluation_h($deanEvaluationError); ?></div><?php else: ?>
           <div class="dean-evaluation-summary mb-4">
             <?php foreach (['faculty_count' => 'Faculty', 'submitted_count' => 'Submitted Evaluations', 'student_count' => 'Student Evaluators', 'draft_count' => 'Unsubmitted Drafts'] as $key => $label): ?><div class="card"><div class="card-body"><span class="small text-muted"><?php echo $label; ?></span><h4 class="mt-2 mb-0" data-evaluation-summary="<?php echo $key; ?>"><?php echo number_format($deanEvaluationData['summary'][$key]); ?></h4></div></div><?php endforeach; ?>

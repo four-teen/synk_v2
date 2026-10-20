@@ -28,6 +28,15 @@ $professorSidebarItems = [
         'description' => 'Faculty workload from enrolled subject records',
         'pages' => ['workload.php'],
     ],
+    [
+        'key' => 'evaluations',
+        'href' => 'faculty-evaluations.php',
+        'icon_bg' => 'bg-label-warning',
+        'icon' => 'bx-bar-chart-alt-2',
+        'title' => 'My Evaluation Results',
+        'description' => 'Results released by your colleges',
+        'pages' => ['faculty-evaluations.php'],
+    ],
 ];
 
 $professorSidebarActiveKey = 'dashboard';
