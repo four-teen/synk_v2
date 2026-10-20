@@ -1,5 +1,9 @@
 # Clearing a class list in the Dean portal
 
+Scheduler now blocks workload removal while a class has active students.
+For classes already removed or reassigned, use the Dean's **Student Lists
+Needing Review** check. See [Workload removal protection](workload-student-guard.md).
+
 Open **College Dean → Faculty Workload → View Students → Clear Student List**.
 Review the complete student list, tick the acknowledgement, and confirm.
 Both CSV imports and manual additions are included. Cancel returns to the class

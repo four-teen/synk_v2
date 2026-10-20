@@ -3635,6 +3635,7 @@ $(document).ready(function () {
                 type: "POST",
                 dataType: "json",
                 data: {
+                    csrf_token: <?= json_encode($_SESSION['csrf_token']) ?>,
                     ay_id: termContext.ayId,
                     semester: termContext.semesterNum
                 }
@@ -3669,7 +3670,7 @@ $(document).ready(function () {
                 );
             }).fail(function (xhr) {
                 Swal.close();
-                Swal.fire("Error", xhr.responseText || "Failed to remove college workload.", "error");
+                Swal.fire({title: xhr.status === 409 ? "Student list must be cleared" : "Error", text: xhr.responseJSON?.message || "Failed to remove college workload.", icon: xhr.status === 409 ? "warning" : "error"});
             }).always(function () {
                 button.prop("disabled", false).html(originalHtml);
             });
@@ -5739,14 +5740,14 @@ $(document).ready(function () {
             $.post(
                 "../backend/query_remove_workload.php",
                 deleteCount > 1
-                    ? { workload_ids: workloadIds, assignee_type: assigneeType }
-                    : { workload_id: workloadId, assignee_type: assigneeType },
+                    ? { workload_ids: workloadIds, assignee_type: assigneeType, csrf_token: <?= json_encode($_SESSION['csrf_token']) ?> }
+                    : { workload_id: workloadId, assignee_type: assigneeType, csrf_token: <?= json_encode($_SESSION['csrf_token']) ?> },
                 function () {
                     refreshWorkloadPanels();
                     loadFacultyOverview(true);
                 }
             ).fail(function (xhr) {
-                Swal.fire("Error", xhr.responseText || "Failed to remove workload.", "error");
+                Swal.fire({title: xhr.status === 409 ? "Student list must be cleared" : "Error", text: xhr.responseJSON?.message || "Failed to remove workload.", icon: xhr.status === 409 ? "warning" : "error"});
             }).always(function () {
                 setButtonBusy(button, false);
                 endSchedulerActivity(busyToken);

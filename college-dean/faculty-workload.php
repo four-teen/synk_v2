@@ -61,6 +61,16 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
                   <div id="deanNotice" class="alert mt-3 mb-0 d-none" role="status"></div>
                 </div>
               </div>
+              <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?>
+              <section class="card dean-page-card mb-4" aria-labelledby="deanRosterReviewTitle">
+                <div class="card-body">
+                  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2"><h5 class="mb-0" id="deanRosterReviewTitle">Student Lists Needing Review</h5><button type="button" class="btn btn-sm btn-outline-primary" id="deanRosterReviewRefresh">Check Student Lists</button></div>
+                  <p class="small text-muted mt-2 mb-2">Checks all active student lists in your college for the selected term, including classes missing a faculty assignment or still linked to a different faculty.</p>
+                  <p id="deanRosterReviewStatus" class="small mb-0" role="status">Checking student lists...</p>
+                  <details id="deanRosterReviewDetails" class="mt-3" hidden><summary class="fw-semibold">View affected classes and next steps</summary><p class="small text-muted mt-2">For an unassigned class, ask Scheduler to assign the same class offering to the intended faculty. Then open its student list, clear it, and import the corrected CSV. A review flag does not by itself prove that a deletion occurred.</p><div id="deanRosterReviewRows" class="table-responsive dean-roster-review-table"></div></details>
+                </div>
+              </section>
+              <?php endif; ?>
               <div class="row row-cols-2 row-cols-lg-5 g-3 mb-4" id="deanSummary" hidden>
                 <div class="col"><div class="card dean-page-card"><div class="card-body"><span class="dean-page-copy">Assigned Classes</span><h4 class="mt-2 mb-0" id="deanClassCount">0</h4></div></div></div>
                 <div class="col"><div class="card dean-page-card"><div class="card-body"><span class="dean-page-copy">Preparations</span><h4 class="mt-2 mb-0" id="deanPreparationCount">0</h4></div></div></div>
@@ -119,5 +129,6 @@ $deanWorkloadConfig = ['csrf_token'=>(string)$_SESSION['csrf_token'], 'ay_id'=>$
     <script src="faculty-workload.js?v=<?php echo (int)filemtime(__DIR__ . '/faculty-workload.js'); ?>"></script>
     <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><script src="manual-roster.js?v=<?php echo (int)filemtime(__DIR__.'/manual-roster.js'); ?>"></script><?php endif; ?>
     <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><script src="clear-roster.js?v=<?php echo (int)filemtime(__DIR__.'/clear-roster.js'); ?>"></script><?php endif; ?>
+    <?php if ($deanWorkloadConfig['manual_roster_enabled']): ?><script src="roster-review.js?v=<?php echo (int)filemtime(__DIR__.'/roster-review.js'); ?>"></script><?php endif; ?>
   </body>
 </html>

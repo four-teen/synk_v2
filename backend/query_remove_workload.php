@@ -1,77 +1,20 @@
 <?php
-session_start();
-include 'db.php';
-require_once __DIR__ . '/faculty_need_helper.php';
-require_once __DIR__ . '/workload_audit_helper.php';
-
-if (!isset($_SESSION['user_id'])) exit;
-
-$assigneeType = strtolower(trim((string)($_POST['assignee_type'] ?? 'faculty')));
-$isFacultyNeed = $assigneeType === 'faculty_need';
-
-$ids = [];
-
-if (isset($_POST['workload_ids'])) {
-    $rawIds = $_POST['workload_ids'];
-
-    if (!is_array($rawIds)) {
-        $rawIds = explode(',', (string)$rawIds);
-    }
-
-    foreach ($rawIds as $rawId) {
-        $id = intval($rawId);
-        if ($id > 0) {
-            $ids[$id] = $id;
-        }
-    }
+if (session_status()!==PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__.'/db.php';
+require_once __DIR__.'/workload_student_guard_helper.php';
+header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
+function synk_remove_workload_response(array $payload,int $status=200): void
+{
+    http_response_code($status); echo json_encode($payload); exit;
 }
-
-if (empty($ids)) {
-    $id = intval($_POST['workload_id'] ?? 0);
-    if ($id > 0) {
-        $ids[$id] = $id;
-    }
-}
-
-if (empty($ids)) exit;
-
-$ids = array_values($ids);
-$placeholders = implode(',', array_fill(0, count($ids), '?'));
-$types = str_repeat('i', count($ids));
-
-$targetTable = $isFacultyNeed ? synk_faculty_need_workload_table_name() : 'tbl_faculty_workload_sched';
-$targetColumn = $isFacultyNeed ? 'need_workload_id' : 'workload_id';
-
-if ($isFacultyNeed) {
-    synk_faculty_need_ensure_tables($conn);
-}
-
-$auditRows = synk_workload_audit_fetch_workload_rows($conn, $assigneeType, $ids);
-
-$stmt = $conn->prepare("
-    DELETE FROM `{$targetTable}`
-    WHERE {$targetColumn} IN ($placeholders)
-");
-
-if (!$stmt) exit;
-
-$params = [$types];
-foreach ($ids as $index => $idValue) {
-    $params[] = &$ids[$index];
-}
-
-call_user_func_array([$stmt, 'bind_param'], $params);
-$stmt->execute();
-$deletedCount = max(0, (int)$stmt->affected_rows);
-$stmt->close();
-
-if ($deletedCount > 0 && !empty($auditRows)) {
-    foreach ($auditRows as $auditRow) {
-        synk_workload_audit_record_workload_event($conn, 'workload_delete', $auditRow, [
-            'requested_workload_ids' => $ids,
-            'deleted_count' => $deletedCount,
-        ]);
-    }
-}
-
-exit;
+if (($_SERVER['REQUEST_METHOD'] ?? '')!=='POST') synk_remove_workload_response(['status'=>'error','message'=>'Use a POST request.'],405);
+if (empty($_SESSION['user_id']) || ($_SESSION['role'] ?? '')!=='scheduler' || empty($_SESSION['college_id'])) synk_remove_workload_response(['status'=>'error','message'=>'Scheduler access and a college assignment are required.'],403);
+if (empty($_SESSION['csrf_token']) || !is_string($_POST['csrf_token'] ?? null) || !hash_equals((string)$_SESSION['csrf_token'],$_POST['csrf_token'])) synk_remove_workload_response(['status'=>'error','message'=>'Your session changed. Reload the page before removing workload.'],403);
+try {
+    $type=$_POST['assignee_type'] ?? 'faculty';
+    if (!is_string($type) || !in_array($type,['faculty','faculty_need'],true)) throw new DomainException('Choose a valid workload type.');
+    $result=synk_workload_remove_guarded($conn,(int)$_SESSION['college_id'],$type,synk_workload_removal_ids($_POST));
+    synk_remove_workload_response(['status'=>'ok','message'=>'Workload removed.']+$result);
+} catch (SynkWorkloadStudentsException $error) { synk_remove_workload_response(['status'=>'blocked','code'=>'active_students','message'=>$error->getMessage(),'classes'=>$error->classes],409); }
+catch (DomainException $error) { synk_remove_workload_response(['status'=>'error','message'=>$error->getMessage()],422); }
+catch (Throwable $error) { error_log('Remove workload: '.$error->getMessage()); synk_remove_workload_response(['status'=>'error','message'=>'Unable to remove workload. Refresh the list before trying again.'],500); }

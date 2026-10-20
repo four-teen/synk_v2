@@ -12120,13 +12120,13 @@ $(document).on("click", ".btn-scheduler-remove-workload", function () {
     $.post(
       "../backend/query_remove_workload.php",
       deleteCount > 1
-        ? { workload_ids: workloadIds }
-        : { workload_id: workloadId }
+        ? { workload_ids: workloadIds, csrf_token: CSRF_TOKEN }
+        : { workload_id: workloadId, csrf_token: CSRF_TOKEN }
     ).done(function () {
       loadSchedulerFacultyWorkloadModal();
       loadScheduleTable(false);
     }).fail(function (xhr) {
-      Swal.fire("Error", xhr.responseText || "Failed to remove workload.", "error");
+      Swal.fire({title: xhr.status === 409 ? "Student list must be cleared" : "Error", text: xhr.responseJSON?.message || "Failed to remove workload.", icon: xhr.status === 409 ? "warning" : "error"});
     }).always(function () {
       button.prop("disabled", false);
     });
