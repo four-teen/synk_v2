@@ -10,6 +10,7 @@ function synk_workload_audit_table_name(): string
 function synk_workload_audit_ensure_table(mysqli $conn): bool
 {
     $tableName = synk_workload_audit_table_name();
+    if (synk_table_exists($conn,$tableName)) return true;
 
     return (bool)$conn->query("
         CREATE TABLE IF NOT EXISTS `{$tableName}` (

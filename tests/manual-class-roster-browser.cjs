@@ -12,10 +12,14 @@ async function main() {
   let html = fixture.response.replace('<head>', '<head><base href="http://localhost/synk/college-dean/">');
   const mock = `<script>
   const qaClass=${JSON.stringify(target).replaceAll('<', '\u003c')};
-  window.__manualRequests=[];window.__manualStudents=[];window.__manualSaves=0;window.__manualPending=null;window.__manualError='';window.__manualHold=false;window.__manualHeld=null;window.__xssExecuted=false;window.__clearSaves=0;
+  window.__manualRequests=[];window.__manualStudents=[];window.__manualSaves=0;window.__manualPending=null;window.__manualError='';window.__manualHold=false;window.__manualHeld=null;window.__xssExecuted=false;window.__clearSaves=0;window.__reviewRows=[];window.__reviewError='';
   window.fetch=async function(url,options){
     const p=Object.fromEntries(options.body.entries());window.__manualRequests.push(p);let data;
     if(p.action==='bootstrap')data={status:'ok',import_ready:true,can_import:!location.search.includes('history=1'),can_add_students:!location.search.includes('history=1'),can_clear_students:!location.search.includes('history=1'),faculties:[{faculty_id:qaClass.faculty_id,faculty_name:'Test Faculty',profile_image_url:''}]};
+    else if(p.action==='roster_review'){
+      if(window.__reviewError)return {ok:false,json:async()=>({status:'error',message:window.__reviewError})};
+      data={status:'ok',rows:window.__reviewRows,summary:{classes:window.__reviewRows.length,affected_students:window.__reviewRows.reduce((n,r)=>n+r.affected_student_count,0)},checked_at:'2026-10-20T00:00:00Z'};
+    }
     else if(p.action==='classes')data={status:'ok',faculty:{faculty_id:qaClass.faculty_id,faculty_name:'Test Faculty',profile_image_url:''},classes:[{...qaClass,roster_count:window.__manualStudents.length}]};
     else if(p.action==='workload')data={status:'ok',rows:[],meta:{total_preparations:1,total_load:3}};
     else if(p.action==='roster')data={status:'ok',class:qaClass,students:window.__manualStudents};
@@ -68,6 +72,20 @@ async function main() {
   const lookup=async number=>{await evaluate(`document.getElementById('deanManualNumber').value=${JSON.stringify(number)};document.getElementById('deanManualNumber').dispatchEvent(new Event('input'));document.getElementById('deanManualLookupForm').requestSubmit()`);await settle();};
   const review=async(reason='late_enrollee')=>{await evaluate(`document.getElementById('deanManualReason').value=${JSON.stringify(reason)};document.getElementById('deanManualDetailsForm').requestSubmit()`);await settle();};
   await resize(1440);await call('Page.navigate',{url},session);await until('document.getElementById("deanFaculty")&&!document.getElementById("deanFaculty").disabled');
+  await until('document.getElementById("deanRosterReviewStatus").textContent.includes("No missing")');
+  check(await evaluate('!document.getElementById("deanFaculty").value&&document.getElementById("deanRosterReviewDetails").hidden'),'College-wide review runs before a faculty is selected and reports a clean result.');
+  await evaluate('window.__reviewRows=[{offering_id:qaClass.offering_id,subject_code:"CS 101",descriptive_title:"<img src=x onerror=window.__xssExecuted=true>",section_label:"BSIS 1A",program_label:"BSIS",status:"missing_assignment",student_count:39,affected_student_count:39,saved_faculty:["Original Faculty"],assigned_faculty:[],review_faculty_id:0,review_faculty_name:""}];document.getElementById("deanRosterReviewRefresh").click()');
+  await until('document.getElementById("deanRosterReviewStatus").textContent.includes("39 students")');
+  check(await evaluate('!document.getElementById("deanRosterReviewDetails").hidden&&document.getElementById("deanRosterReviewDetails").open&&document.getElementById("deanRosterReviewRows").textContent.includes("No faculty assignment")&&!document.querySelector("[data-roster-review]")'),'Unassigned classes show the exact class/count and require Scheduler assignment before clearing.');
+  check(await evaluate('!window.__xssExecuted&&!document.querySelector("#deanRosterReviewRows img")&&document.getElementById("deanRosterReviewRows").textContent.includes("<img")'),'Review escapes stored subject and faculty details.');
+  await evaluate('window.__reviewRows[0].descriptive_title="Introduction to Computing";document.getElementById("deanRosterReviewRefresh").click()');await until('document.getElementById("deanRosterReviewRows").textContent.includes("Introduction to Computing")');
+  for(const width of [1440,390]){await resize(width);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Roster review fits '+width+'px.');await screenshot(`roster-review-${width}.png`);}
+  await evaluate('window.__reviewError="College access changed";document.getElementById("deanRosterReviewRefresh").click()');await until('document.getElementById("deanRosterReviewStatus").textContent.includes("access changed")');
+  check(await evaluate('document.getElementById("deanRosterReviewDetails").hidden&&!document.getElementById("deanRosterReviewRefresh").disabled'),'A failed check hides stale rows and offers a retry.');
+  await evaluate('window.__reviewError="";window.__reviewRows[0]={...window.__reviewRows[0],status:"faculty_mismatch",assigned_faculty:["Test Faculty"],review_faculty_id:qaClass.faculty_id,review_faculty_name:"Test Faculty"};document.getElementById("deanRosterReviewRefresh").click()');await until('document.querySelector("[data-roster-review]")');
+  await evaluate('document.querySelector("[data-roster-review]").click()');await shown('deanRosterModal');await until('document.getElementById("deanStudentTotal").textContent==="0 students"');
+  check(await evaluate('Number(document.getElementById("deanFaculty").value)===qaClass.faculty_id&&document.getElementById("deanRosterSubtitle").textContent.includes("CS 101")'),'Review opens that exact class under the current faculty for the clear/reimport workflow.');
+  await evaluate('window.__reviewRows=[];bootstrap.Modal.getInstance(document.getElementById("deanRosterModal")).hide()');await hidden('deanRosterModal');await until('!document.querySelector(".modal-backdrop")');
   await evaluate(`document.getElementById('deanFaculty').value=${JSON.stringify(String(target.faculty_id))};document.getElementById('deanFaculty').dispatchEvent(new Event('change'))`);await until('document.querySelector("[data-manual-add]")&&!document.getElementById("deanRefresh").disabled');
   check(await evaluate('document.querySelectorAll(".dean-class-actions button").length===3'),'Class cards provide Add Student, View Students and Import CSV.');
   for(const width of [1440,1280,768,390,320]){await resize(width);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`Class actions fit ${width}px.`);}
@@ -127,7 +145,7 @@ async function main() {
   check(await evaluate('!document.querySelector("[data-manual-add]")&&document.querySelector("[data-import]").hidden'),'Historical terms expose viewing while hiding class-add and import controls: '+JSON.stringify(await evaluate('({search:location.search,hasAdd:!!document.querySelector("[data-manual-add]"),importHidden:document.querySelector("[data-import]").hidden,requests:window.__manualRequests.map(r=>r.action)})')));
   await evaluate('document.querySelector("[data-roster]").click()');await shown('deanRosterModal');check(await evaluate('document.getElementById("deanRosterClearStudents").hidden'),'Historical class lists hide clearing.');
   check(errors.length===0,'No browser errors: '+errors.join('; '));
-  console.log(`Manual additions and class clearing browser: ${checks} checks passed. Screenshots saved in .tmp.`);
+  console.log(`Manual additions, class clearing and roster review browser: ${checks} checks passed. Screenshots saved in .tmp.`);
 }
 main().catch(error=>{console.error(error.stack);process.exitCode=1;}).finally(async()=>{
   if(call)try{await call('Browser.close');}catch(_){}

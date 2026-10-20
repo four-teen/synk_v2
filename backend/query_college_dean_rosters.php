@@ -32,6 +32,11 @@ foreach (['ay_id','semester'] as $key) {
     }
 }
 try {
+    if ($action==='roster_review') {
+        if (($_SESSION['role'] ?? '')!=='college_dean') synk_dean_roster_response(['status'=>'error','message'=>'Only the assigned Dean can review student-list assignments.'],403);
+        require_once __DIR__.'/college_dean_roster_review_helper.php';
+        synk_dean_roster_response(['status'=>'ok']+synk_dean_roster_review($conn,$scope,$term));
+    }
     if (in_array($action, ['preview', 'confirm'], true)) {
         try { synk_dean_require_current_term_for_write($conn, $_POST); }
         catch (DomainException $exception) { synk_dean_roster_response(['status'=>'error','message'=>$exception->getMessage()], 409); }

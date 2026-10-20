@@ -37,6 +37,12 @@
 .dean-workload-details[open] summary .bx { transform: rotate(180deg); }
 .dean-workload-details > .table-responsive { margin-top: .5rem; }
 .dean-import-stats { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.dean-roster-review-table { max-height: 28rem; overflow: auto; }
+.dean-roster-review-table th { position: sticky; top: 0; z-index: 1; }
+.dean-roster-review-table td { vertical-align: top; min-width: 9rem; }
+.dean-roster-review-table td:first-child { min-width: 15rem; }
+.dean-roster-review-table .badge { white-space: normal; text-align: left; line-height: 1.35; padding: .4rem .5rem; max-width: 100%; color: #815400 !important; }
+.dean-roster-review-warning { color: #815400; }
 .dean-import-notes { color: var(--dean-muted); font-size: .875rem; padding-left: 1.25rem; }
 .dean-preview-table { max-height: 24rem; overflow: auto; border: 1px solid var(--dean-border); border-radius: var(--dean-card-radius); }
 .dean-preview-table thead { position: sticky; top: 0; z-index: 1; }

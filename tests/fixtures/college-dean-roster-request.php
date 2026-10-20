@@ -12,11 +12,13 @@ class DeanRosterQAConnection extends mysqli
     public $failManualAudit = false;
     public $failClearAudit = false;
     public $hideClearTable = false;
+    public $failWorkloadAudit = false;
     private $clearInserts = 0;
     private $rosterInserts = 0;
     #[\ReturnTypeWillChange]
     public function prepare($query)
     {
+        if ($this->failWorkloadAudit && strpos($query,'INSERT INTO `tbl_scheduler_workload_audit_logs`')!==false) throw new RuntimeException('Injected workload audit failure.');
         if ($this->failClearAudit && preg_match('/INSERT INTO tbl_student_class_clear_history/',$query) && ++$this->clearInserts===2) throw new RuntimeException('Injected second clearing audit failure.');
         if ($this->failManualAudit && preg_match('/INSERT INTO tbl_student_class_roster_audit/',$query)) throw new RuntimeException('Injected audit failure.');
         if ($this->failRosterInsert && preg_match('/INSERT INTO tbl_student_management_enrolled_subjects/', $query)
@@ -121,6 +123,7 @@ $takeCounts = static function () use ($conn): array {
 $beforeCounts = $takeCounts();
 if (strpos($scenario,'manual_')===0) require __DIR__.'/manual-roster-scenarios.php';
 if (strpos($scenario,'clear_')===0) require __DIR__.'/clear-roster-scenarios.php';
+if (strpos($scenario,'guard_')===0) require __DIR__.'/workload-guard-scenarios.php';
 if (strpos($scenario,'confirm') === 0) {
     if (!isset($_FILES['csv_file'])) throw new RuntimeException('The confirm fixture requires a real HTTP upload.');
     $parsed = synk_dean_roster_parse($_FILES['csv_file']['tmp_name']);
@@ -218,6 +221,7 @@ register_shutdown_function(static function () use ($conn,$scope,$term,$class,$fa
         $result['imported_profiles']=[];
         if (isset($GLOBALS['synk_manual_roster_qa'])) $result['manual_state']=$GLOBALS['synk_manual_roster_qa']();
         if (isset($GLOBALS['synk_clear_roster_qa'])) $result['clear_state']=$GLOBALS['synk_clear_roster_qa']();
+        if (isset($GLOBALS['synk_workload_guard_qa'])) $result['guard_state']=$GLOBALS['synk_workload_guard_qa']();
         foreach (($parsed['students'] ?? []) as $student) {
             $profile=synk_student_identity_find($conn,$student['student_number']);
             if ($profile) $result['imported_profiles'][]=$profile;

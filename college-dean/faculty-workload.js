@@ -303,6 +303,18 @@
     $('deanWorkload').dispatchEvent(new CustomEvent('manual-roster-open', {detail:context}));
   }
   if (config.manual_roster_enabled) {
+    $('deanWorkload').addEventListener('roster-review-open', async event => {
+      const row = event.detail;
+      if (state.loading || !row.review_faculty_id) return;
+      if (!state.faculties.some(faculty=>faculty.faculty_id===row.review_faculty_id)) {
+        state.faculties.push({faculty_id:row.review_faculty_id,faculty_name:row.review_faculty_name,profile_image_url:''});
+        const option = document.createElement('option'); option.value = String(row.review_faculty_id); option.textContent = row.review_faculty_name; $('deanFaculty').appendChild(option);
+      }
+      $('deanFaculty').value = String(row.review_faculty_id); await loadFaculty();
+      const assigned = state.classes.find(item=>item.offering_id===row.offering_id);
+      if (assigned) await openRoster(assigned);
+      else notice('deanNotice','This class assignment changed. Use Check Student Lists to refresh the review.','warning');
+    });
     $('deanRosterClearStudents').addEventListener('click', async () => {
       if (!state.canClear || !state.rosterLoaded || !state.roster.length || !state.rosterClass) return;
       const context = {class:state.rosterClass, view:captureWorkloadView(), returnRoster:true};
