@@ -72,6 +72,14 @@ $collegeDeanSidebarItems = [
     ],
 ];
 
+if (!$collegePortalIsChair) {
+    $studentMenuIndex=array_search('students',array_column($collegeDeanSidebarItems,'key'),true);
+    array_splice($collegeDeanSidebarItems,$studentMenuIndex+1,0,[[
+        'key'=>'login-activity','href'=>'login-activity.php','icon_bg'=>'bg-label-success','icon'=>'bx-log-in-circle',
+        'title'=>'Student Login Activity','description'=>'College sign-ins, failures and daily trends','pages'=>['login-activity.php'],
+    ]]);
+}
+
 if ($collegePortalIsChair) {
     array_splice($collegeDeanSidebarItems, 1, 0, [[
         'key' => 'manage-college-faculty', 'href' => 'manage-college-faculty.php',

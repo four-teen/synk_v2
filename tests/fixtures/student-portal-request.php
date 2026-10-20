@@ -149,6 +149,7 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
     if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
 if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-access-scenarios.php';
 if (strpos($scenario,'login_activity_')===0) require __DIR__.'/student-login-activity-scenarios.php';
+if (strpos($scenario,'login_report_')===0) require __DIR__.'/dean-login-report-scenarios.php';
 $protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_login_activity'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);

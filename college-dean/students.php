@@ -46,7 +46,7 @@ $collegeDeanPortalDisplayEmail = (string)($collegeDeanPortalContext['email'] ?? 
               <div class="card dean-page-card mb-4">
                 <div class="card-body p-4">
                   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-                    <div><p class="card-section-title mb-1">Directory</p><h4 class="dean-page-title mb-2">Student Management</h4><p class="dean-page-copy mb-0">Manage your college's student profiles and imported class lists.</p></div>
+                    <div><p class="card-section-title mb-1">Directory</p><h4 class="dean-page-title mb-2">Student Management</h4><p class="dean-page-copy mb-0">Manage your college's student profiles and imported class lists.</p><?php if ($deanStudentsConfig['login_activity_enabled']): ?><a href="login-activity.php" class="small d-inline-block mt-2"><i class="bx bx-log-in-circle me-1" aria-hidden="true"></i>View all student login activity</a><?php endif; ?></div>
                     <div class="d-flex flex-wrap gap-2"><button type="button" class="btn btn-primary" id="deanStudentAdd" disabled><i class="bx bx-user-plus me-1" aria-hidden="true"></i>Add Student</button><button type="button" class="btn btn-outline-primary" id="deanStudentEmailsOpen" disabled><i class="bx bx-envelope me-1" aria-hidden="true"></i>Fill Missing Emails</button><a href="faculty-workload.php" class="btn btn-outline-primary"><i class="bx bx-upload me-1" aria-hidden="true"></i>Import Students</a></div>
                   </div>
                   <form id="deanStudentsFilters" class="row g-3">

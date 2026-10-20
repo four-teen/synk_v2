@@ -44,6 +44,51 @@ Their login counts and modal history cover all recorded terms because signing
 in belongs to the shared student account. No academic evaluation, subject,
 scheduling or workload records are modified.
 
+## College activity page
+
+Open **College Dean → Student Login Activity** (`college-dean/login-activity.php`),
+or use **View all student login activity** from the Students page. This provides
+one college-wide history without opening individual student accounts.
+
+The initial date range includes today and the previous four Philippine calendar
+days. Both endpoints are inclusive; the backend converts midnight boundaries to
+UTC and uses an exclusive upper boundary for the following day. Choose a custom
+range of up to 366 days, or use Today, 5 days, 7 days and 30 days. Dates cannot be
+in the future. Academic-term selection in the navigation does not change this
+account-activity report.
+
+The page provides:
+
+- Total attempts, successful logins, failed attempts, distinct students who
+  successfully logged in, distinct students with failures, and success rate.
+- A daily comparison of successful and failed sign-ins, including zero-activity
+  dates, and up to five common failure reasons.
+- Up to five students with the most failed attempts, with the last failure and
+  an indication when no successful sign-in exists within the selected range.
+- A **Trace** action, also available by clicking a student's name in history,
+  that filters to the exact student ID. **Show all students** clears tracing.
+- Program filters and literal text search across student ID, name, current
+  email, email used for the attempt, and direct connection IP address.
+- Newest-first history with 25, 50 or 100 attempts per page. Paging preserves
+  the applied filters and event snapshot; unsaved filter edits do not alter the
+  next page. Refresh loads new arrivals.
+
+Statistics, daily comparisons and failure lists reflect the date, program,
+search and traced student. The history outcome selector affects the history
+rows only, so the full success/failure comparison remains visible above it.
+Multiple subject or program memberships do not duplicate an event. A student
+can appear in both distinct-success and distinct-failure totals.
+
+Only students within the Dean's existing college/campus directory scope are
+included. Unknown/unassigned attempts and other colleges' records are excluded;
+an address resembling a college student's email is not used to guess ownership.
+All requests revalidate the active Dean, assignment and CSRF token. Program Chair
+navigation omits this page and its API rejects other roles. Reading the report
+does not create sign-ins, change records, or prepare database tables.
+
+This report reuses `tbl_student_login_activity` from phase 27. It requires no
+additional tables, columns, indexes or migration queries.
+
 ## Preparation
 
 Run the SQL in the target database before deploying the updated authentication
@@ -77,7 +122,9 @@ Run database suites sequentially; fixtures roll back all event and student data:
 php tests/student-login-activity.php
 php tests/student-portal.php
 php tests/college-dean-students.php
+php tests/dean-login-report.php
 node tests/student-login-activity-browser.cjs
+node tests/dean-login-report-browser.cjs
 node tests/college-dean-students-ui.js
 node tests/student-management-browser.cjs
 ```

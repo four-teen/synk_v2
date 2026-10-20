@@ -1,0 +1,45 @@
+.dean-login-report { min-width: 0; }
+.dean-login-report .card { border: 1px solid #e4e8f0; border-radius: .85rem; box-shadow: 0 3px 14px rgba(49,72,103,.035); min-width: 0; }
+.dean-login-report h1 { font-size: 1.55rem; margin: 0 0 .5rem; }
+.dean-login-report h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+.dean-login-report h3 { font-size: .9rem; }
+.dean-login-report input[type="date"] { min-width: 0; }
+.dean-login-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.dean-login-kpis { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; }
+.dean-login-kpi { padding: 1.2rem; }
+.dean-login-kpi-label { display: block; font-size: .8rem; color: #697a8d; }
+.dean-login-kpi strong { display: block; font-size: 1.85rem; line-height: 1.3; color: #40516a; margin: .4rem 0; font-variant-numeric: tabular-nums; }
+.dean-login-kpi small { font-size: .75rem; color: #8391a7; }
+.dean-login-insights { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1.25rem; align-items: start; }
+.dean-login-legend { display: flex; flex-wrap: wrap; gap: .8rem; }
+.dean-login-dot { display: inline-block; width: .5rem; height: .5rem; margin-right: .3rem; border-radius: 50%; }
+.dean-login-dot.is-success,.dean-login-bar-success { background: #3ca080; }
+.dean-login-dot.is-failure,.dean-login-bar-failure { background: #df6e64; }
+.dean-login-daily-scroll { max-height: 20rem; overflow-y: auto; }
+.dean-login-daily-table { width: 100%; table-layout: fixed; font-size: .78rem; border-collapse: collapse; }
+.dean-login-daily-table th,.dean-login-daily-table td { padding: .65rem .3rem; border-bottom: 1px solid #edf0f5; }
+.dean-login-daily-table thead th { color: #8391a7; font-size: .68rem; font-weight: 600; }
+.dean-login-daily-table th:first-child { width: 5rem; font-weight: 500; }
+.dean-login-daily-table th:nth-last-child(-n+2),.dean-login-daily-table td:nth-last-child(-n+2) { width: 3.4rem; text-align: right; font-variant-numeric: tabular-nums; }
+.dean-login-bar { display: flex; height: .65rem; background: #f0f1f8; border-radius: 4px; overflow: hidden; }
+.dean-login-bar span { display: block; height: 100%; }
+.dean-login-attention-row { padding: .85rem 0; border-bottom: 1px solid #edf0f5; display: flex; align-items: start; justify-content: space-between; gap: .75rem; }
+.dean-login-attention-row > div { min-width: 0; }
+.dean-login-attention-row strong { display: block; font-size: .85rem; overflow-wrap: anywhere; }
+.dean-login-attention-row small { display: block; margin-top: .2rem; font-size: .75rem; }
+.dean-login-reason-row { display: flex; justify-content: space-between; align-items: start; gap: 1rem; font-size: .8rem; margin-top: .7rem; }
+.dean-login-table-controls { display: flex; flex-wrap: wrap; gap: .75rem; }
+.dean-login-history { min-width: 1120px; font-size: .8rem; }
+.dean-login-history th { font-size: .67rem; white-space: nowrap; }
+.dean-login-history td { vertical-align: top; padding: .85rem .65rem; }
+.dean-login-time,.dean-login-history code { white-space: nowrap; }
+.dean-login-history small { display: block; margin-top: .2rem; }
+.dean-login-person,.dean-login-email,.dean-login-reason,.dean-login-device { min-width: 10rem; max-width: 15rem; overflow-wrap: anywhere; }
+.dean-login-person button { display: inline; border: 0; padding: 0; background: none; color: #696cff; text-align: left; font-weight: 600; }
+.dean-login-person button:hover { text-decoration: underline; }
+.dean-login-agent { max-width: 15rem; overflow-wrap: anywhere; white-space: normal; }
+.dean-login-trace { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; background: #f0f0ff; padding: .75rem; border-radius: .5rem; font-size: .85rem; }
+.dean-login-trace[hidden] { display: none; }
+.dean-login-placeholder { padding: 1rem 0; color: #8391a7; font-size: .85rem; }
+@media (max-width: 991.98px) { .dean-login-insights { grid-template-columns: 1fr; } }
+@media (max-width: 575.98px) { .dean-login-kpis { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem; } .dean-login-kpi { padding: .85rem; } .dean-login-kpi strong { font-size: 1.5rem; } .dean-login-report .card-body.p-4 { padding: 1rem !important; } .dean-login-daily-table th:first-child { width: 4rem; } .dean-login-daily-table th:nth-last-child(-n+2),.dean-login-daily-table td:nth-last-child(-n+2) { width: 2.8rem; } }
