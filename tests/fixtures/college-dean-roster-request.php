@@ -9,10 +9,16 @@ require_once $root . '/backend/student_email_helper.php';
 class DeanRosterQAConnection extends mysqli
 {
     public $failRosterInsert = false;
+    public $failManualAudit = false;
+    public $failClearAudit = false;
+    public $hideClearTable = false;
+    private $clearInserts = 0;
     private $rosterInserts = 0;
     #[\ReturnTypeWillChange]
     public function prepare($query)
     {
+        if ($this->failClearAudit && preg_match('/INSERT INTO tbl_student_class_clear_history/',$query) && ++$this->clearInserts===2) throw new RuntimeException('Injected second clearing audit failure.');
+        if ($this->failManualAudit && preg_match('/INSERT INTO tbl_student_class_roster_audit/',$query)) throw new RuntimeException('Injected audit failure.');
         if ($this->failRosterInsert && preg_match('/INSERT INTO tbl_student_management_enrolled_subjects/', $query)
             && ++$this->rosterInserts === 2) throw new RuntimeException('Injected second-row failure for rollback verification.');
         return parent::prepare($query);
@@ -20,6 +26,7 @@ class DeanRosterQAConnection extends mysqli
     #[\ReturnTypeWillChange]
     public function query($query, $result_mode = MYSQLI_STORE_RESULT)
     {
+        if ($this->hideClearTable && strpos($query,"SHOW TABLES LIKE 'tbl_student_class_clear_history'")===0) return parent::query('SELECT 1 FROM DUAL WHERE 1=0');
         if (preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i', $query)) throw new RuntimeException('Schema changes are forbidden in request tests.');
         return parent::query($query, $result_mode);
     }
@@ -112,6 +119,8 @@ $takeCounts = static function () use ($conn): array {
     return $rows;
 };
 $beforeCounts = $takeCounts();
+if (strpos($scenario,'manual_')===0) require __DIR__.'/manual-roster-scenarios.php';
+if (strpos($scenario,'clear_')===0) require __DIR__.'/clear-roster-scenarios.php';
 if (strpos($scenario,'confirm') === 0) {
     if (!isset($_FILES['csv_file'])) throw new RuntimeException('The confirm fixture requires a real HTTP upload.');
     $parsed = synk_dean_roster_parse($_FILES['csv_file']['tmp_name']);
@@ -183,7 +192,7 @@ switch ($scenario) {
     case 'other_class': $_POST['action']='roster'; $_POST['offering_id']=2147483647; break;
     case 'other_role': $_SESSION['role']='program_chair'; break;
     case 'revoked': $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='college_dean'"); break;
-    case 'old_term': $_POST['ay_id']=2147483647; break;
+    case 'invalid_term': $_POST['ay_id']=2147483647; break;
     case 'wrong_method': $_SERVER['REQUEST_METHOD']='GET'; break;
     case 'array_input': $_POST['faculty_id']=[1]; break;
     case 'unknown_action': $_POST['action']='delete'; break;
@@ -207,6 +216,8 @@ register_shutdown_function(static function () use ($conn,$scope,$term,$class,$fa
             'profile_unchanged'=>$profileBefore === null || $conn->query('SELECT * FROM tbl_student_management WHERE student_id=' . (int)$profileBefore['student_id'])->fetch_assoc() === $profileBefore,
             'shared_profiles_unchanged'=>true,'shared_subject_counts'=>[]];
         $result['imported_profiles']=[];
+        if (isset($GLOBALS['synk_manual_roster_qa'])) $result['manual_state']=$GLOBALS['synk_manual_roster_qa']();
+        if (isset($GLOBALS['synk_clear_roster_qa'])) $result['clear_state']=$GLOBALS['synk_clear_roster_qa']();
         foreach (($parsed['students'] ?? []) as $student) {
             $profile=synk_student_identity_find($conn,$student['student_number']);
             if ($profile) $result['imported_profiles'][]=$profile;

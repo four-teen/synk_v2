@@ -6,6 +6,7 @@ require_once __DIR__ . '/professor_portal_helper.php';
 require_once __DIR__ . '/student_management_exam_permits_helper.php';
 require_once __DIR__ . '/faculty_profile_image_helper.php';
 require_once __DIR__ . '/college_dean_roster_diagnostics.php';
+require_once __DIR__ . '/student_class_roster_audit_helper.php';
 
 function synk_dean_roster_execute(mysqli_stmt $stmt): void
 {
@@ -133,10 +134,14 @@ function synk_dean_workload_class(mysqli $conn, array $scope, array $term, int $
 
 function synk_dean_roster_rows(mysqli $conn, array $class): array
 {
+    $auditReady=synk_roster_audit_ready($conn);
+    $auditFields=$auditReady?"MAX(a.audit_id) AS manual_audit_id,MAX(a.reason_code) AS manual_reason,MAX(a.reason_note) AS manual_note,MAX(a.actor_name) AS added_by,MAX(a.recorded_at) AS manually_added_at":"NULL AS manual_audit_id,NULL AS manual_reason,NULL AS manual_note,NULL AS added_by,NULL AS manually_added_at";
+    $auditJoin=$auditReady?'LEFT JOIN tbl_student_class_roster_audit a ON a.student_enrollment_id=es.student_enrollment_id':'';
     $stmt = $conn->prepare("SELECT s.student_id, s.student_number, s.last_name, s.first_name, s.middle_name, s.suffix_name,
-            MAX(es.created_at) AS imported_at
+            MAX(es.created_at) AS imported_at,{$auditFields}
         FROM tbl_student_management_enrolled_subjects es
         INNER JOIN tbl_student_management s ON s.student_id=es.student_id
+        {$auditJoin}
         WHERE (es.offering_id=? OR es.offering_id=0) AND es.program_id=? AND es.section_id=? AND es.subject_id=?
           AND es.college_id=? AND es.campus_id=? AND es.ay_id=? AND es.semester=? AND es.is_active=1
         GROUP BY s.student_id, s.student_number, s.last_name, s.first_name, s.middle_name, s.suffix_name
@@ -148,6 +153,8 @@ function synk_dean_roster_rows(mysqli $conn, array $class): array
     foreach ($rows as &$row) {
         $row['student_id'] = (int)$row['student_id'];
         $row['student_number'] = (string)$row['student_number'];
+        $row['entry_source']=!empty($row['manual_audit_id'])?'manual':'csv';
+        $row['manual_reason_label']=synk_roster_manual_reasons()[$row['manual_reason'] ?? ''] ?? '';
         $row['student_name'] = $row['last_name'] . ', ' . trim(implode(' ', array_filter([
             $row['first_name'], $row['middle_name'], $row['suffix_name']
         ])));
@@ -364,6 +371,7 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
         }
     }
     $existingNumbers = array_fill_keys(array_column(synk_dean_roster_rows($conn, $class), 'student_number'), true);
+    $transferredNumbers=synk_roster_transferred_students($conn,$class);
     $summary = ['students'=>count($numbers), 'add'=>0, 'existing'=>0, 'new_profiles'=>0, 'conflicts'=>0, 'duplicate_rows'=>$parsed['duplicate_rows']];
     $rows = [];
     foreach ($parsed['students'] as $student) {
@@ -376,6 +384,9 @@ function synk_dean_roster_preview(mysqli $conn, array $class, array $parsed): ar
             $storedName = $matches[0]['last_name'] . ', ' . trim(implode(' ',array_filter([$matches[0]['first_name'],$matches[0]['middle_name'],$matches[0]['suffix_name']])));
             $student['issue'] = 'CSV row ' . $student['source_row_number'] . ', ID ' . $number . ': CSV name "' . $student['student_name_raw']
                 . '" differs from the saved name "' . $storedName . '". Verify column B (name) and E (ID); existing profiles are kept unchanged.';
+        }
+        if ($student['issue']==='' && !isset($existingNumbers[$number]) && isset($transferredNumbers[$number])) {
+            $student['issue']='This student was manually transferred to another section of this subject. Review the current class list before changing that transfer.';
         }
         if ($student['issue'] !== '') {
             $student['action'] = 'conflict'; $summary['conflicts']++;

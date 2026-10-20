@@ -74,7 +74,7 @@ function synk_student_preview_college_scope(mysqli $conn): ?array
     require_once __DIR__ . '/college_dean_students_helper.php';
     $scope = synk_college_dean_dashboard_scope($conn);
     if (!$scope) throw new DomainException('Your Dean access or college assignment is no longer available.');
-    $source = synk_dean_students_source($scope, []);
+    $source = synk_dean_students_source($scope, [], $conn);
     $rows = synk_dean_students_query($conn, "SELECT DISTINCT s.student_id {$source['sql']} AND s.student_id=?",
         $source['types'].'i', array_merge($source['params'], [synk_student_preview_student_id_from_request()]));
     if (!$rows) throw new DomainException('This student is outside your college directory or has been removed.');

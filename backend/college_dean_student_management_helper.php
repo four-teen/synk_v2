@@ -18,7 +18,7 @@ function synk_dean_student_manage_options(mysqli $conn, array $scope): array
 
 function synk_dean_student_manage_record(mysqli $conn, array $scope, int $id): array
 {
-    $source=synk_dean_students_source($scope,[]);
+    $source=synk_dean_students_source($scope,[],$conn);
     $rows=synk_dean_students_query($conn,"SELECT DISTINCT s.* {$source['sql']} AND s.student_id=?",$source['types'].'i',array_merge($source['params'],[$id]));
     if (!$rows) throw new DomainException('This student is outside your college directory or has been removed.');
     $student=$rows[0]; $student['student_id']=(int)$student['student_id'];
@@ -122,7 +122,7 @@ function synk_dean_students_selected_ids($input): array
 
 function synk_dean_students_selection(mysqli $conn, array $scope, array $filters): array
 {
-    $source=synk_dean_students_source($scope,$filters);
+    $source=synk_dean_students_source($scope,$filters,$conn);
     $rows=synk_dean_students_query($conn,"SELECT DISTINCT s.student_id {$source['sql']} ORDER BY s.student_id LIMIT 5001",$source['types'],$source['params']);
     if (count($rows)>5000) throw new DomainException('Narrow the search, academic year, or program to select up to 5,000 students.');
     return array_map('intval',array_column($rows,'student_id'));
@@ -131,11 +131,18 @@ function synk_dean_students_selection(mysqli $conn, array $scope, array $filters
 function synk_dean_students_delete_plan(mysqli $conn, array $scope, array $filters, array $ids, bool $lock=false): array
 {
     if (!$filters['ay_id']) throw new DomainException('Choose a specific academic year or semester before deleting records.');
-    $source=synk_dean_students_source($scope,$filters); $placeholders=implode(',',array_fill(0,count($ids),'?'));
+    $source=synk_dean_students_source($scope,$filters,$conn); $placeholders=implode(',',array_fill(0,count($ids),'?'));
     $profiles=synk_dean_students_query($conn,"SELECT DISTINCT s.* {$source['sql']} AND s.student_id IN ({$placeholders}) ORDER BY s.student_id",$source['types'].str_repeat('i',count($ids)),array_merge($source['params'],$ids));
     if (array_map('intval',array_column($profiles,'student_id'))!==$ids) throw new DomainException('Some selected students no longer match your college and filters. Refresh the directory.');
     $rows=synk_dean_students_query($conn,"SELECT es.*,s.student_number,s.first_name,s.last_name,s.middle_name,s.suffix_name {$source['sql']} AND s.student_id IN ({$placeholders}) AND es.student_enrollment_id IS NOT NULL ORDER BY es.student_enrollment_id".($lock ? ' FOR UPDATE' : ''),$source['types'].str_repeat('i',count($ids)),array_merge($source['params'],$ids));
     if (count($rows)>50000) throw new DomainException('Select fewer students to delete up to 50,000 class-list records at a time.');
+    $directory=[];
+    if (!$filters['section_id'] && synk_class_clear_ready($conn)) {
+        $sql='SELECT clear_id,student_id FROM tbl_student_class_clear_history WHERE directory_retained=1 AND college_id=? AND campus_id=? AND ay_id=? AND student_id IN ('.$placeholders.')';
+        $params=array_merge([$scope['college_id'],$scope['campus_id'],$filters['ay_id']],$ids); $types=str_repeat('i',count($params));
+        foreach (['program_id','semester'] as $field) if ($filters[$field]) { $sql.=' AND '.$field.'=?'; $params[]=$filters[$field]; $types.='i'; }
+        $directory=synk_dean_students_query($conn,$sql.' ORDER BY clear_id'.($lock?' FOR UPDATE':''),$types,$params);
+    }
     $manual=[]; $versions=[]; $students=[]; $counts=[];
     foreach ($rows as $row) { $key=(int)$row['student_id']; $counts[$key]=($counts[$key] ?? 0)+1; }
     foreach ($profiles as $profile) {
@@ -143,8 +150,8 @@ function synk_dean_students_delete_plan(mysqli $conn, array $scope, array $filte
         if ($profile['source_sheet_name']==='DEAN MANUAL' && (int)$profile['ay_id']===$filters['ay_id'] && (!$filters['semester'] || (int)$profile['semester']===$filters['semester']) && (!$filters['program_id'] || (int)$profile['program_id']===$filters['program_id']) && !$filters['section_id']) $manual[]=$id;
         $students[]=['student_id'=>$id,'student_number'=>$profile['student_number'],'student_name'=>synk_dean_students_name($profile),'class_records'=>$counts[$id] ?? 0];
     }
-    if (!$rows && !$manual) throw new DomainException('There are no matching student records to delete.');
-    return ['students'=>$students,'rows'=>$rows,'manual'=>$manual,'versions'=>$versions];
+    if (!$rows && !$manual && !$directory) throw new DomainException('There are no matching student records to delete.');
+    return ['students'=>$students,'rows'=>$rows,'manual'=>$manual,'versions'=>$versions,'directory'=>$directory];
 }
 
 function synk_dean_students_delete_preview(mysqli $conn, array $scope, array $filters, array $ids): array
@@ -157,7 +164,7 @@ function synk_dean_students_delete_preview(mysqli $conn, array $scope, array $fi
         'expires_at'=>time()+900,'filters'=>$filters,'ids'=>$ids,'fingerprint'=>hash('sha256',json_encode($plan))];
     $classes=[];
     foreach ($plan['rows'] as $row) $classes[implode(':',[$row['program_id'],$row['ay_id'],$row['semester'],$row['section_id'],$row['subject_id']])]=true;
-    return ['preview_token'=>$token,'students'=>$plan['students'],'summary'=>['students'=>count($ids),'class_records'=>count($plan['rows']),'classes'=>count($classes),'manual_records'=>count($plan['manual'])]];
+    return ['preview_token'=>$token,'students'=>$plan['students'],'summary'=>['students'=>count($ids),'class_records'=>count($plan['rows']),'classes'=>count($classes),'manual_records'=>count($plan['manual']),'retained_directory_students'=>count(array_unique(array_column($plan['directory'],'student_id')))]];
 }
 
 function synk_dean_students_delete_save(mysqli $conn, array $scope, string $token): array
@@ -185,6 +192,11 @@ function synk_dean_students_delete_save(mysqli $conn, array $scope, string $toke
             $stmt=$conn->prepare("UPDATE tbl_student_management SET source_sheet_name='DEAN MANUAL REMOVED' WHERE student_id=? AND source_sheet_name='DEAN MANUAL'");
             $stmt->bind_param('i',$id); if (!$stmt->execute()) throw new RuntimeException('Unable to remove the manual directory record.'); $stmt->close();
         }
+        foreach (array_chunk(array_column($plan['directory'],'clear_id'),500) as $chunk) {
+            $stmt=$conn->prepare('UPDATE tbl_student_class_clear_history SET directory_retained=0 WHERE directory_retained=1 AND clear_id IN ('.implode(',',array_fill(0,count($chunk),'?')).')');
+            synk_bind_dynamic_params($stmt,str_repeat('i',count($chunk)),$chunk);
+            try { if (!$stmt->execute() || $stmt->affected_rows!==count($chunk)) throw new RuntimeException('Unable to remove the retained directory connections.'); } finally { $stmt->close(); }
+        }
         // Refresh only counts derived from imported rosters; scheduling calculations and assignments are untouched.
         foreach (array_keys($offeringIds) as $offeringId) {
             $stmt=$conn->prepare("UPDATE tbl_offering_enrollee_counts SET total_enrollees=(SELECT COUNT(DISTINCT es.student_id) FROM tbl_student_management_enrolled_subjects es WHERE es.offering_id=? AND es.is_active=1),updated_by=? WHERE offering_id=? AND source_kind='csv_roster'");
@@ -192,7 +204,7 @@ function synk_dean_students_delete_save(mysqli $conn, array $scope, string $toke
         }
         if (!$conn->commit()) throw new RuntimeException('Unable to complete student deletion.');
         $transaction=false; unset($_SESSION['dean_student_delete_previews'][$token]);
-        return ['removed'=>count($plan['rows']),'manual_removed'=>count($plan['manual']),'message'=>count($plan['rows']).' class-list records and '.count($plan['manual']).' manual directory records removed for the selected academic term. Shared student profiles and other terms were kept.'];
+        return ['removed'=>count($plan['rows']),'manual_removed'=>count($plan['manual']),'message'=>count($plan['rows']).' class-list records and '.count($plan['manual']).' manual directory records removed for the selected academic term.'.($plan['directory']?' Retained directory connections were also removed.':'').' Shared student profiles and other terms were kept.'];
     } catch (Throwable $e) { if ($transaction) $conn->rollback(); unset($_SESSION['dean_student_delete_previews'][$token]); throw $e; }
     finally { synk_student_email_unlock($conn); }
 }

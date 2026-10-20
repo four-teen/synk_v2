@@ -83,7 +83,7 @@ try {
     $check($r['photo_before_url']!==$r['photo_expected_url'] && $r['response']['faculty']['profile_image_url']===$r['photo_expected_url'],'Refresh did not version a replaced Professor profile image.');
     $r = $request('photo_other_faculty');
     $check($r['http_status']===422 && !isset($r['response']['faculty']),'An unscoped faculty request exposed profile image details.');
-    foreach (['bad_csrf'=>403,'other_college'=>403,'other_role'=>403,'revoked'=>403,'old_term'=>409,'wrong_method'=>405,'array_input'=>400,'unknown_action'=>400,'other_class'=>422,'preview_missing_file'=>422] as $scenario=>$status) {
+    foreach (['bad_csrf'=>403,'other_college'=>403,'other_role'=>403,'revoked'=>403,'invalid_term'=>400,'wrong_method'=>405,'array_input'=>400,'unknown_action'=>400,'other_class'=>422,'preview_missing_file'=>422] as $scenario=>$status) {
         $r = $request($scenario);
         $check($r['http_status']===$status,'Request validation failed for ' . $scenario);
         $check($r['before_counts']===$r['after_counts'],'Rejected request wrote student data: ' . $scenario);

@@ -4,7 +4,7 @@ require_once __DIR__ . '/student_email_helper.php';
 
 function synk_dean_student_email_rows(mysqli $conn, array $scope, array $filters, bool $lock=false): array
 {
-    $source=synk_dean_students_source($scope,$filters);
+    $source=synk_dean_students_source($scope,$filters,$conn);
     return synk_dean_students_query($conn,"SELECT DISTINCT s.student_id,s.student_number,s.first_name,s.last_name,s.middle_name,s.suffix_name,s.email_address {$source['sql']} ORDER BY s.last_name,s.first_name,s.student_id" . ($lock ? ' FOR UPDATE' : ''),
         $source['types'],$source['params']);
 }
