@@ -3,7 +3,7 @@
 require_once __DIR__ . '/professor_portal_helper.php';
 require_once __DIR__ . '/faculty_profile_helper.php';
 
-function synk_professor_dashboard_term_summary(array $terms, array $currentTerm): array
+function synk_professor_dashboard_term_summary(array $terms, array $currentTerm, ?array $currentRows = null): array
 {
     $current = null;
     foreach ($terms as $term) {
@@ -14,13 +14,99 @@ function synk_professor_dashboard_term_summary(array $terms, array $currentTerm)
             break;
         }
     }
+    $chart = $currentRows !== null ? synk_professor_dashboard_workload_chart($currentRows, $currentTerm) : null;
+    $subjects = $chart !== null ? count($chart['classes']) : max(0, (int)($current['workload_count'] ?? 0));
     return [
-        'subjects' => max(0, (int)($current['workload_count'] ?? 0)),
-        'enrollments' => max(0, (int)($current['student_count'] ?? 0)),
+        'subjects' => $subjects,
+        'enrollments' => $chart !== null ? array_sum(array_column($chart['classes'], 'enrollments')) : max(0, (int)($current['student_count'] ?? 0)),
         'terms' => count($terms),
-        'workload_url' => $current
-            ? 'workload.php?ay_id=' . (int)$current['ay_id'] . '&semester=' . (int)$current['semester']
+        'workload_url' => $subjects > 0
+            ? 'workload.php?ay_id=' . (int)$currentTerm['ay_id'] . '&semester=' . (int)$currentTerm['semester']
             : 'workload.php',
+    ];
+}
+
+function synk_professor_dashboard_workload_chart(array $rows, array $term): array
+{
+    $ayId = (int)($term['ay_id'] ?? 0);
+    $semester = (int)($term['semester'] ?? 0);
+    $classes = [];
+    foreach ($rows as $row) {
+        $offeringId = (int)($row['offering_id'] ?? 0);
+        if ($ayId < 1 || $semester < 1 || $semester > 3 || $offeringId < 1
+            || (int)($row['ay_id'] ?? 0) !== $ayId || (int)($row['semester'] ?? 0) !== $semester
+            || isset($classes[$offeringId])) { continue; }
+        $subject = trim((string)($row['subject_code'] ?? '')) ?: 'Subject';
+        $section = trim((string)($row['section_display'] ?? ''));
+        $classes[$offeringId] = ['label' => $subject . ($section !== '' ? ' / ' . $section : ''),
+            'subject' => (string)($row['descriptive_title'] ?? ''), 'program' => (string)($row['program_label'] ?? ''),
+            'enrollments' => max(0, (int)($row['student_count'] ?? 0))];
+    }
+    $classes = array_values($classes);
+    usort($classes, static function (array $a, array $b): int {
+        return ($b['enrollments'] <=> $a['enrollments']) ?: strnatcasecmp($a['label'], $b['label']);
+    });
+    return ['ay_id' => $ayId, 'semester' => $semester, 'term' => (string)($term['term_text'] ?? 'Current term not set'), 'classes' => $classes];
+}
+
+function synk_professor_dashboard_research_chart(array $items): array
+{
+    $years = []; $programs = []; $seen = []; $unclassified = 0;
+    foreach ($items as $item) {
+        $id = (int)($item['id'] ?? 0);
+        if ($id < 1 || isset($seen[$id])) { continue; }
+        $seen[$id] = true;
+        $program = trim(preg_replace('/\s+/u', ' ', (string)($item['program'] ?? ''))) ?: 'Program not set';
+        $programKey = function_exists('mb_strtolower') ? mb_strtolower($program, 'UTF-8') : strtolower($program);
+        if (!isset($programs[$programKey])) { $programs[$programKey] = ['name' => $program, 'counts' => []]; }
+        $academicYear = trim((string)($item['academic_year'] ?? ''));
+        if (!preg_match('/\A(?:AY\s*)?((?:19|20|21)\d{2})\s*[-\/\x{2013}\x{2014}]\s*((?:19|20|21)\d{2})\z/ui', $academicYear, $parts)
+            || (int)$parts[2] < (int)$parts[1]) { $unclassified++; continue; }
+        $year = $parts[1] . '-' . $parts[2];
+        $years[$year] = $year;
+        $programs[$programKey]['counts'][$year] = ($programs[$programKey]['counts'][$year] ?? 0) + 1;
+    }
+    ksort($years, SORT_NATURAL);
+    uasort($programs, static function (array $a, array $b): int { return strnatcasecmp($a['name'], $b['name']); });
+    $series = [];
+    foreach ($programs as $program) {
+        if (!$program['counts']) { continue; }
+        $values = [];
+        foreach ($years as $year) { $values[] = $program['counts'][$year] ?? 0; }
+        $series[] = ['name' => $program['name'], 'data' => $values];
+    }
+    return ['years' => array_values($years), 'series' => $series, 'without_year' => $unclassified];
+}
+
+// Accept only the portfolio already authorized and validated by SynkOracleResearch.
+function synk_professor_dashboard_research_summary(array $portfolio, array $labels): array
+{
+    $items = $portfolio['items'];
+    usort($items, static function (array $a, array $b): int {
+        $aTime = strtotime((string)($a['updated_at'] ?? '')) ?: (strtotime((string)($a['submitted_at'] ?? '')) ?: 0);
+        $bTime = strtotime((string)($b['updated_at'] ?? '')) ?: (strtotime((string)($b['submitted_at'] ?? '')) ?: 0);
+        return $bTime <=> $aTime ?: $b['id'] <=> $a['id'];
+    });
+    $roles = [];
+    foreach ($labels as $role => $label) {
+        $count = $portfolio['role_counts'][$role] ?? 0;
+        if ($count > 0) {
+            $roles[] = ['role' => $role, 'label' => $label, 'count' => $count];
+        }
+    }
+    $recent = [];
+    foreach (array_slice($items, 0, 4) as $item) {
+        $recent[] = [
+            'id' => $item['id'], 'title' => $item['title'], 'authors' => $item['authors'],
+            'status' => $item['status'], 'research_type' => $item['research_type'],
+            'is_published' => $item['is_published'],
+            'roles' => array_map(static function (string $role) use ($labels): string { return $labels[$role]; }, $item['roles']),
+        ];
+    }
+    return [
+        'total' => count($items),
+        'published' => count(array_filter($items, static function (array $item): bool { return $item['is_published']; })),
+        'roles' => $roles, 'recent' => $recent, 'trend' => synk_professor_dashboard_research_chart($items),
     ];
 }
 

@@ -1,0 +1,117 @@
+.research-navbar { gap: 1rem; }
+.research-navbar-name { display: flex; flex-direction: column; min-width: 0; }
+.research-navbar-name strong { font-size: .9rem; overflow-wrap: anywhere; }
+.research-navbar-name span { color: #8592a3; font-size: .75rem; }
+.oracle-research-page { --research-ink: #34425e; --research-muted: #78849b; }
+.oracle-research-page .research-hero { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.8rem; margin-bottom: 1.5rem; border: 1px solid #e0dff5; border-radius: .8rem; background: linear-gradient(115deg,#f0efff,#fff 85%); }
+.oracle-research-page .research-eyebrow { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #6965c8; margin-bottom: .65rem; }
+.oracle-research-page .research-hero h1 { margin: 0 0 .55rem; font-size: 1.85rem; letter-spacing: -.03em; color: var(--research-ink); }
+.oracle-research-page .research-hero p { margin: 0 0 .85rem; color: #6b7690; max-width: 40rem; }
+.oracle-research-page .research-identity { display: flex; align-items: center; gap: .45rem; font-size: .8rem; color: #6d7496; overflow-wrap: anywhere; }
+.oracle-research-page .research-refresh { flex-shrink: 0; }
+.oracle-research-page .research-overview { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.oracle-research-page .research-stat { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1.2rem; box-shadow: 0 2px 8px #4359710a; }
+.oracle-research-page .research-stat-icon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; background: #efeeff; color: #6965c8; border-radius: .65rem; font-size: 1.45rem; flex-shrink: 0; }
+.oracle-research-page .research-stat strong { display: block; font-size: 1.5rem; color: var(--research-ink); line-height: 1.3; }
+.oracle-research-page .research-stat div > span { display: block; font-size: .76rem; color: var(--research-muted); margin-top: .2rem; }
+.oracle-research-page .research-collection [hidden] { display: none !important; }
+.oracle-research-page .research-collection-controls { scroll-margin-top: 1rem; margin-bottom: 1.35rem; }
+.oracle-research-page .research-search { padding: 1.2rem; background: #fff; border: 1px solid #e1e5ef; border-radius: .8rem; margin-bottom: 1.2rem; }
+.oracle-research-page .research-search > label { display: block; font-size: .78rem; font-weight: 600; color: #58647b; margin-bottom: .65rem; }
+.oracle-research-page .research-search-field { display: flex; align-items: center; gap: .7rem; }
+.oracle-research-page .research-search-field > i { font-size: 1.25rem; color: #9ca5b7; }
+.oracle-research-page .research-search input { flex: 1; min-width: 0; padding: .55rem 0; border: 0; background: transparent; font: inherit; font-size: .82rem; color: #43526b; }
+.oracle-research-page .research-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.oracle-research-page #researchSearchClear { display: grid; place-items: center; border: 0; background: #f1f3f9; border-radius: .35rem; color: #7a859a; padding: .3rem; font-size: 1rem; }
+.oracle-research-page .research-search .btn { font-size: .78rem; padding: .6rem 1.1rem; }
+.oracle-research-page .research-tabs { display: flex; gap: .35rem; overflow-x: auto; border-bottom: 1px solid #dfe3ee; padding-bottom: .1rem; scrollbar-width: thin; }
+.oracle-research-page .research-tab { display: inline-flex; align-items: center; gap: .45rem; flex-shrink: 0; padding: .85rem .85rem; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #79849b; font: inherit; font-size: .77rem; font-weight: 500; cursor: pointer; }
+.oracle-research-page .research-tab:hover { color: #6965c8; background: #efeffa; }
+.oracle-research-page .research-tab[aria-selected=true] { color: #6965c8; border-bottom-color: #6965e0; background: #eeedfd; border-radius: .5rem .5rem 0 0; font-weight: 650; }
+.oracle-research-page .research-tab strong { padding: .08rem .35rem; border-radius: .3rem; background: #edf0f5; color: #7a8599; min-width: 1.3rem; text-align: center; font-size: .69rem; }
+.oracle-research-page .research-tab[aria-selected=true] strong { background: #dedbff; color: #6965c8; }
+.oracle-research-page .research-results-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.oracle-research-page .research-results-heading h2 { color: #44526a; font-size: 1rem; margin: 0; }
+.oracle-research-page .research-results-heading p { color: #8a95a8; font-size: .73rem; margin: 0; text-align: right; }
+.oracle-research-page .research-scroll-end { text-align: center; padding: 1.5rem 0 .5rem; }
+.oracle-research-page .research-scroll-end p { font-size: .75rem; color: #8590a7; margin-bottom: .8rem; }
+.oracle-research-page .research-scroll-end .btn { font-size: .8rem; }
+.oracle-research-page .research-scroll-sentinel { height: 1px; }
+.oracle-research-page .research-collection button:focus-visible, .oracle-research-page .research-collection input:focus-visible, .oracle-research-page .research-collection a:focus-visible { outline: 2px solid #6965d9; outline-offset: 3px; }
+.oracle-research-page .research-group-note { font-size: .75rem; color: var(--research-muted); margin: 1rem 0 1.5rem; }
+.oracle-research-page .research-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: .9rem; }
+.oracle-research-page .research-card { display: grid; grid-template-columns: 3.6rem minmax(0,1fr); gap: 1.3rem; padding: 1.4rem; border: 1px solid #e0e5ed; border-radius: .85rem; box-shadow: none; min-width: 0; }
+.oracle-research-page .research-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+.oracle-research-page .research-tags .badge { font-size: .65rem; white-space: normal; }
+.oracle-research-page .research-card h3 { margin: .25rem 0 0; font-size: .9375rem; line-height: 1.55; font-weight: 600; overflow-wrap: anywhere; }
+.oracle-research-page .research-card h3 a { color: #29312d; }
+.oracle-research-page .research-record-visual { position: relative; align-self: start; }
+.oracle-research-page .research-record-avatar { display: grid; place-items: center; width: 3.6rem; height: 3.6rem; border-radius: 50%; border: 1px solid #e8e3d3; background: #fff4ca; color: #efbb00; font-size: 1.7rem; }
+.oracle-research-page .research-record-avatar-badge { position: absolute; right: -.08rem; bottom: -.05rem; display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border: 2px solid #fff; border-radius: 50%; background: #15803d; color: #fff; font-size: .85rem; }
+.oracle-research-page .research-record-main, .oracle-research-page .research-record-heading { min-width: 0; }
+.oracle-research-page .research-record-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.3rem; }
+.oracle-research-page .research-record-id { display: flex; align-items: center; gap: .35rem; margin: 0 0 .4rem; font-size: .65rem; line-height: 1.4; font-weight: 700; letter-spacing: .055em; color: #15803d; }
+.oracle-research-page .research-record-id i { font-size: .95rem; }
+.oracle-research-page .research-record-author { color: #c64c10; font-size: .75rem; line-height: 1.5; font-weight: 700; text-transform: uppercase; overflow-wrap: anywhere; margin: 0 0 .12rem; }
+.oracle-research-page .research-record-button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 7.7rem; min-height: 2.5rem; padding: .55rem 1rem; border: 1px solid #20a654; border-radius: .7rem; color: #16823b; background: #fff; font-size: .75rem; line-height: 1.4; font-weight: 650; text-align: center; }
+.oracle-research-page .research-record-button:hover { color: #146b33; background: #f0fbf3; }
+.oracle-research-page .research-record-metrics { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem 1.05rem; margin: 1rem 0 .85rem; color: #505a53; }
+.oracle-research-page .research-record-metric { display: inline-flex; align-items: center; gap: .45rem; max-width: 100%; font-size: .75rem; }
+.oracle-research-page .research-record-metric strong { font-weight: 600; overflow-wrap: anywhere; }
+.oracle-research-page .research-record-metric-icon { display: grid; place-items: center; width: 1.9rem; height: 1.9rem; flex-shrink: 0; border: 1px solid #d9dfe8; border-radius: 50%; font-size: .9rem; color: #6b778a; }
+.oracle-research-page .research-record-status { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem; border: 1px solid #d9dfe8; border-radius: 2rem; font-size: .72rem; line-height: 1.4; font-weight: 600; color: #647185; background: #f9fafc; overflow-wrap: anywhere; }
+.oracle-research-page .research-record-sdgs { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-left: auto; }
+.oracle-research-page .research-record-sdgs:empty { display: none; }
+.oracle-research-page .research-record-sdgs img { display: block; width: 2.05rem; height: 2.05rem; object-fit: contain; }
+.oracle-research-page .research-record-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; overflow-wrap: anywhere; color: #667186; font-size: .78rem; line-height: 1.8; margin: 0; }
+.oracle-research-page .research-authors { color: #7a8598; font-size: .77rem; overflow-wrap: anywhere; margin-bottom: .85rem; }
+.oracle-research-page .research-details-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; margin: 1.2rem 0; }
+.oracle-research-page .research-details-grid dt { font-size: .69rem; font-weight: 500; color: #8b93a5; margin-bottom: .25rem; }
+.oracle-research-page .research-details-grid dd { margin: 0; font-size: .78rem; color: #56627b; overflow-wrap: anywhere; }
+.oracle-research-page .research-abstract-title { font-size: .85rem; font-weight: 600; color: #5b6680; }
+.oracle-research-page .research-abstract { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8rem; line-height: 1.8; color: #6c7890; }
+.oracle-research-page .research-actions { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; margin-top: 1rem; font-size: .77rem; }
+.oracle-research-page .research-actions a { display: inline-flex; align-items: center; gap: .3rem; }
+.oracle-research-page .research-empty { padding: 3rem 1.5rem; text-align: center; align-items: center; border: 1px solid #e3e5f0; }
+.oracle-research-page .research-empty > i { font-size: 2.5rem; color: #9e9acb; margin-bottom: 1rem; }
+.oracle-research-page .research-empty h2 { font-size: 1.2rem; }
+.oracle-research-page .research-empty p { color: #7c869d; max-width: 43rem; font-size: .87rem; }
+.oracle-research-page .research-error { border-color: #eadfca; background: #fffdf7; }
+.oracle-research-page .research-footer { color: #8a94a8; text-align: center; font-size: .72rem; margin: 2rem 0 .5rem; }
+.oracle-research-page .research-back { display: inline-block; margin: 0 0 1rem; font-size: .85rem; }
+.oracle-research-page .research-full-detail { padding: 1.6rem; }
+.oracle-research-page .research-full-detail h2 { margin: 1.2rem 0 .6rem; font-size: 1.45rem; line-height: 1.5; overflow-wrap: anywhere; }
+.oracle-research-page .research-full-detail .research-details-grid { grid-template-columns: repeat(3,minmax(0,1fr)); padding: 1rem 0; border-top: 1px solid #eef0f5; border-bottom: 1px solid #eef0f5; }
+@media (max-width: 767px) {
+    .oracle-research-page .research-hero { flex-direction: column; align-items: flex-start; padding: 1.35rem; gap: 1.2rem; }
+    .oracle-research-page .research-hero h1 { font-size: 1.65rem; }
+    .oracle-research-page .research-overview { gap: .6rem; }
+    .oracle-research-page .research-stat { padding: .8rem .6rem; gap: .45rem; flex-direction: column; text-align: center; }
+    .oracle-research-page .research-stat-icon { width: 2.3rem; height: 2.3rem; font-size: 1.2rem; }
+    .oracle-research-page .research-stat strong { font-size: 1.3rem; }
+    .oracle-research-page .research-stat div > span { font-size: .65rem; }
+    .oracle-research-page .research-search { padding: 1rem; }
+    .oracle-research-page .research-search-field { gap: .45rem; }
+    .oracle-research-page .research-search input { font-size: .75rem; }
+    .oracle-research-page .research-search .btn { font-size: .73rem; padding: .6rem .7rem; }
+    .oracle-research-page .research-tab { padding: .8rem .65rem; font-size: .73rem; }
+    .oracle-research-page .research-results-heading { align-items: flex-start; flex-direction: column; gap: .35rem; }
+    .oracle-research-page .research-results-heading p { text-align: left; }
+    .oracle-research-page .research-card { grid-template-columns: 2.6rem minmax(0,1fr); gap: .75rem; padding: 1.1rem; }
+    .oracle-research-page .research-record-avatar { width: 2.6rem; height: 2.6rem; font-size: 1.3rem; }
+    .oracle-research-page .research-record-avatar-badge { width: 1.15rem; height: 1.15rem; font-size: .7rem; }
+    .oracle-research-page .research-record-top { flex-direction: column; gap: .8rem; }
+    .oracle-research-page .research-record-button { min-height: 2.25rem; min-width: 6.8rem; padding: .4rem .75rem; font-size: .7rem; }
+    .oracle-research-page .research-record-metrics { gap: .6rem .85rem; margin: .85rem 0 .7rem; }
+    .oracle-research-page .research-record-metric { font-size: .69rem; }
+    .oracle-research-page .research-record-metric-icon { width: 1.6rem; height: 1.6rem; font-size: .8rem; }
+    .oracle-research-page .research-record-status { font-size: .66rem; padding: .35rem .6rem; }
+    .oracle-research-page .research-record-sdgs { margin-left: 0; }
+    .oracle-research-page .research-record-sdgs img { width: 1.8rem; height: 1.8rem; }
+    .oracle-research-page .research-record-summary { font-size: .73rem; }
+    .oracle-research-page .research-full-detail { padding: 1.2rem; }
+    .oracle-research-page .research-full-detail .research-details-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .oracle-research-page *, .oracle-research-page *::before, .oracle-research-page *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
