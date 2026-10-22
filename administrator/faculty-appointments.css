@@ -1,0 +1,22 @@
+.appointment-heading { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+.appointment-heading p { max-width:680px; }
+.appointment-filters { display:grid; grid-template-columns:minmax(220px,2fr) repeat(2,minmax(135px,1fr)) auto; align-items:end; gap:1rem; }
+.appointment-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr); align-items:start; gap:1.5rem; }
+.appointment-record { display:flex; justify-content:space-between; gap:1rem; padding:1.25rem 0; border-bottom:1px solid #eceef1; overflow-wrap:anywhere; }
+.appointment-record:last-child { border-bottom:0; padding-bottom:0; }
+.appointment-actions { display:flex; flex-direction:column; align-items:flex-end; gap:.5rem; flex-shrink:0; }
+.faculty-appointments .select2-container { width:100%!important; min-width:0; }
+.faculty-appointments .select2-selection--single { min-height:42px; padding:.3rem .5rem; border-color:#d9dee3; border-radius:.375rem; }
+.faculty-appointments .select2-selection--single .select2-selection__arrow { top:8px; }
+.faculty-appointments [hidden] { display:none!important; }
+@media(max-width:1199.98px) { .appointment-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:767.98px) { .appointment-layout,.appointment-filters { grid-template-columns:minmax(0,1fr); } .appointment-record { flex-direction:column; } .appointment-actions { flex-direction:row; flex-wrap:wrap; align-items:center; } }
+@media(max-width:767.98px) {
+  #layout-navbar { height:auto; min-height:62px; padding-top:10px; padding-bottom:10px; }
+  #layout-navbar .navbar-nav-right { min-width:0; gap:.5rem; }
+  #layout-navbar .navbar-nav-right>.navbar-nav:first-child { min-width:0; flex:1; }
+  #layout-navbar .navbar-nav-right>.navbar-nav:first-child .bx-calendar { display:none; }
+  #layout-navbar .navbar-nav-right>.navbar-nav:first-child .gap-2 { gap:4px!important; flex-wrap:wrap; }
+  #layout-navbar .navbar-nav-right>.navbar-nav:first-child .fw-semibold { white-space:nowrap; }
+  #layout-navbar .navbar-nav.flex-row>li:not(.dropdown-user) { display:none; }
+}

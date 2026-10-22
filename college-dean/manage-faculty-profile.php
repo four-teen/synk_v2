@@ -31,7 +31,8 @@ try {
     $ranks = synk_faculty_profile_ranks($conn);
     $locations = synk_faculty_profile_locations($conn);
     $account = ['username'=>$target['faculty_name'], 'email'=>$target['profile_email'],
-        'campus_name'=>$scope['campus_name'], 'college_name'=>$scope['college_name']];
+        'campus_name'=>$target['home_campus_name'] ?: $scope['campus_name'],
+        'college_name'=>$target['home_college_name'] ?: $scope['college_name']];
     $storedProfile = synk_dean_profile_load($conn, $target);
     $profile = $storedProfile ?? synk_faculty_profile_defaults($account, $target, (string)$target['employment_classification']);
     $fields = synk_faculty_profile_fields($ranks, $storedProfile ?? [], $locations);

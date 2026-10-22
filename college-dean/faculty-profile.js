@@ -30,7 +30,7 @@
       section.querySelector('[data-profile-count]').textContent = String(count);
       section.hidden = !count && (filtered || section.querySelector('[data-faculty-card]') !== null);
     });
-    result.textContent = shown + ' of ' + cards.length + ' faculty profiles shown. Select a card to manage its profile.';
+    result.textContent = shown + ' of ' + cards.length + ' faculty profiles shown. Select an available profile to manage its details.';
     empty.hidden = shown > 0 || cards.length === 0;
   }
   function reset() {

@@ -127,7 +127,7 @@ $sidebarSections = [
                         'icon' => 'bx-user-voice',
                         'title' => 'Faculty Masterlist',
                         'description' => 'Manage faculty records and profiles',
-                        'pages' => ['manage-faculty.php'],
+                        'pages' => ['manage-faculty.php', 'faculty-appointments.php'],
                     ],
                     [
                         'key' => 'student_management',

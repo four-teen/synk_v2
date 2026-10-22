@@ -53,7 +53,7 @@ $term = synk_fetch_current_academic_term($conn);
 $faculty = [];
 foreach (['dean'=>'COLLEGE DEAN & PROGRAM CHAIRPERSON', 'chair'=>'PROGRAM CHAIRMAN', 'chair2'=>'PROGRAM CHAIRPERSON',
     'record'=>'Instructor', 'linked'=>'Instructor', 'faculty2'=>'Instructor', 'faculty3'=>'Instructor', 'faculty4'=>'Instructor',
-    'archived'=>'Instructor', 'foreign'=>'Instructor', 'roster'=>'Instructor', 'old_roster'=>'Instructor'] as $key=>$designation) {
+    'archived'=>'Instructor', 'foreign'=>'DEAN', 'roster'=>'Instructor', 'old_roster'=>'Instructor'] as $key=>$designation) {
     $designation .= ' ' . $tag . $key;
     $stmt=$conn->prepare("INSERT INTO tbl_designation (designation_name,status) VALUES (?,'active')");
     $stmt->bind_param('s',$designation);$stmt->execute();$designationId=(int)$stmt->insert_id;$stmt->close();
@@ -68,6 +68,15 @@ foreach (['dean'=>'COLLEGE DEAN & PROGRAM CHAIRPERSON', 'chair'=>'PROGRAM CHAIRM
         $conn->query("INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semester,status) VALUES ({$collegeId},{$faculty[$key]},{$ay},{$term['semester']},'active')");
     }
 }
+$conn->query("INSERT INTO tbl_program (college_id,program_code,program_name,status) VALUES ({$collegeId},'QAC1','Profile QA Program One','active')");
+$chairProgram1=(int)$conn->insert_id;
+$conn->query("INSERT INTO tbl_program (college_id,program_code,program_name,status) VALUES ({$collegeId},'QAC2','Profile QA Program Two','active')");
+$chairProgram2=(int)$conn->insert_id;
+$conn->query("INSERT INTO tbl_faculty_college_appointments (college_id,ay_id,semester,appointment_role,program_id,faculty_id) VALUES
+    ({$collegeId},{$term['ay_id']},{$term['semester']},'dean',0,{$faculty['dean']}),
+    ({$collegeId},{$term['ay_id']},{$term['semester']},'chair',{$chairProgram1},{$faculty['chair']}),
+    ({$collegeId},{$term['ay_id']},{$term['semester']},'chair',{$chairProgram2},{$faculty['chair2']}),
+    ({$foreignCollege},{$term['ay_id']},{$term['semester']},'dean',0,{$faculty['foreign']})");
 $conn->query("INSERT INTO tbl_useraccount_faculty_links (user_id,faculty_id) VALUES ({$accountId},{$faculty['linked']})");
 $seed=synk_faculty_profile_defaults(['username'=>'Maria QA Linked','campus_name'=>'','college_name'=>''],null,'permanent');
 synk_faculty_profile_save($conn,$accountId,$seed,0);

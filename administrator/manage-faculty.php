@@ -246,13 +246,14 @@
         <div class="container-xxl flex-grow-1 container-p-y">
 
           <!-- Title + Add Button -->
-          <div class="d-flex justify-content-between align-items-center mb-4">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
             <h4 class="fw-bold mb-0">
               <i class="bx bx-id-card me-2"></i> Faculty Masterlist
             </h4>
+            <div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" href="faculty-appointments.php">Leadership appointments</a>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFacultyModal">
               <i class="bx bx-plus"></i> Add Faculty
-            </button>
+            </button></div>
           </div>
 
           <!-- Card: Faculty List -->
