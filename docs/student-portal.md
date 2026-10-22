@@ -32,9 +32,18 @@ the active account for that browser session.
 
 ## Dashboard
 
+Student sessions now sign out after 15 minutes without activity. Background
+status checks do not reset that timer. The College Dean dashboard shows a live
+student grid and successful-login counts for the selected academic year and semester; see
+[student-live-activity.md](student-live-activity.md) for behavior and deployment.
+
 The dashboard reads active imported enrollment records for the signed-in student.
-It displays subject titles, instructors, sections, imported schedule text and
-rooms. Missing details are labeled "To be posted". It does not change schedules,
+Each subject appears in a full-width row with the professor's circular profile
+photo, orange professor name, subject title and compact schedule lines. Lecture
+and laboratory entries separated by semicolons or newlines appear on separate
+lines. Room, section and subject code sit below the schedule. Photos use the
+linked professor account or faculty-record profile storage; missing photos use
+a neutral person icon. Missing details are labeled "To be posted". It does not change schedules,
 faculty workloads, enrollment lists or Administrator academic settings.
 
 The current academic term is selected when it has imported subjects. Otherwise,
@@ -47,10 +56,40 @@ Profile setup does not block the dashboard. The existing one-time profile
 setup is retained at `student/profile.php`, with CSRF validation. Existing
 Prospectus and Faculty Evaluation pages are retained.
 
+My Profile starts with a compact Student Workspace card, followed by the academic
+year subject listing. The separate Student details card is removed. Its subject
+rows use the same shared `student/subject-card.php` view as My Subjects, including
+professor photos, orange names and compact schedules. The academic-year filter,
+semester groups and first-time profile setup remain available.
+
+On screens below 1,200px, the student sidebar becomes a fixed bottom navigation
+bar on all four portal pages. It contains the same available Subjects, Profile,
+Prospectus and Faculty Evaluation destinations, including preview parameters and
+evaluation availability rules. Content has space below it for the bar and device
+safe area. Desktop keeps the sidebar. Mobile pages allow pinch zoom.
+
+## Faculty Evaluation
+
+Faculty Evaluation opens the assigned college and academic term directly. Its
+overview has no term, college or faculty dropdowns and no Load Faculty List or
+Select Faculty step. All assigned professors appear together. Their subject rows
+reuse the My Subjects photo, orange name, title and compact schedule layout.
+Each professor has one prominent evaluation action for all their subjects, on
+the right on desktop and full width below the subjects on smaller screens.
+Saved drafts, submitted evaluations, archived terms and staff previews retain
+their existing view/edit restrictions. Draft forms carry term, college and faculty
+identifiers in hidden fields. The server checks enrollment and collection access
+for draft saves and final submissions, and finalizes the complete faculty list.
+
+On screens below 992px, the SET form opens as a full-screen modal. Its header and
+Close/Save Draft actions stay visible while the questions and comments scroll
+inside the form. The layout follows the available viewport height and includes
+device safe-area spacing. Larger screens retain the regular dialog.
+
 ## Dean account preview
 
 **Show Account**, beside a student name in the Dean Student Management page,
-opens the actual Student dashboard in a new tab. The Dean remains signed in as
+opens the actual Student dashboard in the same tab. The Dean remains signed in as
 Dean. Profile, Prospectus and available Faculty Evaluation links retain the selected student's preview ID and term,
 and the return link goes to the Dean directory. All preview requests are
 read-only; server-side guards reject POST requests.
@@ -105,6 +144,10 @@ Columns: `issue_id`, `issue_key`, `submitted_email`, `google_email`, `google_nam
 `review_status`, `review_note`, `reviewed_by`, `reviewed_at`.
 
 ## Verification
+
+My Subjects also shows total units and weekly contact hours for the selected
+term. The calculation and the Dean's six-or-more-subject workload review are
+documented in [Student units and workload review](student-workload.md).
 
 `php tests/student-portal.php` exercises guarded HTTP fixtures against Apache's
 PHP runtime and rolls back all database writes. It covers Student identity,

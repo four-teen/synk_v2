@@ -21,7 +21,9 @@ $seedAccess=static function(int $college,int $faculty,array $period,string $stat
 $_SESSION['student_evaluation_csrf']=$csrf;
 $handler='student/class-program.php';
 $_GET['evaluation_college_id']=(string)$collegeA;
-if (in_array($case,['student_open','student_open_post','student_bad_csrf','student_shared_final','student_partial_final'],true)) $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeA} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+if (in_array($case,['student_open','student_open_post','student_bad_csrf','student_shared_final','student_partial_final','student_multiple_subjects','student_stale_filter'],true)) $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeA} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+if ($case==='student_multiple_subjects') $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id='.(int)$teachers[0].' WHERE student_id='.(int)$students['first'].' AND ay_id='.(int)$term['ay_id'].' AND semester='.(int)$term['semester']);
+if ($case==='student_stale_filter') $_GET['faculty_key']='faculty-'.$teachers[0];
 if (in_array($case,['student_closed_final','student_shared_final'],true)) {
     foreach ($teachers as $teacher) $seedAccess($collegeA,$teacher,$term,'draft',4,'SAVED_DRAFT_A');
 }

@@ -45,7 +45,7 @@ foreach(['first','other'] as $i=>$key){$studentEmail=$key==='first'?$email:'othe
 $teachers=[];
 foreach(['Ada','Ben'] as $teacher){$conn->query("INSERT INTO tbl_faculty (first_name,last_name,status) VALUES ('{$teacher}','{$tag}','active')");$teachers[]=(int)$conn->insert_id;}
 $import=static function(int $studentId,array $period,string $code,string $title,int $teacher,int $active=1)use($conn,$tag,$program):void {
-    $section='QA 2A';$room='QA Lab 201';$schedule=$code==='QA-MATH101'?'T / Th · 1:00–2:30 PM':'M / W · 9:00–10:30 AM';
+    $section='QA 2A';$room='QA Lab 201';$schedule=$code==='QA-MATH101'?'T / Th · 1:00–2:30 PM':'LEC M, W 09:00-10:00; LAB T, Th 07:30-09:00';
     $subjectId = array_search($code,['QA-CS101','QA-MATH101','QA-HIST101','QA-INACTIVE','SECRET101'],true)+1;
     $stmt=$conn->prepare('INSERT INTO tbl_student_management_enrolled_subjects (import_batch_key,campus_id,college_id,program_id,ay_id,semester,student_id,subject_id,subject_code,descriptive_title,faculty_id,section_text,room_text,schedule_text,is_active) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->bind_param('siiiiiiississsi',$tag,$program['campus_id'],$program['college_id'],$program['program_id'],$period['ay_id'],$period['semester'],$studentId,$subjectId,$code,$title,$teacher,$section,$room,$schedule,$active);$stmt->execute();$stmt->close();
@@ -62,13 +62,19 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
+if ($scenario==='profile_page') $handler='student/profile.php';
+if ($scenario==='profile_complete_page') {
+    synk_student_save_first_portal_profile_setup($conn,$email,(int)$program['program_id'],(string)(100000000+$students['first']));
+    $handler='student/profile.php';
+}
+if ($scenario==='prospectus_page') $handler='student/prospectus.php';
 if (in_array($scenario,['student_evaluation','student_legacy_draft'],true)) {
     $conn->query('INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,student_open) VALUES ('.(int)$program['college_id'].','.(int)$term['ay_id'].','.(int)$term['semester'].',1) ON DUPLICATE KEY UPDATE student_open=1');
 }
-if (in_array($scenario,['dean_preview','dean_evaluation'],true)) {
+if (in_array($scenario,['dean_preview','dean_evaluation','dean_evaluation_historical'],true)) {
     $conn->query('INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,student_open) VALUES ('.(int)$program['college_id'].','.(int)$term['ay_id'].','.(int)$term['semester'].',0) ON DUPLICATE KEY UPDATE student_open=0');
 }
-if (in_array($scenario,['dean_preview','dean_evaluation'],true) || strpos($scenario,'dean_faculty_evaluations_')===0) {
+if (in_array($scenario,['dean_preview','dean_evaluation','dean_evaluation_historical'],true) || strpos($scenario,'dean_faculty_evaluations_')===0) {
     $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_dean_college_id) VALUES ('QA Dean','dean-{$email}','unusable-qa-password','college_dean','active',{$program['college_id']})");
     $deanId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$deanId,['college_dean'],'college_dean');
     $_SESSION=['user_id'=>$deanId,'role'=>'college_dean','username'=>'QA Dean','email'=>'dean-'.$email,'csrf_token'=>$csrf];
@@ -105,7 +111,7 @@ if (strpos($scenario,'dean_faculty_evaluations_')===0) {
     if($scenario==='dean_faculty_evaluations_bad_filter')$_GET['instrument_version']=['legacy-20'];
 }
 if ($scenario==='student_evaluation') $handler='student/class-program.php';
-if (in_array($scenario, ['dean_evaluation', 'student_legacy_draft'], true)) {
+if (in_array($scenario, ['dean_evaluation', 'dean_evaluation_historical', 'student_legacy_draft'], true)) {
     $handler='student/class-program.php';
     foreach ($teachers as $index=>$teacher) {
         $comment=$index===0?'A saved draft comment for Dean review.':'A submitted comment for Dean review.';
@@ -121,6 +127,7 @@ if (in_array($scenario, ['dean_evaluation', 'student_legacy_draft'], true)) {
         }
     }
 }
+if ($scenario==='dean_evaluation_historical') $_GET['term_key']=$oldTerm['ay_id'].'-'.$oldTerm['semester'];
 if($scenario==='old_term')$_GET['student_term']=$oldTerm['ay_id'].':'.$oldTerm['semester'];
 if($scenario==='empty_term')$conn->query("UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id={$students['first']}");
 if($scenario==='foreign_parameters'){$_GET['preview_student_id']=(string)$students['other'];$_GET['student_id']=(string)$students['other'];}
@@ -150,6 +157,7 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
 if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-access-scenarios.php';
 if (strpos($scenario,'login_activity_')===0) require __DIR__.'/student-login-activity-scenarios.php';
 if (strpos($scenario,'login_report_')===0) require __DIR__.'/dean-login-report-scenarios.php';
+if (strpos($scenario,'presence_')===0 || strpos($scenario,'activity_grid_')===0) require __DIR__.'/student-live-activity-scenarios.php';
 $protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_login_activity'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);

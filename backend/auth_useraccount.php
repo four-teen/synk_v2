@@ -845,6 +845,8 @@ function synk_reset_authenticated_session_context(): void
         $_SESSION['student_google_sub'],
         $_SESSION['student_login_at'],
         $_SESSION['student_id'],
+        $_SESSION['student_presence_key'],
+        $_SESSION['student_presence_csrf'],
         $_SESSION['student_view_term']
     );
 }
@@ -855,6 +857,10 @@ function synk_complete_user_login(
     ?string $selectedRole = null,
     ?array $availableRoleRows = null
 ): string {
+    if ($conn instanceof mysqli && ($_SESSION['role'] ?? '') === 'student') {
+        require_once __DIR__.'/student_presence_helper.php';
+        synk_student_presence_end($conn, 'replaced');
+    }
     if ($availableRoleRows === null) {
         if ($conn instanceof mysqli) {
             $availableRoleRows = synk_filter_loginable_role_rows(

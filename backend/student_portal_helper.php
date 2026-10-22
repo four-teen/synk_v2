@@ -177,6 +177,7 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
     }
 
     if ($role === 'student') {
+        header('Cache-Control: no-store, private');
         $studentEmail = synk_normalize_email((string)($_SESSION['email'] ?? ''));
         if ($studentEmail === '') {
             synk_logout_session();
@@ -185,9 +186,19 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
         }
 
         if ($conn instanceof mysqli && !synk_student_login_session_record($conn)) {
+            synk_student_presence_end($conn, 'identity_changed');
             synk_logout_session();
             header('Location: login.php?auth_status=student_session_changed');
             exit;
+        }
+
+        if ($conn instanceof mysqli) {
+            try { synk_student_presence_check($conn, true); }
+            catch (DomainException $error) {
+                synk_logout_session();
+                header('Location: login.php?auth_status=student_idle_timeout');
+                exit;
+            }
         }
 
         return;

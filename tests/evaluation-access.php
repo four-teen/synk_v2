@@ -45,6 +45,12 @@ try {
     $check($r['status']===200 && strpos($r['body'],'Your college has closed evaluations')!==false && strpos($r['body'],'name="ratings[')===false,'Closed evaluation periods do not expose answer forms.');
     $r=$request('student_open');
     $check($r['status']===200 && substr_count($r['body'],'name="ratings[')===30 && strpos($r['body'],'name="csrf_token"')!==false,'Open current-term forms contain all revised statements and CSRF protection.');
+    $check(strpos($r['body'],'id="term_key"')===false && strpos($r['body'],'id="faculty_key"')===false && strpos($r['body'],'id="evaluation_college_id"')===false && strpos($r['body'],'Load Faculty List')===false && strpos($r['body'],'Select Faculty</a>')===false,'The assigned term and college need no filter form or separate faculty selection.');
+    $check(substr_count($r['body'],'data-faculty-evaluation-card')===2 && substr_count($r['body'],'class="student-professor-photo"')===2,'Each assigned faculty group uses the shared professor-photo subject rows.');
+    $r=$request('student_stale_filter');
+    $check($r['status']===200 && substr_count($r['body'],'data-faculty-evaluation-card')===2,'Old faculty filter URLs cannot hide other assigned professors.');
+    $r=$request('student_multiple_subjects');
+    $check($r['status']===200 && substr_count($r['body'],'data-faculty-evaluation-card')===1 && substr_count($r['body'],'class="student-professor-photo"')===2 && substr_count($r['body'],'faculty-evaluate-button"')===1,'Multiple subjects taught by one professor share one evaluation action.');
     foreach (['student_closed_post','student_bad_csrf','student_historical_post'] as $case) {
         $r=$request($case);
         $check($r['status']===422 && count($r['state']['responses'])===0,'Forged drafts cannot bypass the college, current-term or CSRF check: '.$case);

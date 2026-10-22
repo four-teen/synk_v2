@@ -2,6 +2,7 @@
 require_once __DIR__ . '/auth_useraccount.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/student_login_activity_helper.php';
+require_once __DIR__ . '/student_presence_helper.php';
 
 function synk_student_login_csrf(): string
 {
@@ -94,8 +95,10 @@ function synk_student_login_verified_identity(mysqli $conn, string $submitted, a
 
 function synk_student_login_complete(mysqli $conn, array $student, string $email, string $name, string $googleSub): void
 {
+    if (($_SESSION['role'] ?? '') === 'student') synk_student_presence_end($conn, 'replaced');
     synk_complete_student_login($email,$name,$googleSub);
     $_SESSION['student_id']=(int)$student['student_id'];
+    synk_student_presence_start($conn);
     synk_student_login_activity_record($conn,$email,'success','login_success',true,(int)$student['student_id']);
 }
 

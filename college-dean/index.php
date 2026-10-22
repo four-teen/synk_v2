@@ -340,24 +340,12 @@ $scheduleSummary = [
     'unassigned_classes' => 0,
 ];
 $utilizationRows = [];
-$utilizationChartLabels = [];
-$utilizationChartUsed = [];
-$utilizationChartAvailable = [];
 $utilizationMetricLabel = $isUniversitySummary ? 'Campus' : ($selectedCollegeId ? 'Room' : 'College');
-$utilizationHeading = $isUniversitySummary
-    ? 'Room Utilization by Campus'
-    : ($selectedCollegeId ? 'Accessible Room Utilization' : 'Room Utilization by College');
 $heatmapSubtext = $isUniversitySummary
     ? 'Each cell shows the percentage of rooms occupied across all campuses in the current-term weekday window.'
     : ($selectedCollegeId
         ? 'Each cell shows the percentage of this college\'s accessible rooms occupied in the current-term weekday window.'
         : 'Each cell shows the percentage of campus rooms occupied in the current-term weekday window.');
-$utilizationSubtext = $isUniversitySummary
-    ? 'Compares scheduled room-hours against the university\'s 40-hour weekly baseline for each campus room pool.'
-    : ($selectedCollegeId
-        ? 'Compares scheduled room-hours against the university\'s 40-hour weekly baseline for rooms this college can use.'
-        : 'Compares scheduled room-hours against the university\'s 40-hour weekly baseline for each college room pool.');
-$resourceCapacityNote = 'Utilization compares actual scheduled room-hours against the university standard of 40 room-hours per week per room. The heatmap above still shows real 30-minute activity from Monday to Friday, 7:00 AM to 6:00 PM, so utilization may exceed 100% when rooms run beyond the standard weekly load.';
 $assignmentCoveragePercent = 0.0;
 $highestUtilizationLabel = 'No room data';
 $highestUtilizationPercent = 0.0;
@@ -739,12 +727,6 @@ if ($analyticsReady) {
 
             return $b['utilization_percent'] <=> $a['utilization_percent'];
         });
-
-        foreach ($utilizationRows as $utilizationRow) {
-            $utilizationChartLabels[] = $utilizationRow['label'];
-            $utilizationChartUsed[] = $utilizationRow['used_hours'];
-            $utilizationChartAvailable[] = $utilizationRow['available_hours'];
-        }
 
         if (!empty($utilizationRows)) {
             $highestUtilizationLabel = (string)$utilizationRows[0]['label'];
@@ -1633,11 +1615,55 @@ if ($consolidatedReportAssigneesJson === false) {
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/apex-charts/apex-charts.css" />
   <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
+  <link rel="stylesheet" href="student-activity.css?v=<?= (int)filemtime(__DIR__.'/student-activity.css') ?>" />
+  <link rel="stylesheet" href="student-workload.css?v=<?= (int)filemtime(__DIR__.'/student-workload.css') ?>" />
 
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
 
   <style>
+    .college-dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "overview" "operations" "schedule" "snapshot" "faculty" "activity" "workload" "programs";
+      gap: 1.5rem;
+    }
+
+    .college-dashboard-grid > .card { min-width: 0; }
+    .college-overview-card { grid-area: overview; }
+    .college-operations-card { grid-area: operations; }
+    #collegeScheduleOverview { grid-area: schedule; }
+    .college-snapshot-card { grid-area: snapshot; }
+    .college-faculty-card { grid-area: faculty; min-height: 0; }
+    .college-programs-card { grid-area: programs; }
+    .college-student-activity-card { grid-area: activity; }
+
+    .college-faculty-card > .card-header,
+    .college-programs-card > .card-header {
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    @media (min-width: 992px) {
+      .college-dashboard-grid {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+        grid-template-areas: "overview snapshot" "operations faculty" "schedule faculty" "activity activity" "workload workload" "programs programs";
+      }
+
+      .college-faculty-card > .card-body {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .college-faculty-card .faculty-directory-list {
+        flex: 1 1 auto;
+        height: 0;
+        min-height: 240px;
+        max-height: none;
+      }
+    }
+
     .kpi-box {
       padding: 10px;
     }
@@ -2078,6 +2104,7 @@ if ($consolidatedReportAssigneesJson === false) {
     }
 
     .faculty-directory-item {
+      flex-shrink: 0;
       width: 100%;
       border: 1px solid #e7e7ef;
       border-radius: 14px;
@@ -3159,12 +3186,9 @@ if ($consolidatedReportAssigneesJson === false) {
               <span class="badge bg-label-primary"><i class="bx bx-buildings me-1"></i><?= htmlspecialchars($collegeCode, ENT_QUOTES, 'UTF-8'); ?></span>
             </div>
 
-            <div class="row">
-              <!-- LEFT COLUMN -->
-              <div class="col-lg-8 mb-4 order-0">
-
+            <div class="college-dashboard-grid">
                 <!-- CAMPUS HERO CARD -->
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm college-overview-card">
                   <div class="row align-items-center g-0">
                     <div class="col-sm-8 px-4 py-4">
                       <p class="card-section-title mb-1">
@@ -3184,7 +3208,7 @@ if ($consolidatedReportAssigneesJson === false) {
                           College Workload Report
                         </button>
                         <a href="#collegeScheduleOverview" class="btn btn-sm btn-outline-primary">
-                          <i class="bx bx-calendar"></i> View Room Utilization
+                          <i class="bx bx-calendar"></i> View Schedule Heatmap
                         </a>
                       </div>
                     </div>
@@ -3202,7 +3226,7 @@ if ($consolidatedReportAssigneesJson === false) {
                 </div>
 
                 <!-- KPI ROW -->
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm college-operations-card">
                   <div class="card-header d-flex justify-content-between align-items-center pb-2">
                     <div>
                       <p class="card-section-title mb-1">Key Indicators</p>
@@ -3266,11 +3290,11 @@ if ($consolidatedReportAssigneesJson === false) {
                 </div>
 
                 <!-- SCHEDULING HEALTH ANALYTICS -->
-                <div class="card shadow-sm mb-4" id="collegeScheduleOverview">
+                <div class="card shadow-sm" id="collegeScheduleOverview">
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                       <p class="card-section-title mb-1">Scheduling Health</p>
-                      <h5 class="m-0">Weekly Schedule Heatmap &amp; Room Utilization</h5>
+                      <h5 class="m-0">Weekly Schedule Heatmap</h5>
                     </div>
                     <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
                       <?php if ($selectedCollegeId && $analyticsReady): ?>
@@ -3354,90 +3378,13 @@ if ($consolidatedReportAssigneesJson === false) {
                           </div>
                         </div>
                       </div>
-
-                      <hr class="my-4" />
-
-                      <div class="d-flex justify-content-between align-items-start flex-column flex-md-row gap-2 mb-3">
-                        <div>
-                          <h6 class="fw-bold mb-1"><?= htmlspecialchars($utilizationHeading); ?></h6>
-                          <small class="text-muted"><?= htmlspecialchars($utilizationSubtext); ?></small>
-                        </div>
-                        <small class="resource-note"><?= htmlspecialchars($resourceCapacityNote); ?></small>
-                      </div>
-
-                      <div id="roomUtilizationChart" class="chart-shell"></div>
-                      <p class="chart-insight mb-0" id="roomUtilizationInsight">
-                        This chart shows scheduled room-hours against the university's 40-hour weekly baseline so over-capacity room pools stand out immediately.
-                      </p>
-
-                      <div class="table-responsive mt-4">
-                        <table class="table table-sm table-hover align-middle mb-0">
-                          <thead>
-                            <tr>
-                              <th><?= htmlspecialchars($utilizationMetricLabel); ?></th>
-                              <th class="text-center">Rooms</th>
-                              <th class="text-end">Used Hours</th>
-                              <th class="text-end">Capacity</th>
-                              <th class="text-end">Utilization</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <?php if (empty($utilizationRows)): ?>
-                              <tr>
-                                <td colspan="5" class="text-center text-muted">
-                                  No current-term room utilization data is available for this view.
-                                </td>
-                              </tr>
-                            <?php else: ?>
-                              <?php foreach ($utilizationRows as $row): ?>
-                                <tr>
-                                  <td class="fw-semibold"><?= htmlspecialchars($row['label']); ?></td>
-                                  <td class="text-center"><?= (int)$row['room_count']; ?></td>
-                                  <td class="text-end"><?= number_format((float)$row['used_hours'], 1); ?></td>
-                                  <td class="text-end"><?= number_format((float)$row['capacity_hours'], 1); ?></td>
-                                  <td class="text-end">
-                                    <span class="badge <?= $row['utilization_percent'] >= 100 ? 'bg-label-danger' : ($row['utilization_percent'] >= 80 ? 'bg-label-warning' : 'bg-label-success'); ?>">
-                                      <?= number_format((float)$row['utilization_percent'], 1); ?>%
-                                    </span>
-                                  </td>
-                                </tr>
-                              <?php endforeach; ?>
-                            <?php endif; ?>
-                          </tbody>
-                        </table>
-                      </div>
                     <?php endif; ?>
 
                   </div>
                 </div>
-
-                <div class="card shadow-sm mb-4">
-                  <div class="card-header d-flex justify-content-between align-items-center">
-                    <div><p class="card-section-title mb-1">Programs &amp; Prospectus</p><h5 class="m-0">Program Offerings Overview</h5></div>
-                    <a href="programs.php" class="btn btn-sm btn-outline-primary">View Programs</a>
-                  </div>
-                  <div class="card-body">
-                    <?php if (empty($collegeDeanPortalContext['program_rows'])): ?>
-                      <div class="alert alert-info mb-0">No programs are recorded for your assigned college.</div>
-                    <?php else: ?>
-                      <div class="d-flex flex-wrap gap-2">
-                        <?php foreach ($collegeDeanPortalContext['program_rows'] as $programRow): ?>
-                          <a href="programs.php" class="badge bg-label-primary p-2 text-wrap" style="text-decoration:none;"><?= htmlspecialchars((string)$programRow['display_name'], ENT_QUOTES, 'UTF-8'); ?></a>
-                        <?php endforeach; ?>
-                      </div>
-                      <small class="text-muted d-block mt-3">Open Programs to view the college's degree programs and prospectus versions.</small>
-                    <?php endif; ?>
-                  </div>
-                </div>
-
-              </div>
-              <!-- /LEFT COLUMN -->
-
-              <!-- RIGHT COLUMN -->
-              <div class="col-lg-4 order-1 order-lg-0 mb-4">
 
                 <!-- CAMPUS QUICK FACTS -->
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm college-snapshot-card">
                   <div class="card-header">
                     <p class="card-section-title mb-1">Quick Facts</p>
                     <h5 class="m-0">
@@ -3466,7 +3413,7 @@ if ($consolidatedReportAssigneesJson === false) {
                   </div>
                 </div>
 
-                <div class="card shadow-sm mb-4">
+                <div class="card shadow-sm college-faculty-card">
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                       <p class="card-section-title mb-1">People</p>
@@ -3534,8 +3481,27 @@ if ($consolidatedReportAssigneesJson === false) {
                   </div>
                 </div>
 
-              </div>
-              <!-- /RIGHT COLUMN -->
+                <?php include __DIR__.'/student-activity-card.php'; ?>
+                <?php include __DIR__.'/student-workload-card.php'; ?>
+
+                <div class="card shadow-sm college-programs-card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <div><p class="card-section-title mb-1">Programs &amp; Prospectus</p><h5 class="m-0">Program Offerings Overview</h5></div>
+                    <a href="programs.php" class="btn btn-sm btn-outline-primary">View Programs</a>
+                  </div>
+                  <div class="card-body">
+                    <?php if (empty($collegeDeanPortalContext['program_rows'])): ?>
+                      <div class="alert alert-info mb-0">No programs are recorded for your assigned college.</div>
+                    <?php else: ?>
+                      <div class="d-flex flex-wrap gap-2">
+                        <?php foreach ($collegeDeanPortalContext['program_rows'] as $programRow): ?>
+                          <a href="programs.php" class="badge bg-label-primary p-2 text-wrap" style="text-decoration:none;"><?= htmlspecialchars((string)$programRow['display_name'], ENT_QUOTES, 'UTF-8'); ?></a>
+                        <?php endforeach; ?>
+                      </div>
+                      <small class="text-muted d-block mt-3">Open Programs to view the college's degree programs and prospectus versions.</small>
+                    <?php endif; ?>
+                  </div>
+                </div>
             </div>
 
           </div>
@@ -3671,12 +3637,11 @@ if ($consolidatedReportAssigneesJson === false) {
 
   <!-- Main JS -->
   <script src="../assets/js/main.js"></script>
+  <script src="student-activity.js?v=<?= (int)filemtime(__DIR__.'/student-activity.js') ?>" defer></script>
+  <script src="student-workload.js?v=<?= (int)filemtime(__DIR__.'/student-workload.js') ?>" defer></script>
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      var utilizationLabels = <?= json_encode($utilizationChartLabels); ?>;
-      var utilizationUsed = <?= json_encode($utilizationChartUsed, JSON_NUMERIC_CHECK); ?>;
-      var utilizationAvailable = <?= json_encode($utilizationChartAvailable, JSON_NUMERIC_CHECK); ?>;
       var analyticsReady = <?= $analyticsReady ? 'true' : 'false'; ?>;
       var campusIdParam = <?= json_encode((string)$campusIdParam); ?>;
       var dashboardCampusId = <?= $isUniversitySummary ? 0 : (int)$campusId; ?>;
@@ -3690,9 +3655,6 @@ if ($consolidatedReportAssigneesJson === false) {
       var academicTermText = <?= json_encode(htmlspecialchars($academicTermText, ENT_QUOTES, 'UTF-8')); ?>;
       var csrfToken = <?= json_encode($csrfToken); ?>;
       var dashboardViewType = <?= json_encode($selectedCollegeId ? 'college' : ($isUniversitySummary ? 'university' : 'campus')); ?>;
-      var utilizationMetricLabel = <?= json_encode((string)$utilizationMetricLabel); ?>;
-      var highestUtilizationLabel = <?= json_encode((string)$highestUtilizationLabel); ?>;
-      var highestUtilizationPercent = <?= json_encode((float)$highestUtilizationPercent, JSON_NUMERIC_CHECK); ?>;
       var facultyDirectoryData = <?= $facultyDirectoryJson; ?>;
       var consolidatedReportAssignees = <?= $consolidatedReportAssigneesJson; ?>;
       var consolidatedReportScope = <?= json_encode($consolidatedReportScope, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -3726,7 +3688,6 @@ if ($consolidatedReportAssigneesJson === false) {
       var hasApexCharts = typeof ApexCharts !== "undefined";
       var scheduleHeatmapChart = null;
       var scheduleHeatmapRequest = null;
-      var roomUtilizationChart = null;
       var scheduleHeatmapRoomSelection = "all";
       var syncingScheduleHeatmapRoomFilter = false;
       var scheduleHeatmapRoomFilter = document.getElementById("scheduleHeatmapRoomFilter");
@@ -5692,117 +5653,6 @@ if ($consolidatedReportAssigneesJson === false) {
         });
       }
 
-      function renderRoomUtilizationChart() {
-        if (!utilizationLabels.length) {
-          setChartFallback("roomUtilizationChart", "No room utilization data is available.");
-          setInsight("roomUtilizationInsight", "No current-term room utilization data is available for this view.");
-          return;
-        }
-
-        if (!hasApexCharts) {
-          setChartFallback("roomUtilizationChart", "ApexCharts failed to load.");
-          setInsight("roomUtilizationInsight", "Room utilization data is available but the chart library could not be loaded.");
-          return;
-        }
-
-        var utilizationElement = document.querySelector("#roomUtilizationChart");
-        if (!utilizationElement) {
-          return;
-        }
-
-        if (roomUtilizationChart) {
-          roomUtilizationChart.destroy();
-        }
-
-        utilizationElement.innerHTML = "";
-
-        roomUtilizationChart = new ApexCharts(utilizationElement, {
-          series: [
-            {
-              name: "Scheduled Room-Hours",
-              data: utilizationUsed
-            },
-            {
-              name: "Remaining Baseline Capacity",
-              data: utilizationAvailable
-            }
-          ],
-          chart: {
-            type: "bar",
-            height: Math.max(300, utilizationLabels.length * 56),
-            stacked: true,
-            toolbar: { show: false }
-          },
-          colors: ["#ffab00", "#ebeef5"],
-          plotOptions: {
-            bar: {
-              horizontal: true,
-              borderRadius: 6,
-              barHeight: "58%"
-            }
-          },
-          dataLabels: {
-            enabled: false
-          },
-          stroke: {
-            width: 1,
-            colors: ["#ffffff"]
-          },
-          xaxis: {
-            categories: utilizationLabels,
-            title: {
-              text: "40-hour baseline room-hours",
-              style: { color: "#777" }
-            },
-            labels: {
-              style: { colors: "#777" }
-            }
-          },
-          yaxis: {
-            labels: {
-              style: { colors: "#566a7f" }
-            }
-          },
-          legend: {
-            position: "top",
-            horizontalAlign: "left"
-          },
-          grid: {
-            borderColor: "#eceef4",
-            strokeDashArray: 4
-          },
-          tooltip: {
-            shared: true,
-            intersect: false,
-            y: {
-              formatter: function (value) {
-                return Number(value).toFixed(1) + " hours";
-              }
-            }
-          }
-        });
-
-        roomUtilizationChart.render();
-
-        if ((Number(highestUtilizationPercent) || 0) <= 0 || !highestUtilizationLabel || highestUtilizationLabel === "No room data") {
-          setInsight(
-            "roomUtilizationInsight",
-            "No room usage has been recorded in the current reporting window for this " + utilizationMetricLabel.toLowerCase() + " view yet."
-          );
-          return;
-        }
-
-        setInsight(
-          "roomUtilizationInsight",
-          highestUtilizationLabel +
-            " is currently the busiest " +
-            utilizationMetricLabel.toLowerCase() +
-            " at " +
-            Number(highestUtilizationPercent).toFixed(1) +
-            "% of the university's 40-hour weekly baseline."
-        );
-      }
-
       renderFacultyDirectoryList();
 
       if (facultyDirectorySearchInput) {
@@ -5859,7 +5709,6 @@ if ($consolidatedReportAssigneesJson === false) {
         console.error("ApexCharts library failed to load.");
       }
 
-      renderRoomUtilizationChart();
       loadScheduleHeatmap();
 
       if (scheduleHeatmapRoomFilter) {

@@ -45,7 +45,7 @@ $prospectusSheet = $selectedProspectusId > 0 ? synk_student_fetch_prospectus_she
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
     <title>Prospectus Viewer | Synk Student</title>
@@ -56,7 +56,7 @@ $prospectusSheet = $selectedProspectusId > 0 ? synk_student_fetch_prospectus_she
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" type="text/css" href="custom_css.css" />
+    <link rel="stylesheet" type="text/css" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>" />
 
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
@@ -297,7 +297,7 @@ $prospectusSheet = $selectedProspectusId > 0 ? synk_student_fetch_prospectus_she
     </style>
   </head>
 
-  <body>
+  <body class="student-portal">
     <div class="layout-wrapper layout-content-navbar">
       <div class="layout-container">
         <?php include 'sidebar.php'; ?>

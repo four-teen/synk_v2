@@ -11,6 +11,7 @@ if (!$student) { http_response_code(404); exit('The student record could not be 
 $terms = synk_student_dashboard_terms($conn, $studentId);
 $viewTerm = synk_student_dashboard_view_term($studentId, $terms, $isPreview);
 $subjects = synk_student_dashboard_subjects($conn, $studentId, $viewTerm);
+$studentWorkload = synk_student_dashboard_workload($conn, $subjects);
 $currentTerm = synk_fetch_current_academic_term($conn);
 $instructors = []; $sections = [];
 foreach ($subjects as $subject) {
@@ -27,7 +28,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>My Subjects | Synk Student</title>
   <link rel="icon" href="../assets/img/favicon/synk-icon.png" type="image/png">
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
@@ -38,7 +39,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
-<body class="student-dashboard">
+<body class="student-portal student-dashboard">
 <div class="layout-wrapper layout-content-navbar"><div class="layout-container">
   <?php include __DIR__.'/sidebar.php'; ?>
   <div class="layout-page">
@@ -54,7 +55,9 @@ $firstName = trim($student['first_name']) ?: 'Student';
           <div class="card student-summary-card"><span class="student-stat-icon bg-label-primary"><i class="bx bx-book-open" aria-hidden="true"></i></span><div><span>Subjects</span><strong><?= count($subjects) ?></strong></div></div>
           <div class="card student-summary-card"><span class="student-stat-icon bg-label-success"><i class="bx bx-user-voice" aria-hidden="true"></i></span><div><span>Instructors</span><strong><?= count($instructors) ?></strong></div></div>
           <div class="card student-summary-card"><span class="student-stat-icon bg-label-info"><i class="bx bx-group" aria-hidden="true"></i></span><div><span>Sections</span><strong><?= count($sections) ?></strong></div></div>
+          <div class="card student-summary-card student-units-card"><span class="student-stat-icon bg-label-warning"><i class="bx bx-time-five" aria-hidden="true"></i></span><div><span>Total units / hours</span><strong id="studentTotalUnits"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? '&mdash;' : synk_student_workload_number($studentWorkload['units']) ?><small> units<?= $studentWorkload['pending_subjects']>0 && $studentWorkload['pending_subjects']<$studentWorkload['subjects'] ? ' confirmed' : '' ?></small></strong><small class="student-hours" id="studentWeeklyHours"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? 'Hours pending' : synk_student_workload_number($studentWorkload['weekly_hours']).' contact hrs / week' ?></small><?php if ($studentWorkload['pending_subjects']>0): ?><small class="student-units-pending"><?= $studentWorkload['pending_subjects'] ?> subject<?= $studentWorkload['pending_subjects']===1?'':'s' ?> awaiting unit details</small><?php endif; ?></div></div>
         </div>
+        <p class="student-workload-note">Units and weekly lecture/laboratory contact hours for <?= synk_student_h($viewTerm['term_text']) ?>.</p>
         <?php if (empty($viewTerm['is_current'])): ?><div class="student-term-notice" role="status"><i class="bx bx-history" aria-hidden="true"></i><span>You’re viewing <?= synk_student_h($viewTerm['term_text']) ?>. The current term is <?= synk_student_h($currentTerm['term_text']) ?>.</span></div><?php endif; ?>
         <section class="card student-subject-panel" aria-labelledby="subjects-title">
           <div class="student-subject-toolbar"><div><h2 id="subjects-title">My subjects <span class="badge bg-label-primary"><?= count($subjects) ?></span></h2><p><?= synk_student_h($viewTerm['term_text']) ?></p></div>
@@ -63,17 +66,10 @@ $firstName = trim($student['first_name']) ?: 'Student';
           <?php if (!$subjects): ?><div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-book-open" aria-hidden="true"></i></span><h3>No subjects for this term yet</h3><p>Your subjects will appear here when your college updates its student lists.</p><?php if (count($terms) > 1): ?><button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal"><i class="bx bx-calendar me-1" aria-hidden="true"></i>Review another term</button><?php endif; ?></div>
           <?php else: ?>
           <div class="student-subject-grid" id="student-subject-grid">
-            <?php foreach ($subjects as $index=>$subject): ?>
-            <article class="student-subject-item" data-subject-card data-search="<?= synk_student_h(implode(' ', [$subject['subject_code'],$subject['descriptive_title'],$subject['faculty_name'],$subject['section_display']])) ?>">
-              <div class="student-subject-top"><span class="student-course-code"><?= synk_student_h($subject['subject_code'] ?: 'Subject') ?></span><?php if ($subject['section_display'] !== ''): ?><span class="student-section-label"><?= synk_student_h($subject['section_display']) ?></span><?php endif; ?></div>
-              <h3><?= synk_student_h($subject['descriptive_title'] ?: 'Subject title to be posted') ?></h3>
-              <div class="student-subject-details">
-                <div><i class="bx bx-user" aria-hidden="true"></i><span><small>Instructor</small><?= synk_student_h($subject['faculty_name'] ?: 'To be posted') ?></span></div>
-                <div><i class="bx bx-time-five" aria-hidden="true"></i><span><small>Schedule</small><?= synk_student_h($subject['schedule_text'] ?: 'To be posted') ?></span></div>
-                <div><i class="bx bx-map" aria-hidden="true"></i><span><small>Room</small><?= synk_student_h($subject['room_name'] ?: 'To be posted') ?></span></div>
-              </div>
-            </article>
-            <?php endforeach; ?>
+            <?php foreach ($subjects as $index=>$subject):
+              $subjectCardId = 'subject-title-'.$index;
+              require __DIR__.'/subject-card.php';
+            endforeach; ?>
           </div>
           <div class="student-empty-state" id="subject-search-empty" hidden><i class="bx bx-search" aria-hidden="true"></i><h3>No matching subjects</h3><p>Try a subject code, title, section, or instructor name.</p><button type="button" class="btn btn-outline-primary" id="subject-search-clear">Clear search</button></div>
           <p class="student-search-result" id="subject-search-result" role="status" aria-live="polite">Showing <?= count($subjects) ?> subjects</p>
