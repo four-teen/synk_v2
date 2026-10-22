@@ -49,11 +49,16 @@ $faculties = $conn->query("SELECT f.faculty_id,f.first_name,f.middle_name,f.last
     WHERE f.status IN ('active','on_leave') ORDER BY f.last_name,f.first_name,f.faculty_id")->fetch_all(MYSQLI_ASSOC);
 $selectedFaculty = $edit ? (int)$edit['faculty_id'] : 0;
 $selectedRole = $edit['appointment_role'] ?? 'dean';
-$selectedProgram = (int)($edit['program_id'] ?? 0);
+$selectedPrograms = $edit && $selectedRole === 'chair' ? [(int)$edit['program_id']] : [];
 if ($error !== '' && is_string($_POST['faculty_id'] ?? null) && ctype_digit($_POST['faculty_id'])) $selectedFaculty = (int)$_POST['faculty_id'];
 if (!$edit && $error !== '') {
     if (in_array($_POST['appointment_role'] ?? '', ['dean','chair'], true)) $selectedRole = $_POST['appointment_role'];
-    if (is_string($_POST['program_id'] ?? null) && ctype_digit($_POST['program_id'])) $selectedProgram = (int)$_POST['program_id'];
+    $postedPrograms = $_POST['program_ids'] ?? [$_POST['program_id'] ?? '0'];
+    if (is_array($postedPrograms)) {
+        foreach ($postedPrograms as $programId) {
+            if ((is_string($programId) || is_int($programId)) && ctype_digit((string)$programId)) $selectedPrograms[] = (int)$programId;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -74,27 +79,28 @@ if (!$edit && $error !== '') {
 <div class="content-wrapper"><main class="container-xxl flex-grow-1 container-p-y faculty-appointments">
   <header class="appointment-heading"><div><p class="text-muted small text-uppercase mb-1">Faculty / College leadership</p><h1 class="h4">Leadership appointments</h1><p class="text-muted">Assign the Dean and Program Chairs for each college and academic term. Their profiles appear under leadership in that college.</p></div><a class="btn btn-outline-secondary" href="manage-faculty.php">Faculty Masterlist</a></header>
   <?php if ($error !== ''): ?><div class="alert alert-danger" role="alert"><?= $h($error) ?></div><?php elseif (isset($_GET['saved'])): ?><div class="alert alert-success" role="status">Leadership appointment saved for <?= $h($term['term_text']) ?>.</div><?php endif; ?>
-  <section class="card mb-4"><div class="card-body"><form method="get" class="appointment-filters">
+  <section class="card mb-4"><div class="card-body"><form method="get" class="appointment-filters" id="appointment-filters">
     <div><label class="form-label" for="appointment-college">College</label><select class="form-select" id="appointment-college" name="college_id"><?php foreach ($colleges as $college): ?><option value="<?= (int)$college['college_id'] ?>"<?= (int)$college['college_id']===$collegeId?' selected':'' ?>><?= $h($college['college_code'] . ' - ' . $college['college_name'] . ' / ' . $college['campus_name']) ?></option><?php endforeach; ?></select></div>
     <div><label class="form-label" for="appointment-year">Academic year</label><select class="form-select" id="appointment-year" name="ay_id"><?php foreach ($years as $year): ?><option value="<?= $year['ay_id'] ?>"<?= $year['ay_id']===$term['ay_id']?' selected':'' ?>><?= $h($year['ay']) ?></option><?php endforeach; ?></select></div>
     <div><label class="form-label" for="appointment-semester">Semester</label><select class="form-select" id="appointment-semester" name="semester"><?php foreach ([1,2,3] as $semester): ?><option value="<?= $semester ?>"<?= $semester===$term['semester']?' selected':'' ?>><?= synk_semester_label($semester) ?></option><?php endforeach; ?></select></div>
-    <button class="btn btn-primary" type="submit">View appointments</button>
+    <button class="btn btn-primary" type="submit" id="appointment-view">View appointments</button>
   </form></div></section>
   <p class="text-muted small">Viewing <?= $h($term['term_text']) ?><?= $term['is_current'] ? ' (current term)' : '' ?>. Changes apply to this term only. Portal access is managed separately in User Accounts.</p>
   <div class="appointment-layout">
     <section class="card"><div class="card-body"><h2 class="h5"><?= $edit ? 'Replace or restore appointment' : 'Add appointment' ?></h2>
-      <p class="text-muted small">Choose any active faculty member, including someone from another home college. Each post has one holder per term.</p>
+      <p class="text-muted small">Choose any active faculty member, including someone from another home college. A Program Chair can lead multiple programs; each program has one chair per term.</p>
       <form method="post" id="faculty-appointment-form">
         <input type="hidden" name="csrf_token" value="<?= $h($_SESSION['faculty_appointment_csrf']) ?>"><input type="hidden" name="action" value="save">
         <?php foreach ($query as $key=>$value): ?><input type="hidden" name="<?= $key ?>" value="<?= $value ?>"><?php endforeach; ?>
         <input type="hidden" name="appointment_id" value="<?= (int)($edit['appointment_id'] ?? 0) ?>"><input type="hidden" name="revision" value="<?= (int)($edit['revision'] ?? 0) ?>">
         <div class="mb-3"><label class="form-label" for="appointment-role">Leadership post</label><select class="form-select" id="appointment-role" name="appointment_role"<?= $edit?' disabled':'' ?>><option value="dean"<?= $selectedRole==='dean'?' selected':'' ?>>College Dean</option><option value="chair"<?= $selectedRole==='chair'?' selected':'' ?>>Program Chair</option></select></div>
-        <div class="mb-3" id="appointment-program-field"><label class="form-label" for="appointment-program">Program</label><select class="form-select" id="appointment-program" name="program_id"<?= $edit?' disabled':'' ?>><option value="0">Choose a program</option><?php foreach ($programs as $program): ?><option value="<?= (int)$program['program_id'] ?>"<?= (int)$program['program_id']===$selectedProgram?' selected':'' ?>><?= $h($program['program_code'] . ($program['major'] !== '' ? ' - ' . $program['major'] : '') . ' / ' . $program['program_name']) ?></option><?php endforeach; ?></select></div>
+        <div class="mb-3" id="appointment-program-field"><label class="form-label" for="appointment-program">Programs</label><select class="form-select" id="appointment-program" name="program_ids[]" multiple aria-describedby="appointment-program-help"<?= $edit?' disabled':'' ?>><?php foreach ($programs as $program): ?><option value="<?= (int)$program['program_id'] ?>"<?= in_array((int)$program['program_id'], $selectedPrograms, true)?' selected':'' ?>><?= $h($program['program_code'] . ($program['major'] !== '' ? ' - ' . $program['major'] : '') . ' / ' . $program['program_name']) ?></option><?php endforeach; ?></select><div class="form-text" id="appointment-program-help"><?= $edit ? 'This change applies to this program only. Cancel to add appointments for more programs.' : 'Select one or more programs for the same faculty member. Each is recorded separately so you can replace or end its appointment individually.' ?></div></div>
         <div class="mb-3"><label class="form-label" for="appointment-faculty">Faculty member</label><select class="form-select" id="appointment-faculty" name="faculty_id" required><option value="">Choose a faculty member</option><?php foreach ($faculties as $faculty): $name=trim(implode(' ',array_filter([$faculty['last_name'] . ',',$faculty['first_name'],$faculty['middle_name'],$faculty['ext_name']]))); ?><option value="<?= (int)$faculty['faculty_id'] ?>"<?= (int)$faculty['faculty_id']===$selectedFaculty?' selected':'' ?>><?= $h($name . ' [#' . $faculty['faculty_id'] . ']' . ($faculty['college_code'] ? ' / ' . $faculty['college_code'] : '') . ($faculty['campus_name'] ? ' / ' . $faculty['campus_name'] : '')) ?></option><?php endforeach; ?></select></div>
         <button class="btn btn-primary" type="submit">Save appointment</button><?php if ($edit): ?> <a class="btn btn-outline-secondary" href="<?= $h($baseUrl) ?>">Cancel</a><?php endif; ?>
       </form>
     </div></section>
     <section class="card"><div class="card-body"><h2 class="h5">Recorded appointments</h2>
+      <p class="text-muted small">End for this term withdraws only that post in the selected college and term. The record remains available to restore; faculty records, login access, and other terms are unchanged.</p>
       <?php if (!$appointments): ?><p class="text-muted mb-0">No leadership appointments have been recorded for this college and term.</p><?php endif; ?>
       <div class="appointment-list"><?php foreach ($appointments as $appointment): ?>
         <article class="appointment-record">

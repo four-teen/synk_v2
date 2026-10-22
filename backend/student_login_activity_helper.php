@@ -1,5 +1,12 @@
 <?php
 require_once __DIR__.'/schema_helper.php';
+require_once __DIR__.'/academic_term_helper.php';
+
+function synk_student_login_activity_term_ready(mysqli $conn): bool
+{
+    return synk_table_has_column($conn, 'tbl_student_login_activity', 'ay_id')
+        && synk_table_has_column($conn, 'tbl_student_login_activity', 'semester');
+}
 
 function synk_student_login_activity_ready(mysqli $conn): bool
 {
@@ -86,10 +93,19 @@ function synk_student_login_activity_record(mysqli $conn, string $submitted, str
         if (!filter_var($ip,FILTER_VALIDATE_IP)) $ip='';
         $device=synk_student_login_activity_device($agent);
         $reason=synk_student_login_activity_text($reason,64); $identityVerified=$verified?1:0;
-        $stmt=$conn->prepare("INSERT INTO tbl_student_login_activity
-            (student_id,submitted_email,outcome,reason_code,identity_verified,ip_address,user_agent,browser,operating_system,device_type,occurred_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,UTC_TIMESTAMP())");
-        $stmt->bind_param('isssisssss',$studentId,$email,$outcome,$reason,$identityVerified,$ip,$agent,$device['browser'],$device['operating_system'],$device['device_type']);
+        $columns='student_id,submitted_email,outcome,reason_code,identity_verified,ip_address,user_agent,browser,operating_system,device_type';
+        $types='isssisssss';
+        $values=[$studentId,$email,$outcome,$reason,$identityVerified,$ip,$agent,$device['browser'],$device['operating_system'],$device['device_type']];
+        if (synk_student_login_activity_term_ready($conn)) {
+            // Capture the system term, independently of a staff/student viewing preference.
+            $term=synk_fetch_current_academic_term($conn);
+            $validTerm=$term['ay_id']>0 && in_array($term['semester'],[1,2,3],true);
+            $columns.=',ay_id,semester'; $types.='ii';
+            $values[]=$validTerm?$term['ay_id']:null; $values[]=$validTerm?$term['semester']:null;
+        }
+        $placeholders=implode(',',array_fill(0,count($values),'?'));
+        $stmt=$conn->prepare("INSERT INTO tbl_student_login_activity ({$columns},occurred_at) VALUES ({$placeholders},UTC_TIMESTAMP())");
+        synk_bind_dynamic_params($stmt,$types,$values);
         if (!$stmt->execute()) throw new RuntimeException('Unable to record student login activity.');
         $stmt->close();
     } catch (Throwable $error) {
@@ -104,19 +120,25 @@ function synk_student_login_activity_iso(?string $timestamp): ?string
     return (new DateTimeImmutable($timestamp,new DateTimeZone('UTC')))->format('Y-m-d\TH:i:s\Z');
 }
 
-function synk_student_login_activity_counts(mysqli $conn, array $studentIds): array
+function synk_student_login_activity_counts(mysqli $conn, array $studentIds, ?array $term = null): array
 {
     $ids=array_values(array_unique(array_filter(array_map('intval',$studentIds),static function($id){return $id>0;})));
     if (!$ids) return [];
     $ready=synk_student_login_activity_ready($conn); $counts=[];
     foreach ($ids as $id) $counts[$id]=['login_tracking_available'=>$ready,'login_success_count'=>0,'login_failure_count'=>0,'login_last_success_at'=>null];
     if (!$ready) return $counts;
+    if ($term !== null && !synk_student_login_activity_term_ready($conn)) throw new RuntimeException('Academic-term login tracking is not prepared.');
     $placeholders=implode(',',array_fill(0,count($ids),'?'));
+    $scope=''; $types=str_repeat('i',count($ids)); $params=$ids;
+    if ($term !== null) {
+        $scope=' AND ay_id=? AND semester=?'; $types.='ii';
+        $params[]=(int)$term['ay_id']; $params[]=(int)$term['semester'];
+    }
     $stmt=$conn->prepare("SELECT student_id,SUM(outcome='success') AS successes,SUM(outcome='failure') AS failures,
         MAX(CASE WHEN outcome='success' THEN occurred_at END) AS last_success
-        FROM tbl_student_login_activity WHERE student_id IN ({$placeholders}) GROUP BY student_id");
+        FROM tbl_student_login_activity WHERE student_id IN ({$placeholders}){$scope} GROUP BY student_id");
     try {
-        synk_bind_dynamic_params($stmt,str_repeat('i',count($ids)),$ids);
+        synk_bind_dynamic_params($stmt,$types,$params);
         $stmt->execute(); $rows=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         foreach ($rows as $row) $counts[(int)$row['student_id']]=['login_tracking_available'=>true,
             'login_success_count'=>(int)$row['successes'],'login_failure_count'=>(int)$row['failures'],

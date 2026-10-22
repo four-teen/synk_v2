@@ -33,7 +33,7 @@ $collegeId = (int)$conn->insert_id;
 $conn->query("INSERT INTO tbl_college (campus_id,college_code,college_name,status) VALUES ({$campus},'QAB','Appointment Foreign College','active')");
 $foreignCollege = (int)$conn->insert_id;
 $programs = [];
-foreach ([$collegeId,$foreignCollege] as $i=>$college) {
+foreach ([$collegeId,$foreignCollege,$collegeId] as $i=>$college) {
     $conn->query("INSERT INTO tbl_program (college_id,program_code,program_name,status) VALUES ({$college},'QAP{$i}','QA Program {$i}','active')");
     $programs[] = (int)$conn->insert_id;
 }
@@ -54,6 +54,7 @@ $conn->query("INSERT INTO tbl_faculty_college_appointments (college_id,ay_id,sem
     ({$collegeId},{$term['ay_id']},{$otherSemester},'dean',0,{$faculties[1]})");
 $deanId = (int)$conn->query("SELECT appointment_id FROM tbl_faculty_college_appointments WHERE college_id={$collegeId} AND semester={$term['semester']}")->fetch_assoc()['appointment_id'];
 if ($scenario === 'restore') $conn->query("UPDATE tbl_faculty_college_appointments SET status='inactive' WHERE appointment_id={$deanId}");
+if ($scenario === 'multi_duplicate') $conn->query("INSERT INTO tbl_faculty_college_appointments (college_id,ay_id,semester,appointment_role,program_id,faculty_id) VALUES ({$collegeId},{$term['ay_id']},{$term['semester']},'chair',{$programs[2]},{$faculties[0]})");
 session_save_path($root . '/temp'); session_id('appointmentqa' . bin2hex(random_bytes(12))); session_start();
 $_SESSION = ['user_id'=>$actorId,'role'=>'admin','faculty_appointment_csrf'=>SYNK_COLLEGE_APPOINTMENT_QA];
 if ($scenario === 'denied') $_SESSION['role']='college_dean';
@@ -68,6 +69,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'faculty_id'=>(string)$faculties[2],'appointment_id'=>'0','revision'=>'0','action'=>'save','appointment_role'=>'chair','program_id'=>(string)$programs[0]]);
     if ($scenario === 'duplicate') { $_POST['appointment_role']='dean'; $_POST['program_id']='0'; }
     if ($scenario === 'wrong_program') $_POST['program_id']=(string)$programs[1];
+    if (in_array($scenario,['multi_save','multi_duplicate','multi_wrong_program','multi_bad_faculty'],true)) {
+        unset($_POST['program_id']);
+        $_POST['program_ids']=[(string)$programs[0],(string)$programs[2]];
+        if ($scenario === 'multi_wrong_program') $_POST['program_ids'][1]=(string)$programs[1];
+        if ($scenario === 'multi_bad_faculty') $_POST['faculty_id']='4294967295';
+    }
     if (in_array($scenario,['replace','stale','end','restore'],true)) {
         $_POST['appointment_id']=(string)$deanId; $_POST['revision']=$scenario==='stale'?'99':'1';
     }

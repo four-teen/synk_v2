@@ -81,3 +81,7 @@ $studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, $studentPreviewM
     </ul>
   </div>
 </nav>
+<?php if (!$studentPreviewMode && ($_SESSION['role'] ?? '') === 'student' && !empty($_SESSION['student_presence_csrf'])): ?>
+<script id="studentPresenceConfig" type="application/json"><?= json_encode(['csrf_token'=>$_SESSION['student_presence_csrf'],'idle_seconds'=>900], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<script src="presence.js?v=<?= (int)filemtime(__DIR__.'/presence.js') ?>" defer></script>
+<?php endif; ?>

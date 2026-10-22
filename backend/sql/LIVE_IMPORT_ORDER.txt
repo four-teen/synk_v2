@@ -9,6 +9,8 @@ Live DB import order
 5. Run `backend/sql/phase23_faculty_term_designations.sql` before enabling semester-specific designation editing.
 6. Run `backend/sql/phase24_student_login_issues.sql` before enabling the Student sign-in review page.
 7. Run `backend/sql/phase30_faculty_college_appointments.sql` before enabling college-specific directory leadership.
+8. Run `backend/sql/phase27_student_login_activity.sql` and `backend/sql/phase31_student_portal_sessions.sql` before enabling the student activity grid and 15-minute idle sessions.
+9. Run `backend/sql/phase32_student_login_activity_terms.sql` and then `backend/sql/phase33_student_login_activity_term_recovery.sql` before enabling academic-year/semester counts in the student activity grid, or run `php backend/tools/prepare_student_login_activity_terms.php` for both. Phase33 restores legacy events recorded since the last academic-settings save to that known term; earlier events keep their unknown term. Both steps can be repeated.
 
 Notes
 - The current runtime does not use `vw_faculty_workload`.

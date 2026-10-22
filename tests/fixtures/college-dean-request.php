@@ -63,6 +63,31 @@ $_SESSION = ['user_id' => $userId, 'role' => 'admin', 'college_id' => $chairColl
 $handler = 'backend/query_accounts.php';
 $_POST = []; $_GET = [];
 switch ($scenario) {
+    case 'student_workload_ok':
+    case 'student_workload_page':
+    case 'student_workload_historical':
+    case 'student_workload_bad_csrf':
+    case 'student_workload_other':
+    case 'student_workload_campus':
+    case 'student_workload_array':
+    case 'student_workload_bad_term':
+    case 'student_workload_role':
+    case 'student_workload_revoked':
+    case 'student_workload_get':
+        $_SESSION['role']='college_dean'; $_SESSION['csrf_token']='dean-workload-qa';
+        $_SERVER['REQUEST_METHOD']='POST';
+        $_POST=['csrf_token'=>'dean-workload-qa','ay_id'=>(int)$term['ay_id'],'semester'=>(int)$term['semester']];
+        if ($scenario==='student_workload_page') $_POST['page']=2;
+        if ($scenario==='student_workload_historical') $_POST['semester']=$term['semester']==1?2:1;
+        if ($scenario==='student_workload_bad_csrf') $_POST['csrf_token']='invalid';
+        if ($scenario==='student_workload_other') $_POST['college_id']=$chairCollege;
+        if ($scenario==='student_workload_campus') $_POST['campus_id']=2147483647;
+        if ($scenario==='student_workload_array') $_POST['search']=['invalid'];
+        if ($scenario==='student_workload_bad_term') $_POST['semester']=7;
+        if ($scenario==='student_workload_role') $_SESSION['role']='program_chair';
+        if ($scenario==='student_workload_revoked') $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='college_dean'");
+        if ($scenario==='student_workload_get') $_SERVER['REQUEST_METHOD']='GET';
+        $handler='backend/query_college_dean_student_workload.php'; break;
     case 'save_standalone':
     case 'save_multi':
         $base['email'] = 'new-' . $email;
@@ -175,7 +200,7 @@ switch ($scenario) {
     case 'dashboard_matrix_bad_csrf':
         $_SESSION['role'] = 'college_dean';
         $_SESSION['csrf_token'] = 'dean-dashboard-qa';
-        $_POST = ['csrf_token' => $scenario === 'dashboard_matrix_bad_csrf' ? 'invalid' : 'dean-dashboard-qa', 'ay_id' => 2147483647, 'semester' => 3];
+        $_POST = ['csrf_token' => $scenario === 'dashboard_matrix_bad_csrf' ? 'invalid' : 'dean-dashboard-qa', 'ay_id' => (int)$term['ay_id'], 'semester' => (int)$term['semester']];
         if ($scenario === 'dashboard_matrix_other') $_POST['college_id'] = $chairCollege;
         $handler = 'backend/load_college_dean_room_time_matrix.php'; break;
     case 'dashboard_revoked':

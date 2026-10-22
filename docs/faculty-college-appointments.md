@@ -6,10 +6,15 @@ the college and selected academic term. A generic designation such as `DEAN` or
 
 Administrators maintain appointments under **Faculty Masterlist > Leadership
 appointments** (`administrator/faculty-appointments.php`). Select the college,
-academic year and semester, then appoint a Dean or a Program Chair for a program
-in that college. Faculty may come from any home college and need no login account.
-Each post has one holder per term. Use Replace to change the holder and End for
-this term to withdraw an appointment. Restore reactivates an ended post.
+academic year and semester; changing any filter automatically loads its appointments.
+Appoint a Dean or select one or more programs in that college for the same Program
+Chair. Faculty may come from any home college and need no login account.
+Each post has one holder per term. Multiple programs save together: if any selected
+post already has a record, none are added; use Replace or Restore on that post.
+Use Replace to change the holder and End for this term to mark only that post
+inactive in the selected college, academic year, and semester. Its record remains
+available to restore, and faculty records, portal access, and other appointments
+and terms are unchanged. Restore reactivates an ended post.
 Existing records use revisions to reject stale updates from another tab.
 
 An appointment supplies directory membership even without a teaching roster.
@@ -43,6 +48,8 @@ records the college/program and term. This preserves the original designation
 for workload reports while avoiding the appearance of another college's Dean
 or Program Chair as local leadership.
 
-Validation: `php tests/faculty-college-appointments.php` and
+Validation: `php tests/faculty-college-appointments.php`,
+`node tests/faculty-appointments-browser.cjs`, and
 `php -d extension=gd tests/college-dean-profile-http.php`. Fixture changes are
-rolled back; profile/photo upload checks remove their temporary files.
+rolled back; browser submissions are intercepted. Profile/photo upload checks
+remove their temporary files.

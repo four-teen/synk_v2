@@ -3,13 +3,13 @@ session_start();
 ob_start();
 
 require_once '../backend/db.php';
-require_once '../backend/student_portal_helper.php';
+require_once '../backend/student_dashboard_helper.php';
 
 synk_student_require_login($conn, true);
 header('Cache-Control: no-store, private');
 foreach (['term_key','faculty_key','evaluation_college_id','comment_text','csrf_token'] as $field) {
     if ((isset($_POST[$field]) && !is_scalar($_POST[$field])) || (isset($_GET[$field]) && !is_scalar($_GET[$field]))) {
-        http_response_code(400); exit('Choose valid evaluation filters.');
+        http_response_code(400); exit('Invalid evaluation request.');
     }
 }
 if (empty($_SESSION['student_evaluation_csrf'])) $_SESSION['student_evaluation_csrf']=bin2hex(random_bytes(32));
@@ -20,27 +20,6 @@ function synk_student_eval_require_request(bool $writable, string $selectedTermK
         throw new DomainException('Your session token changed. Reload the page and try again.');
     }
     if ($selectedTermKey!==$requestedTermKey || !$writable) throw new DomainException('Evaluations are available only for the current term while your college has opened them. Saved responses are preserved.');
-}
-
-function synk_student_eval_initials(string $name): string
-{
-    $parts = preg_split('/\s+/', trim($name)) ?: [];
-    $out = '';
-    foreach ($parts as $part) {
-        if ($part === '') {
-            continue;
-        }
-
-        $out .= function_exists('mb_substr')
-            ? mb_strtoupper((string)mb_substr($part, 0, 1))
-            : strtoupper(substr($part, 0, 1));
-
-        if (strlen($out) >= 2) {
-            break;
-        }
-    }
-
-    return $out !== '' ? $out : 'NA';
 }
 
 function synk_student_eval_find_card(array $cards, string $facultyKey): ?array
@@ -101,7 +80,7 @@ if ($studentPortalPreviewMode && $requestedTermKey === '' && is_string($_GET['st
     && preg_match('/^[1-9][0-9]*:[123]$/', $_GET['student_term'])) {
     $requestedTermKey = str_replace(':', '-', $_GET['student_term']);
 }
-$requestedFacultyKey = trim((string)($_POST['faculty_key'] ?? ($_GET['faculty_key'] ?? '')));
+$requestedFacultyKey = trim((string)($_POST['faculty_key'] ?? ''));
 $currentTermKey = ((int)($currentTerm['ay_id'] ?? 0) > 0 && (int)($currentTerm['semester'] ?? 0) > 0)
     ? ((int)$currentTerm['ay_id'] . '-' . (int)$currentTerm['semester'])
     : '';
@@ -149,10 +128,6 @@ $cards = ($studentId > 0 && $selectedAyId > 0 && $selectedSemester > 0)
     ? synk_student_fetch_faculty_cards_for_term($conn, $studentId, $selectedAyId, $selectedSemester, $evaluationCollegeId)
     : [];
 
-if ($requestedFacultyKey === '' && count($cards) === 1) {
-    $requestedFacultyKey = (string)($cards[0]['faculty_key'] ?? '');
-}
-
 $evaluations = ($studentId > 0 && $selectedAyId > 0 && $selectedSemester > 0)
     ? synk_student_fetch_faculty_evaluations_for_term($conn, $studentId, $selectedAyId, $selectedSemester, $evaluationCollegeId)
     : [];
@@ -164,6 +139,7 @@ if (!$evaluationCurrent) {
     }
 }
 
+$facultyImages = synk_student_dashboard_faculty_images($conn, array_column($cards, 'faculty_id'));
 foreach ($cards as $index => $card) {
     $facultyId = (int)($card['faculty_id'] ?? 0);
     $evaluation = $facultyId > 0 ? ($evaluations[$facultyId] ?? null) : null;
@@ -173,6 +149,7 @@ foreach ($cards as $index => $card) {
     $submissionStatus = strtolower(trim((string)($evaluation['submission_status'] ?? '')));
 
     $cards[$index]['evaluation'] = $evaluation;
+    $cards[$index]['faculty_image_url'] = $facultyImages[$facultyId] ?? '';
     $cards[$index]['has_saved_evaluation'] = is_array($evaluation);
     $cards[$index]['requires_revised_evaluation'] = is_array($evaluation) && $submissionStatus === 'draft'
         && !synk_student_faculty_evaluation_is_current($evaluation);
@@ -287,14 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_final_faculty_
     }
 }
 
-$selectedCard = $requestedFacultyKey !== '' ? synk_student_eval_find_card($cards, $requestedFacultyKey) : null;
-$selectedFacultyKey = $selectedCard ? (string)($selectedCard['faculty_key'] ?? '') : '';
-$displayCards = $selectedCard ? [$selectedCard] : $cards;
-
-$displaySubjectCount = 0;
-foreach ($displayCards as $card) {
-    $displaySubjectCount += (int)($card['subject_count'] ?? 0);
-}
+$displayCards = $cards;
 
 $evaluableCount = count($evaluableFacultyIds);
 $savedCount = 0;
@@ -356,7 +326,6 @@ if ($allFacultyFinalized && count($finalTokens) === 1) {
     $termFinalSubmission['qr_download_filename'] = synk_student_eval_term_qr_filename($termFinalSubmission);
 }
 
-$studentProgramLabel = trim((string)($studentRecord['source_program_name'] ?? ''));
 $draftStatus = trim((string)($_GET['draft_status'] ?? ''));
 $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 ?>
@@ -364,7 +333,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Faculty Performance Evaluation | Synk Student</title>
   <link rel="icon" type="image/png" href="../assets/img/favicon/synk-icon.png" />
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css" />
@@ -372,37 +341,33 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
   <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
   <link rel="stylesheet" href="../assets/css/demo.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-  <link rel="stylesheet" type="text/css" href="custom_css.css" />
+  <link rel="stylesheet" type="text/css" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>" />
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
   <style>
     .faculty-page-heading {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       gap: 0.6rem;
-      padding: 0.7rem 1rem;
-      border: 1px solid #dfe3ff;
-      border-radius: 999px;
-      background: linear-gradient(135deg, #f1f3ff 0%, #f7f8ff 100%);
-      color: #696cff;
-      font-size: 1.05rem;
-      font-weight: 800;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      box-shadow: 0 10px 24px rgba(105, 108, 255, 0.08);
+      color: var(--student-heading);
+      font-size: 24px;
+      font-weight: 500;
+      line-height: 1.4;
     }
 
     .faculty-page-heading i {
-      font-size: 1.2rem;
+      font-size: 25px;
+      color: var(--student-primary);
     }
 
     .faculty-page-notice {
       border: 1px solid #dfe3ff;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #eef0ff 0%, #f7f8ff 100%);
-      color: #5c62d6;
-      line-height: 1.7;
-      box-shadow: 0 12px 28px rgba(105, 108, 255, 0.08);
+      border-radius: 12px;
+      background: #f6f6ff;
+      color: var(--student-text);
+      padding: 16px 20px;
+      font-size: 12px;
+      line-height: 1.65;
     }
 
     .faculty-page-notice strong {
@@ -515,15 +480,15 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     }
   </style>
 </head>
-<body class="faculty-evaluation-page">
+<body class="student-portal faculty-evaluation-page">
 <div class="layout-wrapper layout-content-navbar"><div class="layout-container">
 <?php include 'sidebar.php'; ?>
 <div class="layout-page"><?php include 'navbar.php'; ?>
 <div class="content-wrapper"><div class="container-xxl flex-grow-1 container-p-y">
-  <div class="faculty-page-heading mb-3">
-    <i class="bx bx-user-voice"></i>
+  <h1 class="faculty-page-heading mb-3">
+    <i class="bx bx-user-voice" aria-hidden="true"></i>
     <span>Faculty Performance Evaluation</span>
-  </div>
+  </h1>
 
   <?php if ($studentPortalPreviewMode): ?>
     <div class="alert alert-warning">
@@ -548,7 +513,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     <div class="alert alert-danger"><?php echo synk_student_h($errorMessage); ?></div>
   <?php endif; ?>
 
-  <div class="faculty-page-notice mb-4 p-4">
+  <div class="faculty-page-notice mb-4">
     <strong>Dear Students:</strong><br>
     Please rate your subject teachers who handled you in the subjects that you are officially enrolled this semester.
     Your honest ratings and comments can help improve the school in achieving quality education.
@@ -609,181 +574,88 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     </div>
   <?php endif; ?>
 
-  <div class="card mb-4"><div class="card-body">
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
-      <div>
-        <h5 class="mb-1">Select faculty for evaluation</h5>
-        <p class="text-muted mb-0">
-          Save each faculty evaluation as a draft, then review and submit once for the selected college and term.
-        </p>
+  <section class="card faculty-evaluation-overview mb-4" id="facultyEvaluationOverview" aria-labelledby="facultyEvaluationTitle">
+    <div class="card-body">
+      <div class="faculty-evaluation-overview-top">
+        <div>
+          <h2 id="facultyEvaluationTitle">Select faculty for evaluation</h2>
+          <p>Evaluate each professor below, save your drafts, then review and submit them together.</p>
+          <div class="faculty-evaluation-context">
+            <?php if ($selectedTermLabel !== ''): ?><span class="badge bg-label-primary"><?= synk_student_h($selectedTermLabel) ?></span><?php endif; ?>
+            <?php if ($evaluationCollege): ?><span class="badge bg-label-secondary"><?= synk_student_h($evaluationCollege['college_name']) ?></span><?php endif; ?>
+          </div>
+        </div>
+        <?php if ($evaluableCount > 0): ?>
+          <button type="button" class="btn btn-outline-primary faculty-final-review-button" data-bs-toggle="modal" data-bs-target="#finalEvaluationReviewModal"<?= (!$canOpenFinalReview && !$allFacultyFinalized) ? ' disabled' : '' ?>><i class="bx bx-check-double" aria-hidden="true"></i>Review Final Evaluation</button>
+        <?php endif; ?>
       </div>
-      <div class="d-flex flex-wrap gap-2">
-        <?php if ($selectedTermLabel !== ''): ?><span class="badge bg-label-primary"><?php echo synk_student_h($selectedTermLabel); ?></span><?php endif; ?>
-        <span class="badge bg-label-info"><?php echo (int)$evaluableCount; ?> faculty</span>
-        <span class="badge bg-label-success"><?php echo (int)$totalSubjectCount; ?> subjects</span>
-        <?php if ($studentProgramLabel !== ''): ?><span class="badge bg-label-secondary"><?php echo synk_student_h($studentProgramLabel); ?></span><?php endif; ?>
-        <?php if ($evaluableCount > 0): ?><span class="badge bg-label-warning"><?php echo (int)$savedCount; ?> / <?php echo (int)$evaluableCount; ?> drafts ready</span><?php endif; ?>
+      <div class="faculty-evaluation-progress" aria-label="Evaluation progress">
+        <span><strong><?= (int)$evaluableCount ?></strong> faculty</span>
+        <span><strong><?= (int)$totalSubjectCount ?></strong> subjects</span>
+        <?php if ($evaluableCount > 0): ?><span><strong><?= (int)$savedCount ?> / <?= (int)$evaluableCount ?></strong> drafts ready</span><?php endif; ?>
+      </div>
+      <div class="faculty-action-note">
+        <?php if ($allFacultyFinalized): ?>
+          Final submission is already locked for this college and term. The faculty cards below are now read-only.
+        <?php elseif (!$studentEvaluationWritable && !$studentPortalPreviewMode): ?>
+          <?= $evaluationCurrent ? 'Your college has closed evaluations for this term.' : 'This academic term is read only.' ?> Saved drafts and submitted evaluations are preserved.
+        <?php elseif ($studentPortalPreviewMode): ?>
+          Open a faculty card to review the evaluation form and any saved responses.
+        <?php elseif ($missingCount > 0): ?>
+          Save draft evaluations for <?= (int)$missingCount ?> more faculty member<?= $missingCount === 1 ? '' : 's' ?> to unlock the final submission review.
+        <?php else: ?>
+          All linked faculty now have saved drafts. Review the summary first, then send the final submission once.
+        <?php endif; ?>
       </div>
     </div>
-
-    <form method="get" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>" class="row g-3">
-      <?php if ($studentPortalPreviewMode): ?>
-        <input type="hidden" name="preview_student_id" value="<?php echo synk_student_preview_student_id_from_request(); ?>">
-        <input type="hidden" name="return_to" value="<?php echo synk_student_h($studentPortalBackUrl); ?>">
-        <input type="hidden" name="student_term" value="<?php echo synk_student_h($selectedAyId . ':' . $selectedSemester); ?>">
-      <?php endif; ?>
-      <div class="col-md-6">
-        <label for="term_key" class="form-label fw-semibold">Academic Term</label>
-        <select id="term_key" name="term_key" class="form-select">
-          <option value="">Select term</option>
-          <?php foreach ($termOptions as $termOption): ?>
-            <option
-              value="<?php echo synk_student_h((string)($termOption['term_key'] ?? '')); ?>"
-              <?php echo (string)($termOption['term_key'] ?? '') === $selectedTermKey ? ' selected' : ''; ?>
-            >
-              <?php echo synk_student_h((string)($termOption['term_label'] ?? 'Term') . ' (' . (int)($termOption['subject_count'] ?? 0) . ' subjects)'); ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label for="evaluation_college_id" class="form-label fw-semibold">College</label>
-        <select id="evaluation_college_id" name="evaluation_college_id" class="form-select">
-          <?php foreach ($evaluationColleges as $college): ?><option value="<?php echo (int)$college['college_id']; ?>"<?php echo (int)$college['college_id']===$evaluationCollegeId?' selected':''; ?>><?php echo synk_student_h($college['college_name']); ?></option><?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label for="faculty_key" class="form-label fw-semibold">Faculty</label>
-        <select id="faculty_key" name="faculty_key" class="form-select">
-          <option value="">All faculty members</option>
-          <?php foreach ($cards as $card): ?>
-            <option
-              value="<?php echo synk_student_h((string)($card['faculty_key'] ?? '')); ?>"
-              <?php echo (string)($card['faculty_key'] ?? '') === $selectedFacultyKey ? ' selected' : ''; ?>
-            >
-              <?php echo synk_student_h((string)($card['faculty_name'] ?? 'Faculty') . ' (' . (int)($card['subject_count'] ?? 0) . ' subjects)'); ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="col-12 d-flex flex-wrap gap-2">
-        <button type="submit" class="btn btn-primary">Load Faculty List</button>
-        <a href="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>" class="btn btn-outline-secondary">Reset</a>
-        <?php if ($evaluableCount > 0): ?>
-          <button
-            type="button"
-            class="btn btn-success"
-            data-bs-toggle="modal"
-            data-bs-target="#finalEvaluationReviewModal"
-            <?php echo (!$canOpenFinalReview && !$allFacultyFinalized) ? 'disabled' : ''; ?>
-          >
-            Review Final Evaluation
-          </button>
-        <?php endif; ?>
-      </div>
-      <div class="col-12">
-        <?php if ($allFacultyFinalized): ?>
-          <div class="faculty-action-note">
-            Final submission is already locked for this college and term. The faculty cards below are now read-only.
-          </div>
-        <?php elseif (!$studentEvaluationWritable && !$studentPortalPreviewMode): ?>
-          <div class="faculty-action-note"><?php echo $evaluationCurrent?'Your college has closed evaluations for this term.':'This academic term is read only.'; ?> Saved drafts and submitted evaluations are preserved.</div>
-        <?php elseif ($missingCount > 0): ?>
-          <div class="faculty-action-note">
-            Save draft evaluations for <?php echo (int)$missingCount; ?> more faculty member<?php echo $missingCount === 1 ? '' : 's'; ?> to unlock the final submission review.
-          </div>
-        <?php else: ?>
-          <div class="faculty-action-note">
-            All linked faculty now have saved drafts. Review the summary first, then send the final submission once.
-          </div>
-        <?php endif; ?>
-      </div>
-    </form>
-  </div></div>
+  </section>
 
   <?php if ($studentId <= 0): ?>
     <div class="card"><div class="card-body text-center text-muted py-5"><i class="bx bx-user-x fs-1 d-block mb-2 text-primary"></i>Student record was not found in the encoded student management list yet.</div></div>
   <?php elseif (empty($termOptions)): ?>
     <div class="card"><div class="card-body text-center text-muted py-5"><i class="bx bx-spreadsheet fs-1 d-block mb-2 text-primary"></i>No enrolled-subject records with faculty data are available for this student yet.</div></div>
   <?php elseif (empty($displayCards)): ?>
-    <div class="card"><div class="card-body text-center text-muted py-5"><i class="bx bx-filter-alt fs-1 d-block mb-2 text-primary"></i>No faculty matched the selected filter for <?php echo synk_student_h($selectedTermLabel !== '' ? $selectedTermLabel : 'the chosen term'); ?>.</div></div>
+    <div class="card"><div class="card-body text-center text-muted py-5"><i class="bx bx-filter-alt fs-1 d-block mb-2 text-primary"></i>No faculty are available for evaluation in <?php echo synk_student_h($selectedTermLabel !== '' ? $selectedTermLabel : 'the chosen term'); ?>.</div></div>
   <?php else: ?>
     <div class="row g-4">
       <?php foreach ($displayCards as $card): ?>
         <?php
-        $isSelected = (string)($card['faculty_key'] ?? '') === $selectedFacultyKey;
         $cardEval = is_array($card['evaluation'] ?? null) ? $card['evaluation'] : null;
         $cardModalId = 'facultyEvaluationModal_' . preg_replace('/[^A-Za-z0-9_-]/', '_', (string)($card['faculty_key'] ?? 'card'));
         ?>
         <div class="col-12">
-          <div class="card"><div class="card-body">
-            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-              <div class="d-flex align-items-center gap-3">
-                <div class="rounded-3 bg-label-primary text-primary fw-bold d-inline-flex align-items-center justify-content-center" style="width:56px;height:56px;">
-                  <?php echo synk_student_h(synk_student_eval_initials((string)($card['faculty_name'] ?? 'Faculty'))); ?>
-                </div>
-                <div>
-                  <h5 class="mb-1"><?php echo synk_student_h((string)($card['faculty_name'] ?? 'Faculty')); ?></h5>
-                  <p class="text-muted mb-0">
-                    <?php echo (int)($card['subject_count'] ?? 0); ?> subject<?php echo (int)($card['subject_count'] ?? 0) === 1 ? '' : 's'; ?>
-                    in <?php echo synk_student_h($selectedTermLabel !== '' ? $selectedTermLabel : 'the selected term'); ?>.
-                  </p>
-                </div>
+          <section class="card faculty-evaluation-card" data-faculty-evaluation-card><div class="card-body">
+            <div class="faculty-evaluation-layout">
+              <div class="faculty-evaluation-subjects">
+                <?php
+                $facultySubjects = $card['subjects'] ?: [['subject_code'=>'','descriptive_title'=>'Previously evaluated faculty','section_display'=>'','room_name'=>'Room not recorded','schedule_text'=>'Subject and schedule details are no longer available for this term.']];
+                foreach ($facultySubjects as $subjectIndex=>$subject):
+                  $subject['faculty_name'] = $card['faculty_name'];
+                  $subject['faculty_image_url'] = $card['faculty_image_url'];
+                  $subjectCardId = 'evaluation-subject-'.$card['faculty_key'].'-'.$subjectIndex;
+                  require __DIR__.'/subject-card.php';
+                endforeach;
+                ?>
               </div>
-              <div class="d-flex flex-wrap gap-2">
-                <?php if ((int)($card['faculty_id'] ?? 0) <= 0): ?>
+              <div class="faculty-evaluation-action">
+                <?php if ((int)$card['faculty_id'] <= 0): ?>
                   <span class="badge bg-label-warning">Faculty Link Required</span>
+                  <p>Your college needs to link this subject to a professor before you can evaluate.</p>
                 <?php elseif ($studentPortalPreviewMode): ?>
-                  <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>"><?php echo !empty($card['has_saved_evaluation']) ? 'View Evaluation' : 'Preview Evaluation Form'; ?></button>
+                  <span class="faculty-evaluation-state">Read only preview</span>
+                  <button type="button" class="btn btn-outline-primary faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-show-alt" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'View Evaluation' : 'Preview Evaluation Form' ?></button>
                 <?php elseif ($allFacultyFinalized || !empty($card['is_final_submitted'])): ?>
-                  <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>">View submitted evaluation</button>
+                  <span class="badge bg-label-success">Submitted</span>
+                  <button type="button" class="btn btn-outline-success faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-check-circle" aria-hidden="true"></i>View submitted evaluation</button>
                 <?php elseif (!$studentEvaluationWritable): ?>
-                  <?php if ($cardEval): ?><button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>">View saved evaluation</button><?php else: ?><span class="badge bg-label-secondary align-self-center"><?php echo $evaluationCurrent?'Evaluations closed':'Archived term'; ?></span><?php endif; ?>
-                <?php elseif (!empty($card['has_saved_evaluation'])): ?>
-                  <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>">Review / Edit Draft</button>
-                  <?php if (!$isSelected): ?>
-                    <a href="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php', ['term_key' => $selectedTermKey, 'evaluation_college_id'=>$evaluationCollegeId, 'faculty_key' => (string)($card['faculty_key'] ?? '')])); ?>" class="btn btn-outline-primary btn-sm">Select Faculty</a>
-                  <?php else: ?>
-                    <span class="badge bg-label-primary align-self-center">Selected Faculty</span>
-                  <?php endif; ?>
+                  <span class="badge bg-label-secondary"><?= $evaluationCurrent ? 'Evaluations closed' : 'Archived term' ?></span>
+                  <?php if ($cardEval): ?><button type="button" class="btn btn-outline-secondary faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-show-alt" aria-hidden="true"></i>View saved evaluation</button><?php endif; ?>
                 <?php else: ?>
-                  <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#<?php echo synk_student_h($cardModalId); ?>">Evaluate Faculty</button>
-                  <?php if (!$isSelected): ?>
-                    <a href="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php', ['term_key' => $selectedTermKey, 'evaluation_college_id'=>$evaluationCollegeId, 'faculty_key' => (string)($card['faculty_key'] ?? '')])); ?>" class="btn btn-outline-primary btn-sm">Select Faculty</a>
-                  <?php else: ?>
-                    <span class="badge bg-label-primary align-self-center">Selected Faculty</span>
-                  <?php endif; ?>
+                  <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : 'Draft saved') : 'Ready to evaluate' ?></span>
+                  <button type="button" class="btn btn-primary faculty-evaluation-button faculty-evaluate-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Draft' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
                 <?php endif; ?>
+                <?php if ((int)$card['faculty_id'] > 0 && (int)$card['subject_count'] > 1): ?><p>One evaluation covers all <?= (int)$card['subject_count'] ?> subjects with this professor.</p><?php endif; ?>
               </div>
-            </div>
-
-            <div class="row g-3 mt-1">
-              <?php foreach ((array)($card['subjects'] ?? []) as $subject): ?>
-                <div class="col-12">
-                  <div class="border rounded-3 p-3">
-                    <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
-                      <div>
-                        <div class="fw-semibold"><?php echo synk_student_h((string)($subject['subject_code'] ?? 'NO CODE')); ?></div>
-                        <div class="text-muted"><?php echo synk_student_h((string)($subject['descriptive_title'] ?? 'Untitled subject')); ?></div>
-                      </div>
-                      <div class="d-flex flex-wrap gap-2">
-                        <?php if (trim((string)($subject['section_display'] ?? '')) !== ''): ?>
-                          <span class="badge bg-label-primary"><?php echo synk_student_h((string)($subject['section_display'] ?? '')); ?></span>
-                        <?php endif; ?>
-                        <?php if (trim((string)($subject['room_name'] ?? '')) !== ''): ?>
-                          <span class="badge bg-label-success"><?php echo synk_student_h((string)($subject['room_name'] ?? '')); ?></span>
-                        <?php endif; ?>
-                      </div>
-                    </div>
-                    <?php if (trim((string)($subject['schedule_text'] ?? '')) !== ''): ?>
-                      <div class="text-muted mt-2"><i class="bx bx-time-five me-1"></i><?php echo synk_student_h((string)($subject['schedule_text'] ?? '')); ?></div>
-                    <?php endif; ?>
-                    <?php if ((int)($card['faculty_id'] ?? 0) <= 0): ?>
-                      <div class="text-muted mt-2"><i class="bx bx-info-circle me-1"></i>This subject is waiting for proper faculty linking before evaluation is connected.</div>
-                    <?php endif; ?>
-                  </div>
-                </div>
-              <?php endforeach; ?>
             </div>
 
             <?php if ($cardEval): ?>
@@ -829,7 +701,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                 </div>
               </div>
             <?php endif; ?>
-          </div></div>
+          </div></section>
         </div>
       <?php endforeach; ?>
     </div>
@@ -859,7 +731,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
   $questionNumber = 0;
   ?>
   <div class="modal fade faculty-eval-modal" id="<?php echo synk_student_h($cardModalId); ?>" tabindex="-1" aria-labelledby="<?php echo synk_student_h($cardModalId); ?>Label" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
       <div class="modal-content">
         <form method="post" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>">
           <div class="modal-header">
@@ -991,9 +863,6 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <input type="hidden" name="csrf_token" value="<?php echo synk_student_h($_SESSION['student_evaluation_csrf']); ?>">
             <input type="hidden" name="evaluation_college_id" value="<?php echo $evaluationCollegeId; ?>">
             <input type="hidden" name="term_key" value="<?php echo synk_student_h($selectedTermKey); ?>">
-            <?php if ($selectedFacultyKey !== ''): ?>
-              <input type="hidden" name="faculty_key" value="<?php echo synk_student_h($selectedFacultyKey); ?>">
-            <?php endif; ?>
 
             <div class="alert alert-primary">
               <strong>Review first before final submission.</strong><br>

@@ -7,6 +7,7 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-primary',
         'icon' => 'bx-home-circle',
         'title' => 'Dashboard',
+        'mobile_title' => 'Subjects',
         'description' => 'Your imported subjects and class details',
         'pages' => ['index.php'],
     ],
@@ -16,6 +17,7 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-secondary',
         'icon' => 'bx-id-card',
         'title' => 'My Profile',
+        'mobile_title' => 'Profile',
         'description' => 'Review your student details',
         'pages' => ['profile.php'],
     ],
@@ -25,6 +27,7 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-success',
         'icon' => 'bx-book-content',
         'title' => 'Prospectus Viewer',
+        'mobile_title' => 'Prospectus',
         'description' => 'Browse curriculum subjects by program and version',
         'pages' => ['prospectus.php'],
     ],
@@ -34,6 +37,7 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-info',
         'icon' => 'bx-user-voice',
         'title' => 'Faculty Evaluation',
+        'mobile_title' => 'Evaluation',
         'description' => 'Evaluate faculty members who handled your subjects',
         'pages' => ['class-program.php'],
     ],
@@ -187,6 +191,7 @@ foreach ($studentSidebarItems as $sidebarItem) {
         <a
           href="<?php echo htmlspecialchars(function_exists('synk_student_build_portal_url') ? synk_student_build_portal_url($sidebarItem['href'], $sidebarItem['query'] ?? []) : $sidebarItem['href'], ENT_QUOTES, 'UTF-8'); ?>"
           class="menu-link student-menu-card<?php echo $studentSidebarActiveKey === $sidebarItem['key'] ? ' active' : ''; ?>"
+          <?php if ($studentSidebarActiveKey === $sidebarItem['key']): ?>aria-current="page"<?php endif; ?>
         >
           <span class="student-menu-icon <?php echo htmlspecialchars($sidebarItem['icon_bg'], ENT_QUOTES, 'UTF-8'); ?>">
             <i class="bx <?php echo htmlspecialchars($sidebarItem['icon'], ENT_QUOTES, 'UTF-8'); ?>"></i>
@@ -200,3 +205,11 @@ foreach ($studentSidebarItems as $sidebarItem) {
     <?php endforeach; ?>
   </ul>
 </aside>
+<nav class="student-bottom-nav" aria-label="Student navigation">
+  <?php foreach ($studentSidebarItems as $sidebarItem): ?>
+    <a href="<?= htmlspecialchars(synk_student_build_portal_url($sidebarItem['href'], $sidebarItem['query'] ?? []), ENT_QUOTES, 'UTF-8') ?>" class="student-bottom-link<?= $studentSidebarActiveKey === $sidebarItem['key'] ? ' active' : '' ?>"<?= $studentSidebarActiveKey === $sidebarItem['key'] ? ' aria-current="page"' : '' ?>>
+      <span class="student-bottom-icon"><i class="bx <?= htmlspecialchars($sidebarItem['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i></span>
+      <span><?= htmlspecialchars($sidebarItem['mobile_title'], ENT_QUOTES, 'UTF-8') ?></span>
+    </a>
+  <?php endforeach; ?>
+</nav>

@@ -31,10 +31,11 @@ try {
         $colleges[$code] = (int)$conn->insert_id;
     }
     $programs = [];
-    foreach (['A1'=>'A','A2'=>'A','B1'=>'B'] as $code=>$college) {
+    foreach (['A1'=>'A','A2'=>'A','A3'=>'A','A4'=>'A','AI'=>'A','B1'=>'B'] as $code=>$college) {
         $conn->query("INSERT INTO tbl_program (college_id,program_code,program_name,status) VALUES ({$colleges[$college]},'{$code}','{$tag}{$code}','active')");
         $programs[$code] = (int)$conn->insert_id;
     }
+    $conn->query("UPDATE tbl_program SET status='inactive' WHERE program_id={$programs['AI']}");
     $conn->query("INSERT INTO tbl_designation (designation_name,status) VALUES ('DEAN / PROGRAM CHAIRMAN {$tag}','active')");
     $designationId = (int)$conn->insert_id;
     $faculty = [];
@@ -63,8 +64,9 @@ try {
     $save = static function (array $changes) use ($conn,$base): void { synk_faculty_appointment_save($conn, array_replace($base,$changes)); };
     $save([]);
     $save(['college_id'=>$colleges['B'],'faculty_id'=>$faculty['deanB']]);
-    $save(['appointment_role'=>'chair','program_id'=>$programs['A1'],'faculty_id'=>$faculty['chairA']]);
-    $save(['appointment_role'=>'chair','program_id'=>$programs['A2'],'faculty_id'=>$faculty['chairA']]);
+    $save(['appointment_role'=>'chair','program_ids'=>[$programs['A1'],$programs['A2'],$programs['A1']],'faculty_id'=>$faculty['chairA']]);
+    $chairs = array_values(array_filter(synk_faculty_college_appointments($conn,$colleges['A'],$term),static function($row){return $row['appointment_role']==='chair';}));
+    $check(count($chairs)===2 && count(array_unique(array_column($chairs,'faculty_id')))===1 && (int)$chairs[0]['faculty_id']===$faculty['chairA'], 'One save assigns multiple programs to the same chair and ignores repeated selections.');
     $save(['appointment_role'=>'chair','program_id'=>$programs['B1'],'college_id'=>$colleges['B'],'faculty_id'=>$faculty['deanB']]);
     $save(['semester'=>$otherTerm['semester'],'faculty_id'=>$faculty['dual']]);
     $scopeA = ['college_id'=>$colleges['A'],'campus_id'=>$campuses[0]];
@@ -90,6 +92,23 @@ try {
     $check(isset($history[$faculty['old']]) && !isset($history[$faculty['teacher']]), 'Teaching membership also follows the selected term.');
     $check(synk_dean_faculty_statistics($conn,$scopeA,$otherTerm)['faculty']===2, 'Historical headcounts include the appointed leader even without a teaching roster.');
     $check($rows($scopeA,$term)===$a, 'Reading another term does not change current placements.');
+    $save(['appointment_role'=>'chair','program_id'=>$programs['A4'],'faculty_id'=>$faculty['chairA']]);
+    $beforeRejectedBatch = synk_faculty_college_appointments($conn,$colleges['A'],$term);
+    $reject(static function()use($save,$programs){$save(['appointment_role'=>'chair','program_ids'=>[$programs['A3'],$programs['A4']]]);},409,'A conflict rejects the entire batch even after an earlier program could be inserted');
+    $check(synk_faculty_college_appointments($conn,$colleges['A'],$term)===$beforeRejectedBatch, 'A duplicate program leaves every appointment unchanged.');
+    foreach ([[$programs['A3'],$programs['B1']],[$programs['A3'],$programs['AI']],[$programs['A3'],4294967295],[],['malformed'],[[$programs['A3']]],'malformed'] as $invalidPrograms) {
+        $reject(static function()use($save,$invalidPrograms){$save(['appointment_role'=>'chair','program_ids'=>$invalidPrograms]);},422,'Invalid, empty, inactive, or foreign program selections are rejected');
+        $check(synk_faculty_college_appointments($conn,$colleges['A'],$term)===$beforeRejectedBatch, 'Program validation failures leave no partial appointments.');
+    }
+    $reject(static function()use($save,$programs){$save(['program_ids'=>[$programs['A3']]]);},422,'Dean appointments reject multiple-program input');
+    $save(['appointment_role'=>'chair','program_ids'=>[$programs['A3']],'faculty_id'=>$faculty['chairA']]);
+    $chairEdit = ['appointment_id'=>(int)$chairs[0]['appointment_id'],'revision'=>(int)$chairs[0]['revision'],'faculty_id'=>$faculty['dual']];
+    $save(array_replace($chairEdit,['action'=>'end']));
+    $remainingChairs = array_values(array_filter(synk_faculty_college_appointments($conn,$colleges['A'],$term),static function($row){return $row['appointment_role']==='chair' && $row['status']==='active';}));
+    $check(count($remainingChairs)===3 && !in_array($chairs[0]['program_id'],array_column($remainingChairs,'program_id'),true), 'Ending one program appointment preserves the same chair\'s other programs.');
+    $save(array_replace($chairEdit,['revision'=>2,'program_ids'=>[$programs['B1']]]));
+    $restoredChair = array_column(synk_faculty_college_appointments($conn,$colleges['A'],$term),null,'appointment_id')[$chairEdit['appointment_id']];
+    $check($restoredChair['status']==='active' && (int)$restoredChair['faculty_id']===$faculty['dual'] && $restoredChair['program_id']===$chairs[0]['program_id'], 'Restoring or replacing a chair preserves its original program despite submitted program selections.');
     $reject(static function()use($save){$save([]);},409,'Duplicate Dean posts are rejected');
     $reject(static function()use($save,$programs){$save(['appointment_role'=>'chair','program_id'=>$programs['B1']]);},422,'A Chair program must belong to the selected college');
     $reject(static function()use($save){$save(['appointment_role'=>'chair']);},422,'A Chair requires a program');
@@ -170,6 +189,16 @@ try {
         $r=$request($scenario,['csrf_token'=>$scenario==='bad_csrf'?'wrong':$token]);
         $check($r['status']===$status && strpos($r['headers'],'X-QA-Active-Appointments: 1')!==false
             && strpos($r['headers'],'X-QA-Dean-Name: Current%20Dean')!==false,'Rejected administrator POST preserves the current appointment: '.$scenario.' HTTP '.$r['status']);
+    }
+    $r=$request('multi_save',['csrf_token'=>$token]);
+    $check($r['status']===303 && strpos($r['headers'],'X-QA-Active-Appointments: 3')!==false, 'The real administrator form saves two selected programs in one request. HTTP '.$r['status'].' '.substr(strip_tags($r['body']),0,220));
+    $check(strpos($r['headers'],'X-QA-Other-Records: unchanged')!==false, 'Multiple-program saving preserves accounts, affiliations, designations and signatories.');
+    foreach(['multi_duplicate'=>409,'multi_wrong_program'=>422,'multi_bad_faculty'=>422] as $scenario=>$status) {
+        $r=$request($scenario,['csrf_token'=>$token]);
+        $expectedCount=$scenario==='multi_duplicate'?2:1;
+        $check($r['status']===$status && strpos($r['headers'],'X-QA-Active-Appointments: '.$expectedCount)!==false, 'Rejected multiple-program POST leaves no partial assignments: '.$scenario);
+        $check(preg_match('/id="appointment-role"[^>]*>.*?<option value="chair" selected>/s',$r['body'])===1
+            && preg_match_all('/<option value="[0-9]+" selected>QAP/',$r['body'])===($scenario==='multi_wrong_program'?1:2), 'Failed multiple-program saves retain the selected role and available programs: '.$scenario);
     }
 } finally { if(is_file($route)) unlink($route); }
 $check($snapshot()===$before,'Every HTTP fixture was rolled back; real records are unchanged.');

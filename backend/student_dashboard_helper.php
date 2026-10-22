@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/student_portal_helper.php';
+require_once __DIR__ . '/faculty_profile_image_helper.php';
+require_once __DIR__ . '/student_workload_helper.php';
 
 function synk_student_dashboard_terms(mysqli $conn, int $studentId): array
 {
@@ -47,11 +49,48 @@ function synk_student_dashboard_view_term(int $studentId, array $terms, bool $pr
 function synk_student_dashboard_subjects(mysqli $conn, int $studentId, array $term): array
 {
     $rows = synk_student_fetch_subject_rows_by_academic_year($conn, $studentId, (int)$term['ay_id'], (int)$term['semester']);
+    $images = synk_student_dashboard_faculty_images($conn, array_column($rows, 'faculty_id'));
     $unique = [];
     foreach ($rows as $row) {
+        $row['faculty_image_url'] = $images[(int)$row['faculty_id']] ?? '';
         $key = strtolower(implode("\n", [$row['subject_code'],$row['descriptive_title'],$row['section_display'],
             (string)$row['faculty_id'],$row['room_name'],$row['schedule_text']]));
         if (!isset($unique[$key])) $unique[$key] = $row;
     }
     return array_values($unique);
+}
+
+function synk_student_dashboard_faculty_images(mysqli $conn, array $facultyIds): array
+{
+    $ids = array_values(array_unique(array_filter(array_map('intval', $facultyIds), static function($id) { return $id > 0; })));
+    if (!$ids) return [];
+    $accounts = [];
+    if (synk_table_exists($conn, 'tbl_useraccount_faculty_links')) {
+        // Match the profile editor's storage choice without loading personal profile fields.
+        $recordProfile = synk_table_exists($conn, 'tbl_faculty_record_profiles')
+            ? 'EXISTS(SELECT 1 FROM tbl_faculty_record_profiles p WHERE p.faculty_id=l.faculty_id)' : '0';
+        $accountProfile = synk_table_exists($conn, 'tbl_faculty_profiles')
+            ? 'EXISTS(SELECT 1 FROM tbl_faculty_profiles p WHERE p.user_id=l.user_id)' : '0';
+        $slots = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare("SELECT l.faculty_id, CASE WHEN {$recordProfile} AND NOT {$accountProfile} THEN 0 ELSE l.user_id END AS image_user_id
+            FROM tbl_useraccount_faculty_links l JOIN tbl_useraccount u ON u.user_id=l.user_id AND u.status='active'
+            WHERE l.faculty_id IN ({$slots})");
+        synk_bind_dynamic_params($stmt, str_repeat('i', count($ids)), $ids);
+        $stmt->execute();
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) $accounts[(int)$row['faculty_id']] = (int)$row['image_user_id'];
+        $stmt->close();
+    }
+    $images = [];
+    foreach ($ids as $id) $images[$id] = synk_faculty_profile_image_url($accounts[$id] ?? 0, $id);
+    return $images;
+}
+
+function synk_student_dashboard_workload(mysqli $conn, array $subjects): array
+{
+    // Use only the memberships already authorized for this student's displayed term.
+    $ids=array_values(array_unique(array_filter(array_map('intval',array_column($subjects,'student_enrollment_id')))));
+    if (!$ids) return synk_student_workload_totals([]);
+    $slots=implode(',',array_fill(0,count($ids),'?'));
+    $rows=synk_student_workload_query($conn,synk_student_workload_select_sql()." WHERE es.is_active=1 AND es.student_enrollment_id IN ({$slots})",str_repeat('i',count($ids)),$ids);
+    return synk_student_workload_totals($rows);
 }

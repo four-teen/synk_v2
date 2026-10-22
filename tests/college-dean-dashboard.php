@@ -60,11 +60,11 @@ try {
         $check($r['http_status'] === 200 && is_string($body) && !preg_match('/Fatal error|Parse error|<b>Warning<\/b>|xdebug-error/i', $body), 'Dashboard rendering failed.');
         $check($readVariable($body, 'selectedCollegeId') === $assigned && $r['session_college'] === $assigned, 'URL filters or a stale session changed the assigned college scope.');
         $check($readVariable($body, 'dashboardViewType') === 'college', 'The Dean dashboard expanded to a campus or university view.');
-        foreach (['Academic Operations Overview','scheduleHeatmapChart','roomUtilizationChart','Faculty Directory','Program Offerings Overview','btnOpenCollegeWorkloadReport','openMatrixModal'] as $feature) {
+        foreach (['Academic Operations Overview','scheduleHeatmapChart','Faculty Directory','collegeStudentActivity','student-activity.js','collegeStudentWorkload','student-workload.js','Program Offerings Overview','btnOpenCollegeWorkloadReport','openMatrixModal'] as $feature) {
             $check(strpos($body, $feature) !== false, 'Missing reference dashboard feature: ' . $feature);
         }
-        foreach (['Switch Campus','Back to Institutional View','href="manage-faculty.php"','href="manage-prospectus.php"','href="../scheduler/"','href="campus_dashboard.php'] as $forbidden) {
-            $check(strpos($body, $forbidden) === false, 'The Dean dashboard exposes an unrelated administrative navigation: ' . $forbidden);
+        foreach (['Accessible Room Utilization','roomUtilizationChart','roomUtilizationInsight','<th class="text-end">Used Hours</th>','Switch Campus','Back to Institutional View','href="manage-faculty.php"','href="manage-prospectus.php"','href="../scheduler/"','href="campus_dashboard.php'] as $forbidden) {
+            $check(strpos($body, $forbidden) === false, 'The Dean dashboard exposes removed or unrelated content: ' . $forbidden);
         }
         $check(strpos($body, 'dashboard_college_dean_schedule_heatmap.php') !== false && strpos($body, 'query_college_dean_faculty_workload.php') !== false, 'Charts and details do not use assigned-college endpoints.');
         $scope = $readVariable($body, 'consolidatedReportScope');
@@ -73,7 +73,7 @@ try {
             $directory = $readVariable($body, 'facultyDirectoryData');
             $check(count($directory) > 0, 'The assigned-college faculty directory is empty.');
             $scripts = [];
-            preg_match_all('/<script(?:\s[^>]*)?>(.*?)<\/script>/s', $body, $matches);
+            preg_match_all('/<script(?![^>]*application\/json)(?:\s[^>]*)?>(.*?)<\/script>/s', $body, $matches);
             foreach ($matches[1] as $inline) if (trim($inline) !== '') $scripts[] = $inline;
             $scriptPath = __DIR__ . '/../tmp/college-dean-dashboard-rendered.js';
             file_put_contents($scriptPath, implode("\n", $scripts));

@@ -96,6 +96,7 @@ function synk_faculty_appointment_save(mysqli $conn, array $input): void
     }
 
     $actorId = (int)$account['user_id'];
+    $expectedRows = 1;
     if ($action === 'end') {
         $stmt = $conn->prepare("UPDATE tbl_faculty_college_appointments SET status='inactive',revision=revision+1,
             updated_by=?,updated_at=CURRENT_TIMESTAMP,record_source='manual' WHERE appointment_id=? AND revision=?");
@@ -103,9 +104,28 @@ function synk_faculty_appointment_save(mysqli $conn, array $input): void
     } else {
         $facultyId = synk_faculty_appointment_integer($input['faculty_id'] ?? null);
         $role = $existing ? $existing['appointment_role'] : ($input['appointment_role'] ?? '');
-        $programId = $existing ? (int)$existing['program_id'] : synk_faculty_appointment_integer($input['program_id'] ?? '0', true);
-        if (!in_array($role, ['dean','chair'], true) || ($role === 'dean' && $programId !== 0) || ($role === 'chair' && $programId === 0)) {
-            throw new DomainException('Choose College Dean, or Program Chair with its program.', 422);
+        if (!in_array($role, ['dean','chair'], true)) {
+            throw new DomainException('Choose College Dean, or Program Chair with at least one program.', 422);
+        }
+        if ($existing) {
+            $programIds = [(int)$existing['program_id']];
+        } else {
+            if (array_key_exists('program_ids', $input)) {
+                if (!is_array($input['program_ids']) || array_values($input['program_ids']) !== $input['program_ids']) {
+                    throw new DomainException('Choose valid programs for this appointment.', 422);
+                }
+                $programIds = array_values(array_unique(array_map('synk_faculty_appointment_integer', $input['program_ids'])));
+            } else {
+                // Keep single-program requests compatible with existing callers.
+                $programId = synk_faculty_appointment_integer($input['program_id'] ?? '0', true);
+                $programIds = $programId ? [$programId] : [];
+            }
+            if ($role === 'dean') {
+                if ($programIds) throw new DomainException('A College Dean appointment cannot name a program.', 422);
+                $programIds = [0];
+            } elseif (!$programIds) {
+                throw new DomainException('Choose at least one program for the Program Chair.', 422);
+            }
         }
         $stmt = $conn->prepare("SELECT faculty_id FROM tbl_faculty WHERE faculty_id=? AND status IN ('active','on_leave')");
         $stmt->bind_param('i', $facultyId);
@@ -114,28 +134,38 @@ function synk_faculty_appointment_save(mysqli $conn, array $input): void
         $stmt->close();
         if (!$validFaculty) throw new DomainException('Choose an active faculty member or a faculty member on leave.', 422);
         if ($role === 'chair') {
-            $stmt = $conn->prepare("SELECT program_id FROM tbl_program WHERE program_id=? AND college_id=? AND status='active'");
-            $stmt->bind_param('ii', $programId, $collegeId);
+            $placeholders = implode(',', array_fill(0, count($programIds), '?'));
+            $stmt = $conn->prepare("SELECT program_id FROM tbl_program WHERE college_id=? AND status='active' AND program_id IN ($placeholders)");
+            $values = array_merge([$collegeId], $programIds);
+            $stmt->bind_param(str_repeat('i', count($values)), ...$values);
             $stmt->execute();
-            $validProgram = $stmt->get_result()->num_rows > 0;
+            $validPrograms = $stmt->get_result()->num_rows === count($programIds);
             $stmt->close();
-            if (!$validProgram) throw new DomainException('Choose an active program belonging to this college.', 422);
+            if (!$validPrograms) throw new DomainException('Choose active programs belonging to this college.', 422);
         }
         if ($existing) {
             $stmt = $conn->prepare("UPDATE tbl_faculty_college_appointments SET faculty_id=?,status='active',revision=revision+1,
                 updated_by=?,updated_at=CURRENT_TIMESTAMP,record_source='manual' WHERE appointment_id=? AND revision=?");
             $stmt->bind_param('iiii', $facultyId, $actorId, $appointmentId, $revision);
         } else {
+            // One InnoDB statement saves every selected post or none of them.
+            sort($programIds, SORT_NUMERIC);
+            $expectedRows = count($programIds);
+            $placeholders = implode(',', array_fill(0, $expectedRows, '(?,?,?,?,?,?,?)'));
             $stmt = $conn->prepare('INSERT INTO tbl_faculty_college_appointments
-                (college_id,ay_id,semester,appointment_role,program_id,faculty_id,updated_by) VALUES (?,?,?,?,?,?,?)');
-            $stmt->bind_param('iiisiii', $collegeId, $ayId, $semester, $role, $programId, $facultyId, $actorId);
+                (college_id,ay_id,semester,appointment_role,program_id,faculty_id,updated_by) VALUES ' . $placeholders);
+            $values = [];
+            foreach ($programIds as $programId) {
+                array_push($values, $collegeId, $ayId, $semester, $role, $programId, $facultyId, $actorId);
+            }
+            $stmt->bind_param(str_repeat('iiisiii', $expectedRows), ...$values);
         }
     }
     try {
         if (!$stmt->execute()) throw new RuntimeException('Unable to save the appointment.');
-        if ($stmt->affected_rows !== 1) throw new DomainException('This appointment changed. Reload the page before saving.', 409);
+        if ($stmt->affected_rows !== $expectedRows) throw new DomainException('This appointment changed. Reload the page before saving.', 409);
     } catch (mysqli_sql_exception $exception) {
-        if ($exception->getCode() === 1062) throw new DomainException('This leadership post already has a record. Use Replace to update it.', 409);
+        if ($exception->getCode() === 1062) throw new DomainException('A selected leadership post already has a record. Use Replace or Restore to update it. No appointments were added.', 409);
         throw $exception;
     } finally {
         $stmt->close();
