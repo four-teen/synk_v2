@@ -58,7 +58,7 @@ foreach ($faculties as $faculty) {
         <span class="dean-profiles-term"><i class="bx bx-calendar" aria-hidden="true"></i><?= synk_faculty_profile_h($term['term_text']) ?></span>
       </header>
       <?php if ($loadError): ?><div class="alert alert-danger" role="alert"><?= synk_faculty_profile_h($loadError) ?></div><?php endif; ?>
-      <div class="dean-profiles-intro"><div><h2>Your college, at a glance</h2><p>Select a faculty member to create or update personal details, qualifications, and their profile image.</p></div>
+      <div class="dean-profiles-intro"><div><h2>Your college, at a glance</h2><p>Leadership reflects appointments in this college for the selected term. Shared teachers appear as faculty members; profiles from another home college are shown for reference.</p></div>
         <div class="dean-profiles-stats"><span><strong><?= $activeCount ?></strong>Current faculty</span><span><strong><?= $completeCount ?></strong>Profiles complete</span><span><strong><?= $activeCount - $completeCount ?></strong>Need attention</span></div>
       </div>
       <section class="card dean-profiles-toolbar" aria-label="Find faculty profiles">
@@ -68,27 +68,27 @@ foreach ($faculties as $faculty) {
         <div><label for="dean-profile-status">Faculty status</label><select id="dean-profile-status" class="form-select"><option value="current">Active / on leave</option><option value="all">All statuses</option><?php foreach ($statuses as $key=>$label): ?><option value="<?= $key ?>"><?= $label ?></option><?php endforeach; ?></select></div>
         <button type="button" class="btn btn-outline-secondary" id="dean-profile-reset" aria-label="Clear faculty filters"><i class="bx bx-reset" aria-hidden="true"></i></button>
       </section>
-      <p class="dean-profiles-result" id="dean-profile-result" role="status" aria-live="polite">Select a card to manage its profile.</p>
+      <p class="dean-profiles-result" id="dean-profile-result" role="status" aria-live="polite">Select an available profile to manage its details.</p>
       <div class="dean-profiles-hierarchy">
       <?php foreach ($groups as $key=>$group): $groupRows = array_values(array_filter($faculties, static function(array $row) use($key): bool { return $row['designation_group'] === $key; })); ?>
         <section class="dean-profiles-section is-<?= $key ?>" data-profile-section="<?= $key ?>" aria-labelledby="dean-profiles-<?= $key ?>">
           <div class="dean-profiles-section-heading"><div><span><?= $group['copy'] ?></span><h2 id="dean-profiles-<?= $key ?>"><?= $group['title'] ?></h2></div><span class="dean-profiles-group-count" data-profile-count><?= count($groupRows) ?></span></div>
           <div class="dean-profiles-grid">
-          <?php foreach ($groupRows as $faculty): $current = in_array($faculty['status'], ['active','on_leave'], true); $searchText = implode(' ',[$faculty['display_name'],$faculty['faculty_name'],$faculty['designation_name'],$faculty['faculty_id_number']]); ?>
-            <a href="manage-faculty-profile.php?faculty_id=<?= $faculty['faculty_id'] ?>" class="dean-faculty-card"
+          <?php foreach ($groupRows as $faculty): $current = in_array($faculty['status'], ['active','on_leave'], true); $canManage = $faculty['can_manage_profile']; $searchText = implode(' ',[$faculty['display_name'],$faculty['faculty_name'],$faculty['designation_name'],$faculty['faculty_id_number']]); ?>
+            <<?= $canManage ? 'a href="manage-faculty-profile.php?faculty_id=' . $faculty['faculty_id'] . '"' : 'article' ?> class="dean-faculty-card<?= $canManage ? '' : ' is-reference' ?>"
               data-faculty-card data-designation="<?= $key ?>" data-profile="<?= $faculty['profile_state'] ?>" data-status="<?= synk_faculty_profile_h($faculty['status'] ?? '') ?>"
-              data-search="<?= synk_faculty_profile_h($searchText) ?>" aria-label="Manage profile for <?= synk_faculty_profile_h($faculty['display_name']) ?>"<?= !$current ? ' hidden' : '' ?>>
+              data-search="<?= synk_faculty_profile_h($searchText) ?>" aria-label="<?= $canManage ? 'Manage profile for ' : 'Faculty profile for ' ?><?= synk_faculty_profile_h($faculty['display_name']) ?>"<?= !$current ? ' hidden' : '' ?>>
               <img src="<?= synk_faculty_profile_h($faculty['profile_image_url']) ?>" alt="" width="112" height="112" loading="lazy" class="dean-faculty-photo" data-placeholder="faculty-placeholder.svg">
               <span class="dean-faculty-role is-<?= $key ?>"><?= $key === 'dean' ? 'College Dean' : ($key === 'chair' ? 'Program Chair' : 'Faculty') ?></span>
               <h3><?= synk_faculty_profile_h($faculty['display_name']) ?></h3>
               <p class="dean-faculty-designation" title="<?= synk_faculty_profile_h($faculty['designation_name']) ?>"><?= synk_faculty_profile_h($faculty['designation_name'] ?: 'Faculty member') ?></p>
               <?php if (!$current || $faculty['status'] === 'on_leave'): ?><span class="badge bg-label-secondary"><?= $statuses[$faculty['status']] ?? 'Not recorded' ?></span><?php endif; ?>
               <div class="dean-faculty-progress"><span><?= $faculty['profile_state'] === 'not_started' ? 'Profile not started' : $faculty['completion'] . '% complete' ?></span><div aria-hidden="true"><span style="width:<?= $faculty['completion'] ?>%"></span></div></div>
-              <span class="dean-faculty-action"><?= $faculty['profile_state'] === 'not_started' ? 'Create profile' : 'Manage profile' ?><i class="bx bx-arrow-right" aria-hidden="true"></i></span>
-            </a>
+              <span class="dean-faculty-action"><?php if ($canManage): ?><?= $faculty['profile_state'] === 'not_started' ? 'Create profile' : 'Manage profile' ?><i class="bx bx-arrow-right" aria-hidden="true"></i><?php else: ?>Managed by home college<?php endif; ?></span>
+            </<?= $canManage ? 'a' : 'article' ?>>
           <?php endforeach; ?>
           </div>
-          <?php if (!$groupRows): ?><p class="dean-profiles-section-empty"><?= $key === 'dean' ? 'No Dean designation is recorded for this college.' : ($key === 'chair' ? 'No Program Chair designation is recorded for this college.' : 'No faculty members are recorded in this group.') ?></p><?php endif; ?>
+          <?php if (!$groupRows): ?><p class="dean-profiles-section-empty"><?= $key === 'dean' ? 'No College Dean appointment is recorded for this college and term.' : ($key === 'chair' ? 'No Program Chair appointment is recorded for this college and term.' : 'No faculty members are recorded in this group.') ?></p><?php endif; ?>
         </section>
       <?php endforeach; ?>
       </div>

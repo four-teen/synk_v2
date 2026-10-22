@@ -59,11 +59,15 @@ function synk_dean_faculty_statistics(mysqli $conn, array $scope, array $term): 
     $current = synk_fetch_current_academic_term($conn);
     $isCurrent = (int)$term['ay_id'] === (int)$current['ay_id'] && (int)$term['semester'] === (int)$current['semester'];
     if ($isCurrent) {
-        $faculties = array_values(array_filter(synk_dean_profile_faculties($conn, $scope, $term), static function (array $row): bool {
+        $faculties = array_values(array_filter(synk_dean_profile_faculties($conn, $scope, $term, 0, false, true), static function (array $row): bool {
             return in_array($row['status'], ['active', 'on_leave'], true);
         }));
     } else {
         $ids = array_column(synk_dean_workload_faculties($conn, $scope, $term), 'faculty_id');
+        foreach (synk_faculty_college_appointments($conn, (int)$scope['college_id'], $term) as $appointment) {
+            if ($appointment['status'] === 'active') $ids[] = (int)$appointment['faculty_id'];
+        }
+        $ids = array_values(array_unique($ids));
         $faculties = [];
         if ($ids) {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));

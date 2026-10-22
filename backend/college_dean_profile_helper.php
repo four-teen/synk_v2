@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/faculty_term_designation_helper.php';
+require_once __DIR__ . '/faculty_college_appointment_helper.php';
 
 require_once __DIR__ . '/college_dean_dashboard_helper.php';
 require_once __DIR__ . '/faculty_profile_helper.php';
@@ -26,26 +27,45 @@ function synk_dean_profile_prepare_storage(mysqli $conn): void
     synk_faculty_profile_ensure_eligibilities($conn);
     synk_faculty_profile_ensure_education($conn);
     synk_faculty_record_profiles_ensure($conn);
+    synk_faculty_college_appointments_ensure($conn);
 }
 
-function synk_dean_profile_faculties(mysqli $conn, array $scope, array $term, int $facultyId = 0, bool $lock = false): array
+function synk_dean_profile_faculties(mysqli $conn, array $scope, array $term, int $facultyId = 0, bool $lock = false, bool $includeTeaching = false): array
 {
-    // A permanent home college wins over teaching/roster links. A current roster
-    // supplies scope only when no permanent college has been recorded.
+    $appointments = [];
+    foreach (synk_faculty_college_appointments($conn, (int)$scope['college_id'], $term) as $appointment) {
+        if ($appointment['status'] !== 'active') continue;
+        $id = (int)$appointment['faculty_id'];
+        if ($appointment['appointment_role'] === 'dean') $appointments[$id]['dean'] = true;
+        elseif ($appointment['program_code'] !== '' || $appointment['program_name'] !== '') {
+            $label = $appointment['program_code'] ?: $appointment['program_name'];
+            if ($appointment['major'] !== '') $label .= ' (' . $appointment['major'] . ')';
+            $appointments[$id]['programs'][] = $label;
+        }
+    }
+    $appointmentWhere = $appointments ? 'f.faculty_id IN (' . implode(',', array_keys($appointments)) . ')' : '0=1';
+    // Teaching membership makes a card visible, including across home colleges
+    // and campuses. It does not widen authority to edit a shared personal profile.
+    // An explicit leadership appointment supplies scope even without a roster.
     $sql = "SELECT f.*, d.designation_id AS designation_id, COALESCE(d.designation_name,'') AS designation_name,
             COALESCE(l.user_id,0) AS profile_user_id, COALESCE(u.email,'') AS profile_email,
-            COALESCE(u.username,'') AS account_name
+            COALESCE(u.username,'') AS account_name,COALESCE(hc.college_name,'') AS home_college_name,
+            COALESCE(hcp.campus_name,'') AS home_campus_name
         FROM tbl_faculty f " . synk_faculty_designation_join_sql($conn, (int)$term['ay_id'], (int)$term['semester']) . "
         LEFT JOIN tbl_useraccount_faculty_links l ON l.faculty_id=f.faculty_id
         LEFT JOIN tbl_useraccount u ON u.user_id=l.user_id
+        LEFT JOIN tbl_college hc ON hc.college_id=f.college_id
+        LEFT JOIN tbl_campus hcp ON hcp.campus_id=COALESCE(NULLIF(f.campus_id,0),hc.campus_id)
         WHERE ((f.college_id=? AND (COALESCE(f.campus_id,0)=0 OR f.campus_id=?))
-            OR (COALESCE(f.college_id,0)=0 AND (COALESCE(f.campus_id,0)=0 OR f.campus_id=?)
+            OR ((?=1 OR (COALESCE(f.college_id,0)=0 AND (COALESCE(f.campus_id,0)=0 OR f.campus_id=?)))
                 AND EXISTS (SELECT 1 FROM tbl_college_faculty cf WHERE cf.faculty_id=f.faculty_id
-                    AND cf.college_id=? AND cf.ay_id=? AND cf.semester=? AND cf.status='active')))
+                    AND cf.college_id=? AND cf.ay_id=? AND cf.semester=? AND cf.status='active'))
+            OR {$appointmentWhere})
             AND (?=0 OR f.faculty_id=?)
         ORDER BY f.last_name,f.first_name,f.faculty_id" . ($lock ? ' FOR UPDATE' : '');
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('iiiiiiii', $scope['college_id'], $scope['campus_id'], $scope['campus_id'],
+    $includeTeachingInt = $includeTeaching ? 1 : 0;
+    $stmt->bind_param('iiiiiiiii', $scope['college_id'], $scope['campus_id'], $includeTeachingInt, $scope['campus_id'],
         $scope['college_id'], $term['ay_id'], $term['semester'], $facultyId, $facultyId);
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -54,7 +74,15 @@ function synk_dean_profile_faculties(mysqli $conn, array $scope, array $term, in
         $row['faculty_id'] = (int)$row['faculty_id'];
         $row['profile_user_id'] = (int)$row['profile_user_id'];
         $row['faculty_name'] = trim(implode(' ', array_filter([$row['first_name'], $row['middle_name'], $row['last_name'], $row['ext_name']])));
-        $row['designation_group'] = synk_dean_profile_designation_group($row['designation_name']);
+        $appointment = $appointments[$row['faculty_id']] ?? [];
+        $row['can_manage_profile'] = !empty($appointment) ||
+            (((int)$row['college_id'] === (int)$scope['college_id'] || (int)$row['college_id'] === 0)
+                && ((int)$row['campus_id'] === 0 || (int)$row['campus_id'] === (int)$scope['campus_id']));
+        $row['recorded_designation_name'] = $row['designation_name'];
+        $row['designation_group'] = !empty($appointment['dean']) ? 'dean' : (!empty($appointment['programs']) ? 'chair' : 'faculty');
+        if ($row['designation_group'] === 'dean') $row['designation_name'] = 'College Dean';
+        elseif ($row['designation_group'] === 'chair') $row['designation_name'] = 'Program Chair - ' . implode(', ', array_unique($appointment['programs']));
+        elseif (synk_dean_profile_designation_group($row['designation_name']) !== 'faculty') $row['designation_name'] = 'Faculty member';
     }
     unset($row);
     return $rows;
@@ -77,7 +105,7 @@ function synk_dean_profile_directory(mysqli $conn, array $scope, array $term): a
     $ranks = synk_faculty_profile_ranks($conn);
     $locations = synk_faculty_profile_locations($conn);
     $eligibilities = synk_faculty_profile_eligibility_catalog($conn);
-    $rows = synk_dean_profile_faculties($conn, $scope, $term);
+    $rows = synk_dean_profile_faculties($conn, $scope, $term, 0, false, true);
     foreach ($rows as &$row) {
         $profile = synk_dean_profile_load($conn, $row);
         $row['display_name'] = trim((string)($profile['full_name'] ?? '')) ?: $row['faculty_name'];

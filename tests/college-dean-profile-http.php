@@ -10,8 +10,8 @@ function dean_profile_check(bool $ok,string $message):void {global $checks;if(!$
 foreach (['Dean'=>'dean','COLLEGE DEAN & PROGRAM CHAIRPERSON, BSIT'=>'dean','PROGRAM CHAIRMAN'=>'chair','Program Chair'=>'chair','PROGRAM CHAIPERSON, BSCE'=>'chair','Extension / PC, BSN'=>'chair','Deanery coordinator'=>'faculty','Instructor'=>'faculty'] as $title=>$expected) {
     dean_profile_check(synk_dean_profile_designation_group($title)===$expected,'Designation: '.$title);
 }
-$tables=['tbl_campus','tbl_college','tbl_useraccount','tbl_useraccount_roles','tbl_faculty','tbl_designation','tbl_college_faculty','tbl_useraccount_faculty_links',
-    'tbl_faculty_profiles','tbl_faculty_profile_eligibilities','tbl_faculty_record_profiles','tbl_faculty_education_options'];
+$tables=['tbl_campus','tbl_college','tbl_program','tbl_useraccount','tbl_useraccount_roles','tbl_faculty','tbl_designation','tbl_college_faculty','tbl_useraccount_faculty_links',
+    'tbl_faculty_profiles','tbl_faculty_profile_eligibilities','tbl_faculty_record_profiles','tbl_faculty_education_options','tbl_faculty_college_appointments'];
 $snapshot=static function() use($conn,$tables):array {$out=[];foreach($tables as $table)$out[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));return $out;};
 $before=$snapshot();
 $root=dirname(__DIR__);$token=bin2hex(random_bytes(24));$route=$root.'/tmp/dean-profile-http-'.bin2hex(random_bytes(8)).'.php';
@@ -37,7 +37,15 @@ try {
     $directory=$request('directory');
     if($directory['status']!==200 || strpos($directory['body'],'Faculty Profile QA College')===false) throw new RuntimeException('Directory HTTP '.$directory['status'].': '.strip_tags($directory['body']));
     dean_profile_check($directory['status']===200 && strpos($directory['body'],'Faculty Profile QA College')!==false,'Dean directory renders.');
-    dean_profile_check(strpos($directory['body'],'José')!==false && strpos($directory['body'],'Foreign QA Foreign')===false,'Directory includes own faculty and excludes foreign faculty.');
+    dean_profile_check(strpos($directory['body'],'José')!==false && strpos($directory['body'],'Foreign QA Foreign')!==false,'Directory includes home faculty and shared teachers on its current roster.');
+    dean_profile_check(preg_match('/<article[^>]*data-faculty-card[^>]*aria-label="Faculty profile for Foreign QA Foreign"[^>]*>.*?Managed by home college.*?<\/article>/s',$directory['body'])===1,
+        'A teacher from another home college has a reference card without an editor link.');
+    dean_profile_check(preg_match('/<a[^>]*data-designation="dean"[^>]*aria-label="Manage profile for Elena QA Dean"/s',$directory['body'])===1,
+        'The appointed college Dean is rendered in the Dean section.');
+    dean_profile_check(preg_match('/<a[^>]*data-designation="chair"[^>]*aria-label="Manage profile for Marco QA Chair"/s',$directory['body'])===1,
+        'A program-specific Chair appointment is rendered in the Chair section.');
+    dean_profile_check(preg_match('/<article[^>]*data-designation="faculty"[^>]*aria-label="Faculty profile for Foreign QA Foreign"[^>]*>.*?<p[^>]*title="Faculty member">Faculty member<\/p>/s',$directory['body'])===1,
+        'A Dean of another college is labeled Faculty here, including the designation subtitle.');
     dean_profile_check(strpos($directory['body'],'id="dean-profiles-dean"') < strpos($directory['body'],'id="dean-profiles-chair"'),'Dean precedes Program Chairs.');
     dean_profile_check(strpos($directory['body'],'faculty-placeholder.svg')!==false,'Missing photos use the uniform placeholder.');
     dean_profile_check(strpos($directory['headers'],'X-QA-Changed: no')!==false,'Viewing profiles does not change profile data.');

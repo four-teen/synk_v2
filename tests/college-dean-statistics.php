@@ -39,9 +39,9 @@ try {
     $check(count($metrics['terms']) >= 3 && count($metrics['terms']) % 3 === 0
         && in_array(3, array_column($metrics['terms'], 'semester'), true), 'Every academic year offers both semesters and Midyear, including terms without imported data.');
     $faculty = $metrics['faculty'];
-    $check($faculty['faculty'] === 6, 'Faculty headcount includes on-leave and current-roster faculty, excludes retired, foreign, wrong-campus, and old-roster faculty.');
-    $check($faculty['education'] === ['Doctoral / PhD' => 2, "Master's" => 2, "Bachelor's" => 1, 'Not recorded' => 1], 'Highest completed degree counts PhD and other doctorates, excludes ongoing studies, and gives existing account profiles priority.');
-    $check($faculty['ranks']['Instructor I'] === 2 && $faculty['ranks']['Not recorded'] === 1 && array_sum($faculty['ranks']) === 6, 'Ranks include profiles saved by the Dean before account linking and expose missing details.');
+    $check($faculty['faculty'] === 7, 'Faculty headcount includes on-leave and current-roster teachers across home colleges, excludes retired, wrong-campus, and old-roster faculty.');
+    $check($faculty['education'] === ['Doctoral / PhD' => 3, "Master's" => 2, "Bachelor's" => 1, 'Not recorded' => 1], 'Highest completed degree counts PhD and other doctorates, includes shared teachers, excludes ongoing studies, and gives existing account profiles priority.');
+    $check($faculty['ranks']['Instructor I'] === 2 && $faculty['ranks']['Not recorded'] === 1 && array_sum($faculty['ranks']) === 7, 'Ranks include profiles saved by the Dean before account linking and expose missing details.');
     foreach (['students' => 'Student Statistics', 'faculty' => 'Faculty Statistics', 'scope_tamper' => 'Student Statistics', 'empty' => 'Faculty Statistics'] as $scenario => $title) {
         $page = $request($scenario);
         $check($page['status'] === 200 && strpos($page['body'], '<h1>' . $title . '</h1>') !== false
