@@ -29,6 +29,15 @@ $professorSidebarItems = [
         'pages' => ['workload.php'],
     ],
     [
+        'key' => 'researches',
+        'href' => 'oracle-research.php',
+        'icon_bg' => 'bg-label-success',
+        'icon' => 'bx-book-open',
+        'title' => 'My Researches',
+        'description' => 'Research and academic roles linked through Oracle',
+        'pages' => ['oracle-research.php'],
+    ],
+    [
         'key' => 'evaluations',
         'href' => 'faculty-evaluations.php',
         'icon_bg' => 'bg-label-warning',
@@ -46,6 +55,23 @@ foreach ($professorSidebarItems as $sidebarItem) {
         break;
     }
 }
+
+// Reuse the dashboard/profile calculation when available; other portal pages read it once.
+if (!isset($professorSidebarCompletion)) {
+    $professorSidebarCompletion = isset($completion['percent'], $completion['sections']) ? $completion : null;
+    if ($professorSidebarCompletion === null && isset($conn) && $conn instanceof mysqli && !empty($_SESSION['user_id'])) {
+        try {
+            require_once __DIR__ . '/../backend/professor_dashboard_helper.php';
+            $sidebarFacultyLink = synk_professor_fetch_faculty_link($conn, (int)$_SESSION['user_id']);
+            $sidebarProfile = synk_professor_dashboard_profile($conn, (int)$_SESSION['user_id'], $sidebarFacultyLink);
+            $professorSidebarCompletion = $sidebarProfile['completion'];
+        } catch (Throwable $error) {
+            error_log('Professor sidebar profile summary failed: ' . $error->getMessage());
+        }
+    }
+}
+$professorSidebarPercent = $professorSidebarCompletion !== null
+    ? max(0, min(100, (int)$professorSidebarCompletion['percent'])) : null;
 ?>
 
 <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
@@ -161,6 +187,20 @@ foreach ($professorSidebarItems as $sidebarItem) {
       line-height: 0.92rem;
     }
 
+    #layout-menu .professor-profile-footer { width: 100%; flex-shrink: 0; margin-top: auto; padding: 1.4rem .95rem 1rem; }
+    #layout-menu .professor-profile-card { display: flex; align-items: center; gap: .7rem; padding: .85rem .7rem; border: 1px solid #dcece5; border-radius: 13px; background: #f4faf7; white-space: normal; color: #334b43; }
+    #layout-menu .professor-profile-card:hover { border-color: #8fbfae; background: #edf7f1; }
+    #layout-menu .professor-profile-card:focus-visible { outline: 2px solid #278268; outline-offset: 3px; }
+    #layout-menu .professor-profile-ring { --ring-color: #278268; flex: 0 0 62px; width: 62px; height: 62px; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--ring-color) var(--profile-progress), #dde8e3 0); }
+    #layout-menu .professor-profile-ring > span { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; background: #fff; }
+    #layout-menu .professor-profile-ring strong { font-size: 1rem; line-height: 1.3; letter-spacing: -.04em; color: #34465c; }
+    #layout-menu .professor-profile-ring small { font-size: .48rem; color: #7b8898; }
+    #layout-menu .professor-profile-copy { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+    #layout-menu .professor-profile-copy > strong { font-size: .73rem; color: #33463e; line-height: 1.4; }
+    #layout-menu .professor-profile-copy > small { font-size: .66rem; color: #74867d; line-height: 1.45; }
+    #layout-menu .professor-profile-copy > span { display: inline-flex; align-items: center; gap: .2rem; font-size: .65rem; font-weight: 600; color: #278268; }
+    #layout-menu .professor-profile-ring.is-incomplete { --ring-color: #c48c36; }
+
     @keyframes professor-sidebar-border-orbit {
       to {
         offset-distance: 100%;
@@ -191,5 +231,13 @@ foreach ($professorSidebarItems as $sidebarItem) {
         </a>
       </li>
     <?php endforeach; ?>
+    <li class="professor-profile-footer">
+      <a href="manage-profile.php" class="professor-profile-card" aria-label="<?php echo $professorSidebarPercent !== null ? 'Profile ' . $professorSidebarPercent . '% complete. Review profile.' : 'Review your faculty profile.'; ?>">
+        <span class="professor-profile-ring<?php echo $professorSidebarPercent !== 100 ? ' is-incomplete' : ''; ?>" style="--profile-progress: <?php echo $professorSidebarPercent ?? 0; ?>%;" <?php if ($professorSidebarPercent !== null): ?>role="progressbar" aria-label="Profile completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo $professorSidebarPercent; ?>"<?php else: ?>aria-hidden="true"<?php endif; ?>>
+          <span><strong><?php echo $professorSidebarPercent !== null ? $professorSidebarPercent . '%' : '&mdash;'; ?></strong><small><?php echo $professorSidebarPercent !== null ? 'complete' : 'profile'; ?></small></span>
+        </span>
+        <span class="professor-profile-copy"><strong>Profile completion</strong><small><?php echo $professorSidebarPercent === 100 ? 'All details complete' : ($professorSidebarPercent === null ? 'Review your details' : 'Keep your details up to date'); ?></small><span>Manage profile<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></span></span>
+      </a>
+    </li>
   </ul>
 </aside>

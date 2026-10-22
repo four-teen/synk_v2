@@ -56,6 +56,9 @@ gulpfile.tmp.*
 # Local configuration and credentials
 /backend/db_config.local.php
 /backend/auth_config.local.php
+# Oracle integration files containing the shared secret
+synk-research-api.php
+/professor/oracle-research.php
 .env
 .env.*
 !.env.example
