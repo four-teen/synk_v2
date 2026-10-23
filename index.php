@@ -217,10 +217,14 @@ if (isset($_POST['login'])) {
     <link rel="stylesheet" href="assets/css/demo.css" />
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
     <link rel="stylesheet" href="assets/vendor/css/pages/page-auth.css" />
+    <link rel="preload" href="assets/vendor/fonts/space-grotesk-700.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="stylesheet" href="assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/assets/css/login-intro.css') ?>" />
 
     <style>
       :root {
         --login-bg: linear-gradient(135deg, #f3f6fb 0%, #f8fafc 46%, #edf7f1 100%);
+        --synk-login-intro-background: var(--login-bg);
+        --synk-login-intro-wordmark: var(--login-title);
         --login-card-border: #d9e2ef;
         --login-card-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
         --login-title: #1f3552;
@@ -821,8 +825,14 @@ if (isset($_POST['login'])) {
   </head>
 
   <body>
+    <div class="synk-login-splash" aria-hidden="true">
+      <div class="synk-login-splash-brand">
+        <img src="assets/img/favicon/synk-icon.png" alt="" width="104" height="104" fetchpriority="high" />
+        <span>synk</span>
+      </div>
+    </div>
     <div class="login-shell">
-      <div class="login-stage">
+      <div class="login-stage" data-synk-login-content>
         <div class="login-dot-grid login-dot-grid-left"></div>
         <div class="login-dot-grid login-dot-grid-right"></div>
         <div class="login-plate login-plate-left"></div>
