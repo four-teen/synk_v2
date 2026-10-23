@@ -37,16 +37,23 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
   <link rel="stylesheet" href="../assets/vendor/css/theme-default.css">
+  <link rel="preload" href="../assets/vendor/fonts/space-grotesk-700.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="stylesheet" href="../assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/login-intro.css') ?>">
   <link rel="stylesheet" href="login.css?v=<?= (int)filemtime(__DIR__.'/login.css') ?>">
 </head>
 <body>
+  <div class="synk-login-splash" aria-hidden="true">
+    <div class="synk-login-splash-brand">
+      <img src="../assets/img/favicon/synk-icon.png" alt="" width="104" height="104" fetchpriority="high">
+      <span>synk</span>
+    </div>
+  </div>
   <main class="student-login-shell">
-    <div class="student-login-wrap">
+    <div class="student-login-wrap" data-synk-login-content>
       <a class="student-login-brand" href="login.php" aria-label="Synk Student Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>Synk</span><span class="badge bg-label-primary">Student Portal</span></a>
       <section class="card student-login-card" aria-labelledby="login-title">
         <div class="card-body">
-          <span class="student-login-symbol" aria-hidden="true"><i class="bx bx-book-reader"></i></span>
-          <h1 id="login-title">Your subjects. One place.</h1>
+          <h1 id="login-title"><span class="student-login-title-lead">Your subjects.</span> <span class="student-login-title-accent">One place.</span></h1>
           <p class="student-login-intro">Sign in to see your subjects, instructors, and imported class details.</p>
           <?php if ($message !== ''): ?><div class="alert alert-warning student-login-message" role="alert"><strong>Let’s check your sign-in</strong><p class="mb-0 mt-1"><?= $h($message) ?></p><?php if ($issueSaved): ?><p class="small mb-0 mt-2">Your sign-in email was saved for Administrator review.</p><?php endif; ?></div><?php endif; ?>
           <?php if (!$ready): ?><div class="alert alert-info" role="status">Google sign-in is currently unavailable. Please contact your college office.</div><?php endif; ?>
