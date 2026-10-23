@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'load_term_room_options.php');
 
 header('Content-Type: application/json');
 

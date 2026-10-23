@@ -1,6 +1,11 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) session_start();
+if (empty($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin','scheduler'], true)) {
+    http_response_code(403); exit('Unauthorized access.');
+}
 require_once "db.php";
+require_once __DIR__.'/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_faculty.php');
 require_once __DIR__ . '/faculty_directory_helper.php';
 
 function query_faculty_designation_style(int $designationId, string $designationName): string
@@ -188,7 +193,7 @@ if (isset($_POST['load_faculty'])) {
     $designationJoin = '';
     $termDesignation = $schema['has_designation_id'] && $schema['designation_table_exists'] && $schema['designation_table_has_name'];
     if ($termDesignation) {
-        $term = synk_fetch_current_academic_term($conn);
+        $term = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn,$_POST) : synk_fetch_current_academic_term($conn));
         $designationJoin = synk_faculty_designation_join_sql($conn, (int)$term['ay_id'], (int)$term['semester']);
     }
 
@@ -519,7 +524,7 @@ if (isset($_POST['update_faculty'])) {
         $updateTypes .= "s";
     }
 
-    if ($hasDesignationInput) {
+    if ($hasDesignationInput && !(($_SESSION['role'] ?? '')==='scheduler' && synk_table_exists($conn,'tbl_faculty_term_designations'))) {
         if ($schema['has_designation_id']) {
             if (is_array($designationRecord)) {
                 $updateParts[] = "designation_id = ?";
@@ -571,6 +576,10 @@ if (isset($_POST['update_faculty'])) {
     $conn->begin_transaction();
     try {
         $settings = $conn->query('SELECT current_ay_id,current_semester FROM tbl_academic_settings LIMIT 1 FOR UPDATE')->fetch_assoc();
+        if (($_SESSION['role'] ?? '') === 'scheduler') {
+            $selectedTerm=synk_scheduler_require_writable_term($conn,synk_scheduler_request_term($conn,$_POST),true);
+            $settings=['current_ay_id'=>$selectedTerm['ay_id'],'current_semester'=>$selectedTerm['semester']];
+        }
         if (!$stmt->execute()) throw new RuntimeException('Unable to update the faculty record.');
         if ($hasDesignationInput && synk_table_exists($conn, 'tbl_faculty_term_designations') && (int)$settings['current_ay_id'] > 0) {
             $appointment = $designationRecord ?? [];

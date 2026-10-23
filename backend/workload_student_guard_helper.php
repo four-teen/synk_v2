@@ -53,6 +53,7 @@ function synk_workload_students_in_class(mysqli $conn,array $class,bool $lock=fa
 
 function synk_workload_remove_guarded(mysqli $conn,int $collegeId,string $type,array $ids,array $term=[]): array
 {
+    if (!$ids && !$term) throw new DomainException('Select workload rows or a specific academic term before removing workload.');
     $need=$type==='faculty_need'; $table=$need?'tbl_faculty_need_workload_sched':'tbl_faculty_workload_sched'; $column=$need?'need_workload_id':'workload_id';
     if (!synk_table_exists($conn,$table)) throw new DomainException('Workload storage is not available. Refresh the page.');
     synk_schedule_acquire_write_lock($conn);
@@ -72,9 +73,9 @@ function synk_workload_remove_guarded(mysqli $conn,int $collegeId,string $type,a
             LEFT JOIN tbl_sections sec ON sec.section_id=o.section_id WHERE p.college_id=?";
         $params=[$collegeId]; $types='i';
         if ($term) { $sql.=' AND fw.ay_id=? AND fw.semester=?'; $params[]=$term['ay_id']; $params[]=$term['semester']; $types.='ii'; }
-        else { $sql.=" AND fw.{$column} IN (".implode(',',array_fill(0,count($ids),'?')).')'; $params=array_merge($params,$ids); $types.=str_repeat('i',count($ids)); }
+        if ($ids) { $sql.=" AND fw.{$column} IN (".implode(',',array_fill(0,count($ids),'?')).')'; $params=array_merge($params,$ids); $types.=str_repeat('i',count($ids)); }
         $rows=synk_workload_guard_query($conn,$sql." ORDER BY fw.{$column} FOR UPDATE",$types,$params);
-        if (!$term && count($rows)!==count($ids)) throw new DomainException('Some workload rows changed or are outside your college. Refresh the workload list.');
+        if ($ids && count($rows)!==count($ids)) throw new DomainException('Some workload rows changed or are outside your college or selected term. Refresh the workload list.');
         $classes=[]; $blocked=[];
         foreach ($rows as $row) {
             if (empty($row['subject_id'])) throw new DomainException('This class offering has incomplete subject details. Verify it before removing workload.');
@@ -98,7 +99,7 @@ function synk_workload_remove_guarded(mysqli $conn,int $collegeId,string $type,a
         }
         // Never run schema DDL inside the transaction.
         if ($deleted && synk_table_exists($conn,synk_workload_audit_table_name())) {
-            if ($term) {
+            if ($term && !$ids) {
                 if (!synk_workload_audit_record_bulk_delete($conn,$collegeId,$term['ay_id'],$term['semester'],$auditRows,$deleted)) throw new RuntimeException('Unable to record workload removal.');
             } else foreach ($auditRows as $audit) {
                 if (!synk_workload_audit_record_workload_event($conn,'workload_delete',$audit,['requested_workload_ids'=>$ids,'deleted_count'=>$deleted])) throw new RuntimeException('Unable to record workload removal.');

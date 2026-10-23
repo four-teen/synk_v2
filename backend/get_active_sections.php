@@ -12,7 +12,9 @@
 
 session_start();
 include 'db.php';
-require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'get_active_sections.php');
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 header('Content-Type: application/json');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
@@ -25,7 +27,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
     exit;
 }
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
 $ayId = (int)($currentTerm['ay_id'] ?? 0);
 $sem = (int)($currentTerm['semester'] ?? 0);
 

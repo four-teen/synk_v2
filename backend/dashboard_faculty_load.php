@@ -1,7 +1,9 @@
 <?php
 session_start();
 include 'db.php';
-require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'dashboard_faculty_load.php');
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 
 header('Content-Type: application/json');
@@ -12,7 +14,7 @@ if (!isset($_SESSION['college_id'])) {
 }
 
 $college_id = (int)$_SESSION['college_id'];
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
 $currentAyId = (int)$currentTerm['ay_id'];
 $currentSemester = (int)$currentTerm['semester'];
 

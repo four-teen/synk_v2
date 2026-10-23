@@ -2,6 +2,8 @@
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_scheduler_term_lists.php');
 require_once __DIR__ . '/scheduler_term_list_helper.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

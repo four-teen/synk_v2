@@ -5,12 +5,13 @@
     const el = id => document.getElementById(id);
     const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
     const endpoint = '../backend/query_subject_assignments.php';
+    const workingTerm = JSON.parse(document.getElementById('schedulerWorkingTermConfig').textContent);
     const state = {ready:false, options:null, page:1, pages:1, listVersion:0, detailVersion:0, listAbort:null, detailAbort:null, timer:null};
     const modal = new bootstrap.Modal(el('saDetailModal'));
     const notice = message => { el('saNotice').textContent = message || ''; el('saNotice').classList.toggle('d-none', !message); };
     const filters = () => ({term:el('saTerm').value, program_id:el('saProgram').value, assignment:el('saAssignment').value, search:el('saSearch').value.trim(), page:state.page});
     const request = async (params, signal) => {
-        const response = await fetch(endpoint + '?' + new URLSearchParams({college_id:root.dataset.collegeId, ...params}), {credentials:'same-origin', cache:'no-store', signal});
+        const response = await fetch(endpoint + '?' + new URLSearchParams({college_id:root.dataset.collegeId, scheduler_term_key:workingTerm.term.key, scheduler_college_id:workingTerm.collegeId, ...params}), {credentials:'same-origin', cache:'no-store', signal});
         let data;
         try { data = await response.json(); } catch (_) { throw new Error('Unable to load subject assignments. Please try again.'); }
         if (!response.ok || data.status !== 'ok') throw new Error(data.message || 'Unable to load subject assignments.');

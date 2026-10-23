@@ -3,6 +3,7 @@ session_start();
 ob_start();
 
 require_once '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 
@@ -26,7 +27,7 @@ if ($myCollege <= 0) {
 }
 
 $collegeLabel = trim((string)($_SESSION['college_name'] ?? '')) ?: 'College not assigned';
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $currentTermText = (string)($currentTerm['term_text'] ?? 'Current academic term');
 
 if ($myCollege > 0) {
@@ -462,7 +463,7 @@ if ($myCollege > 0) {
                 <i class="bx bx-group me-2"></i> Faculty Assignment per College
               </h4>
               <p class="mb-0 text-muted">
-                Review assigned faculty, update designation, and monitor current-term workload coverage for this college.
+                Review assigned faculty, update designation, and monitor selected-term workload coverage for this college.
               </p>
               <div class="faculty-page-note">
                 <i class="bx bx-shield-quarter"></i>
@@ -497,7 +498,7 @@ if ($myCollege > 0) {
                   <small class="text-muted">Search and review faculty assignments for this college.</small>
                 </div>
                 <div class="faculty-term-chip">
-                  <span class="faculty-term-label">Current Term</span>
+                  <span class="faculty-term-label">Working Term</span>
                   <span id="facultyTermText"><?= htmlspecialchars($currentTermText, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
               </div>
@@ -952,7 +953,7 @@ $(document).ready(function () {
         Swal.fire({
           icon: "success",
           title: designationId ? "Designation Updated" : "Designation Removed",
-          text: "Saved for the current semester. Previous semesters are unchanged.",
+          text: "Saved for the selected semester. Previous semesters are unchanged.",
           timer: 1300,
           timerProgressBar: true,
           showConfirmButton: false

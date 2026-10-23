@@ -497,6 +497,7 @@ while ($row = mysqli_fetch_assoc($collegeResult)) {
                       </div>
                     </div>
                   </div>
+                  <?php include __DIR__.'/scheduler-planning-settings.php'; ?>
                 </div>
 
                 <div class="tab-pane fade" id="global-policy-pane" role="tabpanel" aria-labelledby="global-policy-tab">

@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_subject_assignments.php');
 require_once __DIR__ . '/subject_assignments_helper.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -25,7 +27,7 @@ try {
             $programId = synk_subject_assignments_int($_GET, 'program_id');
             $group = $groups[$subjectId . ':' . $programId] ?? null;
             if (!$subjectId || !$programId || !$group) throw new DomainException('This subject is not offered in the selected program and term.', 404);
-            $current = synk_fetch_current_academic_term($conn);
+            $current = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_GET) : synk_fetch_current_academic_term($conn));
             $isCurrent = $current['ay_id'] === $filters['term']['ay_id'] && $current['semester'] === $filters['term']['semester'];
             $faculty = array_values($group['faculty']);
             usort($faculty, static function(array $a, array $b): int { return strnatcasecmp($a['name'], $b['name']); });

@@ -3,6 +3,7 @@ session_start();
 if (empty($_SESSION['csrf_token'])) { $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); }
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/schema_helper.php';
 require_once '../backend/faculty_need_helper.php';
@@ -37,7 +38,7 @@ function workload_report_signatory_slot(array $settings, string $slotCode, strin
 $college_id   = $_SESSION['college_id'];
 $college_name = $_SESSION['college_name'] ?? '';
 $campus_name  = '';
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $defaultAyId = (int)$currentTerm['ay_id'];
 $defaultAyLabel = (string)$currentTerm['ay_label'];
 $defaultSemesterUi = '';
@@ -2714,7 +2715,7 @@ $consolidatedReportSignatories = [
         <div class="faculty-browser-summary" id="facultyBrowserSummary"></div>
         <div class="faculty-browser-classification-summary" id="facultyBrowserClassificationSummary"></div>
         <div class="faculty-browser-note">
-            Shows assigned workload from all colleges and campuses for the current A.Y. and semester. Click a faculty card to open that faculty in the workload panel.
+            Shows assigned workload from all colleges and campuses for the selected A.Y. and semester. Click a faculty card to open that faculty in the workload panel.
         </div>
         <div id="facultyBrowserList">
             <div class="faculty-browser-empty">Loading faculty load overview...</div>
@@ -3670,7 +3671,8 @@ $(document).ready(function () {
                 );
             }).fail(function (xhr) {
                 Swal.close();
-                Swal.fire({title: xhr.status === 409 ? "Student list must be cleared" : "Error", text: xhr.responseJSON?.message || "Failed to remove college workload.", icon: xhr.status === 409 ? "warning" : "error"});
+                const studentBlock = xhr.responseJSON?.code === "active_students";
+                Swal.fire({title: studentBlock ? "Student list must be cleared" : "Unable to remove college workload", text: xhr.responseJSON?.message || "Failed to remove college workload.", icon: studentBlock ? "warning" : "error"});
             }).always(function () {
                 button.prop("disabled", false).html(originalHtml);
             });
@@ -5747,7 +5749,8 @@ $(document).ready(function () {
                     loadFacultyOverview(true);
                 }
             ).fail(function (xhr) {
-                Swal.fire({title: xhr.status === 409 ? "Student list must be cleared" : "Error", text: xhr.responseJSON?.message || "Failed to remove workload.", icon: xhr.status === 409 ? "warning" : "error"});
+                const studentBlock = xhr.responseJSON?.code === "active_students";
+                Swal.fire({title: studentBlock ? "Student list must be cleared" : "Unable to remove workload", text: xhr.responseJSON?.message || "Failed to remove workload.", icon: studentBlock ? "warning" : "error"});
             }).always(function () {
                 setButtonBusy(button, false);
                 endSchedulerActivity(busyToken);

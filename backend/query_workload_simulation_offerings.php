@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_workload_simulation_offerings.php');
 require_once __DIR__ . '/workload_simulation_helper.php';
 
 header('Content-Type: application/json');

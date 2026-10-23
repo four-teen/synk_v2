@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 require_once '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/subject_assignments_helper.php';
 try {
     $subjectScope = synk_subject_assignments_scope($conn);

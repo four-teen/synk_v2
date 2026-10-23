@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 require_once '../backend/scheduler_term_list_helper.php';
@@ -29,7 +30,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrf_token = $_SESSION['csrf_token'];
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $default_ay_id = (int)$currentTerm['ay_id'];
 $default_semester = (int)$currentTerm['semester'];
 

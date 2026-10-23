@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_apply_workload.php');
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/academic_schedule_policy_helper.php';
@@ -151,6 +153,19 @@ if ($isFacultyNeed && !is_array(synk_faculty_need_find($conn, $college_id, $ay_i
     respond('error', 'The selected faculty need is no longer available for this term.');
 }
 
+if (!$isFacultyNeed) {
+    $facultyScopeSql = "SELECT 1 FROM tbl_college_faculty cf JOIN tbl_faculty f ON f.faculty_id=cf.faculty_id
+        WHERE cf.college_id=? AND cf.faculty_id=? AND cf.status='active' AND f.status='active'";
+    if (synk_table_has_column($conn,'tbl_college_faculty','ay_id')) $facultyScopeSql .= ' AND (cf.ay_id=? OR (cf.ay_id IS NULL AND ' . synk_scheduler_legacy_term_flag($conn) . '=1))';
+    if (synk_table_has_column($conn,'tbl_college_faculty','semester')) $facultyScopeSql .= ' AND (cf.semester IS NULL OR cf.semester=?)';
+    $facultyScopeParams = [$college_id,$faculty_id];
+    if (synk_table_has_column($conn,'tbl_college_faculty','ay_id')) $facultyScopeParams[]=$ay_id;
+    if (synk_table_has_column($conn,'tbl_college_faculty','semester')) $facultyScopeParams[]=$semester;
+    if (!synk_scheduler_term_query($conn,$facultyScopeSql.' LIMIT 1',str_repeat('i',count($facultyScopeParams)),$facultyScopeParams)) {
+        respond('error','The selected faculty is not active in your college for this academic term.');
+    }
+}
+
 $scheduleMap = [];
 foreach ($schedules as $rawId) {
     $sid = (int)$rawId;
@@ -162,6 +177,13 @@ $schedule_ids = array_keys($scheduleMap);
 if (empty($schedule_ids)) {
     respond('error', 'No valid schedules selected.');
 }
+
+$scopeSlots=implode(',',array_fill(0,count($schedule_ids),'?'));
+$scopeParams=array_merge($schedule_ids,[$college_id,$ay_id,$semester]);
+$scopedSchedules=synk_scheduler_term_query($conn,"SELECT cs.schedule_id FROM tbl_class_schedule cs
+    JOIN tbl_prospectus_offering o ON o.offering_id=cs.offering_id JOIN tbl_program p ON p.program_id=o.program_id
+    WHERE cs.schedule_id IN ({$scopeSlots}) AND p.college_id=? AND o.ay_id=? AND o.semester=?",str_repeat('i',count($scopeParams)),$scopeParams);
+if (count($scopedSchedules)!==count($schedule_ids)) respond('error','Some selected classes belong to another college or academic term. Reload the workload page.');
 
 $classScheduleHasGroupId = synk_table_has_column($conn, 'tbl_class_schedule', 'schedule_group_id');
 $classScheduleHasType = synk_table_has_column($conn, 'tbl_class_schedule', 'schedule_type');

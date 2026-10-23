@@ -3,6 +3,8 @@ require_once __DIR__ . '/schedule_tba_helper.php';
 session_start();
 
 include 'db.php';
+require_once __DIR__.'/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_admin_faculty_workload.php');
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/offering_enrollee_helper.php';
@@ -39,7 +41,7 @@ $facultyNeedId = (int)($_POST['faculty_need_id'] ?? 0);
 $scopeCollegeId = (int)($_POST['college_id'] ?? 0);
 $scopeCampusId = (int)($_POST['campus_id'] ?? 0);
 $includeExternal = (int)($_POST['include_external'] ?? 0) === 1;
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn,$_POST) : synk_fetch_current_academic_term($conn));
 $ayId = (int)($currentTerm['ay_id'] ?? 0);
 $semester = (int)($currentTerm['semester'] ?? 0);
 $targetId = $isFacultyNeed ? $facultyNeedId : $facultyId;

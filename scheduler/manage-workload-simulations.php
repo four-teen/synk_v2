@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'scheduler') {
@@ -11,7 +12,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'scheduler') {
 
 $collegeId = (int)($_SESSION['college_id'] ?? 0);
 $collegeName = $_SESSION['college_name'] ?? '';
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $defaultAyId = (int)($currentTerm['ay_id'] ?? 0);
 $defaultAyLabel = (string)($currentTerm['ay_label'] ?? '');
 $defaultSemesterUi = '';
@@ -48,11 +49,16 @@ $facultySql = "
       AND f.status = 'active'
 ";
 
+$facultyTypes = 'i'; $facultyParams = [$collegeId];
+if (synk_table_has_column($conn,'tbl_college_faculty','ay_id') && synk_table_has_column($conn,'tbl_college_faculty','semester')) {
+    $facultySql .= ' AND ((cf.ay_id=? AND cf.semester=?) OR (cf.ay_id IS NULL AND cf.semester IS NULL AND '.(!empty($currentTerm['is_current'])?1:0).'=1))';
+    $facultyTypes .= 'ii'; $facultyParams[]=$defaultAyId; $facultyParams[]=$defaultSemesterNum;
+}
 $facultySql .= " ORDER BY f.last_name, f.first_name";
 
 $facultyStmt = $conn->prepare($facultySql);
 if ($facultyStmt instanceof mysqli_stmt) {
-    $facultyStmt->bind_param("i", $collegeId);
+    synk_bind_dynamic_params($facultyStmt,$facultyTypes,$facultyParams);
     $facultyStmt->execute();
     $facultyResult = $facultyStmt->get_result();
 

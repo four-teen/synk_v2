@@ -34,9 +34,16 @@ class SchedulerTbaQAConnection extends mysqli
 }
 $conn->close();$conn=new SchedulerTbaQAConnection($servername,$username,$password,$dbase);$conn->set_charset('utf8mb4');$conn->startFixtures();
 $scenario=(string)($_GET['scenario'] ?? ($argv[1] ?? 'create'));
+$planningCase = strpos($scenario,'planning_')===0 ? substr($scenario,9) : '';
+$planningYear = strpos($planningCase,'nextyear_')===0;
+$planningInactiveYear = strpos($planningCase,'inactiveyear_')===0;
+$planningPastYear = $planningInactiveYear || strpos($planningCase,'pastyear_')===0;
+if ($planningYear || $planningPastYear) $planningCase=substr($planningCase,$planningInactiveYear?13:9);
+$planningClosed = strpos($planningCase,'closed_')===0;
+if ($planningCase!=='') $scenario=$planningClosed ? substr($planningCase,7) : $planningCase;
 $incomingBlocks=$_POST['blocks'] ?? [];
 $tag='TBAQA' . bin2hex(random_bytes(5));
-$term=synk_fetch_current_academic_term($conn);
+$term=synk_fetch_current_academic_term($conn); $sourceTerm=$term;
 $joins=synk_section_curriculum_live_offering_join_sql('po','sec','sc','ps','pys','ph');
 $template=$conn->query("SELECT po.*, p.college_id, c.campus_id, cs.room_id AS template_room, pys.pys_id
     FROM tbl_class_schedule cs JOIN tbl_prospectus_offering po ON po.offering_id=cs.offering_id {$joins}
@@ -46,6 +53,24 @@ $template=$conn->query("SELECT po.*, p.college_id, c.campus_id, cs.room_id AS te
     ORDER BY po.offering_id LIMIT 1")->fetch_assoc();
 if (!$template) { throw new RuntimeException('A current lecture/lab offering with room access is required.'); }
 $college=(int)$template['college_id'];$user=(int)$conn->query("SELECT user_id FROM tbl_useraccount WHERE status='active' ORDER BY user_id LIMIT 1")->fetch_assoc()['user_id'];
+require_once $root.'/backend/auth_useraccount.php';
+$conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id) VALUES ('TBA QA Scheduler','".$tag."@sksu.edu.ph','unusable-test-password','scheduler','active',{$college})");
+$user=(int)$conn->insert_id;
+synk_persist_useraccount_roles($conn,$user,['scheduler'],'scheduler');
+if ($planningCase!=='') {
+    require_once $root.'/backend/scheduler_term_helper.php';
+    if (!$planningYear && !$planningPastYear && $term['semester']>=3) throw new RuntimeException('Advance fixtures require a current first or second semester.');
+    $futureSemester=$planningYear || $planningPastYear ? 1 : $term['semester']+1; $open=$planningClosed || $planningPastYear ? 0 : 1; $futureAy=$term['ay_id'];
+    if ($planningYear || $planningPastYear) {
+        $yearStart=(int)substr($term['ay_label'],0,4)+($planningPastYear?-1:1); $futureLabel=$yearStart.'-'.($yearStart+1);
+        $years=synk_scheduler_term_query($conn,'SELECT ay_id FROM tbl_academic_years WHERE ay=?','s',[$futureLabel]);
+        if ($years) { $futureAy=(int)$years[0]['ay_id']; $conn->query("UPDATE tbl_academic_years SET status='active' WHERE ay_id={$futureAy}"); }
+        else { $stmt=$conn->prepare("INSERT INTO tbl_academic_years (ay,status) VALUES (?,'active')"); $stmt->bind_param('s',$futureLabel);$stmt->execute();$futureAy=(int)$conn->insert_id;$stmt->close(); }
+        if ($planningInactiveYear) $conn->query("UPDATE tbl_academic_years SET status='inactive' WHERE ay_id={$futureAy}");
+    }
+    $conn->query("INSERT INTO tbl_scheduler_planning_terms (ay_id,semester,is_open) VALUES ({$futureAy},{$futureSemester},{$open}) ON DUPLICATE KEY UPDATE is_open=VALUES(is_open)");
+    $term=synk_scheduler_term_from_ids($conn,$futureAy,$futureSemester);
+}
 $clone=static function(string $table,array $row,array $values) use($conn):int {
     $columns=$conn->query('SHOW COLUMNS FROM `' . $table . '`')->fetch_all(MYSQLI_ASSOC);$fields=[];$params=[];
     foreach($columns as $column) {
@@ -62,16 +87,16 @@ $programme=$clone('tbl_program',$programmeRow,['program_code'=>$tag,'program_nam
 $header=$conn->query('SELECT * FROM tbl_prospectus_header WHERE prospectus_id=' . (int)$template['prospectus_id'])->fetch_assoc();
 $prospectus=$clone('tbl_prospectus_header',$header,['program_id'=>$programme]);
 $yearRow=$conn->query('SELECT * FROM tbl_prospectus_year_sem WHERE pys_id=' . (int)$template['pys_id'])->fetch_assoc();
-$pys=$clone('tbl_prospectus_year_sem',$yearRow,['prospectus_id'=>$prospectus]);
+$pys=$clone('tbl_prospectus_year_sem',$yearRow,['prospectus_id'=>$prospectus,'semester'=>$term['semester']]);
 $subjectRow=$conn->query('SELECT * FROM tbl_prospectus_subjects WHERE ps_id=' . (int)$template['ps_id'])->fetch_assoc();
 $ps=$clone('tbl_prospectus_subjects',$subjectRow,['pys_id'=>$pys]);
 $sectionRow=$conn->query('SELECT * FROM tbl_sections WHERE section_id=' . (int)$template['section_id'])->fetch_assoc();
-$makeOffering=static function(string $suffix,int $section=0) use($conn,$clone,$sectionRow,$template,$programme,$prospectus,$ps,$tag,$user):array {
+$makeOffering=static function(string $suffix,int $section=0) use($conn,$clone,$sectionRow,$template,$programme,$prospectus,$ps,$tag,$user,$term):array {
     if (!$section) {
-        $section=$clone('tbl_sections',$sectionRow,['program_id'=>$programme,'section_name'=>substr($tag,-6).$suffix,'full_section'=>$tag.$suffix]);
+        $section=$clone('tbl_sections',$sectionRow,['program_id'=>$programme,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'section_name'=>substr($tag,-6).$suffix,'full_section'=>$tag.$suffix]);
         $conn->query("INSERT INTO tbl_section_curriculum (section_id,prospectus_id,assigned_by) VALUES ({$section},{$prospectus},{$user})");
     }
-    $offering=$clone('tbl_prospectus_offering',$template,['program_id'=>$programme,'prospectus_id'=>$prospectus,'ps_id'=>$ps,'section_id'=>$section,'status'=>'pending']);
+    $offering=$clone('tbl_prospectus_offering',$template,['program_id'=>$programme,'prospectus_id'=>$prospectus,'ps_id'=>$ps,'section_id'=>$section,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'status'=>'pending']);
     return ['offering_id'=>$offering,'section_id'=>$section];
 };
 $target=$makeOffering('A');$other=$makeOffering('B');
@@ -81,10 +106,11 @@ $conn->query("INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semes
 $roomRow=$conn->query('SELECT * FROM tbl_rooms WHERE room_id=' . (int)$template['template_room'])->fetch_assoc();
 $room=$clone('tbl_rooms',$roomRow,['room_code'=>'Q'.substr($tag,-6).'1','room_name'=>'TBA QA Room 1','room_type'=>'lec_lab']);
 $room2=$clone('tbl_rooms',$roomRow,['room_code'=>'Q'.substr($tag,-6).'2','room_name'=>'TBA QA Room 2','room_type'=>'lec_lab']);
-$access=$conn->query('SELECT * FROM tbl_room_college_access WHERE room_id=' . (int)$template['template_room'] . ' AND college_id=' . $college . ' AND ay_id=' . $term['ay_id'] . ' AND semester=' . $term['semester'] . ' LIMIT 1')->fetch_assoc();
-foreach([$room,$room2] as $roomId)$clone('tbl_room_college_access',$access,['room_id'=>$roomId]);
+$access=$conn->query('SELECT * FROM tbl_room_college_access WHERE room_id=' . (int)$template['template_room'] . ' AND college_id=' . $college . ' AND ay_id=' . $sourceTerm['ay_id'] . ' AND semester=' . $sourceTerm['semester'] . ' LIMIT 1')->fetch_assoc();
+foreach([$room,$room2] as $roomId)$clone('tbl_room_college_access',$access,['room_id'=>$roomId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
 if(session_status()!==PHP_SESSION_ACTIVE)session_start();
 $_SESSION=['user_id'=>$user,'role'=>'scheduler','college_id'=>$college,'campus_id'=>(int)$template['campus_id'],'csrf_token'=>'tba-qa'];
+if ($planningCase!=='') $_SESSION['scheduler_working_term']=['user_id'=>$user,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']];
 $makeSchedule=static function(array $offering,string $type,string $status='tba',bool $assigned=false,int $chosenRoom=0,string $start='09:00:00',string $end='10:00:00') use($conn,$faculty,$term,$user):int {
     $days=$status==='tba' ? '[]' : '["M"]';$start=$status==='tba' ? null : $start;$end=$status==='tba' ? null : $end;$chosenRoom=$status==='scheduled' ? $chosenRoom : null;
     $stmt=$conn->prepare('INSERT INTO tbl_class_schedule (offering_id,schedule_type,schedule_status,room_id,days_json,time_start,time_end,created_by) VALUES (?,?,?,?,?,?,?,?)');
@@ -155,14 +181,29 @@ case 'apply':case 'apply_room_conflict':case 'apply_duplicate':case 'apply_bad_c
     if($scenario==='apply_bad_csrf')$_POST['csrf_token']='bad';
     if($scenario==='apply_foreign_faculty')$conn->query("UPDATE tbl_college_faculty SET status='inactive' WHERE faculty_id={$faculty}");
     break;
+case 'normal_apply':case 'normal_apply_bad_csrf':case 'normal_apply_foreign':
+    $lec=$makeSchedule($target,'LEC','scheduled',false,$room,'10:00:00','12:00:00');$lab=$makeSchedule($target,'LAB','scheduled',false,$room2,'13:00:00','16:00:00');
+    $handler='backend/query_apply_workload.php';$_POST=['csrf_token'=>$scenario==='normal_apply_bad_csrf'?'bad':'tba-qa','faculty_id'=>$scenario==='normal_apply_foreign'?2147483647:$faculty,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'schedule_ids'=>[$lec,$lab]];break;
+case 'remove_selected':case 'remove_other_term':case 'remove_students':
+    $lec=$makeSchedule($target,'LEC','tba',true);$lab=$makeSchedule($target,'LAB','tba',true);
+    $workloadId=(int)$conn->query('SELECT workload_id FROM tbl_faculty_workload_sched WHERE schedule_id='.$lec)->fetch_assoc()['workload_id'];
+    if ($scenario==='remove_students') {
+        $enrollment=$conn->query('SELECT * FROM tbl_student_management_enrolled_subjects WHERE is_active=1 LIMIT 1')->fetch_assoc();
+        if (!$enrollment) throw new RuntimeException('Student workload protection fixtures require an active enrollment template.');
+        $clone('tbl_student_management_enrolled_subjects',$enrollment,['program_id'=>$programme,'college_id'=>$college,'campus_id'=>(int)$template['campus_id'],'section_id'=>$target['section_id'],'offering_id'=>$target['offering_id'],'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'subject_id'=>(int)$subjectRow['sub_id'],'is_active'=>1]);
+    }
+    $handler='backend/query_remove_workload.php';$_POST=['csrf_token'=>'tba-qa','assignee_type'=>'faculty','workload_id'=>$workloadId];
+    if ($scenario==='remove_other_term') $_POST['scheduler_term_key']=$sourceTerm['ay_id'].':'.$sourceTerm['semester'];
+    break;
 case 'normal_apply_conflict':
     $makeSchedule($other,'LEC','scheduled',true,$room2);$pending=$makeSchedule($target,'LEC','scheduled',false,$room);
     $handler='backend/query_apply_workload.php';$_POST=['faculty_id'=>$faculty,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'schedule_ids'=>[$pending],'csrf_token'=>'tba-qa'];break;
 case 'room_tba_shared_time':$makeSchedule($other,'LEC','room_tba');$_POST['blocks'][0]=$block('LEC','room_tba');break;
-case 'merge_pending':case 'merge_normal':
+case 'merge_pending':case 'merge_normal':case 'merge_other_term':
     $makeSchedule($other,'LEC',$scenario==='merge_pending' ? 'tba' : 'scheduled',false,$room,'10:00:00','12:00:00');
     $makeSchedule($other,'LAB',$scenario==='merge_pending' ? 'tba' : 'scheduled',false,$room2,'13:00:00','16:00:00');
-    $_POST=['save_schedule_merge'=>1,'csrf_token'=>'tba-qa','target_offering_id'=>$target['offering_id'],'full_owner_offering_id'=>$other['offering_id']];break;
+    $_POST=['save_schedule_merge'=>1,'csrf_token'=>'tba-qa','target_offering_id'=>$target['offering_id'],'full_owner_offering_id'=>$other['offering_id']];
+    if ($scenario==='merge_other_term') $conn->query('UPDATE tbl_prospectus_offering SET ay_id='.$sourceTerm['ay_id'].',semester='.$sourceTerm['semester'].' WHERE offering_id='.$target['offering_id']);break;
 case 'clear_need':case 'clear_all_need':
     $need=$clone('tbl_faculty_need',[],['college_id'=>$college,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'need_label'=>$tag,'status'=>'active','created_by'=>$user]);
     $pending=$makeSchedule($target,'LEC');$conn->query("INSERT INTO tbl_faculty_need_workload_sched (faculty_need_id,schedule_id,ay_id,semester) VALUES ({$need},{$pending},{$term['ay_id']},{$term['semester']})");
@@ -180,16 +221,47 @@ case 'restore_set':
             'schedule_type'=>$type,'block_order'=>$type==='LEC' ? 1 : 2,'faculty_id'=>$faculty,'faculty_name_snapshot'=>'Peña José','subject_code_snapshot'=>'QA','section_name_snapshot'=>$tag]);
     }
     $_POST=['load_schedule_set_into_live'=>1,'csrf_token'=>'tba-qa','schedule_set_id'=>$set,'restore_workload_assignments'=>1];break;
+case 'sections_save':
+    $handler='backend/query_sections.php';
+    $_POST=['save_sections'=>1,'csrf_token'=>'tba-qa','program_id'=>$programme,'program_code'=>$tag,'prospectus_id'=>$prospectus,
+        'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'year_level'=>(int)$template['year_level'],'count'=>1,'start_index'=>0];break;
+case 'offerings_generate':
+    $handler='backend/query_generate_offerings.php';
+    $conn->query('DELETE FROM tbl_prospectus_offering WHERE program_id='.$programme);
+    $_POST=['generate_offerings'=>1,'csrf_token'=>'tba-qa','program_id'=>$programme,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']];break;
+case 'simulation_add':case 'simulation_foreign':
+    $handler='backend/query_add_workload_simulation.php';
+    $_POST=['csrf_token'=>'tba-qa','faculty_id'=>$faculty,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'sim_key'=>'virtual:'.$target['offering_id'].':LEC'];
+    if ($scenario==='simulation_foreign') $conn->query('DELETE FROM tbl_college_faculty WHERE faculty_id='.$faculty);break;
+case 'tab_workload':
+    $makeSchedule($target,'LEC','tba',true);
+    $handler='backend/query_load_faculty_workload.php';
+    $_POST=['faculty_id'=>$faculty,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']];
+    $_SESSION['scheduler_working_term']=['user_id'=>$user,'ay_id'=>$sourceTerm['ay_id'],'semester'=>$sourceTerm['semester']];break;
+case 'campus_report':case 'campus_report_college':case 'campus_report_other_campus':
+    $makeSchedule($target,'LEC','tba',true);
+    $handler='backend/query_admin_faculty_workload.php';
+    $_POST=['faculty_id'=>$faculty,'college_id'=>0,'campus_id'=>(int)$template['campus_id']];
+    if ($scenario==='campus_report_college') {
+        $collegeRow=$conn->query('SELECT * FROM tbl_college WHERE college_id='.$college)->fetch_assoc();
+        $_POST['college_id']=$clone('tbl_college',$collegeRow,['college_code'=>'QAC','college_name'=>'Other campus report college']);
+    }
+    if ($scenario==='campus_report_other_campus') $_POST['campus_id']=4294967295;
+    $_SESSION['scheduler_working_term']=['user_id'=>$user,'ay_id'=>$sourceTerm['ay_id'],'semester'=>$sourceTerm['semester']];break;
 case 'page':$handler='scheduler/manage-class-schedule.php';$_POST=[];break;
 default:throw new RuntimeException('Unknown TBA scenario.');
 }
-$take=static function() use($conn,$programme,$faculty,$tag):array {
+if ($planningCase!=='') $_POST+=['scheduler_term_key'=>$term['key'],'scheduler_college_id'=>$college];
+$take=static function() use($conn,$programme,$faculty,$tag,$term):array {
     $rows=$conn->query('SELECT cs.*,ps.lec_units,ps.lab_units,ps.total_units FROM tbl_class_schedule cs JOIN tbl_prospectus_offering po ON po.offering_id=cs.offering_id JOIN tbl_prospectus_subjects ps ON ps.ps_id=po.ps_id WHERE po.program_id=' . $programme . ' ORDER BY cs.schedule_id')->fetch_all(MYSQLI_ASSOC);
     $load=$conn->query('SELECT * FROM tbl_faculty_workload_sched WHERE faculty_id=' . $faculty . ' ORDER BY workload_id')->fetch_all(MYSQLI_ASSOC);
     $needLoad=$conn->query('SELECT nw.* FROM tbl_faculty_need_workload_sched nw JOIN tbl_class_schedule cs ON cs.schedule_id=nw.schedule_id JOIN tbl_prospectus_offering po ON po.offering_id=cs.offering_id WHERE po.program_id=' . $programme . ' ORDER BY nw.need_workload_id')->fetch_all(MYSQLI_ASSOC);
     $events=$conn->query('SELECT ev.* FROM tbl_class_schedule_tba_event ev JOIN tbl_prospectus_offering po ON po.offering_id=ev.offering_id WHERE po.program_id=' . $programme . ' ORDER BY ev.tba_event_id')->fetch_all(MYSQLI_ASSOC);
     $sets=$conn->query("SELECT r.* FROM tbl_program_schedule_set_row r JOIN tbl_program_schedule_set s ON s.schedule_set_id=r.schedule_set_id WHERE s.set_name='" . $tag . "' ORDER BY r.schedule_set_row_id")->fetch_all(MYSQLI_ASSOC);
-    return ['classes'=>$rows,'workload'=>$load,'need_workload'=>$needLoad,'events'=>$events,'saved_rows'=>$sets];
+    $sections=$conn->query('SELECT * FROM tbl_sections WHERE program_id='.$programme.' ORDER BY section_id')->fetch_all(MYSQLI_ASSOC);
+    $offerings=$conn->query('SELECT * FROM tbl_prospectus_offering WHERE program_id='.$programme.' ORDER BY offering_id')->fetch_all(MYSQLI_ASSOC);
+    $simulation=$conn->query('SELECT * FROM tbl_faculty_workload_simulation WHERE faculty_id='.$faculty.' ORDER BY simulation_id')->fetch_all(MYSQLI_ASSOC);
+    return ['official_term'=>synk_fetch_current_academic_term($conn),'working_term'=>$term,'classes'=>$rows,'workload'=>$load,'need_workload'=>$needLoad,'events'=>$events,'saved_rows'=>$sets,'sections'=>$sections,'offerings'=>$offerings,'simulations'=>$simulation];
 };
 $before=$take();session_write_close();ob_start();
 register_shutdown_function(static function() use($conn,$take,$before,$target,$faculty,$room,$room2,$expectedIds,$scenario):void {

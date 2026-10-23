@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/faculty_term_designation_helper.php';
 require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/auth_useraccount.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
 require_once __DIR__ . '/schema_helper.php';
@@ -51,7 +52,7 @@ function synk_scheduler_list_scope(mysqli $conn, int $collegeId): array
 
 function synk_scheduler_list_current_term(mysqli $conn): array
 {
-    $term = synk_fetch_current_academic_term($conn);
+    $term = ($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn);
     if ($term['ay_id'] <= 0 || !in_array($term['semester'], [1, 2, 3], true)) throw new DomainException('Set the current academic year and semester before copying lists.', 409);
     return $term;
 }
@@ -66,6 +67,9 @@ function synk_scheduler_list_lock_actor(mysqli $conn): void
 
 function synk_scheduler_list_lock_current_term(mysqli $conn): array
 {
+    if (($_SESSION['role'] ?? '') === 'scheduler') {
+        return synk_scheduler_require_writable_term($conn, synk_scheduler_request_term($conn, $_POST), true);
+    }
     $rows = synk_scheduler_list_query($conn, 'SELECT s.current_ay_id AS ay_id,s.current_semester AS semester,ay.ay AS ay_label
         FROM tbl_academic_settings s LEFT JOIN tbl_academic_years ay ON ay.ay_id=s.current_ay_id LIMIT 1 FOR UPDATE');
     $row = $rows[0] ?? [];
@@ -77,7 +81,8 @@ function synk_scheduler_list_lock_current_term(mysqli $conn): array
 
 function synk_scheduler_list_source_terms(mysqli $conn, array $scope, string $kind, array $target): array
 {
-    $source = $kind === 'faculty' ? "SELECT DISTINCT ay_id,semester FROM tbl_college_faculty WHERE college_id=? AND status='active'"
+    $official = synk_fetch_current_academic_term($conn);
+    $source = $kind === 'faculty' ? "SELECT DISTINCT COALESCE(ay_id,{$official['ay_id']}) AS ay_id,COALESCE(semester,{$official['semester']}) AS semester FROM tbl_college_faculty WHERE college_id=? AND status='active'"
         : 'SELECT DISTINCT ay_id,semester FROM tbl_room_college_access WHERE college_id=?';
     $rows = synk_scheduler_list_query($conn, "SELECT t.ay_id,t.semester,ay.ay AS ay_label FROM ({$source}) t
         JOIN tbl_academic_years ay ON ay.ay_id=t.ay_id WHERE t.semester BETWEEN 1 AND 3
@@ -103,13 +108,15 @@ function synk_scheduler_list_preview_rows(mysqli $conn, array $scope, string $ki
 {
     $params = [$scope['college_id'], $target['ay_id'], $target['semester'], $scope['college_id'], $source['ay_id'], $source['semester']];
     if ($kind === 'faculty') {
+        $sourceCurrent = synk_fetch_current_academic_term($conn);
+        $sourceLegacy = $source['ay_id']===$sourceCurrent['ay_id'] && $source['semester']===$sourceCurrent['semester'] ? 1 : 0;
         $sql = "SELECT DISTINCT f.faculty_id AS id,CONCAT(f.last_name,', ',TRIM(CONCAT_WS(' ',f.first_name,NULLIF(f.middle_name,''),NULLIF(f.ext_name,'')))) AS label,
             COALESCE(NULLIF(d.designation_name,''),'No designation') AS detail,f.status AS master_status,
             EXISTS(SELECT 1 FROM tbl_college_faculty dst WHERE dst.faculty_id=f.faculty_id AND dst.college_id=?
-                AND ((dst.ay_id=? AND dst.semester=?) OR (dst.ay_id IS NULL AND dst.semester IS NULL)) AND dst.status='active') AS already_listed
+                AND ((dst.ay_id=? AND dst.semester=?) OR (dst.ay_id IS NULL AND dst.semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1)) AND dst.status='active') AS already_listed
             FROM tbl_college_faculty src JOIN tbl_faculty f ON f.faculty_id=src.faculty_id
             " . synk_faculty_designation_join_sql($conn, (int)$source['ay_id'], (int)$source['semester']) . "
-            WHERE src.college_id=? AND src.ay_id=? AND src.semester=? AND src.status='active' ORDER BY label,f.faculty_id";
+            WHERE src.college_id=? AND ((src.ay_id=? AND src.semester=?) OR (src.ay_id IS NULL AND src.semester IS NULL AND {$sourceLegacy}=1)) AND src.status='active' ORDER BY label,f.faculty_id";
     } else {
         $sql = "SELECT r.room_id AS id,CONCAT(r.room_code,' — ',r.room_name) AS label,
             CONCAT(REPLACE(r.room_type,'_',' / '),' · ',r.capacity,' seats') AS detail,r.status AS master_status,r.college_id AS owner_college_id,
@@ -181,11 +188,14 @@ function synk_scheduler_list_copy(mysqli $conn, array $scope, string $kind, stri
             WHERE {$idColumn} IN ({$placeholders}) ORDER BY {$idColumn} FOR UPDATE", str_repeat('i', count($selected)), $selected), null, $idColumn);
         $listTable = $kind === 'faculty' ? 'tbl_college_faculty' : 'tbl_room_college_access';
         $sourceStatus = $kind === 'faculty' ? " AND status='active'" : '';
-        $membership = synk_scheduler_list_query($conn, "SELECT {$idColumn} FROM {$listTable} WHERE college_id=? AND ay_id=? AND semester=?
+        $officialSource = synk_fetch_current_academic_term($conn);
+        $sourceLegacy = $kind==='faculty' && $source['ay_id']===$officialSource['ay_id'] && $source['semester']===$officialSource['semester'] ? 1 : 0;
+        $sourcePeriod = $kind==='faculty' ? "((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL AND {$sourceLegacy}=1))" : '(ay_id=? AND semester=?)';
+        $membership = synk_scheduler_list_query($conn, "SELECT {$idColumn} FROM {$listTable} WHERE college_id=? AND {$sourcePeriod}
             {$sourceStatus} AND {$idColumn} IN ({$placeholders}) ORDER BY {$idColumn} FOR UPDATE", 'iii'.str_repeat('i',count($selected)),
             array_merge([$scope['college_id'],$source['ay_id'],$source['semester']],$selected));
         $sourceIds = array_map('intval',array_column($membership,$idColumn));
-        $targetPeriod = $kind === 'faculty' ? '((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL))' : '(ay_id=? AND semester=?)';
+        $targetPeriod = $kind === 'faculty' ? '((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL AND '.synk_scheduler_legacy_term_flag($conn).'=1))' : '(ay_id=? AND semester=?)';
         $existing = synk_scheduler_list_query($conn, "SELECT {$idColumn} FROM {$listTable} WHERE college_id=? AND {$targetPeriod}
             {$sourceStatus} AND {$idColumn} IN ({$placeholders}) ORDER BY {$idColumn} FOR UPDATE", 'iii'.str_repeat('i',count($selected)),
             array_merge([$scope['college_id'],$target['ay_id'],$target['semester']],$selected));
@@ -226,7 +236,7 @@ function synk_scheduler_list_remove_faculty(mysqli $conn, int $collegeId, int $a
         $term = synk_scheduler_list_lock_current_term($conn);
         if ($term['ay_id'] !== $expected['ay_id'] || $term['semester'] !== $expected['semester']) throw new DomainException('The current term changed. Refresh the list before removing an entry.', 409);
         $rows = synk_scheduler_list_query($conn, 'SELECT college_faculty_id FROM tbl_college_faculty WHERE college_faculty_id=? AND college_id=?
-            AND ((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL)) FOR UPDATE', 'iiii', [$assignmentId, $collegeId, $term['ay_id'], $term['semester']]);
+            AND ((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL AND '.synk_scheduler_legacy_term_flag($conn).'=1)) FOR UPDATE', 'iiii', [$assignmentId, $collegeId, $term['ay_id'], $term['semester']]);
         if (!$rows) throw new DomainException('This assignment is no longer in the current list.', 404);
         synk_scheduler_list_query($conn, 'DELETE FROM tbl_college_faculty WHERE college_faculty_id=? AND college_id=?', 'ii', [$assignmentId, $collegeId]);
         $conn->commit();

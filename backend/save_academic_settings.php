@@ -30,6 +30,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 
 $userId = (int)($_SESSION['user_id'] ?? 0);
 $policyScope = trim((string)($_POST['policy_scope'] ?? 'global'));
+if (in_array($policyScope, ['academic_term', 'global'], true)) {
+    require_once __DIR__ . '/scheduler_request_guard.php';
+    try { synk_scheduler_term_policy_lock($conn); }
+    catch (DomainException $error) { academic_settings_response(['status'=>'error','message'=>$error->getMessage()]); }
+}
 
 if ($policyScope === 'college_override') {
     $collegeId = (int)($_POST['college_id'] ?? 0);

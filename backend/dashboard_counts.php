@@ -2,7 +2,9 @@
 session_start();
 ob_start();
 include 'db.php';
-require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'dashboard_counts.php');
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
@@ -39,7 +41,7 @@ $scopeLabel = $scope === 'campus'
     ? (string)($_SESSION['campus_name'] ?? '')
     : (string)($_SESSION['college_name'] ?? '');
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
 $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
 $currentSemester = (int)($currentTerm['semester'] ?? 0);
 

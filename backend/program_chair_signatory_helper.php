@@ -184,7 +184,8 @@ function synk_program_chair_signatory_college_faculty_term_where(
         $params[] = $ayId;
         $params[] = $semester;
 
-        return ' AND ((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL))';
+        $legacy = function_exists('synk_scheduler_legacy_term_flag') ? synk_scheduler_legacy_term_flag($conn) : 1;
+        return ' AND ((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL AND '.$legacy.'=1))';
     }
 
     return '';
@@ -265,7 +266,7 @@ function synk_program_chair_signatory_fetch_faculty_options(
     return $facultyRows;
 }
 
-function synk_program_chair_signatory_fetch_assignments(mysqli $conn, int $collegeId): array
+function synk_program_chair_signatory_fetch_assignments(mysqli $conn, int $collegeId, int $ayId = 0, int $semester = 0): array
 {
     if ($collegeId <= 0) {
         return [];

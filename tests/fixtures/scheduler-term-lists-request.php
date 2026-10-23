@@ -16,6 +16,10 @@ class SchedulerListQAConnection extends mysqli
     public function rollback($flags=0,$name=null) { return $this->requestMode ? $this->query('ROLLBACK TO SAVEPOINT scheduler_list_request') : parent::rollback($flags); }
     #[\ReturnTypeWillChange]
     public function query($sql,$mode=MYSQLI_STORE_RESULT) {
+        if (preg_match('/^\s*CREATE TABLE IF NOT EXISTS `?([a-z0-9_]+)`?/i',$sql,$match)) {
+            $exists=parent::query("SHOW TABLES LIKE '".$this->real_escape_string($match[1])."'");
+            if ($exists && $exists->num_rows) return true;
+        }
         if (preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i', $sql)) throw new RuntimeException('Fixtures cannot change the schema.');
         return parent::query($sql,$mode);
     }
@@ -23,13 +27,32 @@ class SchedulerListQAConnection extends mysqli
 $conn->close(); $conn = new SchedulerListQAConnection($servername,$username,$password,$dbase); $conn->set_charset('utf8mb4');
 $conn->begin_transaction();
 $scenario = (string)($_GET['scenario'] ?? 'faculty_preview');
+$planningScenario = strpos($scenario,'planning_') === 0 ? substr($scenario,9) : '';
+$planningCase = $planningScenario;
+if ($planningScenario !== '') $scenario = in_array($planningScenario,['closed','mismatch','stale_college','invalid_year','array_term'],true) ? 'faculty_copy' : $planningScenario;
 $term = synk_scheduler_list_current_term($conn);
+$officialTerm = $term;
+if ($planningScenario !== '') {
+    $futureSemester = $term['semester'] < 3 ? $term['semester']+1 : 1;
+    $futureYearId = $term['ay_id'];
+    if ($term['semester'] === 3) {
+        $yearStart=(int)substr($term['ay_label'],0,4)+1; $futureLabel=$yearStart.'-'.($yearStart+1);
+        $yearRows=synk_scheduler_list_query($conn,'SELECT ay_id FROM tbl_academic_years WHERE ay=?','s',[$futureLabel]);
+        if (!$yearRows) { $stmt=$conn->prepare("INSERT INTO tbl_academic_years (ay,status) VALUES (?,'active')"); $stmt->bind_param('s',$futureLabel); $stmt->execute(); $futureYearId=(int)$conn->insert_id; $stmt->close(); }
+        else $futureYearId=(int)$yearRows[0]['ay_id'];
+    }
+    $isOpen=in_array($planningCase,['closed','admin_open'],true) ? 0 : 1;
+    $conn->query("INSERT INTO tbl_scheduler_planning_terms (ay_id,semester,is_open) VALUES ({$futureYearId},{$futureSemester},{$isOpen}) ON DUPLICATE KEY UPDATE is_open=VALUES(is_open)");
+    $term=synk_scheduler_term_from_ids($conn,$futureYearId,$futureSemester);
+}
+
 $source = ['ay_id' => $term['ay_id'], 'semester' => max(1, $term['semester']-1)];
 if ($term['semester'] === 1) {
     $previous = synk_scheduler_list_query($conn, 'SELECT ay_id FROM tbl_academic_years WHERE ay<? ORDER BY ay DESC LIMIT 1', 's', [$term['ay_label']]);
     if (!$previous) throw new RuntimeException('A previous academic year is required for fixtures.');
     $source = ['ay_id' => (int)$previous[0]['ay_id'], 'semester' => 3];
 }
+if ($planningScenario !== '') $source=['ay_id'=>$officialTerm['ay_id'],'semester'=>$officialTerm['semester']];
 $campusId = (int)$conn->query("SELECT campus_id FROM tbl_campus WHERE status='active' ORDER BY campus_id LIMIT 1")->fetch_assoc()['campus_id'];
 $tag = 'SchedulerListQA' . bin2hex(random_bytes(6));
 $conn->query("INSERT INTO tbl_college (campus_id,college_code,college_name,status) VALUES ({$campusId},'QA','List QA College','active')");
@@ -42,12 +65,14 @@ $userId = (int)$conn->insert_id; synk_persist_useraccount_roles($conn,$userId,['
 $faculty = []; $assignments = [];
 foreach (['first','second','existing','unavailable','foreign'] as $name) {
     $home = $name === 'foreign' ? $foreignCollege : $collegeId;
+    $srcAy=$planningCase==='legacy_copy' && $name==='first' ? 'NULL' : (string)$source['ay_id'];
+    $srcSem=$planningCase==='legacy_copy' && $name==='first' ? 'NULL' : (string)$source['semester'];
     $status = $name === 'unavailable' ? 'inactive' : 'active';
     $conn->query("INSERT INTO tbl_faculty (first_name,last_name,employment_classification,status,college_id,campus_id)
         VALUES ('{$name}','QA {$tag}','permanent','{$status}',{$home},{$campusId})");
     $faculty[$name] = (int)$conn->insert_id;
     $conn->query("INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semester,status)
-        VALUES ({$home},{$faculty[$name]},{$source['ay_id']},{$source['semester']},'active')");
+        VALUES ({$home},{$faculty[$name]},{$srcAy},{$srcSem},'active')");
 }
 foreach (['second' => 'inactive', 'existing' => 'active'] as $name => $status) {
     $conn->query("INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semester,status)
@@ -97,6 +122,7 @@ $previousBefore = $previousRows();
 session_save_path($root.'/temp'); session_id('schedulerlistqa'.bin2hex(random_bytes(10))); session_start();
 $_SESSION = ['user_id'=>$userId,'username'=>'List QA Scheduler','email'=>$tag.'@sksu.edu.ph','role'=>'scheduler','college_id'=>$collegeId,'college_name'=>'List QA College','csrf_token'=>SYNK_SCHEDULER_LIST_QA];
 $kind = strpos($scenario,'rooms') === 0 ? 'rooms' : 'faculty';
+if ($planningScenario !== '') $_SESSION['scheduler_working_term']=['user_id'=>$userId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']];
 $_POST = ['kind'=>$kind,'college_id'=>(string)$collegeId,'csrf_token'=>SYNK_SCHEDULER_LIST_QA,
     'source_ay_id'=>(string)$source['ay_id'],'source_semester'=>(string)$source['semester'],'action'=>'preview'];
 $scope = synk_scheduler_list_scope($conn,$collegeId);
@@ -140,7 +166,7 @@ if (strpos($scenario, 'designation_') === 0) {
         'faculty_id'=>(string)$faculty['existing'],'designation_id'=>'0','ay_id'=>(string)$term['ay_id'],'semester'=>(string)$term['semester']];
     if ($scenario==='designation_set') $_POST['designation_id']=(string)$designations['chair']['designation_id'];
     if ($scenario==='designation_foreign') $_POST['faculty_id']=(string)$faculty['foreign'];
-    if ($scenario==='designation_old') { $_POST['ay_id']=(string)$source['ay_id']; $_POST['semester']=(string)$source['semester']; }
+    if ($scenario==='designation_old') { $_POST['scheduler_term_key']=$term['ay_id'].':'.$term['semester']; $_POST['ay_id']=(string)$source['ay_id']; $_POST['semester']=(string)$source['semester']; }
     if ($scenario==='designation_invalid') $_POST['designation_id']='-1';
     if ($scenario==='designation_array') $_POST['designation_id']=['0'];
     if ($scenario==='designation_bad_csrf') $_POST['csrf_token']='wrong';
@@ -165,11 +191,36 @@ if (strpos($scenario, 'designation_') === 0) {
     }
     if ($scenario==='designation_admin_list') { $handler='backend/query_faculty.php'; $_POST=['load_faculty'=>'1']; }
 }
+if (strpos($scenario,'designation_admin_')===0) {
+    synk_persist_useraccount_roles($conn,$userId,['scheduler','admin'],'admin'); $_SESSION['role']='admin';
+}
 if (in_array($scenario,['faculty_page','rooms_page'],true)) { $handler='scheduler/'.($scenario==='faculty_page'?'manage-college-faculty.php':'manage-rooms.php'); $_SERVER['PHP_SELF']='/synk/'.$handler; }
+if (strpos($planningCase,'admin_')===0 || $planningCase==='scheduler_open') {
+    $handler='backend/query_scheduler_planning_terms.php';
+    if ($planningCase!=='scheduler_open') { synk_persist_useraccount_roles($conn,$userId,['scheduler','admin'],'admin'); $_SESSION['role']='admin'; }
+    $_POST=['csrf_token'=>SYNK_SCHEDULER_LIST_QA,'open_terms'=>json_encode($planningCase==='admin_close' ? [] : [$term['key']])];
+    if ($planningCase==='admin_invalid') $_POST['open_terms']=json_encode([$officialTerm['ay_id'].':'.$officialTerm['semester']]);
+    if ($planningCase==='admin_array') $_POST['open_terms']='[[1,2]]';
+    if ($planningCase==='admin_bad_csrf') $_POST['csrf_token']='bad';
+}
+if (strpos($planningCase,'render_')===0) {
+    $page=substr($planningCase,7).'.php';
+    $allowedPages=['index.php','manage-sections.php','manage-offerings.php','manage-class-schedule.php','manage-college-faculty.php','manage-workload.php','manage-faculty-workload.php','manage-workload-simulations.php','manage-rooms.php','manage-class-program.php','manage-iso-class-program.php','manage-room-utilization.php','manage-report-signatories.php','manage-schedule-activity.php','campus-consolidated-workload.php','print-workload-simulations.php','subject-assignments.php','manage-faculty.php','manage-programs.php','manage-prospectus.php'];
+    if (!in_array($page,$allowedPages,true)) throw new RuntimeException('Unknown scheduler QA page.');
+    $handler='scheduler/'.$page;$_POST=[];$_SERVER['PHP_SELF']='/synk/'.$handler;
+}
+if ($planningCase==='admin_page') { $handler='administrator/academic-settings.php'; $_POST=[]; $_SERVER['PHP_SELF']='/synk/administrator/academic-settings.php'; }
+if ($planningCase==='mismatch') { $_POST['scheduler_term_key']=$officialTerm['ay_id'].':'.$officialTerm['semester']; $_POST['ay_id']=(string)$term['ay_id']; $_POST['semester']=(string)$term['semester']; }
+if ($planningCase==='stale_college') $_POST['scheduler_college_id']=(string)$foreignCollege;
+if ($planningCase==='invalid_year') { $_POST['ay_id']='4294967295'; $_POST['semester']='1'; }
+if ($planningCase==='array_term') { $_POST['ay_id']=[$term['ay_id']]; $_POST['semester']='1'; }
+header('X-QA-Working-Term: '.rawurlencode(json_encode($term)));
+header('X-QA-Official-Term: '.rawurlencode(json_encode(synk_fetch_current_academic_term($conn))));
 session_write_close();
 $requestBefore = $snapshot(['tbl_college_faculty','tbl_room_college_access']);
 ob_start(static function($html) use ($handler): string { return strpos($handler,'scheduler/')===0 ? str_replace('<head>','<head><base href="http://localhost/synk/scheduler/">',$html) : $html; });
 register_shutdown_function(static function() use($conn,$snapshot,$masterTables,$masterBefore,$previousRows,$previousBefore,$requestBefore,$collegeId,$term,$faculty,$rooms): void {
+    header('X-QA-Planning-State: '.rawurlencode(json_encode(synk_scheduler_term_query($conn,'SELECT is_open FROM tbl_scheduler_planning_terms WHERE ay_id=? AND semester=?','ii',[$term['ay_id'],$term['semester']]))));
     header('X-QA-Master-Unchanged: '.($snapshot($masterTables)===$masterBefore?'yes':'no'));
     header('X-QA-Previous-Unchanged: '.($previousRows()===$previousBefore?'yes':'no'));
     header('X-QA-Lists-Unchanged: '.($snapshot(['tbl_college_faculty','tbl_room_college_access'])===$requestBefore?'yes':'no'));
@@ -181,5 +232,15 @@ register_shutdown_function(static function() use($conn,$snapshot,$masterTables,$
     header('X-QA-Term-Designations: '.rawurlencode(json_encode(synk_scheduler_list_query($conn,'SELECT faculty_id,ay_id,semester,designation_id,designation_name,designation_units,record_source FROM tbl_faculty_term_designations WHERE faculty_id IN ('.implode(',',array_values($faculty)).') ORDER BY faculty_id,ay_id,semester'))));
     $conn->requestMode=false; $conn->rollback(); if(session_status()===PHP_SESSION_ACTIVE) session_destroy();
 });
-$_SERVER['REQUEST_METHOD']='POST'; $conn->requestMode=true;
-chdir($root.'/'.dirname($handler)); require $root.'/'.$handler;
+$_SERVER['REQUEST_METHOD']=strpos($planningCase,'render_')===0 || $planningCase==='admin_page' ? 'GET' : 'POST'; $conn->requestMode=true;
+// Pages use include rather than require_once for db.php. Keep the rollback-only
+// connection so page reads and fresh authorization checks see the fixture actor.
+chdir($root.'/'.dirname($handler));
+if (strpos($handler,'scheduler/')===0 || strpos($handler,'administrator/')===0) {
+    $pageSource=file_get_contents($root.'/'.$handler);
+    $pageSource=preg_replace('/\b(?:include|require(?:_once)?)\s+[\'\"](?:\.\.\/backend\/)?db\.php[\'\"];/', '', $pageSource);
+    $pageSource=str_replace(['__DIR__','__FILE__'],[var_export(dirname($root.'/'.$handler),true),var_export($root.'/'.$handler,true)],$pageSource);
+    eval('?>'.$pageSource);
+} else {
+    require $root.'/'.$handler;
+}
