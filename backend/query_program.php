@@ -1,5 +1,11 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
+if (empty($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin','scheduler'], true)) {
+    http_response_code(403); exit('Unauthorized access.');
+}
 include '../backend/db.php';
+require_once __DIR__.'/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_program.php');
 
 
 // ====================================================

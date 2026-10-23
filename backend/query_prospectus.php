@@ -3,6 +3,8 @@ if (session_status()!==PHP_SESSION_ACTIVE) session_start();
 ob_start();
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__.'/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_prospectus.php');
 require_once __DIR__ . '/schedule_block_helper.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {

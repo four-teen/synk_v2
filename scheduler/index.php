@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 
@@ -22,7 +23,7 @@ if (!isset($_SESSION['college_id']) || $_SESSION['college_id'] === null) {
     exit;
 }
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $academicTermText = $currentTerm['term_text'];
 
 $collegeName = htmlspecialchars($_SESSION['college_name'] ?? 'Assigned College', ENT_QUOTES, 'UTF-8');
@@ -462,7 +463,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                                 </div>
                                 <h3 class="kpi-value text-success mt-2" id="countFaculty">--</h3>
                                 <small class="text-muted">Assigned Faculty</small>
-                                <div class="metric-note">With workload in the active term</div>
+                                <div class="metric-note">With workload in the selected term</div>
                               </div>
                             </div>
 
@@ -473,7 +474,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                                 </div>
                                 <h3 class="kpi-value text-info mt-2" id="countProspectus">--</h3>
                                 <small class="text-muted">Class Offerings</small>
-                                <div class="metric-note">Generated for the active term</div>
+                                <div class="metric-note">Generated for the selected term</div>
                               </div>
                             </div>
 
@@ -1085,7 +1086,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           if (unscheduledModalTitle) {
             unscheduledModalTitle.textContent =
               total > 0
-                ? "Review the current term list below, then print it on A4 if needed."
+                ? "Review the selected term list below, then print it on A4 if needed."
                 : "No unscheduled classes were found for " + scopeLabel + ".";
           }
 
@@ -1485,7 +1486,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
         function renderProgramSchedulingChart(data) {
           if (!Array.isArray(data) || data.length === 0) {
             setChartFallback("programSchedulingChart", "No program scheduling data available.");
-            setInsight("programProgressInsight", "No class offerings were found for the current term, so there is nothing to compare yet.");
+            setInsight("programProgressInsight", "No class offerings were found for the selected term, so there is nothing to compare yet.");
             return;
           }
 
@@ -1781,7 +1782,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             if (occupiedSlotCount <= 0) {
               setInsight(
                 "scheduleHeatmapInsight",
-                selectedRoomLabel + " has no scheduled occupancy between 7:00 AM and 6:00 PM on weekdays for the current term."
+                selectedRoomLabel + " has no scheduled occupancy between 7:00 AM and 6:00 PM on weekdays for the selected term."
               );
               return;
             }
@@ -1828,7 +1829,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           if (!Array.isArray(data) || data.length === 0) {
             setChartFallback("weeklyPressureChart", "No weekday scheduling pressure data available.");
             setWeeklyPressureAnalysisHtml('<div class="weekly-analysis-empty">No weekday load analysis is available yet.</div>');
-            setInsight("weeklyPressureInsight", "No scheduled classes were found for the current term, so weekday pressure cannot be measured yet.");
+            setInsight("weeklyPressureInsight", "No scheduled classes were found for the selected term, so weekday pressure cannot be measured yet.");
             return;
           }
 

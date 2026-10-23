@@ -1,6 +1,8 @@
 <?php
 if (session_status()!==PHP_SESSION_ACTIVE) session_start();
 require_once __DIR__.'/db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_remove_workload.php');
 require_once __DIR__.'/workload_student_guard_helper.php';
 header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
 function synk_remove_workload_response(array $payload,int $status=200): void
@@ -13,7 +15,7 @@ if (empty($_SESSION['csrf_token']) || !is_string($_POST['csrf_token'] ?? null) |
 try {
     $type=$_POST['assignee_type'] ?? 'faculty';
     if (!is_string($type) || !in_array($type,['faculty','faculty_need'],true)) throw new DomainException('Choose a valid workload type.');
-    $result=synk_workload_remove_guarded($conn,(int)$_SESSION['college_id'],$type,synk_workload_removal_ids($_POST));
+    $result=synk_workload_remove_guarded($conn,(int)$_SESSION['college_id'],$type,synk_workload_removal_ids($_POST),synk_scheduler_request_term($conn,$_POST));
     synk_remove_workload_response(['status'=>'ok','message'=>'Workload removed.']+$result);
 } catch (SynkWorkloadStudentsException $error) { synk_remove_workload_response(['status'=>'blocked','code'=>'active_students','message'=>$error->getMessage(),'classes'=>$error->classes],409); }
 catch (DomainException $error) { synk_remove_workload_response(['status'=>'error','message'=>$error->getMessage()],422); }

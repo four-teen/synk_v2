@@ -3,6 +3,7 @@ require_once __DIR__ . '/../backend/faculty_term_designation_helper.php';
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/faculty_need_helper.php';
 require_once '../backend/offering_scope_helper.php';
@@ -111,7 +112,7 @@ function scheduler_consolidated_report_signatory_slot(array $settings, string $s
     ];
 }
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
 $currentSem = (int)($currentTerm['semester'] ?? 0);
 $academicTermText = trim((string)($currentTerm['term_text'] ?? 'Current academic term'));

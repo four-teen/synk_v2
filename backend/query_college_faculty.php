@@ -3,7 +3,9 @@ session_start();
 ob_start();
 
 require_once 'db.php';
-require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_college_faculty.php');
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
 require_once __DIR__ . '/scheduler_term_list_helper.php';
@@ -329,7 +331,7 @@ function query_college_faculty_find_assignment_by_id(
     $params = [$collegeFacultyId];
 
     if (query_college_faculty_term_ready($schema) && $currentAyId > 0 && $currentSemester > 0) {
-        $sql .= " AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL))";
+        $sql .= " AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1))";
         $types .= 'ii';
         $params[] = $currentAyId;
         $params[] = $currentSemester;
@@ -374,7 +376,7 @@ function query_college_faculty_faculty_is_assigned(
     $params = [$facultyId, $collegeId];
 
     if (query_college_faculty_term_ready($schema) && $currentAyId > 0 && $currentSemester > 0) {
-        $sql .= " AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL))";
+        $sql .= " AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1))";
         $types .= 'ii';
         $params[] = $currentAyId;
         $params[] = $currentSemester;
@@ -406,7 +408,7 @@ if (isset($_POST['load_college_faculty'])) {
     $offset = ($page - 1) * $pageSize;
     $search = trim((string)($_POST['search'] ?? ''));
 
-    $currentTerm = synk_fetch_current_academic_term($conn);
+    $currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
     $currentAyId = (int)$currentTerm['ay_id'];
     $currentSemester = (int)$currentTerm['semester'];
 
@@ -492,7 +494,7 @@ if (isset($_POST['load_college_faculty'])) {
     $whereTypes = 'i';
 
     if ($termReady && $currentAyId > 0 && $currentSemester > 0) {
-        $whereParts[] = '((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL))';
+        $whereParts[] = '((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL AND ' . synk_scheduler_legacy_term_flag($conn) . '=1))';
         $whereParams[] = $currentAyId;
         $whereParams[] = $currentSemester;
         $whereTypes .= 'ii';
@@ -655,7 +657,7 @@ if (isset($_POST['load_faculty_dropdown'])) {
     query_college_faculty_require_college_scope($allowedCollegeIds, $college_id);
 
     $schema = query_college_faculty_schema_info($conn);
-    $currentTerm = synk_fetch_current_academic_term($conn);
+    $currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
     $currentAyId = (int)$currentTerm['ay_id'];
     $currentSemester = (int)$currentTerm['semester'];
     $termReady = query_college_faculty_term_ready($schema);
@@ -684,7 +686,7 @@ if (isset($_POST['load_faculty_dropdown'])) {
 
     if ($termReady && $currentAyId > 0 && $currentSemester > 0) {
         $selectSql .= "
-           AND ((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL))
+           AND ((cf.ay_id = ? AND cf.semester = ?) OR (cf.ay_id IS NULL AND cf.semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1))
         ";
         $types .= 'ii';
         $params[] = $currentAyId;
@@ -791,7 +793,7 @@ if (isset($_POST['save_assignment'])) {
         : '';
     $schema = query_college_faculty_schema_info($conn);
     $termReady = query_college_faculty_term_ready($schema);
-    $currentTerm = synk_fetch_current_academic_term($conn);
+    $currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
     $currentAyId = (int)$currentTerm['ay_id'];
     $currentSemester = (int)$currentTerm['semester'];
 
@@ -822,7 +824,7 @@ if (isset($_POST['save_assignment'])) {
             SELECT college_faculty_id, LOWER(TRIM(status)) AS status
             FROM tbl_college_faculty
             WHERE college_id = ? AND faculty_id = ?
-              AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL))
+              AND ((ay_id = ? AND semester = ?) OR (ay_id IS NULL AND semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1))
             LIMIT 1
         ");
     } else {
@@ -960,7 +962,7 @@ if (isset($_POST['update_faculty_designation'])) {
         $faculty = synk_scheduler_list_query($conn, 'SELECT faculty_id FROM tbl_faculty WHERE faculty_id=? FOR UPDATE', 'i', [$facultyId]);
         $assignments = synk_scheduler_list_query($conn, "SELECT college_faculty_id FROM tbl_college_faculty
             WHERE faculty_id=? AND college_id=? AND status='active'
-            AND ((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL)) FOR UPDATE", 'iiii',
+            AND ((ay_id=? AND semester=?) OR (ay_id IS NULL AND semester IS NULL AND " . synk_scheduler_legacy_term_flag($conn) . "=1)) FOR UPDATE", 'iiii',
             [$facultyId,$collegeId,$term['ay_id'],$term['semester']]);
         if (!$faculty || !$assignments) throw new DomainException('This faculty member is not in the current college list.', 403);
         $designation = ['designation_id' => null, 'designation_name' => '', 'designation_units' => 0];
@@ -1007,7 +1009,7 @@ if (isset($_POST['update_employment_classification'])) {
         query_college_faculty_json_response(['status' => 'schema_update_required'], 400);
     }
 
-    $currentTerm = synk_fetch_current_academic_term($conn);
+    $currentTerm = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
     $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
     $currentSemester = (int)($currentTerm['semester'] ?? 0);
 
@@ -1047,7 +1049,7 @@ if (isset($_POST['remove_assignment'])) {
         $rows = synk_scheduler_list_query($conn, 'SELECT college_id FROM tbl_college_faculty WHERE college_faculty_id=?', 'i', [$id]);
         if (!$rows) throw new DomainException('This assignment is no longer in the list.', 404);
         $collegeId = (int)$rows[0]['college_id'];
-        $expected = synk_fetch_current_academic_term($conn);
+        $expected = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_POST) : synk_fetch_current_academic_term($conn));
         if (isset($_POST['ay_id']) || isset($_POST['semester'])) {
             $expected['ay_id'] = synk_scheduler_list_id($_POST['ay_id'] ?? null);
             $expected['semester'] = synk_scheduler_list_id($_POST['semester'] ?? null);

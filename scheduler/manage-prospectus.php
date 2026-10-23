@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 
 if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'scheduler') {
     header("Location: ../index.php");

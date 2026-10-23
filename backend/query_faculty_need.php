@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_faculty_need.php');
 require_once __DIR__ . '/faculty_need_helper.php';
 require_once __DIR__ . '/workload_audit_helper.php';
 

@@ -2,6 +2,7 @@
     session_start();
     ob_start();
     include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
     require_once '../backend/faculty_directory_helper.php';
 ?>
 <!DOCTYPE html>

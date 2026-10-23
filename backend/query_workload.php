@@ -2,6 +2,8 @@
 session_start();
 ob_start();
 include 'db.php';
+require_once __DIR__.'/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_workload.php');
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'scheduler') {
     echo "unauthorized";

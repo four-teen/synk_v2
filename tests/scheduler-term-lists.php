@@ -49,7 +49,7 @@ try {
     $r=$request('remove');$ids=$header($r,'X-QA-Faculty-Ids');$rows=array_column($header($r,'X-QA-Faculty-Rows'),null,'faculty_id');
     $check($r['status']===200 && $r['data']['status']==='removed' && !isset($rows[$ids['existing']]),'Removal deletes the current list entry.');
     $check(strpos($r['headers'],'X-QA-Master-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Previous-Unchanged: yes')!==false,'Removal preserves the faculty record, its status, workloads, and previous-term membership.');
-    foreach(['remove_old'=>404,'remove_foreign'=>403] as $scenario=>$status) { $r=$request($scenario);$check($r['status']===$status && strpos($r['headers'],'X-QA-Lists-Unchanged: yes')!==false,'Removal cannot target another term or college: '.$scenario); }
+    foreach(['remove_old'=>409,'remove_foreign'=>403] as $scenario=>$status) { $r=$request($scenario);$check($r['status']===$status && strpos($r['headers'],'X-QA-Lists-Unchanged: yes')!==false,'Removal cannot target another term or college: '.$scenario); }
     $r=$request('list');$check($r['status']===200 && count($r['data']['data']??[])===1,'Removed legacy assignments are excluded from the list.');
     foreach (['designation_remove'=>0,'designation_set'=>6] as $scenario=>$units) {
         $r=$request($scenario); $rows=$header($r,'X-QA-Term-Designations'); $ids=$header($r,'X-QA-Faculty-Ids');

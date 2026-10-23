@@ -1,8 +1,9 @@
-﻿<?php
+<?php
 session_start();
 ob_start();
 
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/offering_scope_helper.php';
 require_once '../backend/scheduler_access_helper.php';
@@ -297,7 +298,7 @@ function activity_health_summary(float $weeklyHours, int $overlapSlots): array
     return ['label' => 'No Active Load', 'class' => 'bg-label-secondary'];
 }
 
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $semesterOptions = [
     1 => 'First Semester',
     2 => 'Second Semester',

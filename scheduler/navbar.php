@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/term-context.php';
 require_once __DIR__ . '/../backend/account_switch_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 require_once '../backend/user_avatar_helper.php';
@@ -23,7 +24,14 @@ $schedulerScopeToken = (string)$_SESSION['csrf_token'];
 $uEmail = trim((string)($_SESSION['email'] ?? ''));
 $avatarFallback = synk_default_user_avatar_path();
 $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avatar_url'] ?? ''), 80);
+$schedulerNavbarTerm = synk_scheduler_working_term($conn);
+$schedulerNavbarYears = synk_scheduler_academic_years($conn);
+$schedulerOfficialTerm = synk_fetch_current_academic_term($conn);
+$schedulerTermConfig = ['term'=>$schedulerNavbarTerm,'years'=>$schedulerNavbarYears,'collegeId'=>$activeCollegeId,'csrfToken'=>$schedulerScopeToken,
+  'backendPath'=>rtrim(dirname(dirname($_SERVER['PHP_SELF'] ?? '/synk/scheduler/index.php')), '/').'/backend/',
+  'schedulerPath'=>rtrim(dirname($_SERVER['PHP_SELF'] ?? '/synk/scheduler/index.php'), '/').'/'];
 ?>
+<link rel="stylesheet" href="working-term.css?v=<?= (int)filemtime(__DIR__.'/working-term.css') ?>">
 
 <nav
   class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
@@ -36,15 +44,12 @@ $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avat
   </div>
 
   <div class="navbar-nav-right d-flex align-items-center gap-3 w-100" id="navbar-collapse">
-    <div class="navbar-nav align-items-center flex-grow-1">
-      <div class="nav-item d-flex align-items-center w-100">
-        <i class="bx bx-search fs-4 lh-0"></i>
-        <input
-          type="text"
-          class="form-control border-0 shadow-none"
-          placeholder="Search..."
-          aria-label="Search..."
-        />
+    <div class="scheduler-term-context">
+      <div class="scheduler-term-summary">
+        <i class="bx bx-calendar" aria-hidden="true"></i>
+        <span id="scheduler-working-term-label"><?= htmlspecialchars($schedulerNavbarTerm['term_text'],ENT_QUOTES,'UTF-8') ?></span>
+        <span class="badge <?= $schedulerNavbarTerm['can_write'] ? 'bg-label-primary' : 'bg-label-secondary' ?>"><?= htmlspecialchars($schedulerNavbarTerm['mode'],ENT_QUOTES,'UTF-8') ?></span>
+        <button type="button" class="btn btn-sm" id="scheduler-term-settings-toggle" data-bs-toggle="modal" data-bs-target="#schedulerTermSettingsModal" aria-label="Change working academic year and semester" title="Working term settings"><i class="bx bx-cog" aria-hidden="true"></i></button>
       </div>
     </div>
 
@@ -78,7 +83,7 @@ $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avat
     <?php endif; ?>
 
     <ul class="navbar-nav flex-row align-items-center ms-auto">
-      <li class="nav-item lh-1 me-3 text-end">
+      <li class="nav-item lh-1 me-3 text-end scheduler-user-name">
         <span class="fw-semibold"><?= htmlspecialchars($uName, ENT_QUOTES, 'UTF-8') ?></span>
         <small class="text-muted ms-1">(<?= htmlspecialchars($uRole, ENT_QUOTES, 'UTF-8') ?>)</small>
       </li>
@@ -121,7 +126,7 @@ $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avat
           </li>
 
           <li>
-            <a class="dropdown-item" href="#">
+            <a class="dropdown-item" href="#schedulerTermSettingsModal" data-bs-toggle="modal" data-bs-target="#schedulerTermSettingsModal">
               <i class="bx bx-cog me-2"></i>
               <span class="align-middle">Settings</span>
             </a>
@@ -141,6 +146,29 @@ $avatarUrl = synk_resolve_user_avatar_url($uEmail, (string)($_SESSION['user_avat
     </ul>
   </div>
 </nav>
+
+<?php if (!$schedulerNavbarTerm['can_write']): ?>
+<div class="scheduler-term-readonly" role="status">Select an academic year and semester in Working term settings before making changes.</div>
+<?php endif; ?>
+<div class="modal fade" id="schedulerTermSettingsModal" tabindex="-1" aria-labelledby="schedulerTermSettingsTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="scheduler-working-term-form" action="<?= htmlspecialchars(basename($_SERVER['PHP_SELF'] ?? 'index.php'),ENT_QUOTES,'UTF-8') ?>" method="get">
+      <div class="modal-header"><h5 class="modal-title" id="schedulerTermSettingsTitle">Working term settings</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+      <div class="modal-body">
+        <p>Choose the academic year and semester for your scheduler workspace.</p>
+        <div class="row g-3">
+          <div class="col-sm-6"><label class="form-label" for="scheduler-working-year">Academic year</label><select class="form-select" id="scheduler-working-year" name="scheduler_ay_id" required><?php foreach ($schedulerNavbarYears as $year): ?><option value="<?= $year['ay_id'] ?>"<?= $year['ay_id'] === $schedulerNavbarTerm['ay_id'] ? ' selected' : '' ?>><?= htmlspecialchars($year['ay'],ENT_QUOTES,'UTF-8') ?></option><?php endforeach; ?></select></div>
+          <div class="col-sm-6"><label class="form-label" for="scheduler-working-semester">Semester</label><select class="form-select" id="scheduler-working-semester" name="scheduler_semester" required><?php foreach ([1,2,3] as $sem): ?><option value="<?= $sem ?>"<?= $sem === $schedulerNavbarTerm['semester'] ? ' selected' : '' ?>><?= synk_semester_label($sem) ?></option><?php endforeach; ?></select></div>
+        </div>
+        <div class="scheduler-term-current"><div><span>Official current term</span><strong><?= htmlspecialchars($schedulerOfficialTerm['term_text'],ENT_QUOTES,'UTF-8') ?></strong></div><button type="submit" name="scheduler_term" value="current" class="btn btn-sm btn-outline-secondary">Use current term</button></div>
+        <p class="small text-muted mt-3 mb-0">You can work in any listed academic year and semester, including previous and future terms. This does not change the official current term. Existing student protections and faculty visibility rules still apply.</p>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Apply</button></div>
+    </form>
+  </div></div>
+</div>
+<script type="application/json" id="schedulerWorkingTermConfig"><?= json_encode($schedulerTermConfig,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<script src="working-term.js?v=<?= (int)filemtime(__DIR__.'/working-term.js') ?>" defer></script>
 
 <?php if ((string)($_SESSION['role'] ?? '') === 'scheduler' && count($schedulerCollegeAccess) > 1): ?>
   <script>

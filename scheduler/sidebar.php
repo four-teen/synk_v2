@@ -84,7 +84,7 @@ $sidebarSections = [
                         'icon_bg' => 'bg-label-success',
                         'icon' => 'bx-layer-plus',
                         'title' => 'Generate Offerings',
-                        'description' => 'Prepare class offerings for the active term',
+                        'description' => 'Prepare class offerings for the selected term',
                         'pages' => ['manage-offerings.php'],
                     ],
                 ],

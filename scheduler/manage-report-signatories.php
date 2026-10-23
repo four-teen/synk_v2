@@ -3,6 +3,7 @@ session_start();
 ob_start();
 
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/scheduler_access_helper.php';
 require_once '../backend/signatory_settings_helper.php';
@@ -46,7 +47,7 @@ function page_signatory_slot(array $settings, string $slotCode, string $fallback
 }
 
 $collegeLabel = trim((string)($_SESSION['college_name'] ?? '')) ?: 'College not assigned';
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $currentAyId = (int)($currentTerm['ay_id'] ?? 0);
 $currentSemester = (int)($currentTerm['semester'] ?? 0);
 $currentTermText = (string)($currentTerm['term_text'] ?? 'Current academic term');
@@ -140,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             )) {
                 $pageAlert = [
                     'type' => 'danger',
-                    'message' => 'The selected faculty member is not active in this college for the current term.',
+                    'message' => 'The selected faculty member is not active in this college for the selected term.',
                 ];
             } else {
                 $saved = synk_program_chair_signatory_save(
@@ -248,7 +249,7 @@ $approvedBySignatory = page_signatory_slot($adminSignatorySettings, 'approved_by
 
 $programChairPrograms = synk_program_chair_signatory_fetch_program_options($conn, $collegeId);
 $programChairFacultyOptions = synk_program_chair_signatory_fetch_faculty_options($conn, $collegeId, $currentAyId, $currentSemester);
-$programChairAssignments = synk_program_chair_signatory_fetch_assignments($conn, $collegeId);
+$programChairAssignments = synk_program_chair_signatory_fetch_assignments($conn, $collegeId, $currentAyId, $currentSemester);
 
 $preparedByFormName = $preparedByFormWasSubmitted
     ? $postedPreparedByName
@@ -500,7 +501,7 @@ $preparedByFormTitle = $preparedByFormWasSubmitted
                 <div class="d-flex flex-column gap-2 align-items-stretch align-items-lg-end">
                   <div class="fw-bold" style="font-size: 16px;"><?= page_h($collegeLabel) ?></div>
                   <div class="signatory-chip">
-                    <span>Current Term</span>
+                    <span>Working Term</span>
                     <strong><?= page_h($currentTermText) ?></strong>
                   </div>
                 </div>
@@ -618,7 +619,7 @@ $preparedByFormTitle = $preparedByFormWasSubmitted
                       <div>
                         <span class="signatory-section-label">Program-level signatories</span>
                         <h5 class="mb-2">Program Chair Assignments</h5>
-                        <p class="text-muted mb-0">Assign the Program Chair per program using faculty already assigned to this college for the current term. Saving an existing program updates its chair only.</p>
+                        <p class="text-muted mb-0">Assign the Program Chair per program using faculty already assigned to this college for the selected term. Saving an existing program updates its chair only.</p>
                       </div>
                       <div class="signatory-chip align-self-start">
                         <span>Scope</span>

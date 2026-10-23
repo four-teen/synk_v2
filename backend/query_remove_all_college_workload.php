@@ -1,6 +1,8 @@
 <?php
 if (session_status()!==PHP_SESSION_ACTIVE) session_start();
 require_once __DIR__.'/db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'query_remove_all_college_workload.php');
 require_once __DIR__.'/workload_student_guard_helper.php';
 header('Content-Type: application/json; charset=utf-8'); header('Cache-Control: no-store');
 function synk_remove_workload_response(array $payload,int $status=200): void

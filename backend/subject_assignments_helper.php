@@ -1,7 +1,7 @@
 <?php
 
 require_once __DIR__ . '/auth_useraccount.php';
-require_once __DIR__ . '/academic_term_helper.php';
+require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/schedule_tba_helper.php';
@@ -70,7 +70,7 @@ function synk_subject_assignments_options(mysqli $conn, array $scope): array
     $rows = synk_subject_assignments_query($conn, "SELECT DISTINCT o.ay_id,o.semester,ay.ay AS ay_label
         FROM tbl_prospectus_offering o {$joins} JOIN tbl_program p ON p.program_id=o.program_id
         JOIN tbl_academic_years ay ON ay.ay_id=o.ay_id WHERE p.college_id=?", 'i', [$scope['college_id']]);
-    $current = synk_fetch_current_academic_term($conn);
+    $current = (($_SESSION['role'] ?? '') === 'scheduler' ? synk_scheduler_request_term($conn, $_GET) : synk_fetch_current_academic_term($conn));
     if ($current['ay_id'] > 0 && $current['semester'] > 0) {
         $rows[] = ['ay_id'=>$current['ay_id'], 'semester'=>$current['semester'], 'ay_label'=>$current['ay_label']];
     }

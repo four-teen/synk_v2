@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/offering_scope_helper.php';
 require_once '../backend/schema_helper.php';
@@ -15,7 +16,7 @@ if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'scheduler') {
 }
 
 $collegeId = (int)($_SESSION['college_id'] ?? 0);
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 
 $program_id = (string)($_GET['program_id'] ?? '');
 $ay_id = (string)($_GET['ay_id'] ?? ($currentTerm['ay_id'] ?? ''));

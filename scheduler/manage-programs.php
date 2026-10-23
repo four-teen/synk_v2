@@ -2,6 +2,7 @@
     session_start();
     ob_start();
     include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 ?>
 <!DOCTYPE html>
 

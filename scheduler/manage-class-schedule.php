@@ -2,6 +2,7 @@
 session_start();
 ob_start();
 include '../backend/db.php';
+require_once __DIR__ . '/term-context.php';
 require_once '../backend/academic_term_helper.php';
 require_once '../backend/academic_schedule_policy_helper.php';
 
@@ -14,7 +15,7 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 $csrf_token = $_SESSION['csrf_token'];
-$currentTerm = synk_fetch_current_academic_term($conn);
+$currentTerm = synk_scheduler_working_term($conn);
 $default_ay_id = (int)$currentTerm['ay_id'];
 $default_semester = (int)$currentTerm['semester'];
 $schedulerCollegeId = (int)($_SESSION['college_id'] ?? 0);
@@ -5778,7 +5779,7 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
         );
 
         if (sections.length === 0) {
-            container.html('<div class="section-matrix-empty">No peer sections were found for this subject in the current term.</div>');
+            container.html('<div class="section-matrix-empty">No peer sections were found for this subject in the selected term.</div>');
             return;
         }
 
@@ -10223,7 +10224,7 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
         $("#autoDraftReadyCount").text("0");
         $("#autoDraftManualCount").text("0");
         $("#autoDraftReadyList").html(`<div class="auto-draft-empty">${escapeHtml(message || "Failed to generate the draft preview.")}</div>`);
-        $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Try starting the draft again after checking the current term filters.</div>`);
+        $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Try starting the draft again after checking the selected term filters.</div>`);
         $("#btnApplyAutoDraft").prop("disabled", true);
         updateAutoDraftButtonState();
     }

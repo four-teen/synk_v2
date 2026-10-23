@@ -1,6 +1,8 @@
 <?php
 session_start();
 include 'db.php';
+require_once __DIR__ . '/scheduler_request_guard.php';
+synk_scheduler_guard_request($conn, 'load_class_offerings.php');
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_block_helper.php';
 require_once __DIR__ . '/schedule_tba_helper.php';

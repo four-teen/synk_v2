@@ -66,7 +66,7 @@
     const generation = ++state.generation;
     state.rows = []; state.terms = []; state.token = ''; state.busy = false;
     notice(); controls();
-    $('termListCopyTarget').textContent = 'Loading current term…';
+    $('termListCopyTarget').textContent = 'Loading selected term…';
     $('termListCopySource').innerHTML = '<option value="">Loading previous terms…</option>';
     $('termListCopyRows').innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">Loading available lists…</td></tr>';
     modal.show();

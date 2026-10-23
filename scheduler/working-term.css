@@ -1,0 +1,8 @@
+.scheduler-term-context{display:flex;flex:1;min-width:0;flex-wrap:wrap;align-items:center;gap:.5rem}
+.scheduler-term-summary{display:flex;align-items:center;gap:.45rem;min-width:0;color:#566a7f;font-size:.84rem}
+.scheduler-term-summary>span:first-of-type{overflow-wrap:anywhere}
+.scheduler-term-summary .btn{padding:.35rem;line-height:1;font-size:1.1rem}
+.scheduler-term-readonly{margin:1rem 1.5rem 0;padding:.8rem 1rem;border:1px solid #d9e2ef;border-radius:.5rem;background:#f3f6fb;font-size:.85rem}
+.scheduler-term-current{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.3rem;padding:1rem;background:#f5f5f9;border-radius:.5rem}
+.scheduler-term-current strong{display:block;font-size:.85rem}
+@media(max-width:767px){#layout-navbar .scheduler-term-context{gap:.3rem}#layout-navbar .scheduler-term-summary{font-size:.75rem;flex-wrap:wrap}#layout-navbar .navbar-nav-right{gap:.5rem!important}#layout-navbar .scheduler-user-name{display:none}.scheduler-term-readonly{margin:1rem .75rem 0}.scheduler-term-current{flex-wrap:wrap}}
