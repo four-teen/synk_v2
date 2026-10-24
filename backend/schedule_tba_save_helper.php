@@ -4,15 +4,15 @@ require_once __DIR__ . '/schedule_tba_helper.php';
 require_once __DIR__ . '/faculty_need_helper.php';
 class SynkScheduleTbaConflictException extends DomainException {}
 
-// Called only when saving new pending blocks or an offering containing pending blocks.
-// Confirmed schedules continue through the existing save implementation.
+// Pending meetings and assigned meetings share the same update-in-place path.
+// Existing schedule IDs and groups keep workload and enrollment links intact.
 function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId, array $blocks, array $mergeInfo, array $policy): array
 {
     if (!synk_schedule_tba_schema_ready($conn)) { throw new DomainException('TBA setup is not available yet.'); }
     if (count($blocks) > 50) { throw new DomainException('Too many schedule blocks.'); }
     if (strtolower((string)($ctx['offering_status'] ?? '')) === 'locked') { throw new DomainException('This offering is locked.'); }
     if (!empty($mergeInfo['is_merged_member']) || !empty($mergeInfo['inherited_types']) || !empty($mergeInfo['has_merged_members']) || has_outgoing_merge_dependencies($mergeInfo)) {
-        throw new DomainException('Arrange this offering locally before saving TBA. Merged schedules must remain managed through their owner.');
+        throw new DomainException('Merged schedules must remain managed through their owner. Manage the merge links before changing these schedule blocks.');
     }
     $offeringId = (int)$ctx['offering_id'];
     $conn->begin_transaction();
@@ -37,7 +37,7 @@ function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId,
         $normalized = [];
         $seen = [];
         foreach ($blocks as $index => $block) {
-            if (!is_array($block) || filter_var($block['is_inherited'] ?? false,FILTER_VALIDATE_BOOLEAN)) { throw new DomainException('Invalid TBA block.'); }
+            if (!is_array($block) || filter_var($block['is_inherited'] ?? false,FILTER_VALIDATE_BOOLEAN)) { throw new DomainException('Invalid schedule block.'); }
             foreach (['type','schedule_status','schedule_id','room_id','time_start','time_end','days_json'] as $field) {
                 if (isset($block[$field]) && !is_scalar($block[$field])) { throw new DomainException('Invalid schedule block input.'); }
             }
@@ -75,14 +75,7 @@ function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId,
             $next = ['schedule_id'=>$id, 'schedule_type'=>$type, 'type'=>$type, 'schedule_status'=>$status, 'label'=>$label,
                 'room_id'=>$roomId, 'time_start'=>$start, 'time_end'=>$end, 'days'=>$days, 'days_json'=>json_encode($days)];
             if ($owners) {
-                if (!$id) { throw new DomainException('Resolve existing TBA blocks first. Adding meetings to an assigned offering changes its load.'); }
-                $old = $existing[$id];
-                $oldStatus = synk_schedule_status($old);
-                $oldDays = synk_normalize_schedule_days(json_decode((string)$old['days_json'], true));
-                $unchanged = $oldStatus === $status && (int)$old['room_id'] === (int)$roomId && $oldDays === $days
-                    && (string)$old['time_start'] === (string)$start && (string)$old['time_end'] === (string)$end;
-                if ($oldStatus === 'scheduled' && !$unchanged) { throw new DomainException('Confirmed meetings of an assigned offering cannot be changed. Remove the workload assignment first.'); }
-                if ($oldStatus === 'room_tba' && ($oldDays !== $days || (string)$old['time_start'] !== (string)$start || (string)$old['time_end'] !== (string)$end)) { throw new DomainException('Keep the confirmed days and times when arranging a room for an assigned class.'); }
+                if (!$id) { throw new DomainException('Edit the existing meetings. Adding meetings to an assigned offering changes its load.'); }
             }
             if ($status !== 'tba') {
                 check_conflict($conn, $ctx, $offeringId, (int)$roomId, $start, $end, $days, $label);
@@ -103,7 +96,7 @@ function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId,
             $normalized[] = $next;
         }
         if (!$normalized) { throw new DomainException('Add at least one schedule block.'); }
-        if ($owners && count($seen) !== count($existing)) { throw new DomainException('Keep all existing meetings while resolving an assigned TBA class.'); }
+        if ($owners && count($seen) !== count($existing)) { throw new DomainException('Keep all existing meetings while editing an assigned class.'); }
         $message = find_internal_schedule_conflict_message($normalized);
         if ($message !== '') { throw new SynkScheduleTbaConflictException(strip_tags($message)); }
         $groupId = null;
@@ -124,10 +117,14 @@ function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId,
                 $stmt=$conn->prepare('INSERT INTO tbl_class_schedule (offering_id,schedule_type,schedule_status,schedule_group_id,room_id,days_json,time_start,time_end,created_by) VALUES (?,?,?,?,?,?,?,?,?)');
                 $stmt->bind_param('issiisssi',$offeringId,$type,$status,$rowGroupId,$room,$daysJson,$start,$end,$createdBy);
             }
-            if (!$stmt->execute()) { throw new RuntimeException('Unable to save the TBA schedule.'); }
+            if (!$stmt->execute()) { throw new RuntimeException('Unable to save the schedule.'); }
             if (!$id) { $id=(int)$conn->insert_id; }
             $stmt->close(); $kept[$id]=true; $next['schedule_id']=$id; $next['schedule_group_id']=$rowGroupId;
-            if ($status !== 'scheduled' || (isset($existing[$id]) && synk_schedule_status($existing[$id]) !== 'scheduled')) {
+            $old = $existing[$id] ?? [];
+            $changed = $old && (synk_schedule_status($old) !== $status || (int)$old['room_id'] !== (int)$room
+                || synk_normalize_schedule_days(json_decode((string)$old['days_json'], true)) !== $next['days']
+                || (string)$old['time_start'] !== (string)$start || (string)$old['time_end'] !== (string)$end);
+            if ($status !== 'scheduled' || ($old && synk_schedule_status($old) !== 'scheduled') || ($owners && $changed)) {
                 synk_schedule_tba_record_event($conn,$id,$offeringId,$collegeId,$existing[$id] ?? [],$next);
             }
         }
@@ -137,7 +134,7 @@ function synk_schedule_save_tba_blocks(mysqli $conn, array $ctx, int $collegeId,
         $coverage=build_schedule_coverage_summary($ctx,$normalized);
         $hasPending=false;
         foreach ($normalized as $next) { if ($next['schedule_status'] !== 'scheduled') { $hasPending=true; } }
-        if (!mark_offering_schedule_state($conn,$offeringId,!$hasPending && $coverage['status']==='complete' ? 'active' : 'pending')) { throw new RuntimeException('Unable to update the pending offering.'); }
+        if (!mark_offering_schedule_state($conn,$offeringId,!$hasPending && $coverage['status']==='complete' ? 'active' : 'pending')) { throw new RuntimeException('Unable to update the offering.'); }
         $conn->commit();
         return ['status_key'=>$hasPending ? 'tba' : $coverage['status'], 'required_minutes'=>$coverage['required_minutes'], 'scheduled_minutes'=>$coverage['scheduled_minutes']];
     } catch (Throwable $e) {

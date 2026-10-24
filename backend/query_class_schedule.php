@@ -4414,12 +4414,23 @@ if (isset($_POST['save_schedule_blocks'])) {
     foreach (array_merge($blocksRaw, $tbaExistingRows) as $tbaBlock) {
         if (is_array($tbaBlock) && isset($tbaBlock['schedule_status']) && $tbaBlock['schedule_status'] !== 'scheduled') { $usesTba = true; }
     }
-    if ($usesTba) {
+    $assignedFaculties = load_workload_faculties_for_offering(
+        $conn, $offering_id, (int)$ctx['ay_id'], (int)$ctx['semester']
+    );
+    $hasAssignedBlocks = !empty($assignedFaculties);
+    require_once __DIR__ . '/faculty_need_helper.php';
+    $needTable = synk_faculty_need_workload_table_name();
+    if (!$hasAssignedBlocks && synk_table_exists($conn, $needTable)) {
+        $needCheck = $conn->query('SELECT 1 FROM `' . $needTable . '` nw JOIN tbl_class_schedule cs ON cs.schedule_id=nw.schedule_id'
+            . ' WHERE cs.offering_id=' . $offering_id . ' AND nw.ay_id=' . (int)$ctx['ay_id'] . ' AND nw.semester=' . (int)$ctx['semester'] . ' LIMIT 1');
+        $hasAssignedBlocks = $needCheck && $needCheck->num_rows > 0;
+    }
+    if ($usesTba || $hasAssignedBlocks) {
         require_once __DIR__ . '/schedule_tba_save_helper.php';
         try { $tbaResult = synk_schedule_save_tba_blocks($conn, $ctx, $college_id, $blocksRaw, $mergeInfo, $schedulePolicy); }
         catch (SynkScheduleTbaConflictException $e) { respond('conflict', $e->getMessage()); }
         catch (DomainException $e) { respond('error', $e->getMessage()); }
-        catch (Throwable $e) { respond('error', 'Unable to save the pending schedule. No changes were applied.'); }
+        catch (Throwable $e) { respond('error', 'Unable to save the schedule. No changes were applied.'); }
         respond('ok', 'Schedule blocks saved.', $tbaResult);
     }
 
@@ -4427,26 +4438,6 @@ if (isset($_POST['save_schedule_blocks'])) {
         respond(
             "error",
             "This offering is currently used as a merge source. Manage the merge links first before changing its saved schedule blocks."
-        );
-    }
-
-    $assignedFaculties = load_workload_faculties_for_offering(
-        $conn,
-        $offering_id,
-        (int)$ctx['ay_id'],
-        (int)$ctx['semester']
-    );
-
-    if (!empty($assignedFaculties)) {
-        $names = array_map(static function ($faculty) {
-            return htmlspecialchars((string)$faculty['faculty_name'], ENT_QUOTES, 'UTF-8');
-        }, $assignedFaculties);
-
-        respond(
-            "error",
-            "This schedule cannot be changed because it is already assigned in Faculty Workload to <b>" .
-            implode('</b>, <b>', $names) .
-            "</b>. Remove the workload assignment first."
         );
     }
 

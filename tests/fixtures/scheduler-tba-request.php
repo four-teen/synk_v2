@@ -128,6 +128,14 @@ if (strpos($scenario,'resolve')===0 || in_array($scenario,['assigned_edit','assi
     $lec=$makeSchedule($target,'LEC','tba',true);$lab=$makeSchedule($target,'LAB','tba',true);$expectedIds=[$lec,$lab];
     $_POST['blocks']=[$block('LEC','scheduled',$lec,$room,'10:00','12:00'),$block('LAB','tba',$lab)];
 }
+if (strpos($scenario,'assigned_confirmed_')===0) {
+    $lec=$makeSchedule($target,'LEC','scheduled',true,$room);
+    $lab=$makeSchedule($target,'LAB','scheduled',true,$room2,'13:00:00','16:00:00');
+    $expectedIds=[$lec,$lab];
+    $conn->query("UPDATE tbl_class_schedule SET schedule_group_id=987654 WHERE schedule_id IN ({$lec},{$lab})");
+    $_POST['blocks']=[$block('LEC','scheduled',$lec,$room2,'10:00','12:00'),$block('LAB','scheduled',$lab,$room,'13:00','16:00')];
+    foreach($_POST['blocks'] as &$meeting)$meeting['days_json']='["T"]';unset($meeting);
+}
 switch($scenario) {
 case 'create':break;
 case 'form_create':$_POST['blocks']=$incomingBlocks;break;
@@ -163,8 +171,17 @@ case 'resolve_lab_wrong_type':
 case 'resolve_external_faculty_conflict':
     $foreign=$conn->query("SELECT po.*,cs.room_id AS template_room FROM tbl_class_schedule cs JOIN tbl_prospectus_offering po ON po.offering_id=cs.offering_id {$joins}
         JOIN tbl_program p ON p.program_id=po.program_id WHERE p.college_id<>{$college} AND po.ay_id={$term['ay_id']} AND po.semester={$term['semester']} AND cs.schedule_type='LEC' ORDER BY po.offering_id LIMIT 1")->fetch_assoc();
-    if(!$foreign)throw new RuntimeException('An offering from another college is required for global faculty-conflict verification.');
-    $foreignSection=$clone('tbl_sections',$conn->query('SELECT * FROM tbl_sections WHERE section_id=' . (int)$foreign['section_id'])->fetch_assoc(),['section_name'=>substr($tag,-6).'F','full_section'=>$tag.'F']);
+    if(!$foreign) {
+        // Build the other-college class when the selected term has no saved one.
+        $foreignCollege=$conn->query("SELECT college_id FROM tbl_college WHERE college_id<>{$college} AND status='active' ORDER BY college_id LIMIT 1")->fetch_assoc();
+        if(!$foreignCollege)throw new RuntimeException('A second active college is required for the cross-college fixture.');
+        $foreignProgram=$clone('tbl_program',$programmeRow,['college_id'=>(int)$foreignCollege['college_id'],'program_code'=>$tag.'F']);
+        $foreignProspectus=$clone('tbl_prospectus_header',$header,['program_id'=>$foreignProgram]);
+        $foreignPys=$clone('tbl_prospectus_year_sem',$yearRow,['prospectus_id'=>$foreignProspectus,'semester'=>$term['semester']]);
+        $foreignPs=$clone('tbl_prospectus_subjects',$subjectRow,['pys_id'=>$foreignPys]);
+        $foreign=$template;$foreign['program_id']=$foreignProgram;$foreign['prospectus_id']=$foreignProspectus;$foreign['ps_id']=$foreignPs;
+    }
+    $foreignSection=$clone('tbl_sections',$conn->query('SELECT * FROM tbl_sections WHERE section_id=' . (int)$foreign['section_id'])->fetch_assoc(),['program_id'=>(int)$foreign['program_id'],'section_name'=>substr($tag,-6).'F','full_section'=>$tag.'F']);
     $conn->query("INSERT INTO tbl_section_curriculum (section_id,prospectus_id,assigned_by) VALUES ({$foreignSection},{$foreign['prospectus_id']},{$user})");
     $foreignOffering=$clone('tbl_prospectus_offering',$foreign,['section_id'=>$foreignSection,'status'=>'pending']);
     $makeSchedule(['offering_id'=>$foreignOffering],'LEC','scheduled',true,(int)$foreign['template_room'],'10:00:00','12:00:00');break;
@@ -172,6 +189,34 @@ case 'resolve_blocked_time':$_POST['blocks'][0]['time_start']='03:00';$_POST['bl
 case 'assigned_edit':$conn->query("UPDATE tbl_class_schedule SET schedule_status='scheduled',room_id={$room},days_json='[\"M\"]',time_start='09:00:00',time_end='10:00:00' WHERE schedule_id={$lec}");break;
 case 'assigned_add':$_POST['blocks'][]=$block('LEC');break;
 case 'assigned_remove':array_pop($_POST['blocks']);break;
+case 'assigned_confirmed_edit':break;
+case 'assigned_confirmed_students':
+    $enrollment=$conn->query('SELECT * FROM tbl_student_management_enrolled_subjects WHERE is_active=1 LIMIT 1')->fetch_assoc();
+    if (!$enrollment) throw new RuntimeException('An active enrollment template is required.');
+    $clone('tbl_student_management_enrolled_subjects',$enrollment,['program_id'=>$programme,'college_id'=>$college,'campus_id'=>(int)$template['campus_id'],'section_id'=>$target['section_id'],'offering_id'=>$target['offering_id'],'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'subject_id'=>(int)$subjectRow['sub_id'],'is_active'=>1]);break;
+case 'assigned_confirmed_room_tba':$_POST['blocks'][0]['schedule_status']='room_tba';$_POST['blocks'][0]['room_id']='';break;
+case 'assigned_confirmed_tba':$_POST['blocks'][0]=$block('LEC','tba',$lec);break;
+case 'assigned_confirmed_faculty_conflict':case 'assigned_confirmed_room_conflict':case 'assigned_confirmed_section_conflict':
+    $conflictOffering=$scenario==='assigned_confirmed_section_conflict'?$makeOffering('S',$target['section_id']):$other;
+    $conflictId=$makeSchedule($conflictOffering,'LEC',$scenario==='assigned_confirmed_faculty_conflict'?'room_tba':'scheduled',$scenario==='assigned_confirmed_faculty_conflict',$scenario==='assigned_confirmed_room_conflict'?$room2:$room,'10:00:00','12:00:00');
+    $conn->query("UPDATE tbl_class_schedule SET days_json='[\"T\"]' WHERE schedule_id={$conflictId}");break;
+case 'assigned_confirmed_internal':$_POST['blocks'][1]['time_start']='10:00';$_POST['blocks'][1]['time_end']='12:00';break;
+case 'assigned_confirmed_locked':$conn->query("UPDATE tbl_prospectus_offering SET status='locked' WHERE offering_id={$target['offering_id']}");break;
+case 'assigned_confirmed_merged':$conn->query("INSERT INTO tbl_class_schedule_merge (owner_offering_id,member_offering_id,merge_scope,created_by) VALUES ({$target['offering_id']},{$other['offering_id']},'FULL',{$user})");break;
+case 'assigned_confirmed_add':$_POST['blocks'][]=$block('LEC');break;
+case 'assigned_confirmed_remove':array_pop($_POST['blocks']);break;
+case 'assigned_confirmed_foreign':$_POST['blocks'][0]['schedule_id']=$makeSchedule($other,'LEC');break;
+case 'assigned_confirmed_wrong_type':$_POST['blocks'][0]['type']='LAB';break;
+case 'assigned_confirmed_history_failure':$conn->failHistory=true;break;
+case 'assigned_confirmed_need':case 'assigned_confirmed_need_conflict':
+    $need=$clone('tbl_faculty_need',[],['college_id'=>$college,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'need_label'=>$tag,'status'=>'active','created_by'=>$user]);
+    $conn->query("DELETE FROM tbl_faculty_workload_sched WHERE schedule_id IN ({$lec},{$lab})");
+    foreach([$lec,$lab] as $needSchedule)$conn->query("INSERT INTO tbl_faculty_need_workload_sched (faculty_need_id,schedule_id,ay_id,semester) VALUES ({$need},{$needSchedule},{$term['ay_id']},{$term['semester']})");
+    if ($scenario==='assigned_confirmed_need_conflict') {
+        $conflictId=$makeSchedule($other,'LEC','room_tba',false,0,'10:00:00','12:00:00');
+        $conn->query("UPDATE tbl_class_schedule SET days_json='[\"T\"]' WHERE schedule_id={$conflictId}");
+        $conn->query("INSERT INTO tbl_faculty_need_workload_sched (faculty_need_id,schedule_id,ay_id,semester) VALUES ({$need},{$conflictId},{$term['ay_id']},{$term['semester']})");
+    }break;
 case 'load_assigned':$_POST=['load_schedule_blocks'=>1,'csrf_token'=>'tba-qa','offering_id'=>$target['offering_id']];break;
 case 'available':$makeSchedule($target,'LEC');$makeSchedule($target,'LAB');$handler='backend/query_class_schedule_loader.php';$_POST=['faculty_id'=>$faculty,'ay_id'=>$term['ay_id'],'semester_num'=>$term['semester']];break;
 case 'workload':$makeSchedule($target,'LEC','tba',true);$makeSchedule($target,'LAB','tba',true);$handler='backend/query_load_faculty_workload.php';$_POST=['faculty_id'=>$faculty,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'assignee_type'=>'faculty'];break;
@@ -248,6 +293,24 @@ case 'campus_report':case 'campus_report_college':case 'campus_report_other_camp
     }
     if ($scenario==='campus_report_other_campus') $_POST['campus_id']=4294967295;
     $_SESSION['scheduler_working_term']=['user_id'=>$user,'ay_id'=>$sourceTerm['ay_id'],'semester'=>$sourceTerm['semester']];break;
+case 'dashboard_counts':case 'dashboard_charts':case 'dashboard_counts_campus':case 'dashboard_charts_campus':
+    // Seven offerings: four TBA, two scheduled (including a merged member),
+    // and one without meetings. Multiple pending lecture/lab rows count once.
+    $makeSchedule($target,'LEC','tba',true);$makeSchedule($target,'LAB','tba',true);
+    $makeSchedule($other,'LEC','scheduled',false,$room);$makeSchedule($other,'LAB','room_tba',true);
+    $confirmed=$makeOffering('C');$makeSchedule($confirmed,'LEC','scheduled',false,$room);$makeSchedule($confirmed,'LAB','scheduled',false,$room2);
+    $makeOffering('D');
+    $mixed=$makeOffering('E');$makeSchedule($mixed,'LEC','scheduled',false,$room);$makeSchedule($mixed,'LEC','tba');
+    $merged=$makeOffering('F');$partial=$makeOffering('G');
+    foreach([$merged['offering_id']=>'FULL',$partial['offering_id']=>'LEC'] as $member=>$mergeScope) {
+        $conn->query("INSERT INTO tbl_class_schedule_merge (owner_offering_id,member_offering_id,merge_scope,created_by) VALUES ({$confirmed['offering_id']},{$member},'{$mergeScope}',{$user})");
+    }
+    $makeSchedule($partial,'LAB','tba');
+    $outsideTerm=$makeOffering('H');$makeSchedule($outsideTerm,'LEC','tba');
+    $otherSemester=$term['semester']===3?1:3;
+    $conn->query('UPDATE tbl_prospectus_offering SET semester='.$otherSemester.' WHERE offering_id='.$outsideTerm['offering_id']);
+    $handler=strpos($scenario,'dashboard_counts')===0?'backend/dashboard_counts.php':'backend/dashboard_scheduler_charts.php';
+    $_POST=['scope'=>strpos($scenario,'campus')!==false?'campus':'college'];break;
 case 'page':$handler='scheduler/manage-class-schedule.php';$_POST=[];break;
 default:throw new RuntimeException('Unknown TBA scenario.');
 }
@@ -261,14 +324,15 @@ $take=static function() use($conn,$programme,$faculty,$tag,$term):array {
     $sections=$conn->query('SELECT * FROM tbl_sections WHERE program_id='.$programme.' ORDER BY section_id')->fetch_all(MYSQLI_ASSOC);
     $offerings=$conn->query('SELECT * FROM tbl_prospectus_offering WHERE program_id='.$programme.' ORDER BY offering_id')->fetch_all(MYSQLI_ASSOC);
     $simulation=$conn->query('SELECT * FROM tbl_faculty_workload_simulation WHERE faculty_id='.$faculty.' ORDER BY simulation_id')->fetch_all(MYSQLI_ASSOC);
-    return ['official_term'=>synk_fetch_current_academic_term($conn),'working_term'=>$term,'classes'=>$rows,'workload'=>$load,'need_workload'=>$needLoad,'events'=>$events,'saved_rows'=>$sets,'sections'=>$sections,'offerings'=>$offerings,'simulations'=>$simulation];
+    $enrollments=$conn->query('SELECT * FROM tbl_student_management_enrolled_subjects WHERE program_id='.$programme.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    return ['official_term'=>synk_fetch_current_academic_term($conn),'working_term'=>$term,'classes'=>$rows,'workload'=>$load,'need_workload'=>$needLoad,'events'=>$events,'saved_rows'=>$sets,'sections'=>$sections,'offerings'=>$offerings,'simulations'=>$simulation,'enrollments'=>$enrollments];
 };
 $before=$take();session_write_close();ob_start();
-register_shutdown_function(static function() use($conn,$take,$before,$target,$faculty,$room,$room2,$expectedIds,$scenario):void {
+register_shutdown_function(static function() use($conn,$take,$before,$target,$faculty,$room,$room2,$expectedIds,$scenario,$tag):void {
     $body='';while(ob_get_level()>0)$body=ob_get_clean().$body;
     try {
         $after=$take();$result=['response'=>json_decode($body,true) ?: $body,'before'=>$before,'after'=>$after,'target'=>$target,
-            'faculty_id'=>$faculty,'room_id'=>$room,'room2_id'=>$room2,'expected_ids'=>$expectedIds,'scenario'=>$scenario,'php_version'=>PHP_VERSION];
+            'faculty_id'=>$faculty,'room_id'=>$room,'room2_id'=>$room2,'expected_ids'=>$expectedIds,'scenario'=>$scenario,'program_code'=>$tag,'php_version'=>PHP_VERSION];
         $conn->discardFixtures();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();http_response_code(200);header('Content-Type: application/json; charset=utf-8');echo json_encode($result,JSON_UNESCAPED_UNICODE);
     } catch(Throwable $e) {$conn->discardFixtures();http_response_code(500);echo json_encode(['fixture_error'=>$e->getMessage(),'output'=>substr($body,0,2200)]);}
 });

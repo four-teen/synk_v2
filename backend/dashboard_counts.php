@@ -8,6 +8,7 @@ require_once __DIR__ . '/scheduler_term_helper.php';
 require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
+require_once __DIR__ . '/scheduler_dashboard_schedule_helper.php';
 
 header('Content-Type: application/json');
 
@@ -19,7 +20,8 @@ function empty_dashboard_count_payload(): array
         'programs' => 0,
         'faculty' => 0,
         'offering_items' => 0,
-        'unscheduled_classes' => 0
+        'unscheduled_classes' => 0,
+        'tba_classes' => 0
     ];
 }
 
@@ -53,7 +55,7 @@ if ($collegeId <= 0 || $currentAyId <= 0 || $currentSemester <= 0) {
 $filterValue = $scope === 'campus' ? $campusId : $collegeId;
 $filterSql = $scope === 'campus' ? 'c.campus_id = ?' : 'p.college_id = ?';
 $liveOfferingJoins = synk_section_curriculum_live_offering_join_sql('o', 'sec', 'sc', 'ps', 'pys', 'ph');
-$scheduledOfferingJoin = synk_schedule_merge_scheduled_offering_join_sql($conn, 'sched', 'o');
+$scheduledOfferingJoin = synk_scheduler_dashboard_schedule_join_sql($conn);
 
 $sql = "
     SELECT
@@ -96,18 +98,18 @@ $sql = "
            AND o.ay_id = ?
            AND o.semester = ?) AS offering_items,
 
-        (SELECT COUNT(*)
-         FROM tbl_prospectus_offering o
-         {$liveOfferingJoins}
-         {$scheduledOfferingJoin}
-         INNER JOIN tbl_program p ON p.program_id = o.program_id
-         INNER JOIN tbl_college c ON c.college_id = p.college_id
-         WHERE {$filterSql}
-           AND c.status = 'active'
-           AND p.status = 'active'
-           AND o.ay_id = ?
-           AND o.semester = ?
-           AND sched.offering_id IS NULL) AS unscheduled_classes
+        COUNT(DISTINCT CASE WHEN sched.offering_id IS NULL THEN o.offering_id END) AS unscheduled_classes,
+        COUNT(DISTINCT CASE WHEN sched.has_tba = 1 THEN o.offering_id END) AS tba_classes
+    FROM tbl_prospectus_offering o
+    {$liveOfferingJoins}
+    {$scheduledOfferingJoin}
+    INNER JOIN tbl_program p ON p.program_id = o.program_id
+    INNER JOIN tbl_college c ON c.college_id = p.college_id
+    WHERE {$filterSql}
+      AND c.status = 'active'
+      AND p.status = 'active'
+      AND o.ay_id = ?
+      AND o.semester = ?
 ";
 
 $stmt = $conn->prepare($sql);
@@ -143,7 +145,8 @@ echo json_encode([
     'programs' => (int)($row['programs'] ?? 0),
     'faculty' => (int)($row['faculty'] ?? 0),
     'offering_items' => (int)($row['offering_items'] ?? 0),
-    'unscheduled_classes' => (int)($row['unscheduled_classes'] ?? 0)
+    'unscheduled_classes' => (int)($row['unscheduled_classes'] ?? 0),
+    'tba_classes' => (int)($row['tba_classes'] ?? 0)
 ]);
 exit;
 ?>

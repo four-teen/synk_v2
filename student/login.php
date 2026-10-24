@@ -41,10 +41,18 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <link rel="stylesheet" href="../assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/login-intro.css') ?>">
   <link rel="stylesheet" href="login.css?v=<?= (int)filemtime(__DIR__.'/login.css') ?>">
 </head>
-<body>
+<body class="synk-login-assemble">
   <div class="synk-login-splash" aria-hidden="true">
     <div class="synk-login-splash-brand">
-      <img src="../assets/img/favicon/synk-icon.png" alt="" width="104" height="104" fetchpriority="high">
+      <div class="synk-login-logo">
+        <img class="synk-login-logo-complete" src="../assets/img/favicon/synk-icon.png" alt="" width="144" height="144" fetchpriority="high">
+        <i class="synk-login-logo-piece synk-login-logo-piece-cap"></i>
+        <i class="synk-login-logo-piece synk-login-logo-piece-tassel"></i>
+        <i class="synk-login-logo-piece synk-login-logo-piece-upper"></i>
+        <i class="synk-login-logo-piece synk-login-logo-piece-ribbon"></i>
+        <i class="synk-login-logo-piece synk-login-logo-piece-left"></i>
+        <i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
+      </div>
       <span>synk</span>
     </div>
   </div>

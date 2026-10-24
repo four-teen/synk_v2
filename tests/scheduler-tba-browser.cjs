@@ -102,12 +102,12 @@ async function main(){
   assert(saved.length===2 && saved.every(block=>block.schedule_status==='tba' && !block.room_id && !block.time_start && !block.time_end && block.days_json==='[]'),'TBA submit retained a real slot.');
   await until('!$("#blockScheduleModal").hasClass("show") && !Swal.isVisible()','Modal did not close after save.');
   await evaluate('window.__tbaMode="assigned";document.getElementById("tbaQaOpen").click()');
-  await until('document.querySelector(".schedule-block-status")?.disabled && $("#blockScheduleModal").hasClass("show")','Assigned editor did not load.');
+  await until('document.querySelector(".schedule-block-status") && !document.querySelector(".schedule-block-status").disabled && $("#blockScheduleModal").hasClass("show")','Assigned editor did not load.');
   await until('document.activeElement?.closest("#blockScheduleModal")','Assigned editor opening transition did not finish.');
   assert(await evaluate('document.getElementById("btnAddLectureBlock").disabled && document.getElementById("btnAddLabBlock").disabled'),'Assigned block counts could change load totals.');
   assert(await evaluate('document.querySelectorAll(".btn-remove-schedule-block").length===0'),'Assigned meetings could be removed.');
   assert(await evaluate('document.getElementById("btnClearBlockSchedule").disabled'),'Assigned pending meetings could be cleared.');
-  assert(await evaluate('document.querySelector(".schedule-block-time-start").disabled && document.querySelector(".schedule-block-room").disabled'),'Confirmed assigned meeting fields were editable.');
+  assert(await evaluate('!document.querySelector(".schedule-block-time-start").disabled && !document.querySelector(".schedule-block-room").disabled'),'Confirmed assigned meeting fields are still locked.');
   await evaluate(`
     const select=document.querySelectorAll('.schedule-block-status')[1];select.value='scheduled';select.dispatchEvent(new Event('change',{bubbles:true}));
     const card=document.querySelectorAll('.schedule-block-card')[1];card.querySelector('.schedule-block-day[value=M]').checked=true;card.querySelector('.schedule-block-time-start').value='13:00';card.querySelector('.schedule-block-time-end').value='16:00';card.querySelector('.schedule-block-room').value='900001';
@@ -118,10 +118,20 @@ async function main(){
   assert(resolved[0].schedule_id===loaded.response.blocks[0].schedule_id && resolved[1].schedule_id===loaded.response.blocks[1].schedule_id,'Resolution replaced meeting IDs.');
   assert(resolved.every(block=>block.schedule_status==='scheduled'),'Resolution retained an incorrect pending status.');
   await until('!$("#blockScheduleModal").hasClass("show") && !Swal.isVisible()','Resolved modal did not close.');
+  await evaluate(`window.__loaded.blocks=${JSON.stringify(resolved)}.map(block=>({...block,days:JSON.parse(block.days_json),is_inherited:false,is_editable:true}));window.__tbaMode='confirmed';document.getElementById('tbaQaOpen').click();`);
+  await until('document.querySelectorAll(".schedule-block-status").length===2 && $("#blockScheduleModal").hasClass("show")','Confirmed assigned editor did not reopen.');
+  assert(await evaluate('Array.from(document.querySelectorAll(".schedule-block-time-start,.schedule-block-time-end,.schedule-block-room,.schedule-block-status")).every(input=>!input.disabled)'),'Reopened confirmed meetings are locked.');
+  await evaluate(`
+    const card=document.querySelector('.schedule-block-card');card.querySelector('.schedule-block-time-start').value='08:00';card.querySelector('.schedule-block-time-end').value='10:00';
+    document.getElementById('btnSaveScheduleBlocks').click();
+  `);
+  await until('window.__savedTba.length===3','Confirmed assigned schedule could not be edited after reopening.');
+  assert(await evaluate('window.__savedTba[2].blocks[0].time_start==="08:00" && window.__savedTba[2].blocks[0].schedule_id===window.__loaded.blocks[0].schedule_id'),'Confirmed edit lost its meeting ID or new time.');
+  await until('!$("#blockScheduleModal").hasClass("show") && !Swal.isVisible()','Confirmed edit did not close.');
   await evaluate('window.__tbaMode="room";document.getElementById("tbaQaOpen").click()');
   await until('document.querySelector(".schedule-block-status")?.value==="room_tba" && $("#blockScheduleModal").hasClass("show")','Room TBA editor did not load.');
   await until('document.activeElement?.closest("#blockScheduleModal")','Room editor opening transition did not finish.');
-  assert(await evaluate('document.querySelector(".schedule-block-time-start").disabled && Array.from(document.querySelectorAll(".schedule-block-card:first-child .schedule-block-day")).every(input=>input.disabled)'),'Room TBA released confirmed times.');
+  assert(await evaluate('!document.querySelector(".schedule-block-time-start").disabled && Array.from(document.querySelectorAll(".schedule-block-card:first-child .schedule-block-day")).some(input=>!input.disabled)'),'Assigned Room TBA days and times are locked.');
   await evaluate('const roomSelect=document.querySelector(".schedule-block-status");roomSelect.value="scheduled";roomSelect.dispatchEvent(new Event("change",{bubbles:true}));');
   assert(await evaluate('!document.querySelector(".schedule-block-room").disabled && document.querySelector(".schedule-block-time-start").disabled'),'Room resolution did not preserve fixed times.');
   await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false},session);
