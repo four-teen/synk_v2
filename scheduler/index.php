@@ -73,8 +73,130 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
     <script src="../assets/js/config.js"></script>
 
     <style>
+      .scheduler-dashboard-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.5rem;
+      }
+
+      .scheduler-dashboard-main,
+      .scheduler-dashboard-secondary {
+        min-width: 0;
+      }
+
+      .scheduler-dashboard-workspace {
+        min-width: 0;
+      }
+
+      .operations-header {
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .operations-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .operations-metrics .kpi-box {
+        height: 100%;
+      }
+
+      .kpi-tba {
+        background: #f5f3ff;
+        border: 1px solid #e4ddff;
+      }
+
+      .kpi-tba .kpi-icon {
+        background: #8b5cf6;
+      }
+
+      .kpi-tba .kpi-value {
+        color: #8b5cf6 !important;
+      }
+
+      @media (min-width: 768px) {
+        .operations-metrics {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 0.5rem;
+        }
+      }
+
+      @media (min-width: 1200px) {
+        .scheduler-dashboard-grid {
+          grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
+          align-items: stretch;
+        }
+
+        .scheduler-dashboard-secondary {
+          grid-column: 1 / -1;
+        }
+
+        .scheduler-dashboard-workspace {
+          position: relative;
+        }
+
+        .scheduler-dashboard-workspace > .card {
+          position: absolute;
+          inset: 0;
+        }
+
+        .scheduler-dashboard-workspace .card-header {
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          padding: 1.25rem;
+        }
+
+        .scheduler-dashboard-workspace .workspace-scroll-area {
+          min-height: 0;
+          max-height: none;
+          padding: 0 1.25rem 1.25rem;
+        }
+
+        .scheduler-dashboard-workspace .workspace-card {
+          padding: 12px;
+        }
+
+        .scheduler-dashboard-workspace .workspace-card small {
+          display: block;
+        }
+
+        .scheduler-dashboard-workspace .workspace-card .gap-3 {
+          gap: 0.65rem !important;
+        }
+
+        .scheduler-dashboard-workspace .workspace-icon {
+          width: 34px;
+          height: 34px;
+          font-size: 18px;
+        }
+      }
+
       .hero-card {
         overflow: hidden;
+      }
+
+      .hero-card img {
+        max-height: 150px;
+        width: auto;
+      }
+
+      @media (max-width: 767.98px) {
+        .operations-metrics > div:last-child {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (max-width: 575.98px) {
+        .scheduler-dashboard-grid .card-header {
+          flex-wrap: wrap;
+          gap: 0.75rem;
+        }
+
+        .scheduler-dashboard-grid .card-header > div:first-child {
+          width: 100%;
+        }
       }
 
       .kpi-box {
@@ -384,8 +506,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
 
           <div class="content-wrapper">
             <div class="container-xxl flex-grow-1 container-p-y">
-              <div class="row">
-                <div class="col-lg-8 mb-4 order-0">
+              <div class="scheduler-dashboard-grid">
+                <div class="scheduler-dashboard-main">
                   <div class="row">
                     <div class="col-lg-12 order-0 mb-4">
                       <div class="card shadow-sm hero-card">
@@ -427,7 +549,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                   <div class="row">
                     <div class="col-lg-12 order-0 mb-4">
                       <div class="card h-100 shadow-sm">
-                        <div class="card-header d-flex align-items-center justify-content-between pb-0">
+                        <div class="card-header operations-header d-flex align-items-center justify-content-between pb-0">
                           <div class="card-title mb-0">
                             <h5 class="m-0 me-2">Scheduling Operations Overview</h5>
                             <small class="text-muted" id="operationsOverviewSubtitle">College-level scheduling indicators</small>
@@ -444,8 +566,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                         </div>
 
                         <div class="card-body px-4 py-3">
-                          <div class="row gy-4">
-                            <div class="col-md-3 col-6">
+                          <div class="operations-metrics">
+                            <div>
                               <div class="kpi-box text-center">
                                 <div class="kpi-icon bg-primary">
                                   <i class="bx bx-book-open"></i>
@@ -456,7 +578,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                               </div>
                             </div>
 
-                            <div class="col-md-3 col-6">
+                            <div>
                               <div class="kpi-box text-center">
                                 <div class="kpi-icon bg-success">
                                   <i class="bx bx-user-voice"></i>
@@ -467,7 +589,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                               </div>
                             </div>
 
-                            <div class="col-md-3 col-6">
+                            <div>
                               <div class="kpi-box text-center">
                                 <div class="kpi-icon bg-info">
                                   <i class="bx bx-detail"></i>
@@ -478,7 +600,18 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                               </div>
                             </div>
 
-                            <div class="col-md-3 col-6">
+                            <div>
+                              <div class="kpi-box kpi-tba text-center" title="Each class offering is counted once when any meeting is TBA or Room TBA, including assigned classes.">
+                                <div class="kpi-icon">
+                                  <i class="bx bx-time-five"></i>
+                                </div>
+                                <h3 class="kpi-value mt-2" id="countTba">--</h3>
+                                <small class="text-muted">TBA Classes</small>
+                                <div class="metric-note">Time or room still to be arranged</div>
+                              </div>
+                            </div>
+
+                            <div>
                               <div class="kpi-box kpi-warning text-center kpi-actionable" id="cardUnscheduled" role="button" tabindex="0" aria-label="Open unscheduled classes list">
                                 <div class="kpi-icon bg-warning">
                                   <i class="bx bx-error-circle"></i>
@@ -493,12 +626,12 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                       </div>
                     </div>
 
-                    <div class="col-lg-12 order-1 mb-4">
+                    <div class="col-lg-12 order-1">
                       <div class="card h-100 shadow-sm">
                         <div class="card-header d-flex justify-content-between align-items-center">
                           <div>
                             <h5 class="m-0" id="programChartTitle">Scheduling Progress by Program</h5>
-                            <small class="text-muted" id="programChartSubtitle">Each line shows how many classes a program has, how many are already scheduled, and how many still need schedule assignment.</small>
+                            <small class="text-muted" id="programChartSubtitle">Compare all classes, scheduled classes, TBA classes, and unscheduled classes per program.</small>
                           </div>
                           <span class="badge bg-label-primary" id="programChartBadge">Scheduler Focus</span>
                         </div>
@@ -506,72 +639,16 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                         <div class="card-body">
                           <div id="programSchedulingChart" class="chart-shell"></div>
                           <p class="chart-insight mb-0" id="programProgressInsight">
-                            This graph helps you see which program still has the most unscheduled classes.
+                            TBA classes have a pending time or room; unscheduled classes have no saved meetings.
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div class="col-lg-12 order-1 mb-4">
-                      <div class="card h-100 shadow-sm">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                          <div>
-                            <h5 class="m-0" id="scheduleHeatmapTitle">Accessible Room Occupancy Heatmap</h5>
-                            <small class="text-muted" id="scheduleHeatmapSubtitle">Each cell shows the percentage of active rooms accessible to your college that are occupied during each 30-minute weekday block from 7:00 AM to 6:00 PM.</small>
-                          </div>
-                          <span class="badge bg-label-info" id="scheduleHeatmapBadge">Room Heat</span>
-                        </div>
-
-                        <div class="card-body">
-                          <div class="heatmap-toolbar mb-3">
-                            <div class="small text-muted" id="scheduleHeatmapFilterSummary">
-                              Filter by room to inspect one classroom schedule.
-                            </div>
-                            <div class="heatmap-filter-control">
-                              <label class="heatmap-filter-label" for="scheduleHeatmapRoomFilter">Room View</label>
-                              <select class="form-select form-select-sm heatmap-room-filter" id="scheduleHeatmapRoomFilter" aria-label="Select room heatmap view" disabled>
-                                <option value="all">All accessible rooms</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div id="scheduleHeatmapChart" class="chart-shell"></div>
-                          <p class="chart-insight mb-0" id="scheduleHeatmapInsight">
-                            This heat map highlights the busiest 30-minute room intervals for scheduling.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="col-lg-12 order-1 mb-4">
-                      <div class="card h-100 shadow-sm">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                          <div>
-                            <h5 class="m-0" id="weeklyPressureTitle">Weekly Scheduling Pressure</h5>
-                            <small class="text-muted" id="weeklyPressureSubtitle">Bars show scheduled classes while lines track rooms in use and faculty activity for each weekday.</small>
-                          </div>
-                          <span class="badge bg-label-info" id="weeklyPressureBadge">Demand Map</span>
-                        </div>
-
-                        <div class="card-body">
-                          <div id="weeklyPressureChart" class="chart-shell chart-shell-compact"></div>
-                          <div id="weeklyPressureAnalysis" class="weekly-analysis">
-                            <div class="weekly-analysis-loading">
-                              <div class="loader-inline">
-                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                <span>Analyzing weekday load...</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p class="chart-insight mb-0" id="weeklyPressureInsight">
-                            This graph helps you spot which days are crowded and may need balancing.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                <div class="col-md-6 col-lg-4 order-2 mb-4">
+                <div class="scheduler-dashboard-workspace">
                   <div class="card h-100 shadow-sm">
                     <div class="card-header d-flex align-items-center justify-content-between">
                       <h5 class="card-title m-0">Scheduler Workspace</h5>
@@ -749,6 +826,10 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                             <span class="badge bg-info rounded-pill" id="summaryProspectus">--</span>
                           </li>
                           <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold">TBA classes</span>
+                            <span class="badge bg-secondary rounded-pill" id="summaryTba">--</span>
+                          </li>
+                          <li class="list-group-item d-flex justify-content-between align-items-center">
                             <span class="fw-semibold">Classes still unscheduled</span>
                             <span class="badge bg-success rounded-pill" id="summaryUnscheduled">--</span>
                           </li>
@@ -757,6 +838,66 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                         <p class="text-muted small mb-0 mt-3" id="schedulerStatusMessage">
                           Scheduling looks clear for this workspace.
                         </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="scheduler-dashboard-secondary">
+                  <div class="row">
+                    <div class="col-lg-12 order-1 mb-4">
+                      <div class="card h-100 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                          <div>
+                            <h5 class="m-0" id="scheduleHeatmapTitle">Accessible Room Occupancy Heatmap</h5>
+                            <small class="text-muted" id="scheduleHeatmapSubtitle">Each cell shows the percentage of active rooms accessible to your college that are occupied during each 30-minute weekday block from 7:00 AM to 6:00 PM.</small>
+                          </div>
+                          <span class="badge bg-label-info" id="scheduleHeatmapBadge">Room Heat</span>
+                        </div>
+
+                        <div class="card-body">
+                          <div class="heatmap-toolbar mb-3">
+                            <div class="small text-muted" id="scheduleHeatmapFilterSummary">
+                              Filter by room to inspect one classroom schedule.
+                            </div>
+                            <div class="heatmap-filter-control">
+                              <label class="heatmap-filter-label" for="scheduleHeatmapRoomFilter">Room View</label>
+                              <select class="form-select form-select-sm heatmap-room-filter" id="scheduleHeatmapRoomFilter" aria-label="Select room heatmap view" disabled>
+                                <option value="all">All accessible rooms</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div id="scheduleHeatmapChart" class="chart-shell"></div>
+                          <p class="chart-insight mb-0" id="scheduleHeatmapInsight">
+                            This heat map highlights the busiest 30-minute room intervals for scheduling.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-lg-12 order-1">
+                      <div class="card h-100 shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                          <div>
+                            <h5 class="m-0" id="weeklyPressureTitle">Weekly Scheduling Pressure</h5>
+                            <small class="text-muted" id="weeklyPressureSubtitle">Bars show scheduled classes while lines track rooms in use and faculty activity for each weekday.</small>
+                          </div>
+                          <span class="badge bg-label-info" id="weeklyPressureBadge">Demand Map</span>
+                        </div>
+
+                        <div class="card-body">
+                          <div id="weeklyPressureChart" class="chart-shell chart-shell-compact"></div>
+                          <div id="weeklyPressureAnalysis" class="weekly-analysis">
+                            <div class="weekly-analysis-loading">
+                              <div class="loader-inline">
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span>Analyzing weekday load...</span>
+                              </div>
+                            </div>
+                          </div>
+                          <p class="chart-insight mb-0" id="weeklyPressureInsight">
+                            This graph helps you spot which days are crowded and may need balancing.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -837,6 +978,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
         let dashboardScope = "college";
         let scheduleHeatmapRoomSelection = "all";
         let syncingScheduleHeatmapRoomFilter = false;
+        let dashboardLoadVersion = 0;
+        const countTimers = new Map();
         const campusViewEnabled = <?php echo $campusViewEnabled ? 'true' : 'false'; ?>;
         const defaultCollegeName = <?php echo json_encode($_SESSION['college_name'] ?? 'Assigned College'); ?>;
         const defaultCampusName = <?php echo json_encode($_SESSION['campus_name'] ?? 'Current Campus'); ?>;
@@ -1325,6 +1468,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             return;
           }
 
+          window.clearInterval(countTimers.get(elementId));
           let current = 0;
           const increment = Math.max(1, Math.ceil(safeTarget / 20));
 
@@ -1334,10 +1478,12 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             if (current >= safeTarget) {
               current = safeTarget;
               window.clearInterval(timer);
+              countTimers.delete(elementId);
             }
 
             element.textContent = current;
           }, 20);
+          countTimers.set(elementId, timer);
         }
 
         function setChartFallback(containerId, message) {
@@ -1412,8 +1558,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
 
           if (programChartSubtitle) {
             programChartSubtitle.textContent = scopeType === "campus"
-              ? "Each line shows total classes, scheduled classes, and remaining unscheduled classes for every college in the current campus."
-              : "Each line shows how many classes a program has, how many are already scheduled, and how many still need schedule assignment.";
+              ? "Compare all classes, scheduled classes, TBA classes, and unscheduled classes for every college in the current campus."
+              : "Compare all classes, scheduled classes, TBA classes, and unscheduled classes per program.";
           }
 
           if (programChartBadge) {
@@ -1454,14 +1600,16 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
         }
 
         function setCountsLoadingState() {
-          ["countPrograms", "countFaculty", "countProspectus", "countUnscheduled"].forEach(function (id) {
+          countTimers.forEach(function (timer) { window.clearInterval(timer); });
+          countTimers.clear();
+          ["countPrograms", "countFaculty", "countProspectus", "countTba", "countUnscheduled"].forEach(function (id) {
             const element = document.getElementById(id);
             if (element) {
               element.textContent = "--";
             }
           });
 
-          ["summaryPrograms", "summaryFaculty", "summaryProspectus", "summaryUnscheduled"].forEach(function (id) {
+          ["summaryPrograms", "summaryFaculty", "summaryProspectus", "summaryTba", "summaryUnscheduled"].forEach(function (id) {
             const element = document.getElementById(id);
             if (element) {
               element.textContent = "--";
@@ -1493,22 +1641,27 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           const categories = [];
           const totalValues = [];
           const scheduledValues = [];
+          const tbaValues = [];
           const pendingValues = [];
           let highestPending = null;
           let totalPending = 0;
+          let totalTba = 0;
 
           data.forEach(function (row, index) {
             const programLabel = row.program || "Program " + (index + 1);
             const total = Number(row.total) || 0;
             const scheduled = Number(row.scheduled) || 0;
+            const tba = Number(row.tba) || 0;
             const pending = Number(row.pending);
-            const safePending = Number.isFinite(pending) ? pending : Math.max(0, total - scheduled);
+            const safePending = Number.isFinite(pending) ? pending : Math.max(0, total - scheduled - tba);
 
             categories.push(programLabel);
             totalValues.push(total);
             scheduledValues.push(scheduled);
+            tbaValues.push(tba);
             pendingValues.push(safePending);
             totalPending += safePending;
+            totalTba += tba;
 
             if (!highestPending || safePending > highestPending.pending || (safePending === highestPending.pending && total > highestPending.total)) {
               highestPending = {
@@ -1544,19 +1697,23 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
                 data: totalValues
               },
               {
-                name: "Already Scheduled",
+                name: "Scheduled",
                 data: scheduledValues
               },
               {
-                name: "Still Unscheduled",
+                name: "TBA",
+                data: tbaValues
+              },
+              {
+                name: "Unscheduled",
                 data: pendingValues
               }
             ],
-            colors: ["#275efe", "#1f9d55", "#ff8a00"],
+            colors: ["#275efe", "#1f9d55", "#8b5cf6", "#ff8a00"],
             stroke: {
-              curve: "straight",
-              width: [4, 4, 4],
-              dashArray: [0, 6, 2],
+              curve: "smooth",
+              width: [3, 3, 3, 3],
+              dashArray: [0, 6, 4, 2],
               lineCap: "round"
             },
             fill: {
@@ -1588,7 +1745,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
               borderColor: "#eceef1",
               strokeDashArray: 4,
               padding: {
-                top: 8
+                top: 8,
+                right: 18
               }
             },
             xaxis: {
@@ -1605,9 +1763,12 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             },
             yaxis: {
               min: 0,
-              max: Math.max(5, Math.ceil((Math.max.apply(null, totalValues.concat(scheduledValues, pendingValues)) || 0) * 1.12)),
+              max: Math.max(5, Math.ceil((Math.max.apply(null, totalValues.concat(scheduledValues, tbaValues, pendingValues)) || 0) * 1.12)),
               tickAmount: 5,
               forceNiceScale: true,
+              labels: {
+                formatter: function (value) { return Math.round(value); }
+              },
               title: {
                 text: "Offerings",
                 style: {
@@ -1620,7 +1781,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
               intersect: false,
               y: {
                 formatter: function (value, context) {
-                  const labels = [" total classes", " already scheduled", " still unscheduled"];
+                  const labels = [" total classes", " scheduled", " TBA (time or room pending)", " unscheduled"];
                   return value + labels[context.seriesIndex];
                 }
               }
@@ -1644,22 +1805,17 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
 
           schedulingProgressChart.render();
 
-          if (totalPending === 0) {
-            setInsight("programProgressInsight", "All programs are fully scheduled. The unscheduled line is at zero across the chart.");
+          if (totalPending === 0 && totalTba === 0) {
+            setInsight("programProgressInsight", "All classes have saved schedules with no TBA meetings remaining.");
             return;
           }
 
           setInsight(
             "programProgressInsight",
-            "The orange line shows classes that still need schedule assignment. " +
-              highestPending.program +
-              " has the highest unscheduled count with " +
-              highestPending.pending +
-              " class" +
-              (highestPending.pending === 1 ? "" : "s") +
-              " still not scheduled out of " +
-              highestPending.total +
-              " total."
+            "The purple line shows " + totalTba + " TBA class" + (totalTba === 1 ? "" : "es") +
+              " awaiting a time or room. The orange line shows " + totalPending +
+              " class" + (totalPending === 1 ? "" : "es") + " with no saved meetings." +
+              (totalPending > 0 ? " " + highestPending.program + " has the most unscheduled classes (" + highestPending.pending + ")." : "")
           );
         }
 
@@ -2196,6 +2352,7 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           const programs = Number(data.programs) || 0;
           const faculty = Number(data.faculty) || 0;
           const offerings = Number(data.offering_items) || 0;
+          const tba = Number(data.tba_classes) || 0;
           const unscheduled = Number(data.unscheduled_classes) || 0;
           const scopeType = data && data.scope === "campus" && campusViewEnabled ? "campus" : "college";
           const scopeLabel = data && data.scope_label ? data.scope_label : (scopeType === "campus" ? <?php echo json_encode($_SESSION['campus_name'] ?? 'Current Campus'); ?> : <?php echo json_encode($_SESSION['college_name'] ?? 'Assigned College'); ?>);
@@ -2203,11 +2360,13 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           animateCount("countPrograms", programs);
           animateCount("countFaculty", faculty);
           animateCount("countProspectus", offerings);
+          animateCount("countTba", tba);
           animateCount("countUnscheduled", unscheduled);
 
           document.getElementById("summaryPrograms").textContent = programs;
           document.getElementById("summaryFaculty").textContent = faculty;
           document.getElementById("summaryProspectus").textContent = offerings;
+          document.getElementById("summaryTba").textContent = tba;
           document.getElementById("summaryUnscheduled").textContent = unscheduled;
 
           const unscheduledCard = document.getElementById("cardUnscheduled");
@@ -2215,27 +2374,27 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           const unscheduledBadge = document.getElementById("summaryUnscheduled");
           const schedulerStatusMessage = document.getElementById("schedulerStatusMessage");
 
+          const pendingSummary = [];
+          if (unscheduled > 0) pendingSummary.push(unscheduled + " unscheduled class" + (unscheduled === 1 ? "" : "es"));
+          if (tba > 0) pendingSummary.push(tba + " TBA class" + (tba === 1 ? "" : "es") + " awaiting a time or room");
+          schedulerStatusMessage.textContent = pendingSummary.length > 0
+            ? pendingSummary.join(" and ") + (scopeType === "campus" ? " across " + scopeLabel : "") + "."
+            : (scopeType === "campus" ? "Scheduling looks clear across " + scopeLabel + "." : "Scheduling looks clear for this workspace.");
+
           if (unscheduled > 0) {
             unscheduledCard.classList.add("kpi-warning-active");
             unscheduledNote.textContent = scopeType === "campus" ? "Need schedule assignment across campus" : "Needs schedule assignment";
             unscheduledBadge.className = "badge bg-danger rounded-pill";
-            schedulerStatusMessage.textContent =
-              scopeType === "campus"
-                ? unscheduled + " classes still need time or room assignment across " + scopeLabel + "."
-                : unscheduled + " classes still need time or room assignment.";
             return;
           }
 
           unscheduledCard.classList.remove("kpi-warning-active");
-          unscheduledNote.textContent = scopeType === "campus" ? "All campus classes scheduled" : "All classes scheduled";
+          unscheduledNote.textContent = tba > 0 ? "Saved meetings exist; TBA remains" : "All classes have saved schedules";
           unscheduledBadge.className = "badge bg-success rounded-pill";
-          schedulerStatusMessage.textContent =
-            scopeType === "campus"
-              ? "Scheduling looks clear across " + scopeLabel + "."
-              : "Scheduling looks clear for this workspace.";
         }
 
         function loadDashboardData() {
+          const loadVersion = ++dashboardLoadVersion;
           applyDashboardScopeMeta({
             scope: dashboardScope,
             scope_label: dashboardScope === "campus"
@@ -2262,8 +2421,8 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
           setInsight(
             "programProgressInsight",
             dashboardScope === "campus"
-              ? "Loading the comparison of total classes, scheduled classes, and unscheduled classes for each college in the current campus."
-              : "Loading the comparison of total classes, scheduled classes, and unscheduled classes per program."
+              ? "Loading total, scheduled, TBA, and unscheduled classes for each college in the current campus."
+              : "Loading total, scheduled, TBA, and unscheduled classes per program."
           );
           setInsight(
             "weeklyPressureInsight",
@@ -2281,11 +2440,13 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             dataType: "json",
             data: { scope: dashboardScope },
             success: function (data) {
+              if (loadVersion !== dashboardLoadVersion) return;
               applyDashboardScopeMeta(data || {});
               renderProgramSchedulingChart(data.program_progress || []);
               renderWeeklyPressureChart(data.weekly_pressure || []);
             },
             error: function (xhr) {
+              if (loadVersion !== dashboardLoadVersion) return;
               console.error("Scheduler charts error:", xhr.responseText);
               setChartFallback("programSchedulingChart", "Unable to load program scheduling progress.");
               setChartFallback("weeklyPressureChart", "Unable to load weekday scheduling pressure.");
@@ -2301,9 +2462,11 @@ $campusViewEnabled = (int)($_SESSION['campus_id'] ?? 0) > 0;
             dataType: "json",
             data: { scope: dashboardScope },
             success: function (data) {
+              if (loadVersion !== dashboardLoadVersion) return;
               updateDashboardCounts(data || {});
             },
             error: function (xhr) {
+              if (loadVersion !== dashboardLoadVersion) return;
               console.error("Dashboard counts error:", xhr.responseText);
               document.getElementById("schedulerStatusMessage").textContent =
                 "Unable to load dashboard counts.";

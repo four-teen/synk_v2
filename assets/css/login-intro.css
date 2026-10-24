@@ -32,6 +32,125 @@
   text-transform: lowercase;
 }
 
+/* Login intro: every fragment uses the original artwork, clipped by color.
+   The complete image takes over after assembly to leave a seamless logo. */
+.synk-login-logo {
+  position: relative;
+  width: clamp(120px, 25vw, 144px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 12px 22px #b94d141a);
+  isolation: isolate;
+}
+
+.synk-login-logo > .synk-login-logo-complete {
+  width: 100%;
+  height: 100%;
+  filter: none;
+}
+
+.synk-login-logo-piece {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: url('../img/favicon/synk-icon.png') center / contain no-repeat;
+  transform-origin: center;
+  backface-visibility: hidden;
+}
+
+.synk-login-logo-piece-cap {
+  clip-path: polygon(
+    23.764% 16.667%, 50.558% 5.343%, 52.871% 4.944%, 85.805% 18.660%,
+    86.204% 19.219%, 86.204% 27.033%, 82.775% 27.033%, 82.775% 21.850%,
+    75.758% 24.801%, 74.242% 24.880%, 66.268% 20.973%, 60.845% 18.979%,
+    55.582% 17.783%, 51.515% 17.384%, 42.982% 18.421%, 38.198% 19.856%,
+    33.812% 21.691%, 32.775% 21.691%, 23.923% 18.262%
+  );
+  --piece-x: -42px;
+  --piece-y: -78px;
+  --piece-turn: -22deg;
+  --piece-delay: 40ms;
+}
+
+.synk-login-logo-piece-tassel {
+  clip-path: polygon(
+    86.204% 29.107%, 86.204% 29.904%, 87.321% 30.781%, 87.719% 31.978%,
+    87.480% 34.290%, 86.124% 35.646%, 87.799% 39.314%, 87.799% 50.319%,
+    87.241% 50.877%, 81.499% 50.877%, 80.861% 50.239%, 80.861% 39.474%,
+    82.695% 35.486%, 81.340% 34.051%, 81.180% 31.978%, 81.738% 30.622%,
+    82.775% 29.825%, 82.775% 26.396%, 86.204% 26.396%
+  );
+  --piece-x: 76px;
+  --piece-y: -42px;
+  --piece-turn: 30deg;
+  --piece-delay: 160ms;
+}
+
+.synk-login-logo-piece-upper {
+  clip-path: polygon(
+    39.553% 42.982%, 33.812% 41.148%, 29.665% 39.234%, 27.033% 37.400%,
+    24.721% 34.290%, 24.482% 30.861%, 25.598% 28.309%, 29.825% 24.402%,
+    32.855% 22.887%, 37.002% 21.372%, 42.265% 20.175%, 47.368% 19.697%,
+    53.509% 19.936%, 59.091% 20.893%, 63.796% 22.329%, 68.900% 24.322%,
+    75.439% 27.512%, 75.199% 36.124%, 46.970% 36.284%, 44.179% 37.480%,
+    42.982% 38.836%, 42.584% 40.032%, 43.142% 41.707%, 44.338% 42.903%,
+    46.093% 43.780%, 46.093% 44.577%
+  );
+  --piece-x: 66px;
+  --piece-y: -54px;
+  --piece-turn: 24deg;
+  --piece-delay: 90ms;
+}
+
+.synk-login-logo-piece-ribbon {
+  clip-path: polygon(
+    72.568% 91.388%, 74.641% 89.314%, 76.077% 87.161%, 77.113% 84.769%,
+    77.671% 81.978%, 77.512% 79.665%, 76.715% 77.273%, 75.359% 75.199%,
+    72.967% 73.046%, 63.078% 69.139%, 26.874% 57.974%, 22.329% 55.423%,
+    19.617% 52.472%, 18.182% 49.841%, 17.225% 46.252%, 17.065% 42.265%,
+    17.544% 38.915%, 18.900% 35.088%, 20.734% 31.978%, 22.887% 29.346%,
+    25.997% 26.715%, 29.187% 24.801%, 29.984% 24.801%, 29.984% 25.518%,
+    27.751% 27.193%, 26.156% 29.027%, 25.199% 31.021%, 25.040% 32.456%,
+    25.837% 34.689%, 26.874% 36.045%, 30.781% 38.915%, 37.799% 41.707%,
+    46.332% 43.860%, 71.930% 51.675%, 78.230% 54.864%, 82.137% 58.692%,
+    84.370% 62.600%, 85.805% 67.544%, 86.045% 73.046%, 85.008% 78.549%,
+    82.536% 84.051%, 79.585% 87.959%, 75.359% 91.547%, 71.372% 93.700%,
+    70.175% 93.860%, 70.175% 93.142%
+  );
+  --piece-x: -78px;
+  --piece-y: 10px;
+  --piece-turn: -26deg;
+  --piece-delay: 0ms;
+}
+
+.synk-login-logo-piece-left {
+  clip-path: polygon(
+    20.335% 68.900%, 46.252% 68.979%, 48.644% 69.777%, 50.239% 71.053%,
+    50.877% 72.488%, 50.877% 74.083%, 49.681% 75.837%, 34.848% 85.646%,
+    31.100% 86.922%, 26.954% 86.842%, 23.285% 85.646%, 19.856% 83.333%,
+    17.624% 80.861%, 15.630% 77.033%, 14.753% 73.285%, 14.753% 69.219%,
+    15.311% 68.900%
+  );
+  --piece-x: -66px;
+  --piece-y: 64px;
+  --piece-turn: 32deg;
+  --piece-delay: 180ms;
+}
+
+.synk-login-logo-piece-lower {
+  clip-path: polygon(
+    57.496% 69.617%, 55.901% 67.783%, 53.429% 66.268%, 53.429% 65.550%,
+    56.778% 66.268%, 71.212% 71.212%, 73.604% 72.408%, 76.316% 74.960%,
+    77.352% 76.635%, 78.150% 79.027%, 78.150% 83.812%, 76.396% 88.357%,
+    73.126% 92.185%, 70.973% 93.939%, 69.458% 94.657%, 66.507% 95.694%,
+    63.078% 96.332%, 27.751% 96.332%, 27.911% 95.455%, 41.467% 86.922%,
+    55.821% 77.193%, 57.496% 75.359%, 58.373% 73.365%, 58.373% 71.611%
+  );
+  --piece-x: 58px;
+  --piece-y: 76px;
+  --piece-turn: -24deg;
+  --piece-delay: 120ms;
+}
+
 /* CSS owns the sequence so login still appears without JavaScript. */
 @media (prefers-reduced-motion: no-preference) {
   .synk-login-splash {
@@ -56,6 +175,57 @@
   [data-synk-login-content] {
     animation: synk-login-reveal 480ms cubic-bezier(.22, 1, .36, 1) 1120ms both;
   }
+
+  .synk-login-assemble .synk-login-splash {
+    overflow: hidden;
+    animation: synk-login-splash-out 320ms ease 1540ms both;
+  }
+
+  .synk-login-assemble .synk-login-splash-brand {
+    animation: none;
+  }
+
+  .synk-login-assemble .synk-login-splash-brand > span {
+    animation: synk-login-wordmark-in 450ms cubic-bezier(.22, 1, .36, 1) 820ms both;
+  }
+
+  .synk-login-assemble [data-synk-login-content] {
+    animation: synk-login-reveal 440ms cubic-bezier(.22, 1, .36, 1) 1580ms both;
+  }
+
+  @supports (clip-path: polygon(0 0, 100% 0, 100% 100%)) {
+    .synk-login-assemble .synk-login-logo-piece {
+      display: block;
+      animation:
+        synk-login-piece-in 980ms cubic-bezier(.2, .78, .24, 1) var(--piece-delay) both,
+        synk-login-piece-hide 1ms linear 1200ms forwards;
+    }
+
+    .synk-login-assemble .synk-login-logo-complete {
+      animation: synk-login-complete-in 40ms ease 1160ms both;
+    }
+  }
+}
+
+@keyframes synk-login-piece-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--piece-x), var(--piece-y), 0) rotate(var(--piece-turn)) scale(.76);
+  }
+  12% { opacity: 1; }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0) scale(1);
+  }
+}
+
+@keyframes synk-login-piece-hide {
+  to { visibility: hidden; }
+}
+
+@keyframes synk-login-complete-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes synk-login-logo-in {

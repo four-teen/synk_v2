@@ -8,6 +8,7 @@ require_once __DIR__ . '/offering_scope_helper.php';
 require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/scheduler_access_helper.php';
 require_once __DIR__ . '/schema_helper.php';
+require_once __DIR__ . '/scheduler_dashboard_schedule_helper.php';
 
 header('Content-Type: application/json');
 
@@ -206,7 +207,7 @@ if ($collegeId <= 0 || $currentAyId <= 0 || $currentSemester <= 0) {
 $filterValue = $scope === 'campus' ? $campusId : $collegeId;
 $filterSql = $scope === 'campus' ? 'c.campus_id = ?' : 'p.college_id = ?';
 $liveOfferingJoins = synk_section_curriculum_live_offering_join_sql('o', 'sec', 'sc', 'ps', 'pys', 'ph');
-$scheduledOfferingJoin = synk_schedule_merge_scheduled_offering_join_sql($conn, 'sched', 'o');
+$scheduledOfferingJoin = synk_scheduler_dashboard_schedule_join_sql($conn);
 
 $programProgress = [];
 
@@ -220,7 +221,8 @@ if ($scope === 'campus') {
                 CONCAT('College ', c.college_id)
             ) AS scope_label,
             COUNT(DISTINCT o.offering_id) AS total_offerings,
-            COUNT(DISTINCT sched.offering_id) AS scheduled_offerings
+            COUNT(DISTINCT CASE WHEN sched.has_tba = 0 THEN o.offering_id END) AS scheduled_offerings,
+            COUNT(DISTINCT CASE WHEN sched.has_tba = 1 THEN o.offering_id END) AS tba_offerings
         FROM tbl_prospectus_offering o
         {$liveOfferingJoins}
         INNER JOIN tbl_program p
@@ -247,7 +249,8 @@ if ($scope === 'campus') {
                 CONCAT('Program ', p.program_id)
             ) AS scope_label,
             COUNT(DISTINCT o.offering_id) AS total_offerings,
-            COUNT(DISTINCT sched.offering_id) AS scheduled_offerings
+            COUNT(DISTINCT CASE WHEN sched.has_tba = 0 THEN o.offering_id END) AS scheduled_offerings,
+            COUNT(DISTINCT CASE WHEN sched.has_tba = 1 THEN o.offering_id END) AS tba_offerings
         FROM tbl_prospectus_offering o
         {$liveOfferingJoins}
         INNER JOIN tbl_program p
@@ -275,12 +278,14 @@ if ($progressStmt) {
     while ($row = $progressRes->fetch_assoc()) {
         $total = (int)($row['total_offerings'] ?? 0);
         $scheduled = (int)($row['scheduled_offerings'] ?? 0);
+        $tba = (int)($row['tba_offerings'] ?? 0);
 
         $programProgress[] = [
             'program' => $row['scope_label'],
             'total' => $total,
             'scheduled' => $scheduled,
-            'pending' => max(0, $total - $scheduled)
+            'tba' => $tba,
+            'pending' => max(0, $total - $scheduled - $tba)
         ];
     }
 

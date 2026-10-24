@@ -8503,18 +8503,17 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
             const isInherited = Boolean(block.is_inherited);
             const status = block.schedule_status || "scheduled";
             const assigned = Boolean(scheduleBlockState.hasAssignedBlocks);
-            const frozen = isInherited || (assigned && block.original_status === "scheduled");
-            const fixedTime = frozen || (assigned && block.original_status === "room_tba");
+            const frozen = isInherited;
             const isTba = status === "tba";
 
             const inheritedMeta = isInherited && block.source_label
                 ? `Inherited from ${block.source_label}. Manage the merge settings to change this block.`
                 : (isInherited ? "Inherited block. Manage the merge settings to change this block." : (assigned
-                    ? (block.original_status === "scheduled" ? "Confirmed meeting. Remove its workload assignment before changing this schedule." : "Arrange this meeting while keeping its faculty assignment.")
+                    ? "Edit this meeting while keeping its faculty assignment. Conflict checks apply when saving."
                     : "This block can be assigned to a different faculty later."));
             const dayButtons = SCHEDULE_DAY_ORDER.map(day => {
                 const isBlocked = BLOCKED_SCHEDULE_DAY_SET.has(day);
-                const shouldDisable = fixedTime || isTba || (isBlocked && !selectedDays.includes(day));
+                const shouldDisable = frozen || isTba || (isBlocked && !selectedDays.includes(day));
                 return `
                 <input
                     type="checkbox"
@@ -8556,7 +8555,7 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
                         <label class="form-label" for="status_${escapeHtml(block.block_key)}">Schedule status</label>
                         <select id="status_${escapeHtml(block.block_key)}" class="form-select schedule-block-status" data-block-key="${escapeHtml(block.block_key)}" ${frozen || !scheduleBlockState.tbaReady ? "disabled" : ""}>
                             <option value="scheduled" ${status === "scheduled" ? "selected" : ""}>Scheduled</option>
-                            <option value="tba" ${status === "tba" ? "selected" : ""} ${assigned && block.original_status === "room_tba" ? "disabled" : ""}>TBA — To Be Arranged</option>
+                            <option value="tba" ${status === "tba" ? "selected" : ""}>TBA — To Be Arranged</option>
                             <option value="room_tba" ${status === "room_tba" ? "selected" : ""}>Room TBA — Keep Days and Time</option>
                         </select>
                         ${status !== "scheduled" ? '<div class="alert alert-warning mt-2 mb-0 py-2">' + (isTba ? 'Days: TBA · Time: TBA · Room: TBA. This class can be assigned to faculty while its schedule is pending.' : 'Room: TBA. Faculty and section time conflicts still apply.') + '</div>' : ''}
@@ -8569,8 +8568,8 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
                         <div class="col-lg-4">
                             <label class="form-label">Time</label>
                             <div class="d-flex gap-2">
-                                <input type="time" class="form-control schedule-block-time-start" data-block-key="${escapeHtml(block.block_key)}" min="${escapeHtml(SUPPORTED_TIME_START)}" max="${escapeHtml(SUPPORTED_TIME_END)}" step="1800" value="${escapeHtml(block.time_start || "")}" ${fixedTime || isTba ? "disabled" : ""}>
-                                <input type="time" class="form-control schedule-block-time-end" data-block-key="${escapeHtml(block.block_key)}" min="${escapeHtml(SUPPORTED_TIME_START)}" max="${escapeHtml(SUPPORTED_TIME_END)}" step="1800" value="${escapeHtml(block.time_end || "")}" ${fixedTime || isTba ? "disabled" : ""}>
+                                <input type="time" class="form-control schedule-block-time-start" data-block-key="${escapeHtml(block.block_key)}" min="${escapeHtml(SUPPORTED_TIME_START)}" max="${escapeHtml(SUPPORTED_TIME_END)}" step="1800" value="${escapeHtml(block.time_start || "")}" ${frozen || isTba ? "disabled" : ""}>
+                                <input type="time" class="form-control schedule-block-time-end" data-block-key="${escapeHtml(block.block_key)}" min="${escapeHtml(SUPPORTED_TIME_START)}" max="${escapeHtml(SUPPORTED_TIME_END)}" step="1800" value="${escapeHtml(block.time_end || "")}" ${frozen || isTba ? "disabled" : ""}>
                             </div>
                         </div>
                         <div class="col-lg-4">
