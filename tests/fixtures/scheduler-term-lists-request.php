@@ -8,6 +8,10 @@ require_once $root . '/backend/scheduler_term_list_helper.php';
 class SchedulerListQAConnection extends mysqli
 {
     public $requestMode = false;
+    public $legacyFacultyMaster = false;
+    public $missingTermDesignations = false;
+    public $incompleteTermDesignations = false;
+    public $failCopiedDesignation = false;
     #[\ReturnTypeWillChange]
     public function begin_transaction($flags=0,$name=null) { return $this->requestMode ? $this->query('SAVEPOINT scheduler_list_request') : parent::begin_transaction($flags); }
     #[\ReturnTypeWillChange]
@@ -16,12 +20,30 @@ class SchedulerListQAConnection extends mysqli
     public function rollback($flags=0,$name=null) { return $this->requestMode ? $this->query('ROLLBACK TO SAVEPOINT scheduler_list_request') : parent::rollback($flags); }
     #[\ReturnTypeWillChange]
     public function query($sql,$mode=MYSQLI_STORE_RESULT) {
+        if ($this->missingTermDesignations && preg_match("/^SHOW TABLES LIKE 'tbl_faculty_term_designations'$/i",trim($sql))) {
+            return parent::query('SELECT faculty_id FROM tbl_faculty WHERE 1=0',$mode);
+        }
+        if ($this->incompleteTermDesignations && preg_match('/^SHOW COLUMNS FROM `tbl_faculty_term_designations`$/i',trim($sql))) {
+            return parent::query("SELECT COLUMN_NAME AS Field FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tbl_faculty_term_designations' AND COLUMN_NAME<>'updated_by'",$mode);
+        }
         if (preg_match('/^\s*CREATE TABLE IF NOT EXISTS `?([a-z0-9_]+)`?/i',$sql,$match)) {
             $exists=parent::query("SHOW TABLES LIKE '".$this->real_escape_string($match[1])."'");
             if ($exists && $exists->num_rows) return true;
         }
         if (preg_match('/^\s*(CREATE|ALTER|DROP|TRUNCATE)\b/i', $sql)) throw new RuntimeException('Fixtures cannot change the schema.');
         return parent::query($sql,$mode);
+    }
+    #[\ReturnTypeWillChange]
+    public function prepare($sql) {
+        if ($this->requestMode && $this->failCopiedDesignation && preg_match('/^INSERT INTO tbl_faculty_term_designations\b/i',trim($sql))) {
+            throw new RuntimeException('Injected designation-copy failure.');
+        }
+        // A derived relation reproduces older master tables without changing
+        // any real table: college membership belongs to tbl_college_faculty.
+        if ($this->requestMode && $this->legacyFacultyMaster && preg_match('/SELECT faculty_id,status(?:,college_id)? FROM tbl_faculty\s+WHERE/i',$sql)) {
+            $sql=preg_replace('/FROM tbl_faculty\s+WHERE/i','FROM (SELECT faculty_id,status FROM tbl_faculty) legacy_faculty WHERE',$sql,1);
+        }
+        return parent::prepare($sql);
     }
 }
 $conn->close(); $conn = new SchedulerListQAConnection($servername,$username,$password,$dbase); $conn->set_charset('utf8mb4');
@@ -30,6 +52,10 @@ $scenario = (string)($_GET['scenario'] ?? 'faculty_preview');
 $planningScenario = strpos($scenario,'planning_') === 0 ? substr($scenario,9) : '';
 $planningCase = $planningScenario;
 if ($planningScenario !== '') $scenario = in_array($planningScenario,['closed','mismatch','stale_college','invalid_year','array_term'],true) ? 'faculty_copy' : $planningScenario;
+$conn->legacyFacultyMaster = $scenario === 'faculty_legacy_master_copy';
+$conn->missingTermDesignations = $scenario === 'faculty_missing_designations_copy';
+$conn->incompleteTermDesignations = $scenario === 'faculty_incomplete_designations_copy';
+$conn->failCopiedDesignation = $scenario === 'faculty_designation_failure_copy';
 $term = synk_scheduler_list_current_term($conn);
 $officialTerm = $term;
 if ($planningScenario !== '') {
@@ -132,7 +158,7 @@ if (strpos($scenario,'copy') !== false || in_array($scenario,['foreign_id','sour
     $preview = synk_scheduler_list_stage_preview($conn,$scope,$kind,$sourceTerm,$term);
     $_POST['action']='copy'; $_POST['preview_token']=$preview['preview_token'];
     $ids = $kind === 'rooms' ? [$rooms['first']] : [$faculty['first']];
-    if ($scenario==='faculty_copy') $ids=[$faculty['first'],$faculty['second']];
+    if (in_array($scenario,['faculty_copy','faculty_designation_failure_copy'],true)) $ids=[$faculty['first'],$faculty['second']];
     if ($scenario==='foreign_id') $ids=[$faculty['foreign']];
     if ($scenario==='rooms_borrowed_copy') $ids=[$rooms['borrowed']];
     if ($scenario==='duplicate_ids') $ids=[$faculty['first'],$faculty['first']];

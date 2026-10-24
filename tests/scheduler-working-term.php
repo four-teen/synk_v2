@@ -17,7 +17,7 @@ $request=static function(string $scenario)use($route,$token):array{
 };
 $header=static function(array $response,string $name){preg_match('/'.preg_quote($name,'/').': ([^\r\n]+)/i',$response['headers'],$match);return isset($match[1])?json_decode(rawurldecode($match[1]),true):null;};
 try {
-    foreach(['faculty_copy'=>2,'rooms_copy'=>1]as$scenario=>$count){
+    foreach(['faculty_copy'=>2,'faculty_legacy_master_copy'=>1,'rooms_copy'=>1]as$scenario=>$count){
         $r=$request($scenario);$term=$header($r,'X-QA-Working-Term');$current=$header($r,'X-QA-Official-Term');
         $check($r['status']===200&&($r['data']['copied']??-1)===$count,'Lists copy into the future working term: '.$scenario.' '.substr($r['body'],0,600));
         $check($term['is_future']&&$term['can_write']&&$term['key']===$r['data']['target']['key'],'The copy target is the scheduler working term.');

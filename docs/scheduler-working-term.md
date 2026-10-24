@@ -14,6 +14,24 @@ note in Academic Settings. Existing planning-table rows are preserved for upgrad
 compatibility and no longer restrict Scheduler access. Stale pages submitting to
 the retired settings endpoint receive HTTP 410 without changing permissions.
 
+### Copy Previous List deployment checks
+
+Faculty copying validates college membership through `tbl_college_faculty`; it
+does not require `tbl_faculty.college_id`. The faculty master stays shared.
+
+A working preview alone does not confirm that designation storage is installed:
+older deployments can read the global designation as a fallback. Copying must
+retain appointments for the selected term, so it requires the complete
+`tbl_faculty_term_designations` schema from
+`backend/sql/phase23_faculty_term_designations.sql`. Missing or incomplete storage
+returns a setup message before changing the faculty list.
+
+If that table is absent, run the preparation command below **on the affected
+server**, using its configured database. Running it on a workstation only prepares
+the workstation database. If the table already exists but is incomplete, compare
+its columns with the phase 23 schema and repair the missing fields without
+dropping existing appointment records. The copy endpoint never runs schema DDL.
+
 Install the additive database prerequisites on every deployment:
 
 ```powershell

@@ -172,6 +172,7 @@ function synk_scheduler_list_copy(mysqli $conn, array $scope, string $kind, stri
     if (!$pending || $pending['user_id'] !== (int)$_SESSION['user_id'] || $pending['college_id'] !== $scope['college_id']
         || $pending['kind'] !== $kind || $pending['expires_at'] < time()) throw new DomainException('This preview expired. Open a new preview before copying.', 409);
     foreach ($selected as $id) if (!in_array($id, $pending['eligible_ids'], true)) throw new DomainException('Choose only available entries from this preview.', 403);
+    if ($kind === 'faculty') synk_faculty_term_designation_require_storage($conn);
     $conn->begin_transaction();
     try {
         synk_scheduler_list_lock_actor($conn);
@@ -184,7 +185,10 @@ function synk_scheduler_list_copy(mysqli $conn, array $scope, string $kind, stri
         $placeholders = implode(',', array_fill(0, count($selected), '?'));
         $table = $kind === 'faculty' ? 'tbl_faculty' : 'tbl_rooms';
         $idColumn = $kind === 'faculty' ? 'faculty_id' : 'room_id';
-        $masters = array_column(synk_scheduler_list_query($conn, "SELECT {$idColumn},status,college_id FROM {$table}
+        // Faculty membership is checked against the college list below. Only
+        // rooms need a master owner; older faculty tables have no college_id.
+        $ownerColumn = $kind === 'rooms' ? ',college_id' : '';
+        $masters = array_column(synk_scheduler_list_query($conn, "SELECT {$idColumn},status{$ownerColumn} FROM {$table}
             WHERE {$idColumn} IN ({$placeholders}) ORDER BY {$idColumn} FOR UPDATE", str_repeat('i', count($selected)), $selected), null, $idColumn);
         $listTable = $kind === 'faculty' ? 'tbl_college_faculty' : 'tbl_room_college_access';
         $sourceStatus = $kind === 'faculty' ? " AND status='active'" : '';

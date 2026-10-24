@@ -38,6 +38,16 @@ try {
     $check(strpos($r['headers'],'X-QA-Master-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Previous-Unchanged: yes')!==false,'Copying faculty changes neither faculty records nor earlier lists or schedules.');
     $r=$request('faculty_one_copy');$ids=$header($r,'X-QA-Faculty-Ids');$rows=array_column($header($r,'X-QA-Faculty-Rows'),null,'faculty_id');
     $check($r['status']===200 && $r['data']['copied']===1 && $rows[$ids['first']]['status']==='active' && $rows[$ids['second']]['status']==='inactive','An unchecked faculty entry is not added to the current list.');
+    $r=$request('faculty_legacy_master_copy');$ids=$header($r,'X-QA-Faculty-Ids');$rows=array_column($header($r,'X-QA-Faculty-Rows'),null,'faculty_id');
+    $check($r['status']===200 && $r['data']['copied']===1 && isset($rows[$ids['first']]),'Faculty copying supports master tables without the unused college_id column. '.substr($r['body'],0,600));
+    $check(strpos($r['headers'],'X-QA-Master-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Previous-Unchanged: yes')!==false,'Legacy-master copying preserves master records, source lists, and earlier appointments.');
+    foreach (['faculty_missing_designations_copy','faculty_incomplete_designations_copy'] as $scenario) {
+        $r=$request($scenario);
+        $check($r['status']===409 && strpos($r['data']['message']??'','term-designation setup')!==false && strpos($r['data']['message']??'','Nothing was copied.')!==false,'Incomplete storage reports a setup message: '.$scenario.' '.substr($r['body'],0,600));
+        $check(strpos($r['headers'],'X-QA-Lists-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Master-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Previous-Unchanged: yes')!==false,'Missing storage leaves all lists and prior records untouched: '.$scenario);
+    }
+    $r=$request('faculty_designation_failure_copy');
+    $check($r['status']===500 && strpos($r['headers'],'X-QA-Lists-Unchanged: yes')!==false && strpos($r['headers'],'X-QA-Previous-Unchanged: yes')!==false,'A failed designation copy rolls back faculty-list inserts.');
     $r=$request('rooms_copy');$ids=$header($r,'X-QA-Room-Ids');$rows=$header($r,'X-QA-Room-Rows');
     $check($r['status']===200 && $r['data']['copied']===1 && count($rows)===2,'Only the selected room becomes available in the current term.');
     $check((int)$rows[0]['room_id']===$ids['first'] && $rows[0]['access_type']==='owner','Copied room access stays with its owner college.');
