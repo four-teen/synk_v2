@@ -44,9 +44,20 @@ function synk_faculty_term_designation_record(mysqli $conn, int $facultyId, int 
     $stmt->close();
 }
 
+function synk_faculty_term_designation_require_storage(mysqli $conn): void
+{
+    $columns = synk_describe_columns($conn, 'tbl_faculty_term_designations');
+    $required = ['faculty_id','ay_id','semester','designation_id','designation_name','designation_units','updated_by','record_source','updated_at'];
+    if (array_diff($required, array_keys($columns))) {
+        // Storage must be prepared separately; schema changes would implicitly
+        // commit a copy transaction and could leave a partially copied list.
+        throw new DomainException('This server needs the faculty term-designation setup before lists can be copied. Ask the Administrator to complete Scheduler working-term setup, then try again. Nothing was copied.', 409);
+    }
+}
+
 function synk_faculty_term_designation_copy(mysqli $conn, int $facultyId, array $source, array $target, int $actorId): void
 {
-    if (!synk_table_exists($conn, 'tbl_faculty_term_designations')) throw new RuntimeException('Term designation storage is not ready.');
+    synk_faculty_term_designation_require_storage($conn);
     $join = synk_faculty_designation_join_sql($conn, (int)$source['ay_id'], (int)$source['semester']);
     $stmt = $conn->prepare("SELECT d.designation_id,d.designation_name,d.designation_units FROM tbl_faculty f {$join} WHERE f.faculty_id=?");
     $stmt->bind_param('i', $facultyId);
