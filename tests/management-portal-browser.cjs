@@ -50,9 +50,10 @@ async function main() {
           : { ...common,contribution_id:data.record_id,contribution_date:'2026-10-26',amount:'123.45',event_id:null };
         let payload = data.action === 'get' ? { status:'ok',record } : { status:'ok',message:'Record saved.',record_id:1 };
         if (data.action === 'student_detail') payload = { status:'ok',student:{ student_name:'STUDENT <img src=x onerror=alert(1)>',student_number:'000123',email_address:'student@sksu.edu.ph' },subjects:[{ subject_code:'CS 101',descriptive_title:'PROGRAMMING',section_label:'BSCS 1A',program_label:'BSCS',term_label:'2026-2027 - 1st Semester',faculty_name:'ASSIGNED FACULTY' }] };
+        if (data.action === 'save_management_term') payload={status:'error',message:'The current Management term changed. Reload this page.'};
         if (data.action === 'organization_add') payload = { status:'ok',organization:{ organization_id:999999,organization_code:'NEW ORG',organization_name:'NEW ORGANIZATION' } };
         if (data.action === 'save' && catalogFailure) payload={ status:'error',message:'The record changed. Reload its details.' };
-        call('Fetch.fulfillRequest', { requestId:msg.params.requestId,responseCode:catalogFailure && data.action==='save' ? 409 : 200,responseHeaders:[{ name:'Content-Type',value:'application/json' }],body:Buffer.from(JSON.stringify(payload)).toString('base64') },msg.sessionId).catch(e=>errors.push(e.message));
+        call('Fetch.fulfillRequest', { requestId:msg.params.requestId,responseCode:(catalogFailure && data.action==='save') || data.action==='save_management_term' ? 409 : 200,responseHeaders:[{ name:'Content-Type',value:'application/json' }],body:Buffer.from(JSON.stringify(payload)).toString('base64') },msg.sessionId).catch(e=>errors.push(e.message));
         return;
       }
       saves.push(msg.params.request);
@@ -77,32 +78,62 @@ async function main() {
   for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Management login overflows ${width}px.`); }
   await screenshot('management-login-320.png');
   await resize(1440); await navigate('dashboard');
-  check(await evaluate('document.querySelectorAll("[data-stat]").length===4 && document.querySelectorAll(".management-nav a").length===5 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard analytics/navigation are missing.');
-  check(await evaluate('document.documentElement.classList.contains("layout-menu-fixed") && document.getElementById("layout-menu").classList.contains("bg-menu-theme") && document.getElementById("layout-navbar").classList.contains("navbar-detached") && document.querySelectorAll(".college-dean-menu-card").length===5'), 'Management is not using the shared module layout/header/card navigation.');
+  check(await evaluate('document.querySelectorAll("[data-stat]").length===4 && document.querySelectorAll(".management-nav a").length===6 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard analytics/navigation are missing.');
+  check(await evaluate('document.documentElement.classList.contains("layout-menu-fixed") && document.getElementById("layout-menu").classList.contains("bg-menu-theme") && document.getElementById("layout-navbar").classList.contains("navbar-detached") && document.querySelectorAll(".college-dean-menu-card").length===6'), 'Management is not using the shared module layout/header/card navigation.');
   check(await evaluate('getComputedStyle(document.querySelector(".college-dean-menu-title")).fontSize==="13.92px" && getComputedStyle(document.querySelector(".college-dean-menu-icon")).width==="34px" && getComputedStyle(document.querySelector(".college-dean-menu-card")).borderTopWidth==="1px"'), 'Sidebar fonts, icon sizes, or card borders differ from the Dean template.');
   check(await evaluate('document.compatMode==="CSS1Compat" && document.querySelectorAll("script[src*=jquery]").length===0'), 'Management dashboard is not in standards mode or loads duplicate libraries.');
   await screenshot('management-dashboard-1440.png');
   await evaluate('document.getElementById("management-term-settings").click()');await until('document.getElementById("management-term-modal").classList.contains("show")');await delay(300);
   check(await evaluate('document.getElementById("management-term").value===JSON.parse(document.getElementById("management-config").textContent).term'),'Header term settings did not show the selected viewing term.');
-  await evaluate('document.getElementById("management-term").selectedIndex=0;document.querySelector("#management-term-modal [data-bs-dismiss]").click()');await delay(300);
+  check(await evaluate('JSON.stringify([...document.getElementById("management-view-exam-term").options].map(o=>o.value))===JSON.stringify(["MIDTERM","FINAL"])'),'Management must offer exactly Midterm and Final terms.');
+  await evaluate('document.getElementById("management-view-year").selectedIndex=0;document.getElementById("management-view-year").dispatchEvent(new Event("change"));document.getElementById("management-view-exam-term").value="FINAL";document.querySelector("#management-term-modal [data-bs-dismiss]").click()');await delay(300);
   await evaluate('document.getElementById("management-term-settings").click()');await until('document.getElementById("management-term-modal").classList.contains("show")');await delay(300);
   check(await evaluate('document.getElementById("management-term").value===JSON.parse(document.getElementById("management-config").textContent).term'),'Canceling term settings retained an unapplied selection.');
+  check(await evaluate('document.getElementById("management-view-exam-term").value===JSON.parse(document.getElementById("management-config").textContent).exam_term'),'Canceling period settings retained the unapplied exam term.');
   await evaluate('document.getElementById("management-current-term").click()');
   check(await evaluate('document.getElementById("management-term").value===document.getElementById("management-current-term").dataset.term'),'Use current term did not select the current academic term.');
+  check(await evaluate('document.getElementById("management-view-exam-term").value===document.getElementById("management-current-term").dataset.examTerm'),'Use current period did not restore Midterm / Final.');
+  for (const width of [1440,390,320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Period selector overflows ${width}px.`); }
+  await screenshot('management-period-selector-320.png');
   await evaluate('document.querySelector("#management-term-modal [data-bs-dismiss]").click()');await delay(300);
+  await navigate('view_final');
+  check(await evaluate('document.querySelector(".dean-view-label").textContent.includes("Final") && [...document.querySelectorAll(".management-nav a")].every(a=>new URL(a.href).searchParams.get("exam_term")==="FINAL")'),'Final period did not persist in the header and Management navigation.');
+  await navigate('dashboard');
+  await call('Fetch.enable',{patterns:[{urlPattern:'*query_management.php*'}]},sessionId);
+  await evaluate('document.getElementById("management-term-settings").click()'); await until('document.getElementById("management-term-modal").classList.contains("show")'); await delay(300);
+  await evaluate('document.getElementById("management-current-period-settings").open=true;document.getElementById("management-current-exam-term").value="FINAL"');
+  check(await evaluate('JSON.stringify([...document.getElementById("management-current-exam-term").options].map(o=>o.value))===JSON.stringify(["MIDTERM","FINAL"])'),'Current term must be set inside Management using its two terms.');
+  const termRequestsBefore=catalogRequests.length;
+  await evaluate('document.getElementById("management-current-period-form").requestSubmit()');
+  await until('!document.getElementById("management-current-period-error").hidden && !document.getElementById("management-current-period-save").disabled');
+  const termRequest=catalogRequests.slice(termRequestsBefore).find(row=>row.action==='save_management_term');
+  check(termRequest && termRequest.exam_term==='FINAL' && termRequest.current_period_version==='0' && termRequest.csrf_token.length===64,'Management term save lost its scope, revision, or CSRF token.');
+  for(const width of [1440,390,320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`Management current-term settings overflow ${width}px.`); }
+  await screenshot('management-current-term-320.png');
+  await evaluate('document.querySelector("#management-term-modal [data-bs-dismiss]").click()'); await delay(300);
   for (const width of [1440, 1024, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Dashboard overflows ${width}px.`); }
   await evaluate('document.getElementById("management-menu-toggle").click()');
   check(await evaluate('document.getElementById("management-menu-toggle").getAttribute("aria-expanded")==="true" && !document.getElementById("layout-menu").inert && !document.getElementById("management-menu-backdrop").hidden'), 'Mobile navigation did not open accessibly.');
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   check(await evaluate('document.getElementById("layout-menu").inert && document.getElementById("management-menu-toggle").getAttribute("aria-expanded")==="false"'), 'Escape did not close mobile navigation.');
   await resize(390); await screenshot('management-dashboard-390.png');
-  await navigate('students');
+  await resize(1440); await navigate('students');
+  check(await evaluate('!document.querySelector(".management-heading") && document.querySelector("#main-content > section").classList.contains("management-student-stats") && document.querySelectorAll(".management-student-stats article").length===3'),'Student summary cards did not replace the page title card below the header.');
+  check(await evaluate('document.querySelector(".management-sidebar-college strong").textContent.trim().length>0 && document.querySelector("#layout-menu").lastElementChild.classList.contains("management-sidebar-college")'),'The assigned college is missing from the bottom of the sidebar.');
+  check(await evaluate('Math.abs(document.getElementById("student-search").getBoundingClientRect().bottom-document.querySelector("#management-student-filters button").getBoundingClientRect().bottom)<2 && document.getElementById("student-search").getBoundingClientRect().width>document.getElementById("student-page-size").getBoundingClientRect().width*2'),'Student search is not wider and aligned with its search button.');
+  await screenshot('management-students-1440.png');
   check(await evaluate('getComputedStyle(document.querySelector(".management-table")).fontSize==="14px" && getComputedStyle(document.querySelector(".management-table th")).fontSize==="12px" && getComputedStyle(document.querySelector(".management-table th")).backgroundColor==="rgb(242, 242, 255)" && getComputedStyle(document.querySelector(".dean-student-id")).color==="rgb(105, 108, 255)"'), 'Student list typography, colors, or header background differ from the Dean template.');
   check(await evaluate('document.querySelector(".management-record-title").firstElementChild.classList.contains("dean-student-id") && document.querySelector(".dean-student-contact em")'), 'Student ID/name/email order does not follow the Dean format.');
   check(await evaluate('document.querySelectorAll("tbody tr").length===25 && document.querySelector(".management-pagination").textContent.includes("28 students")'), 'Imported-student pagination/deduplication failed.');
   for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Student page overflows ${width}px.`); }
   await screenshot('management-students-320.png');
   await navigate('students_page'); check(await evaluate('document.querySelectorAll("tbody tr").length===3 && document.querySelector(".management-pagination").textContent.includes("Page 2 of 2")'), 'Student second page is incorrect.');
+  await resize(1440); await navigate('financial');
+  check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Financial") && document.getElementById("financial-fresh-start") && document.body.textContent.includes("No financial records yet")'),'Financial did not render a fresh, empty workspace.');
+  check(await evaluate('!document.querySelector(".financial-stats") && !document.querySelector(".financial-records-table")'),'Financial retained legacy-linked account records.');
+  for(const width of [1440,768,390,320]) {await resize(width);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`Fresh Financial page overflows ${width}px.`);}
+  await screenshot('management-financial-fresh-320.png');
+  await resize(1440);
   await navigate('events'); check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Events") && document.getElementById("management-add") && document.getElementById("management-record-form")'), 'Events management page is missing.');
   await navigate('contributions'); check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Contributions")'), 'Contributions foundation page is missing.');
   await call('Fetch.enable',{ patterns:[{ urlPattern:'*query_management.php*' }] },sessionId);
@@ -162,7 +193,7 @@ async function main() {
   check(await evaluate('document.getElementById("management-delete-confirm").disabled'),'A linked event can be deleted from the confirmation dialog.');
   await evaluate('document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');await delay(350);linkedContributions=0;
   await navigate('students');
-  check(await evaluate('document.getElementById("student-section") && document.getElementById("student-email-status") && document.getElementById("student-sort") && document.querySelectorAll("#student-page-size option").length===3'),'Dean-style student filters are missing.');
+  check(await evaluate('!document.getElementById("student-directory-term") && !document.getElementById("student-program") && !document.getElementById("student-section") && !document.getElementById("student-email-status") && !document.getElementById("student-sort") && document.querySelectorAll("#management-student-filters select").length===1 && document.querySelectorAll("#student-page-size option").length===3 && document.querySelectorAll("#management-student-filters button").length===1 && !document.querySelector("#management-student-filters a")'),'Simplified student search retained removed filters or actions.');
   await evaluate('document.querySelector("[data-student]").click()');await until('document.getElementById("management-student-detail-content").textContent.includes("CS 101")');await delay(300);
   check(await evaluate('document.getElementById("management-student-detail-content").querySelectorAll("img,script").length===0 && document.getElementById("management-student-detail-title").textContent.includes("<img")'),'Student details contain unsafe HTML.');
   for(const width of [1440,768,390,320]) {await resize(width);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`Student detail overflows ${width}px.`);}

@@ -14,7 +14,7 @@ $execute=static function(mysqli $db,string $sql): void {
         if (!$db->more_results()) break;
     } while ($db->next_result());
 };
-$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations'];
+$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_period_settings'];
 foreach (['fresh','legacy','varchar'] as $scenario) {
     $database='synk_management_sql_qa_'.bin2hex(random_bytes(8));
     if (!preg_match('/^synk_management_sql_qa_[a-f0-9]{16}$/D',$database)) throw new RuntimeException('Invalid scratch database name.');
@@ -25,6 +25,9 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $db->select_db($database);
         $db->query('CREATE TABLE tbl_college (college_id INT UNSIGNED NOT NULL PRIMARY KEY) ENGINE=InnoDB');
         $db->query('CREATE TABLE tbl_academic_years (ay_id INT UNSIGNED NOT NULL PRIMARY KEY) ENGINE=InnoDB');
+        $db->query('CREATE TABLE tbl_academic_settings (setting_id INT UNSIGNED PRIMARY KEY,current_ay_id INT UNSIGNED,current_semester TINYINT UNSIGNED) ENGINE=InnoDB');
+        $db->query('INSERT INTO tbl_academic_settings VALUES (1,2,1)');
+        $academicSchema=$db->query('SHOW CREATE TABLE tbl_academic_settings')->fetch_assoc()['Create Table'];
         $role=$scenario==='varchar' ? "VARCHAR(8) NOT NULL DEFAULT 'admin'" : "ENUM('admin','scheduler','QA_CUSTOM') NULL DEFAULT 'QA_CUSTOM'";
         $db->query("CREATE TABLE tbl_useraccount (user_id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,username VARCHAR(150),password VARCHAR(255),college_id INT UNSIGNED NULL,role $role COMMENT 'KEEP ROLE METADATA') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         $db->query('INSERT INTO tbl_college VALUES (1),(2)'); $db->query('INSERT INTO tbl_academic_years VALUES (1),(2)');
@@ -38,6 +41,8 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
             $db->query('UPDATE tbl_useraccount SET management_college_id=1');
         }
         $execute($db,$migration);
+        $settings=$db->query('SELECT * FROM tbl_academic_settings')->fetch_assoc();
+        $check($settings===['setting_id'=>'1','current_ay_id'=>'2','current_semester'=>'1'] && $db->query('SHOW CREATE TABLE tbl_academic_settings')->fetch_assoc()['Create Table']===$academicSchema,$scenario.': Management migration changed shared Academic Settings schema or data.');
         foreach ($tables as $table) $check($db->query("SHOW TABLES LIKE '$table'")->num_rows===1,$scenario.': missing '.$table);
         $role=$db->query("SHOW FULL COLUMNS FROM tbl_useraccount LIKE 'role'")->fetch_assoc();
         $check($scenario==='varchar' ? $role['Type']==='varchar(50)' : strpos($role['Type'],"'QA_CUSTOM'")!==false && strpos($role['Type'],"'management'")!==false,$scenario.': lost role values or Management support.');
@@ -54,9 +59,11 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
             $check($record['violation_type']==='EXISTING TYPE' && $record['amount']==='15.25' && $record['college_id']==='1' && $record['organization_id']===null && $record['ay_id']===null && $record['semester']===null,'Legacy violation was changed or ownership was guessed.');
             $check($account['management_college_id']==='1','Legacy Management college assignment changed.');
         }
+        $check($db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND (TABLE_NAME LIKE 'tbl_management_financial_%' OR TABLE_NAME='tbl_management_legacy_student_links')")->num_rows===0,$scenario.': installation recreated cancelled legacy Financial tables.');
         // Seed valid records, rerun, then compare both structure and data exactly.
         $db->query("INSERT INTO tbl_management_organizations (college_id,organization_code,organization_name) VALUES (2,'QA ORG','QA ORGANIZATION')");
         $org=(int)$db->insert_id;
+        $db->query("INSERT INTO tbl_management_period_settings (college_id,organization_id,ay_id,semester,current_exam_term) VALUES (2,$org,2,1,'FINAL')");
         $db->query("INSERT INTO tbl_management_events (college_id,organization_id,ay_id,semester,title,event_date) VALUES (2,$org,2,1,'EXISTING EVENT','2026-10-26')");
         $event=(int)$db->insert_id;
         $db->query("INSERT INTO tbl_management_contributions (college_id,organization_id,ay_id,semester,event_id,title,contribution_date,amount) VALUES (2,$org,2,1,$event,'EXISTING CONTRIBUTION','2026-10-26',12.35)");
@@ -65,7 +72,7 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $db->query("UPDATE tbl_useraccount SET management_college_id=2,management_organization_id=$org,google_sub='EXISTING_GOOGLE_SUBJECT',google_email_verified=1 WHERE user_id=1");
         $snapshot=static function()use($db,$tables):array {
             $state=[];
-            foreach (array_merge(['tbl_useraccount'],$tables) as $table) {
+            foreach (array_merge(['tbl_useraccount','tbl_academic_settings'],$tables) as $table) {
                 $state[$table]=[$db->query('SHOW CREATE TABLE '.$table)->fetch_assoc()['Create Table'],$db->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)];
             }
             return $state;

@@ -1,20 +1,36 @@
 <?php
 require_once __DIR__ . '/management_portal_helper.php';
 
-// Call inside the write transaction. Lock the settings row until commit so a
-// concurrent Academic Settings change cannot split a record across terms.
-function synk_management_lock_current_term(mysqli $conn, array $input): array
+// Call inside the Management transaction. Lock the existing year/semester and
+// the organization's separate Management term; shared settings are read-only.
+function synk_management_lock_current_term(mysqli $conn, array $input, array $scope): array
 {
-    $rows = synk_management_query($conn,'SELECT current_ay_id,current_semester FROM tbl_academic_settings ORDER BY setting_id LIMIT 1 FOR UPDATE');
-    $ayId = (int)($rows[0]['current_ay_id'] ?? 0); $semester = (int)($rows[0]['current_semester'] ?? 0);
-    if (!$ayId || !in_array($semester,[1,2,3],true) || !synk_management_query($conn,'SELECT ay_id FROM tbl_academic_years WHERE ay_id=?','i',[$ayId])) {
-        throw new SynkManagementConflict('An administrator must set the current academic year and semester first.');
+    $current = synk_management_fetch_current_period($conn,$scope,true);
+    if (($input['current_term'] ?? null) !== $current['key']
+        || ($input['current_exam_term'] ?? null) !== $current['exam_term']
+        || ($input['current_period_version'] ?? null) !== $current['period_version']) {
+        throw new SynkManagementConflict('The current Management period changed or the form is outdated. Reload the page and try again.');
     }
-    $key = $ayId.':'.$semester;
-    if (!is_string($input['current_term'] ?? null) || $input['current_term'] !== $key) {
-        throw new SynkManagementConflict('The current academic term changed or the form is outdated. Reload the page and try again.');
-    }
-    return ['ay_id'=>$ayId,'semester'=>$semester,'key'=>$key];
+    return $current;
+}
+
+function synk_management_save_current_exam_term(mysqli $conn, array $scope, array $input): array
+{
+    $next = synk_management_exam_term($input['exam_term'] ?? null);
+    $conn->begin_transaction();
+    try {
+        synk_management_lock_assignment($conn,$scope);
+        $current = synk_management_lock_current_term($conn,$input,$scope);
+        if ($current['exam_term'] !== $next || $current['period_version'] === '0') {
+            synk_management_execute($conn, 'INSERT INTO tbl_management_period_settings
+                (organization_id,college_id,ay_id,semester,current_exam_term,updated_by) VALUES (?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE current_exam_term=VALUES(current_exam_term),revision=revision+1,updated_by=VALUES(updated_by)',
+                'iiiisi',[$scope['organization_id'],$scope['college_id'],$current['ay_id'],$current['semester'],$next,(int)$_SESSION['user_id']]);
+        }
+        $saved = synk_management_fetch_current_period($conn,$scope,true);
+        $conn->commit();
+        return ['message'=>'Current Management term saved.','current_exam_term'=>$saved['exam_term'],'current_period_version'=>$saved['period_version']];
+    } catch (Throwable $error) { $conn->rollback(); throw $error; }
 }
 
 // Payment integration contract: invoke after assignment/term locks, in the same
@@ -26,5 +42,11 @@ function synk_management_assert_payment_context(array $scope, array $currentTerm
     }
     if ((int)($charge['ay_id'] ?? 0) !== (int)$currentTerm['ay_id'] || (int)($charge['semester'] ?? 0) !== (int)$currentTerm['semester']) {
         throw new SynkManagementConflict('Payments must use the current academic year and semester.');
+    }
+    $examTerm = synk_management_exam_term($currentTerm['exam_term'] ?? '');
+    // Semester-wide charges have no exam term. Term-specific charges must match.
+    if (isset($charge['exam_term']) && $charge['exam_term'] !== null && $charge['exam_term'] !== ''
+        && synk_management_exam_term($charge['exam_term']) !== $examTerm) {
+        throw new SynkManagementConflict('Payments must use the current Midterm or Final term.');
     }
 }

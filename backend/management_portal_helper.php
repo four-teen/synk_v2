@@ -3,6 +3,7 @@ require_once __DIR__ . '/auth_useraccount.php';
 require_once __DIR__ . '/auth_config.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/schema_helper.php';
+require_once __DIR__ . '/management_period_helper.php';
 
 class SynkManagementConflict extends RuntimeException {}
 
@@ -73,15 +74,22 @@ function synk_management_require_scope(mysqli $conn, bool $api = false): array
     return $scope;
 }
 
-function synk_management_view_term(mysqli $conn, array $input): array
+function synk_management_view_term(mysqli $conn, array $input, ?array $scope = null): array
 {
-    $current = synk_fetch_current_academic_term($conn);
+    $current = $scope ? synk_management_fetch_current_period($conn,$scope) : synk_fetch_current_academic_term($conn);
     $key = $input['term'] ?? ($current['ay_id'] . ':' . $current['semester']);
+    if (array_key_exists('view_ay_id', $input) || array_key_exists('view_semester', $input)) {
+        if (!is_string($input['view_ay_id'] ?? null) || !is_string($input['view_semester'] ?? null)) throw new DomainException('Choose an academic year and semester.');
+        $key = $input['view_ay_id'] . ':' . $input['view_semester'];
+    }
     if (!is_string($key) || !preg_match('/^([1-9][0-9]{0,9}):([1-3])$/D', $key, $matches)) throw new DomainException('Choose a valid academic year and semester.');
     $years = synk_management_query($conn, 'SELECT ay_id,ay FROM tbl_academic_years WHERE ay_id=?', 'i', [(int)$matches[1]]);
     if (!$years) throw new DomainException('The academic year is unavailable.');
-    return ['key'=>$key,'ay_id'=>(int)$matches[1],'semester'=>(int)$matches[2],
-        'term_text'=>$years[0]['ay'] . ' - ' . synk_semester_label((int)$matches[2])];
+    $examTerm = synk_management_exam_term($input['exam_term'] ?? $current['exam_term'] ?? 'MIDTERM');
+    $text = $years[0]['ay'] . ' - ' . synk_semester_label((int)$matches[2]);
+    return ['key'=>$key,'ay_id'=>(int)$matches[1],'ay_label'=>$years[0]['ay'],'semester'=>(int)$matches[2],
+        'term_text'=>$text,'exam_term'=>$examTerm,'exam_term_label'=>synk_management_exam_term_options()[$examTerm],
+        'period_key'=>$key . ':' . $examTerm,'period_text'=>$text . ' - ' . synk_management_exam_term_options()[$examTerm]];
 }
 
 function synk_management_import_source(array $scope, array $term, array $filters = []): array

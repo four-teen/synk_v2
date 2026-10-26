@@ -18,6 +18,9 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if ($action === 'save_management_term') {
+        synk_management_response(['status'=>'ok'] + synk_management_save_current_exam_term($conn,$scope,$_POST));
+    }
     if ($action === 'student_detail') {
         require_once __DIR__ . '/management_students_helper.php';
         $detail = synk_management_students_detail($conn,$scope,$_POST);

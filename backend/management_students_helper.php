@@ -8,7 +8,7 @@ function synk_management_directory_filters(mysqli $conn, array $scope, array $in
     foreach (['directory_term','search','program_id','section_id','email_status','sort','page','page_size'] as $key) {
         if (isset($input[$key]) && !is_scalar($input[$key])) throw new DomainException('Choose valid student filters.');
     }
-    $view = synk_management_view_term($conn,$input);
+    $view = synk_management_view_term($conn,$input,$scope);
     $directoryTerm = (string)($input['directory_term'] ?? $view['key']);
     if ($directoryTerm !== 'all') {
         if (preg_match('/^year:([1-9][0-9]{0,9})$/D',$directoryTerm,$match)) {

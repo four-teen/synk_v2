@@ -2,7 +2,7 @@
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require __DIR__.'/../backend/db.php';
 $snapshot=static function()use($conn):array {
-    $data=[];foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_academic_settings','tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_class_schedule']as$table){
+    $data=[];foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings','tbl_academic_settings','tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_class_schedule']as$table){
         $data[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM `'.$table.'` ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));
     }return $data;
 };
@@ -36,6 +36,24 @@ try {
         'bad_session'=>422,'duplicate_session'=>422,'foreign_session'=>422,'bad_csrf'=>403,'array_input'=>400,'forged_college'=>403,'forged_campus'=>403,'no_google'=>403,'no_role'=>401,'anonymous'=>401,'revoked'=>403,'reassigned'=>403,'get_method'=>405,'invalid_action'=>422,'invalid_kind'=>422,'add_organization'=>422,'duplicate_organization'=>422,'invalid_organization'=>422,
         'violation_foreign'=>404,'violation_stale'=>409,'violation_negative'=>422,'violation_precision'=>422,'violation_blank'=>422,'violation_duplicate'=>422,'violation_duplicate_legacy'=>422];
     foreach($invalid as$scenario=>$code){$r=$request($scenario);$check($r['status']===$code,$scenario.': expected '.$code.', got '.$r['status'].' '.json_encode($r['response']));$check($r['before']===$r['after'],$scenario.': rejected request changed catalog data.');}
+    foreach (['changed_exam_term','violation_changed_exam_term','missing_exam_term','invalid_exam_term'] as $scenario) {
+        $r=$request($scenario);
+        $check($r['status']===409 && $r['before']===$r['after'],$scenario.': outdated term request was accepted or changed data.');
+    }
+    $r=$request('management_term_save');
+    $check($r['response']['status']==='ok' && $r['response']['current_exam_term']==='FINAL','Management did not save its own Final term.');
+    $check($r['before']['tbl_academic_settings']===$r['after']['tbl_academic_settings'],'Management term save changed shared Academic Settings.');
+    $own=array_values(array_filter($r['after']['tbl_management_period_settings'],static fn($row)=>(int)$row['organization_id']===$r['scope']['organization_id']));
+    $check(count($own)===1 && $own[0]['current_exam_term']==='FINAL','Term setting was not stored for the assigned organization.');
+    $otherPeriods=static fn($rows)=>array_values(array_filter($rows,static fn($row)=>(int)$row['organization_id']!==$r['scope']['organization_id']));
+    $check($otherPeriods($r['before']['tbl_management_period_settings'])===$otherPeriods($r['after']['tbl_management_period_settings']),'Saving one organization term changed another organization.');
+    foreach($r['before'] as $table=>$rows) if($table!=='tbl_management_period_settings') $check($rows===$r['after'][$table],'Management term save changed '.$table);
+    foreach (['management_term_invalid'=>422,'management_term_missing'=>422,'management_term_stale'=>409,'management_term_forbidden'=>401,'management_term_foreign'=>403,'management_term_csrf'=>403] as $scenario=>$status) {
+        $r=$request($scenario); $check($r['status']===$status && $r['before']===$r['after'],$scenario.': rejected Management term request changed data.');
+    }
+    $r=$request('management_term_switch_back');
+    $check($r['response']['stale_rejected'] && $r['response']['period']['exam_term']==='MIDTERM','Switching Final back to Midterm accepted an outdated settings revision.');
+    $check($r['before']['tbl_academic_settings']===$r['after']['tbl_academic_settings'],'Switching Management terms changed shared Academic Settings.');
     foreach(['page_contributions','page_events','page_violations']as$scenario){$r=$request($scenario);$check($r['status']===200&&is_string($r['response'])&&strpos($r['response'],'id="management-record-form"')!==false,$scenario.': CRUD page did not render.');$check(!preg_match('/Fatal error|<b>Warning|Parse error/',$r['response']),'Page emitted PHP diagnostics.');}
     foreach(['violation_get','violation_add','violation_save','violation_delete']as$scenario){
         $r=$request($scenario);$check($r['status']===200,$scenario.': violation action failed.');
@@ -73,7 +91,7 @@ try {
     $r=$request('assignment_across_terms'); $check($r['response']['allowed']===true,'Term changes removed a persistent organization assignment.');
     $r=$request('organization_options'); $check(count($r['response']['organizations'])===1 && (int)$r['response']['organizations'][0]['organization_id']===$r['scope']['organization_id'],'Editor organization options leaked another organization.');
     foreach ($r['response']['events'] as $event) $check((int)$event['event_id']===$r['ids']['event'],'Editor event options leaked another organization.');
-    foreach (['payment_context_current'=>200,'payment_context_historical'=>409,'payment_context_sibling'=>422] as $scenario=>$code) { $r=$request($scenario); $check($r['status']===$code && $r['response']['allowed']===($code===200),'Payment context must require the assigned organization and current term.'); }
+    foreach (['payment_context_current'=>200,'payment_context_historical'=>409,'payment_context_sibling'=>422,'payment_context_wrong_exam_term'=>409] as $scenario=>$code) { $r=$request($scenario); $check($r['status']===$code && $r['response']['allowed']===($code===200),'Payment context must require the assigned organization and current period.'); }
     $after=$snapshot();
     $changed=[];foreach($before as$table=>$hash)if($hash!==$after[$table])$changed[]=$table;
     $check(!$changed,'CRUD fixtures changed persistent Synk data: '.implode(', ',$changed));

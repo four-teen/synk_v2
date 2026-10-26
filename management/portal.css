@@ -13,6 +13,11 @@
 .management-avatar-button { padding: 0; }
 .management-portal .dropdown-item-text { max-width: 20rem; overflow-wrap: anywhere; }
 .management-portal .layout-overlay { border: 0; padding: 0; }
+#layout-menu .management-nav-section { margin: .8rem 0 .15rem; padding: .25rem 1.1rem; font-size: .65rem; font-weight: 600; line-height: 1rem; letter-spacing: .06em; color: #8391a7; }
+#layout-menu .management-nav-section:first-child { margin-top: .35rem; }
+.management-sidebar-college { flex: 0 0 auto; margin-top: auto; padding: 1rem 1.1rem 1.15rem; border-top: 1px solid #e4e8f0; background: #fff; }
+.management-sidebar-college > span { display: block; margin-bottom: .4rem; font-size: .65rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8391a7; }
+.management-sidebar-college > strong { display: block; font-size: .8rem; font-weight: 600; line-height: 1.5; color: #364152; overflow-wrap: anywhere; }
 .management-heading { padding: 1.5rem; margin-bottom: 1.5rem; }
 .management-heading h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: .5rem; }
 .management-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1.5rem; }
@@ -55,6 +60,10 @@
 .management-filters label { display: block; margin-bottom: .5rem; font-size: .75rem; text-transform: uppercase; }
 .management-filters .form-select, .management-filters .form-control { max-width: 100%; }
 .management-filters > .management-filter-actions { display: flex; gap: .5rem; flex-wrap: wrap; flex: 1 0 100%; }
+.management-student-search-form { display: grid; grid-template-columns: minmax(0,1fr) 160px auto; align-items: end; }
+.management-student-listing { margin-bottom: 1.5rem; }
+.management-student-search-form > div { min-width: 0; }
+.management-student-search-form > .btn { white-space: nowrap; }
 .management-table-scroll { overflow: auto; max-width: 100%; }
 .management-table { margin-bottom: 0; min-width: 620px; }
 .management-table td { vertical-align: middle; }
@@ -88,6 +97,10 @@
 @media (max-width:1199.98px) { .management-dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width:991.98px) { .management-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .management-catalog-stats .management-stat:last-child { grid-column: 1/-1; } }
 @media (max-width:575.98px) {
+  .management-student-search-form { grid-template-columns: minmax(0,1fr) auto; gap: .75rem; }
+  .management-student-search-form > .management-filter-search { grid-column: 1; grid-row: 1; }
+  .management-student-search-form > .btn { grid-column: 2; grid-row: 1; }
+  .management-student-page-size { grid-column: 1 / -1; max-width: 160px; }
   .management-stats { gap: 1rem; }
   .management-stat { padding: 1rem; gap: .75rem; flex-direction: column; align-items: flex-start; }
   .management-filters > div, .management-filters > .management-filter-search { flex-basis: 100%; }

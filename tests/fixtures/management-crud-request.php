@@ -33,6 +33,7 @@ $userId=$insert('tbl_useraccount',['username'=>$tag,'email'=>str_replace(' ','',
 synk_persist_useraccount_roles($conn,$userId,['management'],'management');
 $org=$insert('tbl_management_organizations',['college_id'=>$scope['college_id'],'organization_code'=>'QA'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag]);
 $scope['organization_id']=$org; $scope['organization_code']='QA ORG'; $scope['organization_name']=$tag;
+$term=synk_management_fetch_current_period($conn,$scope);
 $conn->query('UPDATE tbl_useraccount SET management_organization_id='.$org.' WHERE user_id='.$userId);
 $foreignOrg=$insert('tbl_management_organizations',['college_id'=>$foreign['college_id'],'organization_code'=>'QA'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag]);
 $siblingOrg=$insert('tbl_management_organizations',['college_id'=>$scope['college_id'],'organization_code'=>'SIB'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag.' SIBLING']);
@@ -55,7 +56,7 @@ $kind=strpos($scenario,'event')!==false || strpos($scenario,'session')!==false ?
 $recordId=$kind==='events' ? $event : $contribution;
 $record=synk_management_catalog_get($conn,$scope,$kind,$recordId);
 $post=['action'=>'save','kind'=>$kind,'csrf_token'=>str_repeat('d',64),'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],
-    'record_id'=>$recordId,'version'=>$record['version'],'current_term'=>$term['key'],'term'=>$term['key'],'record_term'=>$term['key'],'organization_id'=>$org,'title'=>'new lowercase title ñ',
+    'record_id'=>$recordId,'version'=>$record['version'],'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version'],'term'=>$term['key'],'record_term'=>$term['key'],'organization_id'=>$org,'title'=>'new lowercase title ñ',
     'description'=>"description with <script>ignored</script>",'status'=>'OPEN','audience_mode'=>'ALL','contribution_date'=>'2026-10-27','amount'=>'123.45','event_id'=>$event,
     'event_date'=>'2026-10-26','absence_fine'=>'25.25','latitude'=>'6.6155942','longitude'=>'124.5997341','attendance_radius_m'=>'100'];
 $sessions=[['session_id'=>$session,'title'=>'updated session','starts_at'=>'2026-10-26T08:00','ends_at'=>'2026-10-26T12:00','fine_per_minute'=>'0.1250','grace_minutes'=>'20','potential_fine'=>'28.12','status'=>'OPEN']];
@@ -153,6 +154,12 @@ if ($scenario==='sibling_event_link' || $scenario==='historical_event_link') {
 if ($scenario==='sibling_scope') { $_POST['organization_id']=$siblingOrg; }
 if ($scenario==='stale_term') $_POST['current_term']='1:3';
 if ($scenario==='violation_stale_term') $_POST['current_term']='1:3';
+if (in_array($scenario,['changed_exam_term','violation_changed_exam_term'],true)) {
+    if ($scenario==='violation_changed_exam_term') { $_POST['kind']='violations'; $_POST['record_id']=$violation; }
+    $insert('tbl_management_period_settings',['college_id'=>$scope['college_id'],'organization_id'=>$org,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'current_exam_term'=>'FINAL']);
+}
+if ($scenario==='missing_exam_term') unset($_POST['current_exam_term']);
+if ($scenario==='invalid_exam_term') $_POST['current_exam_term']='PRELIM';
 if (in_array($scenario,['changed_term','violation_changed_term','assignment_across_terms'],true)) $conn->query('UPDATE tbl_academic_settings SET current_semester='.($term['semester']===1?2:1));
 if ($scenario==='auto_term_violation') {
     $_POST['kind']='violations'; $_POST['record_id']=''; $_POST['version']='';
@@ -205,9 +212,21 @@ if (strpos($scenario,'org_admin_')===0) {
         $_POST['organization_id']=$unused; $_POST['version']=synk_organization_get($conn,$unused)['version']; $_POST['action']='delete';
     }
 }
+if (strpos($scenario,'management_term_')===0) {
+    $_POST=['action'=>'save_management_term','csrf_token'=>str_repeat('d',64),'current_term'=>$term['key'],
+        'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version'],'exam_term'=>'FINAL'];
+    if ($scenario==='management_term_invalid') $_POST['exam_term']='PRELIM';
+    if ($scenario==='management_term_missing') unset($_POST['exam_term']);
+    if ($scenario==='management_term_stale') $_POST['current_period_version']='999';
+    if ($scenario==='management_term_forbidden') $_SESSION['role']='admin';
+    if ($scenario==='management_term_foreign') $_POST['organization_id']=$siblingOrg;
+    if ($scenario==='management_term_csrf') $_POST['csrf_token']='bad';
+    if ($scenario==='management_term_switch_back') $handler='';
+}
 $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
-    foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();
@@ -223,12 +242,21 @@ register_shutdown_function(static function()use($conn,$take,$before,$tag,$scope,
     } catch(Throwable $error) { $conn->discard(); http_response_code(500); echo json_encode(['fixture_error'=>$error->getMessage(),'body'=>substr($body,0,1500)]); }
 });
 ob_start();
+if ($scenario==='management_term_switch_back') {
+    $saved=synk_management_save_current_exam_term($conn,$scope,$_POST);
+    $back=$_POST; $back['current_exam_term']=$saved['current_exam_term']; $back['current_period_version']=$saved['current_period_version']; $back['exam_term']='MIDTERM';
+    synk_management_save_current_exam_term($conn,$scope,$back);
+    $rejected=false;
+    try { synk_management_save_current_exam_term($conn,$scope,$_POST); } catch(SynkManagementConflict $error) { $rejected=true; }
+    $fixtureResult=['stale_rejected'=>$rejected,'period'=>synk_management_fetch_current_period($conn,$scope)]; exit;
+}
 if ($scenario==='assignment_across_terms') { $fixtureResult=['allowed'=>synk_management_account_has_access($conn,synk_find_useraccount_by_id($conn,$userId))]; exit; }
 if ($scenario==='organization_options') { $fixtureResult=synk_management_catalog_options($conn,$scope); exit; }
 if (strpos($scenario,'payment_context_')===0) {
     $charge=$contributionBase;
     if ($scenario==='payment_context_historical') $charge['semester']=$term['semester']===1?2:1;
     if ($scenario==='payment_context_sibling') $charge['organization_id']=$siblingOrg;
+    if ($scenario==='payment_context_wrong_exam_term') $charge['exam_term']=$term['exam_term']==='MIDTERM'?'FINAL':'MIDTERM';
     try { synk_management_assert_payment_context($scope,$term,$charge); $fixtureResult=['allowed'=>true]; }
     catch (SynkManagementConflict $e) { http_response_code(409); $fixtureResult=['allowed'=>false]; }
     catch (DomainException $e) { http_response_code(422); $fixtureResult=['allowed'=>false]; }

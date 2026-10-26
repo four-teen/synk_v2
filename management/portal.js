@@ -19,11 +19,23 @@
   });
   backdrop.addEventListener('click',()=>toggle.focus());
   document.querySelector('.management-menu-close')?.addEventListener('click',()=>toggle.focus());
+  const year=document.getElementById('management-view-year'), semester=document.getElementById('management-view-semester');
+  const examTerm=document.getElementById('management-view-exam-term'), key=document.getElementById('management-term');
+  function setPeriod(term, exam) {
+    const parts=term.split(':'); year.value=parts[0]; semester.value=parts[1]; examTerm.value=exam;
+    key.value=term;
+  }
+  function syncPeriod() { key.value=`${year.value}:${semester.value}`; }
+  year?.addEventListener('change',syncPeriod); semester?.addEventListener('change',syncPeriod);
   document.getElementById('management-current-term')?.addEventListener('click',event=>{
-    document.getElementById('management-term').value=event.currentTarget.dataset.term;
+    setPeriod(event.currentTarget.dataset.term,event.currentTarget.dataset.examTerm);
   });
   document.getElementById('management-term-modal')?.addEventListener('show.bs.modal',()=>{
-    document.getElementById('management-term').value=JSON.parse(document.getElementById('management-config').textContent).term;
+    const config=JSON.parse(document.getElementById('management-config').textContent);
+    setPeriod(config.term,config.exam_term);
+    document.getElementById('management-current-exam-term').value=config.current_exam_term;
+    const error=document.getElementById('management-current-period-error');
+    error.textContent=''; error.hidden=true;
   });
   sync();
 })();
