@@ -34,6 +34,7 @@ $stmt->bind_param('ssii', $tag, $email, $otherScope['college_id'], $scope['colle
 if (synk_persist_useraccount_roles($conn,$userId,['management'],'management') !== null) throw new RuntimeException('Role setup failed.');
 $conn->query("INSERT INTO tbl_management_organizations (college_id,organization_code,organization_name) VALUES (".$scope['college_id'].",'".$tag."','".$tag."')");
 $organizationId=(int)$conn->insert_id; $scope['organization_id']=$organizationId;
+$term=synk_management_fetch_current_period($conn,$scope);
 $conn->query('UPDATE tbl_useraccount SET management_organization_id='.$organizationId.' WHERE user_id='.$userId);
 $conn->query("INSERT INTO tbl_management_organizations (college_id,organization_code,organization_name) VALUES (".$otherScope['college_id'].",'".$tag."','".$tag."')");
 $otherOrganizationId=(int)$conn->insert_id;
@@ -154,7 +155,12 @@ if (strpos($scenario,'account_')===0) {
     }
     if($scenario==='forged_college')$_GET['college_id']=$otherScope['college_id'];
     if($scenario==='forged_campus')$_GET['campus_id']=999999;
+    if($scenario==='financial')$handler='management/financial.php';
     if($scenario==='bad_term')$_GET['term']='1:9';
+    if($scenario==='bad_exam_term')$_GET['exam_term']='PRELIM';
+    if($scenario==='array_exam_term')$_GET['exam_term']=['MIDTERM'];
+    if($scenario==='view_final')$_GET['exam_term']='FINAL';
+    if($scenario==='view_final_fields') { $_GET['view_ay_id']=(string)$term['ay_id']; $_GET['view_semester']=(string)$term['semester']; $_GET['exam_term']='FINAL'; }
     if($scenario==='revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId}");
     if($scenario==='no_google')$_SESSION['auth_method']='legacy';
     if($scenario==='wrong_role')$_SESSION['role']='admin';

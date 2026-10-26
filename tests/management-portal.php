@@ -16,14 +16,18 @@ $request=static function(string$scenario)use($name,$token):array {
     $data=json_decode((string)$body,true);if(!is_array($data)||isset($data['fixture_error']))throw new RuntimeException($scenario.': '.substr((string)$body,0,2400));return $data;
 };
 try {
+    $check($conn->query("SHOW COLUMNS FROM tbl_academic_settings LIKE 'current_exam_term'")->num_rows===0,'Management term leaked into shared Academic Settings storage.');
+    require_once __DIR__.'/../backend/academic_term_helper.php';
+    $check(!array_key_exists('exam_term',synk_fetch_current_academic_term($conn)),'Shared academic helper exposes a Management-only term.');
     $r=$request('login');$html=$r['response'];
     $check($r['status']===200 && strpos($html,'CCS Management.')!==false && strpos($html,'One Place.')!==false,'Management login branding is missing.');
     $check(strpos($html,'managementGoogleLogin')!==false && !preg_match('/<input[^>]+type=["\'](?:email|password)["\']/i',$html),'Management login is not Google-only.');
-    foreach(['dashboard','students','students_page','contributions','events','violations']as$scenario){
+    foreach(['dashboard','financial','students','students_page','contributions','events','violations']as$scenario){
         $r=$request($scenario);$html=$r['response'];
         $check($r['status']===200 && is_string($html) && !preg_match('/Fatal error|Parse error|xdebug-error|<b>Warning/i',$html),$scenario.': page failed to render: '.json_encode(['status'=>$r['status'],'response'=>is_string($html)?substr($html,0,500):$html]));
         $check((int)$r['session']['college_id']===$r['scope']['college_id'],'Management trusted a stale session college.');
-        foreach(['Contributions','Events','Violations','Students','Dashboard']as$menu)$check(strpos($html,$menu)!==false,'A Management menu is missing: '.$menu);
+        foreach(['Financial','Contributions','Events','Violations','Students','Dashboard']as$menu)$check(strpos($html,$menu)!==false,'A Management menu is missing: '.$menu);
+        if($scenario==='financial')$check(strpos($html,'id="financial-fresh-start"')!==false && strpos($html,'No financial records yet')!==false,'Financial retained imported history instead of a fresh workspace.');
         if($scenario==='students')$check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr>')===26,'Directory scope or pagination is incorrect.');
         if($scenario==='students_page')$check(substr_count($html,'<tr>')===4 && strpos($html,'Page 2 of 2')!==false,'Student directory did not deduplicate or paginate correctly.');
         if($scenario==='contributions'||$scenario==='events')$check(strpos($html,'id="management-add"')!==false && strpos($html,'id="management-record-form"')!==false,'Catalog management forms are missing.');
@@ -33,7 +37,13 @@ try {
     $r=$request('students_empty');$check($r['status']===200&&strpos($r['response'],'No matching students')!==false,'Student empty-search state is missing.');
     foreach(['students_wildcard','students_otherterm']as$scenario){$r=$request($scenario);$check($r['status']===200&&strpos($r['response'],'No matching students')!==false,$scenario.': search matched unintended memberships.');}
     $r=$request('students_xss');$check($r['status']===200&&strpos($r['response'],'<img src=x onerror=alert(1)>')===false&&strpos($r['response'],'&lt;img src=x onerror=alert(1)&gt;')!==false,'Search text is not escaped.');
-    foreach(['forged_college'=>403,'forged_campus'=>403,'bad_term'=>400,'students_foreign'=>400,'students_array'=>400]as$scenario=>$status){$r=$request($scenario);$check($r['status']===$status,$scenario.': invalid scope/filter was accepted.');}
+    foreach(['forged_college'=>403,'forged_campus'=>403,'bad_term'=>400,'students_array'=>400,'bad_exam_term'=>400,'array_exam_term'=>400]as$scenario=>$status){$r=$request($scenario);$check($r['status']===$status,$scenario.': invalid scope/filter was accepted.');}
+    foreach(['view_final','view_final_fields'] as $scenario) {
+        $r=$request($scenario); $html=$r['response'];
+        $check($r['status']===200 && strpos($html,'"exam_term":"FINAL"')!==false && strpos($html,'Final</span>')!==false,'Final viewing period was not displayed.');
+        $check(strpos($html,'exam_term=FINAL')!==false,'Management navigation lost the selected Final term.');
+    }
+    $r=$request('students_foreign');$check($r['status']===200 && strpos($r['response'],'No matching students')===false && strpos($r['response'],$r['tag'].'Foreign')===false,'A removed program filter still changed the current-period directory or leaked another college.');
     foreach(['revoked','no_google','wrong_role','anonymous']as$scenario){$r=$request($scenario);$check($r['status']===302&&strpos($r['location'],'login.php')===0,$scenario.': unauthorized session accessed Management.');}
     $r=$request('reassigned');$check($r['status']===200&&(int)$r['session']['college_id']===$r['other_scope']['college_id'],'Administrator reassignment was not refreshed.');
     foreach(['account_create','account_update','account_multi','account_remove']as$scenario){

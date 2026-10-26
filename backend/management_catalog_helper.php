@@ -213,7 +213,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
     try {
         // Lock current assignment before the record so a simultaneous reassignment cannot widen a write.
         synk_management_lock_assignment($conn,$scope);
-        $currentTerm = synk_management_lock_current_term($conn,$input);
+        $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         $existing = $id ? synk_management_catalog_get($conn,$scope,$kind,$id,true) : null;
         if ($existing && (!is_string($input['version'] ?? null) || !hash_equals($existing['version'],$input['version']))) throw new SynkManagementConflict('This record changed after you opened it. Reload its details before saving or deleting.');
         if ($action === 'delete') {

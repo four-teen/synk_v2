@@ -7,7 +7,9 @@
   const escape = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
   async function request(action, values = {}) {
     const body = new URLSearchParams({ action, csrf_token:config.csrf_token, college_id:config.college_id,
-      campus_id:config.campus_id, organization_id:config.organization_id, term:config.term, current_term:config.current_term, ...values });
+      campus_id:config.campus_id, organization_id:config.organization_id, term:config.term, exam_term:config.exam_term,
+      current_term:config.current_term, current_exam_term:config.current_exam_term,
+      current_period_version:config.current_period_version, ...values });
     const response = await fetch(config.endpoint, { method:'POST', body, credentials:'same-origin', headers:{ Accept:'application/json' } });
     let data;
     try { data = await response.json(); } catch (_) { throw Error('Unable to read the server response. Reload the page and try again.'); }
@@ -15,6 +17,19 @@
     return data;
   }
   function notice(element, message) { element.textContent = message; element.hidden = !message; }
+  $('management-current-period-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button=$('management-current-period-save'), select=$('management-current-exam-term');
+    if (button.disabled) return;
+    button.disabled=true; select.disabled=true;
+    notice($('management-current-period-error'),'');
+    try {
+      const data=await request('save_management_term',{exam_term:select.value});
+      const url=new URL(location.href); url.searchParams.set('exam_term',data.current_exam_term);
+      location.assign(url.href);
+    } catch (error) { notice($('management-current-period-error'),error.message); }
+    finally { button.disabled=false; select.disabled=false; }
+  });
   const flashKey = `synk-management-${config.organization_id}-${config.page}`;
   function complete(message) {
     try { sessionStorage.setItem(flashKey,message); } catch (_) { /* Storage may be disabled. */ }
@@ -155,16 +170,6 @@
   }
   const studentForm = $('management-student-filters');
   if (studentForm) {
-    function sections() {
-      const program = $('student-program').value, term = $('student-directory-term').value;
-      $('student-section').value = '0';
-      for (const option of $('student-section').options) {
-        if (option.value === '0') continue;
-        const termMatches = term === 'all' || (term.startsWith('year:') ? option.dataset.term.split(':')[0] === term.slice(5) : option.dataset.term === term);
-        option.hidden = option.disabled = !((program === '0' || option.dataset.program === program) && termMatches);
-      }
-    }
-    $('student-program').addEventListener('change',sections); $('student-directory-term').addEventListener('change',sections);
     const modalElement = $('management-student-detail'), modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     let generation = 0, detailOpener = null;
     modalElement.addEventListener('hide.bs.modal',()=>{ generation++; });

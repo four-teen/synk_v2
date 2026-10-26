@@ -2,8 +2,8 @@
 
 Management is an organization-scoped Synk role, administered through **Administrator →
 Accounts**. The portal is reusable by any college and has no dependency on the
-external CSSO/ISMRS application. Catalog definitions can be imported from a supplied
-SQL dump; the external application is never changed.
+external CSSO/ISMRS application. The user cancelled legacy imports; new catalog and Financial records must be
+created directly in Synk. The external application is never changed.
 
 ## Shared module presentation
 
@@ -15,6 +15,11 @@ the Dean and Chair continue to use the same rules. Management also loads
 `college-dean/custom_css.css` and `college-dean/students.css` directly. Its local
 `portal.css` contains layout extensions rather than a separate color/font theme.
 Student identity cells follow the Dean's ID, name, and italic email format.
+
+Management navigation groups pages by usage: **Overview** contains Dashboard;
+**Daily Operations** contains Financial and Students; **Setup** contains
+Contributions, Events, and Violations. Every page retains its existing route,
+organization access checks, active-page indicator, and selected viewing period.
 
 ## Account setup and sign-in
 
@@ -54,7 +59,51 @@ Forged organization, college, or campus IDs cannot widen access. Account switchi
 available for shared identities authenticated with Google. Legacy password
 sessions cannot switch into Management. Sign-out returns to the Management login.
 
+## Management-only Midterm and Final
+
+**Midterm and Final belong only to Management.** Shared Academic Settings, shared
+academic helpers, workloads, scheduling views, and academic reports retain their
+original academic-year/semester behavior. Management reads the existing current
+academic year and semester; it never writes those settings.
+
+`tbl_management_period_settings` stores the current Management term separately for
+each organization, academic year, and semester. Only `MIDTERM` and `FINAL` are
+allowed. A new organization/semester defaults to Midterm without writing on page
+loads. Prepare the Management-only table with
+`php backend/tools/prepare_management_exam_terms.php`, or import
+`backend/sql/create_management_period_settings.sql`. It is also included in the
+complete Management installation SQL. No shared table is altered by these files.
+
+In Management's header settings, choose the academic year, semester, and term to
+view. The selected term persists through navigation, pagination, and search.
+Use current period restores the organization's operational Management period.
+Expand **Set current Management term** in that same dialog to save Midterm or
+Final for the assigned organization in the current academic year/semester. Other
+organizations keep their own setting. Changing the viewing selection does not
+change the operational period.
+
+Student enrollments and contribution, event, and violation definitions cover the
+whole semester. They are shown for both terms. Historical definitions have no
+reliable Midterm/Final field and are not assigned one by inference. Future
+Management payments, clearance, and attendance history must use Management's
+period helper and storage. The shared academic helper must not gain an exam term.
+
+Management writes validate the current year/semester, Management term, and settings
+revision while holding the assignment and period locks. A changed period rejects
+an outdated form with HTTP 409, including after switching Final back to Midterm.
+All current-term saves require Management authentication, assigned organization,
+and CSRF validation. `synk_management_assert_payment_context` rejects an explicitly
+term-specific Management charge from a different term. Payment collection remains
+future work. Legacy Financial history and account links have been removed; the
+starting operational period is 2026-2027 / 1st Semester / Final. Do not switch the
+Management term automatically from today's calendar date.
+
 ## Student directory and analytics
+
+The **Financial** menu is an empty workspace for a fresh recording process. Legacy
+history, email links, and Financial import tables were removed. See
+[management-financial.md](management-financial.md) for the reset scope. Student
+identities and directory memberships remain available in the existing directory.
 
 Dashboard counts and program breakdowns use active imported subject memberships
 in `tbl_student_management_enrolled_subjects` joined to Synk's shared
@@ -62,12 +111,15 @@ in `tbl_student_management_enrolled_subjects` joined to Synk's shared
 the imported class, not the shared identity's original home program. This handles
 students imported in more than one college without granting access to another
 college's classes. Students are counted once per selected term, including when
-they have multiple imported subjects. The directory supports name/student-number
-search, program and section filters, email status, all-term or year/semester views,
-name/ID/import-date sorting, and 25/50/100-student pagination. Management now reuses
-the Dean's read-only directory queries, including manually entered profiles and
-retained directory memberships. Student details show the selected college's
-imported subjects, sections, term, and assigned faculty. Profile edits, account
+they have multiple imported subjects. The Students page starts with three summary cards and uses the header's selected
+academic year/semester. Its listing form contains a wide name/student-number
+search, a 25/50/100 students-per-page selector, and one Search button. The separate
+directory term, program, class section, email status, sort, refresh, and reset
+controls have been removed. Old bookmarked filter values do not override the
+header's period or silently restrict the listing. Student details retain the
+selected college's subjects, sections, academic year/semester, and assigned faculty.
+The college name is displayed at the bottom of the Management sidebar.
+Profile edits, account
 changes, email generation, and roster deletion remain in the existing roles.
 
 Contributions and Events provide organization-scoped lists, filters, pagination, and
@@ -99,13 +151,13 @@ must be called by the future payment endpoint before any payment insert.
 Administrator can rename organizations and change their status. Organizations
 with accounts or catalog records cannot be deleted or moved to another college.
 Inactive organizations lose Management access immediately. CSSO and PSITS retain
-their existing IDs and records. Imported rows without an organization remain
-unassigned and are hidden from Management until an explicit mapping is approved.
+their organization IDs and account assignments. All legacy imported catalog and
+Financial rows were removed for the fresh start.
 
 ## Database deployment
 
 For manual live deployment, select the intended Synk database in phpMyAdmin and
-import `backend/sql/management_live_install.sql` as one file. It combines the five
+import `backend/sql/management_live_install.sql` as one file. It combines the six
 Management table definitions, account role/scope/Google-field preparation, and the
 earlier Violations schema upgrade. Existing enum role values and their metadata
 are preserved. The file checks for existing columns, keys, and constraints before
@@ -114,8 +166,7 @@ or academic-settings change. DDL commits implicitly; back up the live database f
 The disposable-database test is `php tests/management-live-sql.php`.
 
 For a new installation, first install the reviewed catalog schema from
-`backend/sql/create_management_catalog.sql` (or follow the separately reviewed
-definition-import workflow in `management-catalog.md`). Then run these repeatable
+`backend/sql/create_management_catalog.sql`. Then run these repeatable
 scripts against that server's configured database:
 
 ```powershell

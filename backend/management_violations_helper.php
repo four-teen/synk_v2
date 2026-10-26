@@ -17,7 +17,7 @@ function synk_management_violations_list(mysqli $conn, array $scope, array $inpu
     $page = filter_var($input['page'] ?? 1,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
     $size = filter_var($input['page_size'] ?? 25,FILTER_VALIDATE_INT);
     if ($page === false || !in_array($size,[25,50,100],true)) throw new DomainException('Choose a valid page size.');
-    $term = synk_management_view_term($conn,$input);
+    $term = synk_management_view_term($conn,$input,$scope);
     $where = ' WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=?'; $types = 'iiii'; $values = [$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester']];
     if ($search !== '') { $where .= " AND violation_type LIKE ? ESCAPE '!'"; $types .= 's'; $values[] = '%' . str_replace(['!','%','_'],['!!','!%','!_'],$search) . '%'; }
     $total = (int)synk_management_query($conn,'SELECT COUNT(*) AS n FROM tbl_management_violations' . $where,$types,$values)[0]['n'];
@@ -34,7 +34,7 @@ function synk_management_violation_write(mysqli $conn, array $scope, string $act
     $conn->begin_transaction();
     try {
         synk_management_lock_assignment($conn,$scope);
-        $currentTerm = synk_management_lock_current_term($conn,$input);
+        $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         $existing = null;
         if ($id) {
             $existing = synk_management_violation_get($conn,$scope,$id,true);

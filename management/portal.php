@@ -9,11 +9,11 @@ require_once __DIR__ . '/../backend/management_students_helper.php';
 require_once __DIR__ . '/../backend/account_switch_helper.php';
 $scope = synk_management_require_scope($conn);
 if (empty($_SESSION['management_csrf_token'])) $_SESSION['management_csrf_token'] = bin2hex(random_bytes(32));
-$currentTerm = synk_fetch_current_academic_term($conn);
-$currentTerm['key'] = $currentTerm['ay_id'].':'.$currentTerm['semester'];
+$currentTerm = synk_management_fetch_current_period($conn,$scope);
 $page = $managementPage ?? 'dashboard';
 $navigation = [
     'dashboard'=>['Dashboard','index.php','bx-home-circle','College metrics and community overview','primary'],
+    'financial'=>['Financial','financial.php','bx-receipt','New student financial records','info'],
     'contributions'=>['Contributions','contributions.php','bx-wallet','Contribution setup, amounts, and records','primary'],
     'events'=>['Events','events.php','bx-calendar-event','Organization activities and event sessions','success'],
     'violations'=>['Violations','violations.php','bx-error-circle','Violation types and standard amounts','warning'],
@@ -21,9 +21,15 @@ $navigation = [
 ];
 if (!isset($navigation[$page])) { http_response_code(404); exit('Page not found.'); }
 try {
-    $term = synk_management_view_term($conn, $_GET);
+    $term = synk_management_view_term($conn, $_GET, $scope);
     $analytics = synk_management_analytics($conn, $scope, $term);
-    $directory = $page === 'students' ? synk_management_directory($conn, $scope, $_GET) : null;
+    $directory = null;
+    if ($page === 'students') {
+        // The header owns the viewing period. Removed controls must not remain
+        // active through bookmarked directory/program/section filter values.
+        $directoryInput = array_intersect_key($_GET,array_flip(['term','exam_term','view_ay_id','view_semester','search','page','page_size']));
+        $directory = synk_management_directory($conn, $scope, $directoryInput);
+    }
     $violations = null;
     if ($page === 'violations') {
         if (!synk_table_exists($conn,'tbl_management_violations')) throw new RuntimeException('Violation storage has not been prepared.');
@@ -37,7 +43,8 @@ try {
             $catalogOptions = synk_management_catalog_options($conn,$scope);
         }
     } elseif (in_array($page,['contributions','events'],true)) throw new RuntimeException('The Management catalog has not been prepared.');
-} catch (DomainException $error) { http_response_code(400); exit(synk_management_h($error->getMessage())); }
+} catch (OutOfBoundsException $error) { http_response_code(404); exit(synk_management_h($error->getMessage())); }
+catch (DomainException $error) { http_response_code(400); exit(synk_management_h($error->getMessage())); }
 catch (Throwable $error) {
     error_log('Management portal: ' . $error->getMessage());
     http_response_code(503); exit('Unable to load your college workspace. Please try again later.');
@@ -46,7 +53,7 @@ $years = synk_management_query($conn, 'SELECT ay_id,ay FROM tbl_academic_years O
 $collegeLabel = trim($scope['college_code']) ?: $scope['college_name'];
 $organizationLabel = $scope['organization_code'];
 $pageTitle = $navigation[$page][0];
-$pageUrl = static function (string $file, array $params = []) use ($term): string { return $file . '?' . http_build_query(array_merge(['term'=>$term['key']], $params)); };
+$pageUrl = static function (string $file, array $params = []) use ($term): string { return $file . '?' . http_build_query(array_merge(['term'=>$term['key'],'exam_term'=>$term['exam_term']], $params)); };
 $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 ?>
 <!DOCTYPE html>
@@ -72,7 +79,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php require __DIR__ . '/navbar.php'; ?>
   <div class="content-wrapper">
   <main id="main-content" class="container-xxl flex-grow-1 container-p-y management-main">
-    <section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section>
+    <?php if($page!=='students'): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section><?php endif; ?>
     <?php if ($page === 'dashboard'): ?>
       <section class="management-stats" aria-label="College overview">
         <?php foreach ([['students','Students','bx-group','primary'],['programs','Programs represented','bx-book-open','success'],['sections','Class sections','bx-buildings','info'],['enrollments','Subject registrations','bx-list-check','warning']] as $stat): ?>
@@ -92,6 +99,8 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
           <a class="management-feature" href="<?= synk_management_h($pageUrl('events.php')) ?>"><span class="management-stat-icon bg-label-success"><i class="bx bx-calendar-event" aria-hidden="true"></i></span><div><strong>Events</strong><p>Your organization calendar and participation records.</p><span class="management-feature-state"><?= number_format($activityCounts['events']) ?> in this term</span></div><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
         </section>
       </div>
+    <?php elseif ($page === 'financial'): ?>
+      <?php require __DIR__.'/financial-view.php'; ?>
     <?php elseif ($page === 'violations'): ?>
       <?php require __DIR__ . '/violations-view.php'; ?>
     <?php elseif ($page === 'students'): ?>
@@ -106,7 +115,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 </div></div>
 <button type="button" class="layout-overlay layout-menu-toggle" id="management-menu-backdrop" aria-label="Close navigation" hidden></button>
 </div>
-<script type="application/json" id="management-config"><?= json_encode(['csrf_token'=>$_SESSION['management_csrf_token'],'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],'organization_id'=>$scope['organization_id'],'current_term'=>$currentTerm['key'],'current_term_text'=>$currentTerm['term_text'],'term'=>$term['key'],'directory_term'=>$directory['filters']['term'] ?? $term['key'],'term_labels'=>array_reduce($years,static function($labels,$year){ for($sem=1;$sem<=3;$sem++) $labels[$year['ay_id'].':'.$sem]=$year['ay'].' · '.synk_semester_label($sem); return $labels; },[]),'page'=>$page,'today'=>date('Y-m-d'),'endpoint'=>'../backend/query_management.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<script type="application/json" id="management-config"><?= json_encode(['csrf_token'=>$_SESSION['management_csrf_token'],'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],'organization_id'=>$scope['organization_id'],'current_term'=>$currentTerm['key'],'current_exam_term'=>$currentTerm['exam_term'],'current_period_version'=>$currentTerm['period_version'],'current_period'=>$currentTerm['period_key'],'current_term_text'=>$currentTerm['term_text'],'term'=>$term['key'],'exam_term'=>$term['exam_term'],'directory_term'=>$directory['filters']['term'] ?? $term['key'],'term_labels'=>array_reduce($years,static function($labels,$year){ for($sem=1;$sem<=3;$sem++) $labels[$year['ay_id'].':'.$sem]=$year['ay'].' · '.synk_semester_label($sem); return $labels; },[]),'page'=>$page,'today'=>date('Y-m-d'),'endpoint'=>'../backend/query_management.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script src="../assets/vendor/js/bootstrap.js"></script>
 <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
 <script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script><script src="portal.js?v=<?= (int)filemtime(__DIR__.'/portal.js') ?>" defer></script>
