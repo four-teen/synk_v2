@@ -1,0 +1,14 @@
+.organization-table { font-size: .875rem; }
+.organization-table thead th { background: #f2f2ff; font-size: .75rem; }
+.organization-table td { padding-top: 1rem; padding-bottom: 1rem; }
+.organization-table td strong { color: #566a7f; }
+#organization-fields { min-width: 0; }
+.organizations-page #layout-navbar .navbar-nav-right { min-width: 0; flex: 1; }
+@media (max-width: 767.98px) {
+  .organizations-page #layout-navbar { height: auto; min-height: 3.875rem; padding-top: .75rem; padding-bottom: .75rem; }
+  .organizations-page #navbar-collapse > ul > li:first-child { display: none; }
+  .organizations-page #navbar-collapse > .navbar-nav { min-width: 0; flex: 1; }
+  .organizations-page #navbar-collapse > .navbar-nav .flex-column { min-width: 0; }
+  .organizations-page #navbar-collapse > .navbar-nav .gap-2 { flex-wrap: wrap; gap: .25rem !important; }
+  .organizations-page #navbar-collapse > ul { flex: 0 0 auto; margin-left: .5rem !important; }
+}

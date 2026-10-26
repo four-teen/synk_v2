@@ -9,7 +9,11 @@
         exit;
     }
 
+    require_once '../backend/management_organization_helper.php';
+    $managementOrganizations = synk_organization_options($conn);
+    $managementColleges = synk_management_query($conn,"SELECT c.college_id,c.college_code,c.college_name,c.campus_id,p.campus_name FROM tbl_college c JOIN tbl_campus p ON p.campus_id=c.campus_id WHERE c.status='active' AND p.status='active' ORDER BY p.campus_name,c.college_code");
     $collegeOptionsHtml = '';
+    if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     $collegeQuery = $conn->query("
         SELECT
             c.college_id,
@@ -732,7 +736,7 @@
               <div class="accounts-card-top d-flex flex-column flex-xl-row justify-content-between align-items-xl-center">
                 <div class="accounts-card-copy">
                   <h5 class="m-0">Accounts List</h5>
-                  <small class="text-muted">Search and manage shared administrator, scheduler, professor, program chair, college dean, registrar, VPAA, and DI accounts</small>
+                  <small class="text-muted">Manage shared Synk accounts, roles, and assigned college or campus access, including Management.</small>
                 </div>
                 <div class="accounts-toolbar align-items-stretch">
                   <div class="input-group accounts-search-group">
@@ -841,7 +845,7 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">SKSU Email <span class="text-danger">*</span></label>
+              <label class="form-label"><span id="add_email_label">SKSU Email</span> <span class="text-danger">*</span></label>
               <input type="email" name="email" id="add_email" class="form-control" placeholder="name@sksu.edu.ph" required>
             </div>
 
@@ -895,6 +899,12 @@
                 </label>
                 <label class="account-role-card">
                   <div class="form-check m-0">
+                    <input type="checkbox" class="form-check-input account-role-checkbox" data-mode="add" name="roles[]" id="add_role_management" value="management">
+                    <div class="form-check-label"><span class="account-role-title">Management</span><span class="account-role-note">Manage college activities and view imported students in the assigned college.</span></div>
+                  </div>
+                </label>
+                <label class="account-role-card">
+                  <div class="form-check m-0">
                     <input type="checkbox" class="form-check-input account-role-checkbox" data-mode="add" name="roles[]" id="add_role_registrar" value="registrar">
                     <div class="form-check-label">
                       <span class="account-role-title">Registrar</span>
@@ -921,7 +931,7 @@
                   </div>
                 </label>
               </div>
-              <small class="text-muted">One SKSU email can carry multiple Synk roles.</small>
+              <small class="text-muted">One SKSU email can carry multiple Synk roles. Management-only accounts may use Gmail.</small>
             </div>
 
             <div class="col-md-6">
@@ -959,6 +969,14 @@
               <small class="text-muted">College Dean will see all programs under this college and use it as the enrollment workspace base.</small>
             </div>
 
+            <div class="col-12" id="add_management_college_wrapper" style="display:none;">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label" for="add_management_campus_id">Management Campus <span class="text-danger">*</span></label><select id="add_management_campus_id" name="management_campus_id" class="form-select"></select></div>
+                <div class="col-md-4"><label class="form-label" for="add_management_college_id">Management College <span class="text-danger">*</span></label><select id="add_management_college_id" name="management_college_id" class="form-select"></select></div>
+                <div class="col-md-4"><label class="form-label" for="add_management_organization_id">Management Organization <span class="text-danger">*</span></label><select id="add_management_organization_id" name="management_organization_id" class="form-select"></select></div>
+              </div>
+              <small class="text-muted">Access is limited to this organization. Assignments stay across academic terms. Maintain organizations in <a href="manage-organizations.php">Organizations</a>.</small>
+            </div>
             <div class="col-md-6" id="add_registrar_campus_wrapper" style="display:none;">
               <label class="form-label">Registrar Campus <span class="text-danger">*</span></label>
               <select name="registrar_campus_id" id="add_registrar_campus_id" class="form-select">
@@ -1030,7 +1048,7 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label">SKSU Email <span class="text-danger">*</span></label>
+              <label class="form-label"><span id="edit_email_label">SKSU Email</span> <span class="text-danger">*</span></label>
               <input type="email" name="email" id="edit_email" class="form-control" required>
             </div>
 
@@ -1080,6 +1098,12 @@
                       <span class="account-role-title">College Dean</span>
                       <span class="account-role-note">Open the shared login for college-dean enrollment and curriculum workflows.</span>
                     </div>
+                  </div>
+                </label>
+                <label class="account-role-card">
+                  <div class="form-check m-0">
+                    <input type="checkbox" class="form-check-input account-role-checkbox" data-mode="edit" name="roles[]" id="edit_role_management" value="management">
+                    <div class="form-check-label"><span class="account-role-title">Management</span><span class="account-role-note">Manage college activities and view imported students in the assigned college.</span></div>
                   </div>
                 </label>
                 <label class="account-role-card">
@@ -1148,6 +1172,14 @@
               <small class="text-muted">College Dean will see all programs under this college and use it as the enrollment workspace base.</small>
             </div>
 
+            <div class="col-12" id="edit_management_college_wrapper" style="display:none;">
+              <div class="row g-3">
+                <div class="col-md-4"><label class="form-label" for="edit_management_campus_id">Management Campus <span class="text-danger">*</span></label><select id="edit_management_campus_id" name="management_campus_id" class="form-select"></select></div>
+                <div class="col-md-4"><label class="form-label" for="edit_management_college_id">Management College <span class="text-danger">*</span></label><select id="edit_management_college_id" name="management_college_id" class="form-select"></select></div>
+                <div class="col-md-4"><label class="form-label" for="edit_management_organization_id">Management Organization <span class="text-danger">*</span></label><select id="edit_management_organization_id" name="management_organization_id" class="form-select"></select></div>
+              </div>
+              <small class="text-muted">Access is limited to this organization. Assignments stay across academic terms. Maintain organizations in <a href="manage-organizations.php">Organizations</a>.</small>
+            </div>
             <div class="col-md-6" id="edit_registrar_campus_wrapper" style="display:none;">
               <label class="form-label">Registrar Campus <span class="text-danger">*</span></label>
               <select name="registrar_campus_id" id="edit_registrar_campus_id" class="form-select">
@@ -1205,6 +1237,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="../assets/js/main.js"></script>
 
+<script type="application/json" id="management-assignment-options"><?= json_encode(['organizations'=>$managementOrganizations,'colleges'=>$managementColleges], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script>
 
 const accountState = {
@@ -1223,6 +1256,7 @@ const accountLoadingState = {
   hideTimer: null
 };
 
+const ACCOUNT_CSRF_TOKEN = "<?= htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8') ?>";
 const ACCOUNT_ROLE_COLUMNS = [
   {code: "professor", label: "Professor"}
 ];
@@ -1398,6 +1432,7 @@ function roleLabel(role) {
   if (value === "college_dean") {
     return "College Dean";
   }
+  if (value === "management") return "Management";
 
   if (value === "registrar") {
     return "Registrar";
@@ -1557,6 +1592,7 @@ function submitRoleMatrixChange(role, assigned, userIds, bulk) {
     dataType: "json",
     data: {
       set_role: 1,
+      csrf_token: ACCOUNT_CSRF_TOKEN,
       response_format: "json",
       role: role,
       assigned: assigned ? 1 : 0,
@@ -1627,6 +1663,11 @@ function normalizeAccountRecord(rawAccount) {
   const collegeDeanCollegeId = String(rawAccount && rawAccount.college_dean_college_id ? rawAccount.college_dean_college_id : "");
   const collegeDeanCollegeLabel = String(rawAccount && rawAccount.college_dean_college_label ? rawAccount.college_dean_college_label : "");
   const hasCollegeDeanRole = roles.indexOf("college_dean") !== -1;
+  const managementOrganizationId = String(rawAccount?.management_organization_id || "");
+  const managementOrganizationLabel = String(rawAccount?.management_organization_label || "Unassigned organization");
+  const managementCollegeId = String(rawAccount?.management_college_id || "");
+  const managementCollegeLabel = String(rawAccount?.management_college_label || "");
+  const hasManagementRole = roles.includes("management");
   const registrarCampusId = String(rawAccount && rawAccount.registrar_campus_id ? rawAccount.registrar_campus_id : "");
   const registrarCampusLabel = String(rawAccount && rawAccount.registrar_campus_label ? rawAccount.registrar_campus_label : "");
   const hasRegistrarRole = roles.indexOf("registrar") !== -1;
@@ -1661,6 +1702,9 @@ function normalizeAccountRecord(rawAccount) {
   if (hasCollegeDeanRole && collegeDeanCollegeId !== "") {
     scopeRows.push({code: rawAccount.college_dean_college_code, label: collegeDeanCollegeLabel + " (College Dean)"});
   }
+  if (hasManagementRole && managementCollegeId !== "") {
+    scopeRows.push({code: rawAccount.management_college_code, label: managementOrganizationLabel + " · " + managementCollegeLabel + " (Management)"});
+  }
   if (hasRegistrarRole) {
     registrarScopeRows.forEach(function(row) {
       scopeRows.push({code: row.campus_code, label: row.display_label || ''});
@@ -1684,12 +1728,14 @@ function normalizeAccountRecord(rawAccount) {
     professorEligible: professorEligible,
     professorLinkReason: professorLinkReason,
     collegeHtml: buildAssignedScopeHtml(scopeRows),
-    collegeText: collegeText,
+    collegeText: [collegeText === "N/A" ? "" : collegeText, hasManagementRole ? managementOrganizationLabel + " " + managementCollegeLabel + " Management" : ""].filter(Boolean).join(" | ") || "N/A",
     collegeIds: collegeIds,
     collegeIdsAttr: JSON.stringify(collegeIds),
     defaultCollegeValue: String(rawAccount && rawAccount.default_college_id ? rawAccount.default_college_id : ""),
     programChairCollegeValue: programChairCollegeId,
     collegeDeanCollegeValue: collegeDeanCollegeId,
+    managementOrganizationValue: managementOrganizationId,
+    managementCollegeValue: managementCollegeId,
     registrarCampusValue: registrarCampusId,
     statusHtml: buildStatusBadgeHtml(statusValue),
     statusText: statusValue.toUpperCase(),
@@ -1952,6 +1998,8 @@ function buildActionButtonsHtml(account, mobileView) {
       data-faculty-id="${escapeHtml(account.facultyIdValue)}"
       data-program-chair-college="${escapeHtml(account.programChairCollegeValue)}"
       data-college-dean-college="${escapeHtml(account.collegeDeanCollegeValue)}"
+      data-management-organization="${escapeHtml(account.managementOrganizationValue)}"
+      data-management-college="${escapeHtml(account.managementCollegeValue)}"
       data-registrar-campus="${escapeHtml(account.registrarCampusValue)}"
       data-college-ids="${escapeHtml(account.collegeIdsAttr)}"
       data-default-college="${escapeHtml(account.defaultCollegeValue)}"
@@ -2175,6 +2223,43 @@ function rolesIncludeCollegeDean(roles) {
   return Array.isArray(roles) && roles.indexOf("college_dean") !== -1;
 }
 
+const managementAssignmentOptions = JSON.parse(document.getElementById("management-assignment-options").textContent);
+const managementOrganizations = managementAssignmentOptions.organizations;
+const managementColleges = managementAssignmentOptions.colleges;
+function managementOptions(id, rows, value, label, placeholder, preferred) {
+  const select = document.getElementById(id);
+  select.replaceChildren(new Option(placeholder, ""));
+  rows.forEach(row => select.add(new Option(label(row), String(row[value]))));
+  select.value = String(preferred || "");
+}
+function managementCollegeOptions(mode, collegeId = "", organizationId = "") {
+  const campus = document.getElementById(mode + "_management_campus_id").value;
+  managementOptions(mode + "_management_college_id", managementColleges.filter(row => String(row.campus_id) === campus), "college_id", row => row.college_code + " - " + row.college_name, "Select college", collegeId);
+  managementOrganizationOptions(mode, organizationId);
+}
+function managementOrganizationOptions(mode, organizationId = "") {
+  const college = document.getElementById(mode + "_management_college_id").value;
+  managementOptions(mode + "_management_organization_id", managementOrganizations.filter(row => String(row.college_id) === college && (row.status === "ACTIVE" || String(row.organization_id) === String(organizationId))), "organization_id", row => row.organization_code + " - " + row.organization_name + (row.status === "INACTIVE" ? " (INACTIVE)" : ""), "Select organization", organizationId);
+}
+function toggleManagementCollegeField(mode, roles, preferredCollegeId, preferredOrganizationId) {
+  const selected = Array.isArray(roles) && roles.includes("management");
+  const orgId = preferredOrganizationId === undefined ? document.getElementById(mode + "_management_organization_id").value : preferredOrganizationId;
+  const college = managementColleges.find(row => String(row.college_id) === String(preferredCollegeId));
+  $("#" + mode + "_management_college_wrapper").toggle(selected);
+  ["campus", "college", "organization"].forEach(key => $("#" + mode + "_management_" + key + "_id").prop("required", selected).prop("disabled", !selected));
+  const campuses = [...new Map(managementColleges.map(row => [row.campus_id, row])).values()];
+  const campusId = selected ? (college?.campus_id || document.getElementById(mode + "_management_campus_id").value) : "";
+  managementOptions(mode + "_management_campus_id", campuses, "campus_id", row => row.campus_name, "Select campus", campusId);
+  managementCollegeOptions(mode, selected ? preferredCollegeId : "", selected ? orgId : "");
+  const gmailAllowed = selected && roles.length === 1;
+  $("#" + mode + "_email_label").text(gmailAllowed ? "Google Email" : "SKSU Email");
+  $("#" + mode + "_email").attr("placeholder", gmailAllowed ? "name@gmail.com or name@sksu.edu.ph" : "name@sksu.edu.ph");
+}
+["add","edit"].forEach(mode => {
+  document.getElementById(mode + "_management_campus_id").addEventListener("change", () => managementCollegeOptions(mode));
+  document.getElementById(mode + "_management_college_id").addEventListener("change", () => managementOrganizationOptions(mode));
+});
+
 function rolesIncludeRegistrar(roles) {
   return Array.isArray(roles) && roles.indexOf("registrar") !== -1;
 }
@@ -2324,6 +2409,12 @@ function buildAccountPayload(mode) {
     primary_role: $("#" + mode + "_primary_role").val(),
     status: $("#" + mode + "_status").val() || "active"
   };
+  payload.csrf_token = ACCOUNT_CSRF_TOKEN;
+  if (roles.includes("management")) {
+    payload.management_college_id = $("#" + mode + "_management_college_id").val();
+    payload.management_organization_id = $("#" + mode + "_management_organization_id").val();
+    payload.management_campus_id = $("#" + mode + "_management_campus_id").val();
+  }
 
   if (mode === "edit") {
     payload.user_id = $("#" + mode + "_user_id").val();
@@ -2388,7 +2479,7 @@ function handleAccountMutationResponse(mode, responseText) {
     return;
   }
   if (res === "invalid_domain") {
-    Swal.fire("Invalid Email", "Only @sksu.edu.ph email addresses are allowed.", "warning");
+    Swal.fire("Invalid Email", "Use an SKSU email for shared staff roles. Management-only accounts can also use a Gmail address.", "warning");
     return;
   }
   if (res === "invalid_role") {
@@ -2415,6 +2506,11 @@ function handleAccountMutationResponse(mode, responseText) {
     Swal.fire("Missing Assigned College", "Select the college this College Dean account belongs to.", "warning");
     return;
   }
+  if (["need_management_college", "invalid_management_college", "need_management_organization", "invalid_management_organization"].includes(res)) {
+    Swal.fire("Management Organization Required", "Select an active organization under the correct campus and college.", "warning");
+    return;
+  }
+  if (res === "invalid_csrf") { Swal.fire("Session Changed", "Reload the Accounts page and try again.", "warning"); return; }
   if (res === "invalid_college_dean_college") {
     Swal.fire("Invalid College", "Select an active college for the College Dean assignment.", "warning");
     return;
@@ -2463,6 +2559,7 @@ function handleAccountMutationResponse(mode, responseText) {
   if (mode === "add") {
     $("#addAccountForm")[0].reset();
     resetRoleFields("add");
+    toggleManagementCollegeField("add", [], "");
     resetFacultyField("add");
     resetProgramChairCollegeField("add");
     resetCollegeDeanCollegeField("add");
@@ -2504,6 +2601,7 @@ $(document).on("change", ".account-role-checkbox", function() {
   toggleFacultyLinkField(mode, getSelectedRoles(mode), $("#" + mode + "_faculty_id").val());
   toggleProgramChairCollegeField(mode, getSelectedRoles(mode), $("#" + mode + "_program_chair_college_id").val());
   toggleCollegeDeanCollegeField(mode, getSelectedRoles(mode), $("#" + mode + "_college_dean_college_id").val());
+  toggleManagementCollegeField(mode, getSelectedRoles(mode), $("#" + mode + "_management_college_id").val());
   toggleRegistrarCampusField(mode, getSelectedRoles(mode), $("#" + mode + "_registrar_campus_id").val());
   toggleCollegeAccessFields(mode, getSelectedRoles(mode), $("#" + mode + "_default_college_id").val());
 });
@@ -2629,6 +2727,7 @@ $(document).on("click", ".btnEditAccount", function () {
   toggleFacultyLinkField("edit", roles, facultyId);
   toggleProgramChairCollegeField("edit", roles, programChairCollegeId);
   toggleCollegeDeanCollegeField("edit", roles, collegeDeanCollegeId);
+  toggleManagementCollegeField("edit", roles, String($(this).attr("data-management-college") || ""), String($(this).attr("data-management-organization") || ""));
   toggleRegistrarCampusField("edit", roles, registrarCampusId);
 
   if (rolesIncludeScheduler(Array.isArray(roles) ? roles : [])) {

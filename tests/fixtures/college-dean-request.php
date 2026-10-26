@@ -47,6 +47,9 @@ $conn->query("INSERT INTO tbl_faculty (first_name,last_name,status) VALUES ('Col
 $facultyId = (int)$conn->insert_id;
 $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id,college_dean_college_id) VALUES ('{$tag}','{$email}','unusable-test-password','college_dean','active',{$chairCollege},{$deanCollege})");
 $userId = (int)$conn->insert_id;
+$conn->query("INSERT INTO tbl_management_organizations (college_id,organization_code,organization_name) VALUES ($deanCollege,'$tag','$tag')");
+$managementOrg=(int)$conn->insert_id;
+$conn->query('UPDATE tbl_useraccount SET management_college_id='.$deanCollege.',management_organization_id='.$managementOrg.' WHERE user_id='.$userId);
 $roles = synk_supported_module_roles();
 if (synk_persist_useraccount_roles($conn, $userId, $roles, 'college_dean') !== null
     || synk_persist_scheduler_college_access($conn, $userId, $roles, [$chairCollege], $chairCollege) !== null
@@ -55,13 +58,14 @@ if (synk_persist_useraccount_roles($conn, $userId, $roles, 'college_dean') !== n
     throw new RuntimeException('Fixture account setup failed.');
 }
 $base = ['username' => $tag, 'email' => $email, 'roles' => $roles, 'primary_role' => 'college_dean', 'status' => 'active',
-    'program_chair_college_id' => $chairCollege, 'college_dean_college_id' => $deanCollege,
+    'program_chair_college_id' => $chairCollege, 'college_dean_college_id' => $deanCollege, 'management_college_id'=>$deanCollege, 'management_organization_id'=>$managementOrg, 'csrf_token'=>'dean-account-qa',
     'college_ids' => [$chairCollege], 'default_college_id' => $chairCollege, 'faculty_id' => $facultyId, 'registrar_campus_id' => (int)$section['campus_id']];
 session_save_path($root . '/temp');
 session_start();
-$_SESSION = ['user_id' => $userId, 'role' => 'admin', 'college_id' => $chairCollege];
+$_SESSION = ['user_id' => $userId, 'role' => 'admin', 'college_id' => $chairCollege, 'csrf_token'=>'dean-account-qa'];
 $handler = 'backend/query_accounts.php';
 $_POST = []; $_GET = [];
+$_SERVER['REQUEST_METHOD'] = 'POST';
 switch ($scenario) {
     case 'student_workload_ok':
     case 'student_workload_page':

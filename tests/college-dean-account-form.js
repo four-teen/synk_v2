@@ -12,7 +12,7 @@ const elements = new Map();
 const handlers = new Map();
 const document = {};
 const element = selector => {
-  if (!elements.has(selector)) elements.set(selector, { value: '', options: [] });
+  if (!elements.has(selector)) elements.set(selector, { value: '', options: [], addEventListener() {}, replaceChildren(...options) { this.options = options; }, add(option) { this.options.push(option); } });
   return elements.get(selector);
 };
 for (const mode of ['add', 'edit']) {
@@ -28,6 +28,7 @@ const $ = (target, attrs) => {
     val(value) { if (arguments.length === 0) return items[0].value; items.forEach(item => item.value = value); return api; },
     prop(key, value) { items.forEach(item => item[key] = value); return api; },
     attr(key) { return items[0][key]; },
+    text(value) { if (value === undefined) return items[0].text || ''; items.forEach(item => item.text = value); return api; },
     data(key) { return items[0][key]; },
     toggle(value) { items.forEach(item => item.visible = value); return api; },
     empty() { items[0].options = []; return api; },
@@ -39,7 +40,9 @@ const $ = (target, attrs) => {
   return api;
 };
 $.trim = value => String(value ?? '').trim();
-const context = vm.createContext({ $, document, window: {}, Swal: { fire: () => Promise.resolve({}) } });
+document.getElementById = id => id === 'management-assignment-options' ? { textContent: JSON.stringify({ organizations: [{ organization_id: 1, college_id: 2, organization_code: 'CSSO', organization_name: 'CSSO', status: 'ACTIVE' }], colleges: [{ college_id: 2, college_code: 'CCS', college_name: 'Computer Studies', campus_id: 1, campus_name: 'ISULAN' }] }) } : element('#' + id);
+const Option = function(text, value) { this.text = text; this.value = value; };
+const context = vm.createContext({ $, document, Option, window: {}, Swal: { fire: () => Promise.resolve({}) } });
 vm.runInContext(script.replace(/\/\/ INITIAL LOAD[\s\S]*?(?=\$\(window\)\.on)/, ''), context);
 let checks = 0;
 const check = (condition, message) => { assert.ok(condition, message); checks++; };
@@ -73,4 +76,19 @@ check(restored.primary_role === 'college_dean' && restored.program_chair_college
 const normalized = context.normalizeAccountRecord({ id: 10, role_payload: [{ role: 'program_chair' }, { role: 'college_dean', is_primary: true }], primary_role: 'college_dean', program_chair_college_id: 2, college_dean_college_id: 1, college_dean_college_code: 'CCS', college_dean_college_label: 'CCS - College of Computer Studies' });
 check(normalized.collegeDeanCollegeValue === '1' && normalized.programChairCollegeValue === '2' && normalized.collegeText.includes('College Dean'), 'The rendered account record preserves the independent Dean scope.');
 check(context.roleLabel('college_dean') === 'College Dean', 'College Dean has a readable role label.');
+roles.push('management');
+for (const mode of ['add', 'edit']) {
+  element(`#${mode}_role_management`).value = 'management';
+  context.setSelectedRoles(mode, ['management']);
+  context.buildPrimaryRoleOptions(mode, 'management');
+  context.toggleManagementCollegeField(mode, ['management'], '2', '1');
+  const payload = context.buildAccountPayload(mode);
+  check(element(`#${mode}_management_college_id`).required && payload.management_college_id === '2' && payload.primary_role === 'management', 'Management requires and submits its independent college in ' + mode + '.');
+  check(element(`#${mode}_email_label`).text === 'Google Email', 'Management-only accounts allow a registered Google email.');
+  check(payload.management_organization_id==='1'&&payload.management_campus_id==='1'&&element(`#${mode}_management_organization_id`).required,'Management submits a required organization and matching campus.');
+}
+const managementRecord = context.normalizeAccountRecord({ id: 22, role_payload: [{ role: 'management', is_primary: true }], primary_role: 'management', management_college_id: 2, management_college_code: 'CCS', management_college_label: 'CCS - College of Computer Studies' });
+check(managementRecord.managementCollegeValue === '2' && managementRecord.collegeText.includes('Management'), 'Account rows retain the Management college for display and editing.');
+edit.call({ id: '22', username: 'Management Account', email: 'management@gmail.com', status: 'active', 'data-roles': JSON.stringify(['management']), 'data-primary-role': 'management', 'data-management-college': '2', 'data-management-organization':'1', 'data-college-ids': '[]' });
+check(context.buildAccountPayload('edit').management_college_id === '2'&&context.buildAccountPayload('edit').management_organization_id==='1', 'Opening Edit restores the Management assignment.');
 console.log(`College Dean account form: ${checks} checks passed.`);

@@ -68,6 +68,33 @@ function query_accounts_roles_include_registrar(array $roles): bool
     return synk_registrar_roles_include_registrar($roles);
 }
 
+function query_accounts_validate_management_scope(mysqli $conn, array $payload, bool $lock = false): ?string
+{
+    if (!in_array('management', $payload['roles'] ?? [], true)) return null;
+    if (!synk_useraccount_has_column($conn, 'management_organization_id')) return 'schema_error';
+    $id = (int)($payload['management_college_id'] ?? 0);
+    $org = (int)($payload['management_organization_id'] ?? 0);
+    if (!$org) return 'need_management_organization';
+    $stmt = $conn->prepare("SELECT c.college_id,c.campus_id FROM tbl_management_organizations o JOIN tbl_college c ON c.college_id=o.college_id JOIN tbl_campus cp ON cp.campus_id=c.campus_id
+        WHERE o.organization_id=? AND c.college_id=? AND o.status='ACTIVE' AND c.status='active' AND cp.status='active'".($lock ? ' FOR UPDATE' : ''));
+    $stmt->bind_param('ii', $org, $id); $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc(); $stmt->close();
+    if (!$row || (!empty($payload['management_campus_id']) && (int)$payload['management_campus_id']!==(int)$row['campus_id'])) return 'invalid_management_organization';
+    return null;
+}
+
+function query_accounts_management_request_guard(mysqli $conn, array $payload): ?string
+{
+    $management = in_array('management', $payload['roles'] ?? [], true);
+    if (!$management && !empty($payload['user_id'])) {
+        $account = synk_find_useraccount_by_id($conn, (int)$payload['user_id']);
+        $management = $account && synk_useraccount_has_active_role($conn, $account, 'management');
+    }
+    if ($management && (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !is_string($_POST['csrf_token'] ?? null)
+        || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) return 'invalid_csrf';
+    return query_accounts_validate_management_scope($conn, $payload);
+}
+
 function query_accounts_program_chair_college_label(array $row): string
 {
     $collegeCode = trim((string)($row['college_code'] ?? ''));
@@ -115,14 +142,15 @@ function query_accounts_build_insert(mysqli $conn, array $payload): array
         $values[] = $payload['college_id'];
     }
 
-    if (synk_useraccount_has_column($conn, 'college_dean_college_id')) {
-        $columns[] = 'college_dean_college_id';
-        if (($payload['college_dean_college_id'] ?? null) === null) {
+    foreach (['college_dean_college_id', 'management_college_id', 'management_organization_id'] as $scopeColumn) {
+        if (!synk_useraccount_has_column($conn, $scopeColumn)) continue;
+        $columns[] = $scopeColumn;
+        if (($payload[$scopeColumn] ?? null) === null) {
             $placeholders[] = 'NULL';
         } else {
             $placeholders[] = '?';
             $types .= 'i';
-            $values[] = $payload['college_dean_college_id'];
+            $values[] = $payload[$scopeColumn];
         }
     }
 
@@ -177,13 +205,14 @@ function query_accounts_build_update(mysqli $conn, array $payload): array
         $values[] = $payload['college_id'];
     }
 
-    if (synk_useraccount_has_column($conn, 'college_dean_college_id')) {
-        if (($payload['college_dean_college_id'] ?? null) === null) {
-            $assignments[] = 'college_dean_college_id = NULL';
+    foreach (['college_dean_college_id', 'management_college_id', 'management_organization_id'] as $scopeColumn) {
+        if (!synk_useraccount_has_column($conn, $scopeColumn)) continue;
+        if (($payload[$scopeColumn] ?? null) === null) {
+            $assignments[] = $scopeColumn . ' = NULL';
         } else {
-            $assignments[] = 'college_dean_college_id = ?';
+            $assignments[] = $scopeColumn . ' = ?';
             $types .= 'i';
-            $values[] = $payload['college_dean_college_id'];
+            $values[] = $payload[$scopeColumn];
         }
     }
 
@@ -193,11 +222,13 @@ function query_accounts_build_update(mysqli $conn, array $payload): array
         $values[] = 'google';
     }
 
-    if (synk_useraccount_has_column($conn, 'google_sub')) {
+    $existingAccount = synk_find_useraccount_by_id($conn, (int)$payload['user_id']);
+    $identityChanged = !$existingAccount || synk_normalize_email((string)$existingAccount['email']) !== $payload['email'];
+    if ($identityChanged && synk_useraccount_has_column($conn, 'google_sub')) {
         $assignments[] = 'google_sub = NULL';
     }
 
-    if (synk_useraccount_has_column($conn, 'google_email_verified')) {
+    if ($identityChanged && synk_useraccount_has_column($conn, 'google_email_verified')) {
         $assignments[] = 'google_email_verified = ?';
         $types .= 'i';
         $values[] = 0;
@@ -222,6 +253,15 @@ function query_accounts_build_update(mysqli $conn, array $payload): array
 function query_accounts_validate_payload(array $input, string $allowedDomain, bool $requireUserId = false): array
 {
     $roles = synk_normalize_supported_roles($input['roles'] ?? ($input['role'] ?? []));
+    $managementOrganization = $input['management_organization_id'] ?? '';
+    $managementCampus = $input['management_campus_id'] ?? '';
+    if (!is_scalar($managementOrganization) || !is_scalar($managementCampus)) return ['error'=>'invalid_management_organization'];
+    $managementOrganizationId = filter_var($managementOrganization,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    $managementCampusId = filter_var($managementCampus,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    if ($managementCampus !== '' && !$managementCampusId) return ['error'=>'invalid_management_organization'];
+    $managementCollege = $input['management_college_id'] ?? '';
+    if (!is_scalar($managementCollege)) return ['error'=>'invalid_management_college'];
+    $managementCollegeId = filter_var($managementCollege, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1]]);
     $primaryRole = synk_normalize_role_code((string)($input['primary_role'] ?? ($input['role'] ?? '')));
     $incomingCollegeIds = $input['college_ids'] ?? ($input['college_id'] ?? []);
     $defaultCollegeRaw = $input['default_college_id'] ?? ($input['college_id'] ?? '');
@@ -256,6 +296,9 @@ function query_accounts_validate_payload(array $input, string $allowedDomain, bo
         'default_college_id' => $normalizedAccess['default_college_id'],
         'program_chair_college_id' => $programChairCollegeId !== null && $programChairCollegeId > 0 ? $programChairCollegeId : null,
         'college_dean_college_id' => query_accounts_roles_include_college_dean($roles) && $collegeDeanCollegeId > 0 ? $collegeDeanCollegeId : null,
+        'management_organization_id' => in_array('management',$roles,true) && $managementOrganizationId ? (int)$managementOrganizationId : null,
+        'management_campus_id' => $managementCampusId ? (int)$managementCampusId : null,
+        'management_college_id' => in_array('management', $roles, true) && $managementCollegeId ? (int)$managementCollegeId : null,
         'registrar_campus_id' => $registrarCampusId !== null && $registrarCampusId > 0 ? $registrarCampusId : null,
         'faculty_id' => max(0, (int)($input['faculty_id'] ?? 0)),
         'password' => synk_build_placeholder_password(),
@@ -277,7 +320,7 @@ function query_accounts_validate_payload(array $input, string $allowedDomain, bo
         return ['error' => 'invalid_status'];
     }
 
-    if (!synk_is_allowed_email_domain($payload['email'], $allowedDomain)) {
+    if (strlen($payload['email']) > 150 || !synk_account_email_allowed($payload['email'], $roles, $allowedDomain)) {
         return ['error' => 'invalid_domain'];
     }
 
@@ -292,6 +335,8 @@ function query_accounts_validate_payload(array $input, string $allowedDomain, bo
     if (query_accounts_roles_include_college_dean($payload['roles']) && (int)($payload['college_dean_college_id'] ?? 0) <= 0) {
         return ['error' => 'need_college_dean_college'];
     }
+    if (in_array('management', $roles, true) && !$payload['management_college_id']) return ['error'=>'need_management_college'];
+    if (in_array('management', $roles, true) && !$payload['management_organization_id']) return ['error'=>'need_management_organization'];
 
     if (query_accounts_roles_include_registrar($payload['roles']) && (int)($payload['registrar_campus_id'] ?? 0) <= 0) {
         return ['error' => 'need_registrar_campus'];
@@ -445,6 +490,11 @@ function query_accounts_payload_from_row(array $row, array $roleRows, array $acc
         'program_chair_college_code' => (string)($row['college_code'] ?? ''),
         'program_chair_college_label' => $programChairCollegeLabel,
         'college_dean_college_id' => (int)($row['college_dean_college_id'] ?? 0),
+        'management_organization_id' => (int)($row['management_organization_id'] ?? 0),
+        'management_organization_label' => (string)($row['management_organization_label'] ?? ''),
+        'management_college_id' => (int)($row['management_college_id'] ?? 0),
+        'management_college_code' => (string)($row['management_college_code'] ?? ''),
+        'management_college_label' => query_accounts_program_chair_college_label(['college_code'=>$row['management_college_code'] ?? '', 'college_name'=>$row['management_college_name'] ?? '']) . (!empty($row['management_campus_name']) ? ' ('.$row['management_campus_name'].')' : ''),
         'college_dean_college_code' => (string)($row['college_dean_college_code'] ?? ''),
         'college_dean_college_label' => query_accounts_program_chair_college_label([
             'college_code' => $row['college_dean_college_code'] ?? '',
@@ -495,6 +545,8 @@ function query_accounts_bulk_role_requirement_error(mysqli $conn, array $account
         if (!synk_useraccount_has_column($conn, 'college_dean_college_id')) return 'schema_error';
         if ((int)($account['college_dean_college_id'] ?? 0) <= 0) return 'need_college_dean_college';
         return query_accounts_validate_college_dean_scope($conn, ['roles' => ['college_dean'], 'college_dean_college_id' => $account['college_dean_college_id']]);
+    } elseif ($role === 'management') {
+        return query_accounts_management_request_guard($conn, ['roles'=>['management'], 'management_college_id'=>$account['management_college_id'] ?? 0, 'management_organization_id'=>$account['management_organization_id'] ?? 0]);
     } elseif ($role === 'registrar') {
         if (empty(synk_fetch_registrar_scope_rows($conn, $userId))) {
             return 'need_registrar_campus';
@@ -506,6 +558,10 @@ function query_accounts_bulk_role_requirement_error(mysqli $conn, array $account
 
 if (isset($_POST['set_role'])) {
     header('Content-Type: application/json; charset=utf-8');
+    if (($_POST['role'] ?? '') === 'management' && (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST'
+        || !is_string($_POST['csrf_token'] ?? null) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']))) {
+        http_response_code(403); echo json_encode(['status'=>'error','message'=>'invalid_csrf']); exit;
+    }
 
     $role = synk_normalize_role_code((string)($_POST['role'] ?? ''));
     $supportedRoles = synk_supported_module_roles();
@@ -542,7 +598,8 @@ if (isset($_POST['set_role'])) {
     }
 
     $deanField = synk_useraccount_has_column($conn, 'college_dean_college_id') ? ', college_dean_college_id' : '';
-    $accountStmt = $conn->prepare('SELECT user_id, username, role, college_id' . $deanField . ' FROM tbl_useraccount WHERE user_id = ? LIMIT 1');
+    $managementField = synk_useraccount_has_column($conn, 'management_college_id') ? ', management_college_id, management_organization_id' : '';
+    $accountStmt = $conn->prepare('SELECT user_id, username, email, role, college_id' . $deanField . $managementField . ' FROM tbl_useraccount WHERE user_id = ? LIMIT 1');
     $legacyRoleStmt = $conn->prepare('UPDATE tbl_useraccount SET role = ? WHERE user_id = ?');
     if (!$accountStmt || !$legacyRoleStmt) {
         if ($accountStmt) {
@@ -615,6 +672,10 @@ if (isset($_POST['set_role'])) {
         }
 
         $currentRoles = synk_normalize_supported_roles($currentRoles);
+        if (!synk_account_email_allowed((string)$account['email'], $currentRoles, $allowedDomain)) {
+            $skipped[] = ['user_id'=>$userId, 'username'=>(string)$account['username'], 'reason'=>'invalid_domain'];
+            continue;
+        }
         $primaryRole = synk_useraccount_primary_role($roleRows, (string)($account['role'] ?? ''));
         if (!in_array($primaryRole, $currentRoles, true)) {
             $primaryRole = $currentRoles[0];
@@ -666,6 +727,17 @@ if (isset($_POST['set_role'])) {
 if (isset($_POST['load_accounts'])) {
     $fields = ['u.*', 'c.college_code', 'c.college_name'];
     $deanJoin = '';
+    $managementJoin = '';
+    if (synk_useraccount_has_column($conn, 'management_college_id')) {
+        $fields[] = 'mc.college_code AS management_college_code';
+        $fields[] = 'mc.college_name AS management_college_name';
+        $fields[] = 'mcp.campus_name AS management_campus_name';
+        $managementJoin = 'LEFT JOIN tbl_college mc ON u.management_college_id=mc.college_id LEFT JOIN tbl_campus mcp ON mcp.campus_id=mc.campus_id';
+        if (synk_useraccount_has_column($conn,'management_organization_id')) {
+            $fields[] = 'mo.organization_name AS management_organization_label';
+            $managementJoin .= ' LEFT JOIN tbl_management_organizations mo ON mo.organization_id=u.management_organization_id AND mo.college_id=u.management_college_id';
+        }
+    }
     if (synk_useraccount_has_column($conn, 'college_dean_college_id')) {
         $fields[] = 'dc.college_code AS college_dean_college_code';
         $fields[] = 'dc.college_name AS college_dean_college_name';
@@ -676,6 +748,7 @@ if (isset($_POST['load_accounts'])) {
         FROM tbl_useraccount u
         LEFT JOIN tbl_college c ON u.college_id = c.college_id
         {$deanJoin}
+        {$managementJoin}
         ORDER BY u.user_id DESC
     ";
 
@@ -774,6 +847,10 @@ if (isset($_POST['load_accounts'])) {
         if ($hasCollegeDeanRole && $collegeDeanCollegeId > 0 && $collegeDeanCollegeLabel !== '') {
             $scopeParts[] = "<div class='small text-wrap mb-1'>{$collegeDeanCollegeLabel} <span class='badge bg-label-info ms-1'>College Dean</span></div>";
         }
+        if (in_array('management', $roleValues, true) && (int)($row['management_college_id'] ?? 0)>0) {
+            $managementLabel = htmlspecialchars(query_accounts_program_chair_college_label(['college_code'=>$row['management_college_code'] ?? '', 'college_name'=>$row['management_college_name'] ?? '']), ENT_QUOTES, 'UTF-8');
+            $scopeParts[] = "<div class='small text-wrap mb-1'>{$managementLabel} <span class='badge bg-label-info ms-1'>Management</span></div>";
+        }
         if ($registrarScopeHtml !== '') {
             $scopeParts[] = $registrarScopeHtml;
         }
@@ -814,6 +891,8 @@ if (isset($_POST['load_accounts'])) {
                 data-default-college='{$defaultCollegeAttr}'
                 data-program-chair-college='" . htmlspecialchars((string)$programChairCollegeId, ENT_QUOTES, 'UTF-8') . "'
                 data-college-dean-college='" . htmlspecialchars((string)$collegeDeanCollegeId, ENT_QUOTES, 'UTF-8') . "'
+                data-management-college='" . (int)($row['management_college_id'] ?? 0) . "'
+                data-management-organization='" . (int)($row['management_organization_id'] ?? 0) . "'
                 data-registrar-campus='" . htmlspecialchars((string)$registrarCampusId, ENT_QUOTES, 'UTF-8') . "'
                 data-faculty-id='{$facultyId}'
                 data-faculty-label=\"{$facultyName}\"
@@ -852,6 +931,8 @@ if (isset($_POST['save_account'])) {
     }
 
     $payload = $validation['payload'];
+    $managementError = query_accounts_management_request_guard($conn, $payload);
+    if ($managementError !== null) { echo $managementError; exit; }
     $deanScopeError = query_accounts_validate_college_dean_scope($conn, $payload);
     if ($deanScopeError !== null) {
         echo $deanScopeError;
@@ -878,6 +959,8 @@ if (isset($_POST['save_account'])) {
     $conn->begin_transaction();
 
     try {
+        $organizationError = query_accounts_validate_management_scope($conn,$payload,true);
+        if ($organizationError !== null) throw new RuntimeException($organizationError);
         [$sql, $types, $values] = query_accounts_build_insert($conn, $payload);
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
@@ -963,6 +1046,8 @@ if (isset($_POST['update_account'])) {
     }
 
     $payload = $validation['payload'];
+    $managementError = query_accounts_management_request_guard($conn, $payload);
+    if ($managementError !== null) { echo $managementError; exit; }
     $deanScopeError = query_accounts_validate_college_dean_scope($conn, $payload);
     if ($deanScopeError !== null) {
         echo $deanScopeError;
@@ -989,6 +1074,8 @@ if (isset($_POST['update_account'])) {
     $conn->begin_transaction();
 
     try {
+        $organizationError = query_accounts_validate_management_scope($conn,$payload,true);
+        if ($organizationError !== null) throw new RuntimeException($organizationError);
         [$sql, $types, $values] = query_accounts_build_update($conn, $payload);
         $stmt = $conn->prepare($sql);
         if (!$stmt) {

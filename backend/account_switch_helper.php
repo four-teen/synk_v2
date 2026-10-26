@@ -16,6 +16,9 @@ function synk_account_switch_context(mysqli $conn): ?array
     }
 
     $roleRows = synk_fetch_useraccount_role_rows($conn, $userId, (string)$account['role']);
+    if (($_SESSION['auth_method'] ?? '') !== 'google') {
+        $roleRows = array_values(array_filter($roleRows, static function (array $row): bool { return $row['role'] !== 'management'; }));
+    }
     return [
         'account' => $account,
         'role_rows' => synk_filter_loginable_role_rows($conn, $account, $roleRows),

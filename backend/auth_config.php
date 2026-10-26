@@ -9,8 +9,9 @@ function synk_auth_settings(): array
         // - google_only: Google login only
         'mode' => 'hybrid',
 
-        // Restrict Google-authenticated users to this domain.
+        // Staff/student domain. Management-only accounts may also use Gmail.
         'allowed_domain' => 'sksu.edu.ph',
+        'management_login_title' => 'CCS Management.',
 
         // Configure Google OAuth in the ignored auth_config.local.php file.
         'google_client_id' => '',

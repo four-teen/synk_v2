@@ -1,0 +1,168 @@
+# Management portal foundation
+
+Management is an organization-scoped Synk role, administered through **Administrator →
+Accounts**. The portal is reusable by any college and has no dependency on the
+external CSSO/ISMRS application. Catalog definitions can be imported from a supplied
+SQL dump; the external application is never changed.
+
+## Shared module presentation
+
+Management uses the Dean/Chair Sneat layout: fixed card-menu sidebar, detached
+account header with avatar and campus badge, viewing-term settings modal, shared
+footer, core controls, and the same list typography and colors. Sidebar rules live
+in `assets/css/college-portal-sidebar.css`, imported by the existing Dean theme;
+the Dean and Chair continue to use the same rules. Management also loads
+`college-dean/custom_css.css` and `college-dean/students.css` directly. Its local
+`portal.css` contains layout extensions rather than a separate color/font theme.
+Student identity cells follow the Dean's ID, name, and italic email format.
+
+## Account setup and sign-in
+
+1. Create the organization in **Administrator → Institution Setup → Organizations**,
+   selecting its campus and college. Every organization belongs to exactly one college.
+2. In Accounts, add or edit the account and select **Management**.
+3. Choose **Management Campus → College → Organization** and save.
+   All three must be active. Assignment is independent of Scheduler, Chair, and Dean scopes.
+   One account has one organization; an organization can have multiple accounts.
+   Assignments persist when the academic term changes.
+4. Open `/synk/management/login.php` and continue with the registered Google account.
+
+There is no email or password field on this login. Access requires an existing
+active account, an active Management role, and an active assigned organization/college/campus.
+There is no self-registration or college selection during sign-in.
+
+Management-only accounts may use personal `@gmail.com` or the configured SKSU
+domain. Accounts with other staff roles retain the configured SKSU-domain rule.
+The email must match the Administrator-created account. Google identity, verified
+email, OAuth state, nonce, audience, issuer, expiration, and subject binding are
+validated through Synk's existing server-side Google flow. The Management flow
+has independent OAuth state and returns failures to its own login. Google state
+from concurrently opened student/staff sign-ins is preserved.
+
+The portal uses the existing Google client and registered callback URL,
+`/backend/auth_google_callback.php`; it does not need another callback registration.
+For personal Gmail sign-in, the existing Google OAuth application must permit
+external accounts (and list permitted testers if it is in testing mode). This
+cannot be changed from the PHP application.
+
+The public login says **CCS Management. One Place.** by default, following the
+student login design. To change that heading on another installation, set
+`management_login_title` in ignored `backend/auth_config.local.php`. After login,
+organization name, college, campus, and catalog data use the current assignment.
+Every request reloads assignment and account/role status from the database.
+Forged organization, college, or campus IDs cannot widen access. Account switching is
+available for shared identities authenticated with Google. Legacy password
+sessions cannot switch into Management. Sign-out returns to the Management login.
+
+## Student directory and analytics
+
+Dashboard counts and program breakdowns use active imported subject memberships
+in `tbl_student_management_enrolled_subjects` joined to Synk's shared
+`tbl_student_management` identities. College/campus/term membership comes from
+the imported class, not the shared identity's original home program. This handles
+students imported in more than one college without granting access to another
+college's classes. Students are counted once per selected term, including when
+they have multiple imported subjects. The directory supports name/student-number
+search, program and section filters, email status, all-term or year/semester views,
+name/ID/import-date sorting, and 25/50/100-student pagination. Management now reuses
+the Dean's read-only directory queries, including manually entered profiles and
+retained directory memberships. Student details show the selected college's
+imported subjects, sections, term, and assigned faculty. Profile edits, account
+changes, email generation, and roster deletion remain in the existing roles.
+
+Contributions and Events provide organization-scoped lists, filters, pagination, and
+add/edit/delete dialogs. Events include editable sessions and attendance rule
+settings. The dashboard shows actual definition counts for the selected term.
+The imported definitions and their relationships are described in
+[management-catalog.md](management-catalog.md). Payment collection, student charge
+assignments, and attendance capture are separate future workflows.
+
+Violations provides an organization/term type-and-amount list at
+`/synk/management/violations.php`. Types are uppercase and unique within an
+organization, academic year, and semester. Amounts use `DECIMAL(12,2)` and permit
+zero. This catalog does not assign violations or charges to students.
+
+New contributions, events, and violations take organization ownership from the
+account and the academic year/semester from Academic Settings. These fields are
+read-only in the forms and validated on the server. The viewing-term selector
+affects reporting; adding from a historical view still uses the current term.
+Editing historical records preserves their original term. A term change while a
+form is open requires a reload. Writes lock the current settings row until commit.
+
+Payment collection has not been built. Its required integration contract is
+`synk_management_lock_current_term` plus `synk_management_assert_payment_context`
+in `backend/management_term_helper.php`, called within the payment transaction
+after locking the assignment and charge. It rejects charges from another
+organization or a noncurrent academic year/semester. This helper is tested; it
+must be called by the future payment endpoint before any payment insert.
+
+Administrator can rename organizations and change their status. Organizations
+with accounts or catalog records cannot be deleted or moved to another college.
+Inactive organizations lose Management access immediately. CSSO and PSITS retain
+their existing IDs and records. Imported rows without an organization remain
+unassigned and are hidden from Management until an explicit mapping is approved.
+
+## Database deployment
+
+For manual live deployment, select the intended Synk database in phpMyAdmin and
+import `backend/sql/management_live_install.sql` as one file. It combines the five
+Management table definitions, account role/scope/Google-field preparation, and the
+earlier Violations schema upgrade. Existing enum role values and their metadata
+are preserved. The file checks for existing columns, keys, and constraints before
+adding them and can be rerun. It contains no catalog data import, account mapping,
+or academic-settings change. DDL commits implicitly; back up the live database first.
+The disposable-database test is `php tests/management-live-sql.php`.
+
+For a new installation, first install the reviewed catalog schema from
+`backend/sql/create_management_catalog.sql` (or follow the separately reviewed
+definition-import workflow in `management-catalog.md`). Then run these repeatable
+scripts against that server's configured database:
+
+```powershell
+php backend/tools/prepare_management_portal.php
+php backend/tools/prepare_management_violations.php
+php backend/tools/prepare_management_organizations.php
+```
+
+The repeatable preparation script extends `tbl_useraccount.role` with `management`
+and adds nullable `management_college_id`. It also installs missing Google identity
+metadata from the existing phase 4 authentication contract: `auth_provider`,
+`google_sub` (unique), `google_email_verified`, `last_login_at`, `last_google_name`.
+It preserves existing passwords, account values, primary roles, college assignments,
+and imported data. The local installation has been prepared. Requests do not run
+this migration. Role memberships use existing `tbl_useraccount_roles` storage.
+The additive violation migration creates `tbl_management_violations` with college
+ownership, exact amounts, and timestamps. The organization migration adds nullable
+`organization_id`, `ay_id`, and `semester`, foreign keys, and a unique type per
+organization/term, replacing the previous college/type constraint. It also adds
+`tbl_useraccount.management_organization_id` with a composite college/organization
+foreign key. No new membership table or term renewal is needed. It is repeatable
+and does not seed sample data. Its CRUD uses the Management CSRF/access checks,
+assignment/row locks, record versions, and foreign-key deletion restrictions.
+
+## Validation
+
+Run database fixture suites sequentially:
+
+```powershell
+php tests/management-portal.php
+php tests/management-crud.php
+php tests/college-dean-accounts.php --http
+php tests/account-switching.php --http
+php tests/student-portal.php
+php tests/professor-account-links-http.php
+node tests/college-dean-account-form.js
+node tests/management-portal-browser.cjs
+```
+
+Fixtures roll back test accounts and student imports. Browser tests use an isolated
+headless profile and token-guarded localhost fixture routes, intercept account
+requests, and check login, analytics, student pagination, menu behavior, account
+role/campus/college/organization controls, Administrator organization CRUD, contribution/event forms, session editing, delete dialogs,
+student details, and 320–1440px layouts. Browser mutations are intercepted; real
+CRUD HTTP scenarios use a separate transaction per request and roll back fixtures.
+The local existing CCS account was explicitly assigned to CSSO. Repeatable deployment
+migrations do not assign arbitrary accounts; use Accounts to choose their organization.
+Google token-signature verification
+uses the shared authentication implementation; automated tests do not complete a
+real Google consent flow with the user's credentials.
