@@ -43,7 +43,7 @@ if ($college_id <= 0) {
 }
 $schedulePolicy = synk_fetch_effective_schedule_policy($conn, $college_id);
 $scheduleWriteActions = ['save_schedule_blocks','save_schedule','save_dual_schedule','clear_schedule',
-    'clear_all_college_schedules','save_schedule_merge','save_schedule_set','load_schedule_set_into_live'];
+    'clear_all_college_schedules','save_schedule_merge','save_schedule_set','load_schedule_set_into_live','apply_bulk_tba'];
 foreach ($scheduleWriteActions as $scheduleWriteAction) {
     if (isset($_POST[$scheduleWriteAction])) {
         try { synk_schedule_acquire_write_lock($conn); }
@@ -4071,6 +4071,31 @@ function check_conflict($conn, $ctx, $offering_id, $room_id, $time_start, $time_
 function block_label_for_response($type, $sequence) {
     $base = strtoupper(trim((string)$type)) === 'LAB' ? 'Laboratory' : 'Lecture';
     return $base . ' ' . max(1, (int)$sequence);
+}
+
+/* =====================================================
+   PREVIEW / APPLY BULK TBA SCHEDULES
+===================================================== */
+if (isset($_POST['preview_bulk_tba']) || isset($_POST['apply_bulk_tba'])) {
+    require_once __DIR__ . '/schedule_tba_bulk_helper.php';
+    $mode = $_POST['tba_mode'] ?? '';
+    $previewToken = $_POST['preview_token'] ?? '';
+    if (!is_string($mode) || !is_string($previewToken)) {
+        respond('error', 'Invalid TBA request.');
+    }
+    try {
+        $args = [$conn, $college_id, (int)($_POST['program_id'] ?? 0), (int)($_POST['ay_id'] ?? 0), (int)($_POST['semester'] ?? 0), $mode];
+        $plan = isset($_POST['apply_bulk_tba'])
+            ? synk_schedule_tba_bulk_apply(...array_merge($args, [$previewToken]))
+            : synk_schedule_tba_bulk_plan(...$args);
+        unset($plan['changes']);
+    } catch (DomainException $error) {
+        respond('error', $error->getMessage());
+    } catch (Throwable $error) {
+        error_log('Bulk TBA schedule: ' . $error->getMessage());
+        respond('error', 'Unable to complete the TBA action. No changes were applied.');
+    }
+    respond('ok', isset($_POST['apply_bulk_tba']) ? 'TBA schedules saved.' : 'TBA preview ready.', $plan);
 }
 
 /* =====================================================

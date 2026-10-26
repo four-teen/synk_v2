@@ -60,8 +60,10 @@ async function main(){
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false},session);
   await call('Page.navigate',{url:`http://localhost/synk/tmp/${pageName}?qa=${token}`},session);
   await until('window.jQuery && document.readyState === "complete" && document.getElementById("btnSaveScheduleBlocks")','Scheduling scripts did not load.');
+  assert(await evaluate('!document.getElementById("btnPreviewAutoDraft") && !document.getElementById("autoDraftModal") && document.getElementById("btnGenerateTba") && document.getElementById("btnConvertAllTba")'),'Scheduler actions did not retain TBA controls after automatic draft removal.');
   await evaluate(`
     window.__tbaMode='empty';window.__savedTba=[];window.__browserErrors=[];
+    window.__bulkSaves=[];window.__bulkPreviews=[];window.__bulkApplyError=false;window.__bulkPreviewError=false;
     window.addEventListener('error',e=>window.__browserErrors.push(e.message));
     window.__loaded=${JSON.stringify(loaded.response)};
     $.ajax=function(options){
@@ -76,11 +78,21 @@ async function main(){
         if(window.__tbaMode==='room'){
           response.blocks[0].schedule_status='room_tba';response.blocks[0].days=['M'];response.blocks[0].time_start='10:00:00';response.blocks[0].time_end='12:00:00';response.blocks[0].room_id=0;
         }
+      }else if(data.preview_bulk_tba){
+        window.__bulkPreviews.push(JSON.parse(JSON.stringify(data)));
+        response=window.__bulkPreviewError?{status:'error',message:'Preview unavailable.'}:{status:'ok',preview_token:'a'.repeat(64),mode:data.tba_mode,
+          summary:{total_count:3,eligible_count:1,meeting_count:2,skipped_count:1,unchanged_count:1},
+          items:[{sub_code:'QA <111>',sub_description:'Preview <script>unsafe</script>',section_name:'QA 1A',status:'ready',reason:'Ready for TBA.'},
+            {sub_code:'QA 222',section_name:'QA 1B',status:'skipped',reason:'Locked offering.'},
+            {sub_code:'QA 333',section_name:'QA 1C',status:'unchanged',reason:'Already TBA.'}]};
+      }else if(data.apply_bulk_tba){
+        window.__bulkSaves.push(JSON.parse(JSON.stringify(data)));
+        response=window.__bulkApplyError?{status:'error',message:'Schedules changed since this preview. Refresh the preview before applying.'}:{status:'ok',summary:{eligible_count:1,meeting_count:2,skipped_count:1}};
       }else if(data.save_schedule_blocks){window.__savedTba.push(JSON.parse(JSON.stringify(data)));response={status:'ok'};
       }else if(data.load_schedule_faculty_options){response={status:'ok',faculties:[],faculty_options:[],options:[]};
       }else if(String(options.url).includes('load_class_offerings')){response='';
       }else{response={status:'ok',rows:[],entries:[],options:[],faculties:[],programs:[],sets:[],live_status:{}};}
-      setTimeout(()=>{if(typeof options.success==='function')options.success(response);deferred.resolve(response);},5);
+      setTimeout(()=>{if(typeof options.success==='function')options.success(response);deferred.resolve(response);if(typeof options.complete==='function')options.complete();},5);
       return deferred.promise({readyState:4,abort(){}});
     };
     const ay=document.getElementById('ay_id');if(!ay.value)ay.value=Array.from(ay.options).find(o=>o.value).value;
@@ -120,9 +132,10 @@ async function main(){
   await until('!$("#blockScheduleModal").hasClass("show") && !Swal.isVisible()','Resolved modal did not close.');
   await evaluate(`window.__loaded.blocks=${JSON.stringify(resolved)}.map(block=>({...block,days:JSON.parse(block.days_json),is_inherited:false,is_editable:true}));window.__tbaMode='confirmed';document.getElementById('tbaQaOpen').click();`);
   await until('document.querySelectorAll(".schedule-block-status").length===2 && $("#blockScheduleModal").hasClass("show")','Confirmed assigned editor did not reopen.');
+  await until('document.activeElement?.closest("#blockScheduleModal")','Confirmed editor opening transition did not finish.');
   assert(await evaluate('Array.from(document.querySelectorAll(".schedule-block-time-start,.schedule-block-time-end,.schedule-block-room,.schedule-block-status")).every(input=>!input.disabled)'),'Reopened confirmed meetings are locked.');
   await evaluate(`
-    const card=document.querySelector('.schedule-block-card');card.querySelector('.schedule-block-time-start').value='08:00';card.querySelector('.schedule-block-time-end').value='10:00';
+    const confirmedCard=document.querySelector('.schedule-block-card');confirmedCard.querySelector('.schedule-block-time-start').value='08:00';confirmedCard.querySelector('.schedule-block-time-end').value='10:00';
     document.getElementById('btnSaveScheduleBlocks').click();
   `);
   await until('window.__savedTba.length===3','Confirmed assigned schedule could not be edited after reopening.');
@@ -133,12 +146,54 @@ async function main(){
   await until('document.activeElement?.closest("#blockScheduleModal")','Room editor opening transition did not finish.');
   assert(await evaluate('!document.querySelector(".schedule-block-time-start").disabled && Array.from(document.querySelectorAll(".schedule-block-card:first-child .schedule-block-day")).some(input=>!input.disabled)'),'Assigned Room TBA days and times are locked.');
   await evaluate('const roomSelect=document.querySelector(".schedule-block-status");roomSelect.value="scheduled";roomSelect.dispatchEvent(new Event("change",{bubbles:true}));');
-  assert(await evaluate('!document.querySelector(".schedule-block-room").disabled && document.querySelector(".schedule-block-time-start").disabled'),'Room resolution did not preserve fixed times.');
+  assert(await evaluate('!document.querySelector(".schedule-block-room").disabled && !document.querySelector(".schedule-block-time-start").disabled'),'Room resolution disabled editable meeting fields.');
   await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false},session);
   assert(await evaluate('document.querySelector("#blockScheduleModal .modal-content").getBoundingClientRect().width<=window.innerWidth'),'TBA editor overflowed mobile width.');
   await evaluate(`(() => {const body=document.querySelector('#blockScheduleModal .modal-body');const card=body.querySelector('.schedule-block-card');body.scrollTop+=card.getBoundingClientRect().top-body.getBoundingClientRect().top;})()`);
   assert(await evaluate('document.querySelector(".schedule-block-time-end").getBoundingClientRect().right <= document.querySelector(".schedule-block-card").getBoundingClientRect().right'),'Time controls overflowed the mobile card.');
   assert(await evaluate('document.querySelector("#blockScheduleModal .modal-body").scrollWidth <= document.querySelector("#blockScheduleModal .modal-body").clientWidth + 3'),'Pending controls caused horizontal scrolling on mobile.');
+
+  await evaluate('$("#blockScheduleModal").modal("hide");Swal.close();');
+  await until('!$("#blockScheduleModal").hasClass("show") && !document.querySelector(".modal-backdrop")','Class editor did not close.');
+  await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false},session);
+  await evaluate(`
+    const program=document.getElementById('program_id');program.value=Array.from(program.options).find(option=>option.value).value;
+    document.getElementById('btnConvertAllTba').click();
+  `);
+  await until('$("#bulkTbaModal").hasClass("show") && !document.getElementById("btnApplyBulkTba").disabled','Bulk TBA conversion preview did not open.');
+  assert(await evaluate('document.getElementById("bulkTbaTitle").textContent==="Set All Schedules to TBA"'),'Bulk conversion title is unclear.');
+  assert(await evaluate('document.getElementById("bulkTbaScope").textContent.includes(document.querySelector("#program_id option:checked").textContent.trim())'),'Bulk preview omitted the selected program.');
+  assert(await evaluate('document.getElementById("bulkTbaItems").textContent.includes("Locked offering.") && document.getElementById("bulkTbaSummary").textContent.includes("1 already TBA")'),'Skipped/unchanged offerings are missing from the preview.');
+  assert(await evaluate('document.querySelectorAll("#bulkTbaItems script").length===0 && document.getElementById("bulkTbaItems").textContent.includes("<script>unsafe</script>")'),'Bulk preview did not escape subject text.');
+  assert(await evaluate('window.__bulkSaves.length===0'),'Opening the preview saved schedules.');
+  await until('document.activeElement?.closest("#bulkTbaModal")','Bulk preview opening transition did not finish.');
+  await evaluate('document.querySelector("#bulkTbaModal .modal-footer [data-bs-dismiss]").click()');
+  await until('!document.querySelector(".modal-backdrop")','Bulk preview did not cancel.');
+  assert(await evaluate('window.__bulkSaves.length===0'),'Cancelling the preview changed schedules.');
+
+  await evaluate('document.getElementById("btnGenerateTba").click()');
+  await until('$("#bulkTbaModal").hasClass("show") && !document.getElementById("btnApplyBulkTba").disabled','Generate TBA preview did not open.');
+  assert(await evaluate('document.getElementById("bulkTbaTitle").textContent==="Generate TBA Schedules" && window.__bulkPreviews.at(-1).tba_mode==="generate"'),'Generate action used conversion mode.');
+  await until('document.activeElement?.closest("#bulkTbaModal")','Generation preview transition did not finish.');
+  await evaluate('document.getElementById("btnApplyBulkTba").click()');
+  await until('window.__bulkSaves.length===1 && !$("#bulkTbaModal").hasClass("show")','Generate TBA did not apply/close.');
+  assert(await evaluate('window.__bulkSaves[0].tba_mode==="generate" && window.__bulkSaves[0].preview_token==="a".repeat(64) && window.__bulkSaves[0].program_id===document.getElementById("program_id").value && window.__bulkSaves[0].ay_id===document.getElementById("ay_id").value && window.__bulkSaves[0].semester===document.getElementById("semester").value'),'Bulk apply lost its preview or program/term scope.');
+  await evaluate('Swal.close()');
+  await until('!document.querySelector(".modal-backdrop")','Generation result did not settle.');
+
+  await evaluate('window.__bulkApplyError=true;document.getElementById("btnConvertAllTba").click()');
+  await until('$("#bulkTbaModal").hasClass("show") && !document.getElementById("btnApplyBulkTba").disabled','Conversion preview did not reopen.');
+  await until('document.activeElement?.closest("#bulkTbaModal")','Conversion transition did not finish.');
+  await evaluate('document.getElementById("btnApplyBulkTba").click()');
+  await until('window.__bulkSaves.length===2 && document.getElementById("bulkTbaSummary").textContent.includes("Schedules changed")','A stale preview was not reported.');
+  assert(await evaluate('document.getElementById("btnApplyBulkTba").disabled && !document.getElementById("btnRefreshBulkTba").disabled && document.getElementById("bulkTbaItems").children.length===0'),'Rejected apply kept an actionable stale preview.');
+  await evaluate('window.__bulkApplyError=false;window.__bulkPreviewError=true;document.getElementById("btnRefreshBulkTba").click()');
+  await until('document.getElementById("bulkTbaSummary").textContent.includes("Preview unavailable")','Preview error was not shown.');
+  assert(await evaluate('document.getElementById("btnApplyBulkTba").disabled'),'Failed preview enabled Apply.');
+  await evaluate('window.__bulkPreviewError=false;document.getElementById("btnRefreshBulkTba").click()');
+  await until('!document.getElementById("btnApplyBulkTba").disabled','Preview could not recover after an error.');
+  await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false},session);
+  assert(await evaluate('document.querySelector("#bulkTbaModal .modal-content").getBoundingClientRect().width<=window.innerWidth && document.querySelector("#bulkTbaModal .modal-body").scrollWidth<=document.querySelector("#bulkTbaModal .modal-body").clientWidth+3'),'Bulk TBA preview overflowed mobile width.');
   assert((await evaluate('window.__browserErrors')).length===0,'Browser scripts raised an error.');
   if(process.argv.includes('--screenshot')) {
     const screenshot=await call('Page.captureScreenshot',{format:'png'},session);
