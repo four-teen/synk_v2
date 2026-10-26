@@ -22,6 +22,9 @@ $tag = 'SwitchQA' . bin2hex(random_bytes(8));
 $email = strtolower($tag) . '@sksu.edu.ph';
 $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id,college_dean_college_id) VALUES ('{$tag}','{$email}','unusable-test-password','admin','active',{$collegeId},{$deanCollegeId})");
 $userId = (int)$conn->insert_id;
+$conn->query("INSERT INTO tbl_management_organizations (college_id,organization_code,organization_name) VALUES ($deanCollegeId,'$tag','$tag')");
+$managementOrg=(int)$conn->insert_id;
+$conn->query('UPDATE tbl_useraccount SET management_college_id='.$deanCollegeId.',management_organization_id='.$managementOrg.' WHERE user_id='.$userId);
 $roles = synk_supported_module_roles();
 foreach ($roles as $role) {
     $primary = $role === 'admin' ? 1 : 0;
@@ -33,7 +36,7 @@ session_save_path($root . '/temp');
 session_start();
 $originalSessionId = session_id();
 $_SESSION = [
-    'user_id' => $userId, 'username' => $tag, 'email' => $email, 'role' => 'admin',
+    'user_id' => $userId, 'username' => $tag, 'email' => $email, 'role' => 'admin', 'auth_method'=>'google',
     // Deliberately stale data must be cleared and refreshed from the database.
     'available_roles' => ['admin'], 'college_id' => 2147483647, 'campus_id' => 2147483647,
     'scheduler_college_access' => [['college_id' => 2147483647]],
@@ -75,6 +78,7 @@ if ($scenario === 'chooser' || $scenario === 'normal_chooser' || $scenario === '
     $context = synk_account_switch_context($conn);
     $_SESSION = [];
     synk_store_pending_role_login($account, $context['role_rows'], [
+        'auth_method'=>'google',
         'avatar_url' => 'https://example.invalid/qa-avatar.png',
         'is_account_switch' => $scenario !== 'normal_chooser',
         'current_role' => $scenario !== 'normal_chooser' ? 'admin' : '',
@@ -136,7 +140,7 @@ if ($handler === '') {
         $moduleAccount['role_rows'] = synk_fetch_useraccount_role_rows($conn, $userId, 'admin');
     }
     if ($navbarPath !== null) {
-        if ($navbarPath === 'college-dean/navbar.php') require_once $root . '/backend/college_dean_term_helper.php';
+        if (in_array($navbarPath, ['college-dean/navbar.php', 'program-chair/navbar.php'], true)) require_once $root . '/backend/college_dean_term_helper.php';
         chdir(dirname($root . '/' . $navbarPath));
         require $root . '/' . $navbarPath;
     } else {

@@ -55,7 +55,7 @@ try {
     $pending = $r['session']['pending_role_login'] ?? [];
     $check($r['http_status'] === 302 || !$http, 'Switching must redirect.');
     if ($http) $check($r['redirect'] === 'index.php?auth_status=choose_role', 'Switching does not open the chooser.');
-    $check(($pending['user_id'] ?? 0) === $r['user_id'] && count($pending['roles'] ?? []) === 8, 'Switching must use the same verified account and freshly loaded roles.');
+    $check(($pending['user_id'] ?? 0) === $r['user_id'] && count($pending['roles'] ?? []) === count(synk_supported_module_roles()), 'Switching must use the same verified account and freshly loaded roles.');
     $check(!empty($pending['is_account_switch']) && $pending['current_role'] === 'admin', 'The chooser must know which account is current.');
     $check(strlen($pending['selection_token'] ?? '') === 64, 'Account selection must receive a fresh request token.');
     $check($pending['avatar_url'] === 'https://example.invalid/qa-avatar.png', 'Switching must retain the signed-in avatar.');

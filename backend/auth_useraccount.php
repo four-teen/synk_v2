@@ -49,7 +49,7 @@ function synk_is_allowed_email_domain(string $email, string $allowedDomain): boo
 
 function synk_supported_module_roles(): array
 {
-    return ['admin', 'scheduler', 'professor', 'program_chair', 'college_dean', 'registrar', 'VPAA', 'DI'];
+    return ['admin', 'scheduler', 'professor', 'program_chair', 'college_dean', 'registrar', 'VPAA', 'DI', 'management'];
 }
 
 function synk_normalize_role_code(string $role): string
@@ -61,6 +61,7 @@ function synk_normalize_role_code(string $role): string
 function synk_role_label(string $role): string
 {
     $role = synk_normalize_role_code($role);
+    if ($role === 'management') return 'Management';
     if ($role === 'admin') {
         return 'Administrator';
     }
@@ -95,6 +96,7 @@ function synk_role_label(string $role): string
 function synk_role_redirect_path(string $role): ?string
 {
     $role = synk_normalize_role_code($role);
+    if ($role === 'management') return 'management/';
     if ($role === 'admin') {
         return 'administrator/';
     }
@@ -504,6 +506,30 @@ function synk_useraccount_has_active_role(mysqli $conn, array $account, string $
     return $hasRoleRows ? $hasActiveRole : $fallbackHasRole;
 }
 
+function synk_management_account_has_access(mysqli $conn, array $account): bool
+{
+    if (($account['status'] ?? '') !== 'active' || (int)($account['management_college_id'] ?? 0) <= 0 || (int)($account['management_organization_id'] ?? 0) <= 0
+        || !synk_useraccount_has_active_role($conn, $account, 'management')) return false;
+    $collegeId = (int)$account['management_college_id'];
+    $organizationId = (int)$account['management_organization_id'];
+    $stmt = $conn->prepare("SELECT c.college_id FROM tbl_management_organizations o JOIN tbl_college c ON c.college_id=o.college_id JOIN tbl_campus cp ON cp.campus_id=c.campus_id
+        WHERE c.college_id=? AND o.organization_id=? AND o.status='ACTIVE' AND c.status='active' AND cp.status='active' LIMIT 1");
+    if (!$stmt) return false;
+    $stmt->bind_param('ii', $collegeId, $organizationId);
+    $stmt->execute();
+    $valid = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    return $valid;
+}
+
+function synk_account_email_allowed(string $email, array $roles, string $allowedDomain): bool
+{
+    if (strlen($email) > 254 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+    if (synk_is_allowed_email_domain($email, $allowedDomain)) return true;
+    // Personal Gmail accounts are limited to the separate Management portal.
+    return synk_normalize_supported_roles($roles) === ['management'] && synk_is_allowed_email_domain($email, 'gmail.com');
+}
+
 function synk_college_dean_account_has_access(mysqli $conn, array $account): bool
 {
     $collegeId = (int)($account['college_dean_college_id'] ?? 0);
@@ -565,6 +591,7 @@ function synk_filter_loginable_role_rows(mysqli $conn, array $row, array $roleRo
         if ($role === 'college_dean' && !synk_college_dean_account_has_access($conn, $row)) {
             continue;
         }
+        if ($role === 'management' && !synk_management_account_has_access($conn, $row)) continue;
 
         if ($role === 'program_chair' && !synk_program_chair_account_has_access($conn, $row)) {
             continue;
@@ -656,6 +683,13 @@ function synk_useraccount_select_fields(mysqli $conn): array
     if (synk_useraccount_has_column($conn, 'college_dean_college_id')) {
         $fields[] = 'u.college_dean_college_id';
         $fields[] = '(SELECT dc.college_name FROM tbl_college dc WHERE dc.college_id = u.college_dean_college_id) AS college_dean_college_name';
+    }
+    if (synk_useraccount_has_column($conn, 'management_college_id')) {
+        $fields[] = 'u.management_college_id';
+        $fields[] = '(SELECT mc.college_name FROM tbl_college mc WHERE mc.college_id=u.management_college_id) AS management_college_name';
+    }
+    if (synk_useraccount_has_column($conn, 'management_organization_id')) {
+        $fields[] = 'u.management_organization_id';
     }
 
     if (synk_useraccount_has_column($conn, 'auth_provider')) {
@@ -820,6 +854,7 @@ function synk_store_pending_role_login(array $row, array $roleRows, array $conte
         'avatar_url' => trim((string)($context['avatar_url'] ?? '')),
         'is_account_switch' => !empty($context['is_account_switch']),
         'current_role' => synk_normalize_role_code((string)($context['current_role'] ?? '')),
+        'auth_method' => ($context['auth_method'] ?? '') === 'google' ? 'google' : 'legacy',
         'selection_token' => !empty($context['is_account_switch']) ? bin2hex(random_bytes(32)) : '',
     ];
 }
@@ -847,7 +882,9 @@ function synk_reset_authenticated_session_context(): void
         $_SESSION['student_id'],
         $_SESSION['student_presence_key'],
         $_SESSION['student_presence_csrf'],
-        $_SESSION['student_view_term']
+        $_SESSION['student_view_term'],
+        $_SESSION['auth_method'],
+        $_SESSION['management_view_term']
     );
 }
 
@@ -886,12 +923,15 @@ function synk_complete_user_login(
         $activeRole = synk_normalize_role_code((string)($row['role'] ?? ''));
     }
 
+    $pendingIdentity = synk_get_pending_role_login();
+    $authMethod = ($pendingIdentity['auth_method'] ?? ($_SESSION['auth_method'] ?? 'legacy')) === 'google' ? 'google' : 'legacy';
     synk_clear_pending_role_login();
     session_regenerate_id(true);
     synk_reset_authenticated_session_context();
 
     $_SESSION['available_roles'] = array_values(array_unique(array_filter($allowedRoles)));
     $_SESSION['primary_role'] = synk_useraccount_primary_role($availableRoleRows, (string)($row['role'] ?? ''));
+    $_SESSION['auth_method'] = $authMethod;
 
     if ($activeRole === 'scheduler' && $conn instanceof mysqli) {
         $schedulerRow = $row;
@@ -912,8 +952,9 @@ function synk_complete_user_login(
         $_SESSION['username'] = $row['username'];
         $_SESSION['email'] = $row['email'];
         $_SESSION['role'] = $activeRole;
-        $_SESSION['college_id'] = $activeRole === 'college_dean' ? (int)($row['college_dean_college_id'] ?? 0) : $row['college_id'];
-        $_SESSION['college_name'] = $activeRole === 'college_dean' ? (string)($row['college_dean_college_name'] ?? '') : $row['college_name'];
+        $scopePrefix = $activeRole === 'management' ? 'management_' : ($activeRole === 'college_dean' ? 'college_dean_' : '');
+        $_SESSION['college_id'] = (int)($row[$scopePrefix . 'college_id'] ?? 0);
+        $_SESSION['college_name'] = (string)($row[$scopePrefix . 'college_name'] ?? '');
     }
 
     return $activeRole;

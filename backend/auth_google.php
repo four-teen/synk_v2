@@ -34,8 +34,10 @@ function synk_google_auth_url(array $settings, string $state, string $nonce): st
         'prompt' => $settings['google_prompt'] ?? 'select_account',
         'state' => $state,
         'nonce' => $nonce,
-        'hd' => $settings['allowed_domain'] ?? 'sksu.edu.ph',
     ];
+    if (trim((string)($settings['allowed_domain'] ?? 'sksu.edu.ph')) !== '') {
+        $params['hd'] = $settings['allowed_domain'] ?? 'sksu.edu.ph';
+    }
 
     return 'https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query($params);
 }

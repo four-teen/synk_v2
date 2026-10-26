@@ -1,0 +1,98 @@
+/* Layout extensions only. Palette, controls, navigation, and list typography
+   come from Synk's core theme and the shared College Dean styles. */
+:root {
+  --management-primary: var(--dean-primary);
+  --management-muted: var(--dean-muted);
+}
+.management-portal [hidden] { display: none !important; }
+.management-skip { position: fixed; top: -100px; left: 1rem; z-index: 1200; padding: .75rem; background: #fff; border-radius: .5rem; }
+.management-skip:focus { top: .75rem; }
+.management-portal a:focus-visible, .management-portal button:focus-visible { outline: 2px solid var(--dean-primary); outline-offset: 2px; }
+.management-menu-toggle, .management-menu-close, .management-avatar-button { border: 0; background: none; color: inherit; }
+.management-menu-close { padding: .5rem; }
+.management-avatar-button { padding: 0; }
+.management-portal .dropdown-item-text { max-width: 20rem; overflow-wrap: anywhere; }
+.management-portal .layout-overlay { border: 0; padding: 0; }
+.management-heading { padding: 1.5rem; margin-bottom: 1.5rem; }
+.management-heading h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: .5rem; }
+.management-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1.5rem; }
+.management-catalog-stats { grid-template-columns: repeat(3,minmax(0,1fr)); margin-bottom: 1.5rem; }
+.management-stat { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1.5rem; border: 0; border-radius: var(--dean-card-radius); box-shadow: var(--dean-shadow); min-width: 0; }
+.management-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: .5rem; font-size: 1.5rem; flex: 0 0 44px; }
+.management-stat > div { min-width: 0; }
+.management-stat > div > span { color: var(--dean-text); font-size: .875rem; }
+.management-stat strong { display: block; color: var(--dean-heading); font-size: 1.5rem; font-weight: 500; margin-top: .5rem; }
+.management-data-note { font-size: .875rem; color: var(--dean-muted); margin: 1rem 0 1.5rem; }
+.management-dashboard-grid { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr); gap: 1.5rem; }
+.management-panel { border: 0; border-radius: var(--dean-card-radius); background: #fff; box-shadow: var(--dean-shadow); min-width: 0; }
+.management-panel-heading { padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.management-panel-heading h2 { font-size: 1.125rem; font-weight: 500; color: var(--dean-heading); margin: 0; }
+.management-panel-heading h2 .badge { vertical-align: middle; font-size: .75rem; margin-left: .35rem; }
+.management-panel-heading p:not(.card-section-title) { color: var(--dean-muted); margin: .5rem 0 0; }
+.management-panel-heading > a { font-size: .875rem; }
+.management-eyebrow { font-size: .9rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+.management-programs { padding: 0 1.5rem 1.5rem; }
+.management-program-row { padding-top: 1.25rem; }
+.management-program-row > div:first-child { display: flex; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; }
+.management-program-row strong, .management-program-row a { font-weight: 600; font-size: .875rem; }
+.management-program-row small { color: var(--dean-muted); font-size: .8rem; }
+.management-bar-track { height: .4rem; background: var(--dean-primary-soft); border-radius: .5rem; margin-bottom: .4rem; overflow: hidden; }
+.management-bar-track > span { display: block; height: 100%; background: var(--dean-primary); }
+.management-feature { display: flex; align-items: flex-start; gap: 1rem; padding: 1.5rem; color: var(--dean-heading); }
+.management-feature + .management-feature { border-top: 1px solid var(--dean-border); }
+.management-feature > div { flex: 1; min-width: 0; }
+.management-feature strong { font-weight: 600; }
+.management-feature p { color: var(--dean-muted); font-size: .875rem; margin: .5rem 0; }
+.management-feature-state { font-size: .75rem; color: var(--dean-primary); }
+.management-feature:hover { background: var(--dean-primary-soft); }
+.management-empty { padding: 2rem 1.5rem; text-align: center; color: var(--dean-muted); }
+.management-empty > .bx { display: block; color: var(--dean-primary); font-size: 1.75rem; margin-bottom: .75rem; }
+.management-empty h3 { font-size: 1.125rem; color: var(--dean-heading); }
+.management-empty p { margin-bottom: 0; }
+.management-filters { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; padding: 0 1.5rem 1.5rem; }
+.management-filters > div { flex: 1 1 160px; min-width: 0; }
+.management-filters > .management-filter-search { flex: 2 1 240px; }
+.management-filters label { display: block; margin-bottom: .5rem; font-size: .75rem; text-transform: uppercase; }
+.management-filters .form-select, .management-filters .form-control { max-width: 100%; }
+.management-filters > .management-filter-actions { display: flex; gap: .5rem; flex-wrap: wrap; flex: 1 0 100%; }
+.management-table-scroll { overflow: auto; max-width: 100%; }
+.management-table { margin-bottom: 0; min-width: 620px; }
+.management-table td { vertical-align: middle; }
+.management-table td > strong { display: block; font-weight: 600; }
+.management-table td > span:not(.badge), .management-table td > small { display: block; font-size: .8rem; color: var(--dean-text); }
+.management-catalog-table { min-width: 1000px; }
+.management-record-title { min-width: 15rem; max-width: 25rem; overflow-wrap: anywhere; }
+.management-table .badge { display: inline-flex; }
+.management-student-table { min-width: 820px; }
+.management-row-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.management-row-actions .btn { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
+.management-row-actions .bx { font-size: 1rem; }
+.management-pagination { padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.management-pagination > span { font-size: .875rem; color: var(--dean-muted); }
+.management-pagination > div { display: flex; gap: .5rem; }
+.management-directory-note { padding: 0 1.5rem 1.5rem; margin: 0; font-size: .875rem; color: var(--dean-muted); }
+.management-unassigned { display: flex; align-items: flex-start; gap: .5rem; }
+.management-unassigned > .bx { font-size: 1.25rem; }
+.management-modal-form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.management-modal-form .modal-body { overflow-y: auto; }
+.management-modal-form fieldset { min-width: 0; }
+.management-uppercase { text-transform: uppercase; }
+.management-section-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.management-session { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--dean-border); border-radius: .5rem; background: #f8f9fc; }
+.management-rules { padding: 1.25rem; border: 1px solid var(--dean-border); border-radius: .5rem; }
+.management-rules summary { font-weight: 600; cursor: pointer; }
+.management-student-profile { background: var(--dean-primary-soft); padding: 1.25rem; margin-bottom: 1.5rem; border-radius: var(--dean-card-radius); overflow-wrap: anywhere; }
+.management-student-profile > strong { color: var(--dean-primary); display: block; margin-bottom: .5rem; }
+.management-student-profile p { color: var(--dean-text); margin-bottom: 0; }
+#management-term-modal .btn-close { margin: 0 0 0 auto; transform: none; box-shadow: none; }
+@media (max-width:1199.98px) { .management-dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width:991.98px) { .management-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .management-catalog-stats .management-stat:last-child { grid-column: 1/-1; } }
+@media (max-width:575.98px) {
+  .management-stats { gap: 1rem; }
+  .management-stat { padding: 1rem; gap: .75rem; flex-direction: column; align-items: flex-start; }
+  .management-filters > div, .management-filters > .management-filter-search { flex-basis: 100%; }
+  .management-filter-actions .btn { flex: 1; }
+  .management-panel-heading, .management-filters { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .management-session, .management-rules { padding: 1rem; }
+  .management-pagination { padding: 1.25rem; }
+}

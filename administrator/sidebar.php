@@ -103,6 +103,15 @@ $sidebarSections = [
                         'pages' => ['manage-colleges.php'],
                     ],
                     [
+                        'key' => 'organizations',
+                        'href' => 'manage-organizations.php',
+                        'icon_bg' => 'bg-label-info',
+                        'icon' => 'bx-group',
+                        'title' => 'Organizations',
+                        'description' => 'Organizations under each campus and college',
+                        'pages' => ['manage-organizations.php'],
+                    ],
+                    [
                         'key' => 'programs',
                         'href' => 'manage-programs.php',
                         'icon_bg' => 'bg-label-secondary',

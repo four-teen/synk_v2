@@ -12,6 +12,7 @@ $snapshot = static function () use ($conn): array {
     return $state;
 };
 $before = $snapshot();
+$roleCount = count(synk_supported_module_roles());
 $http = in_array('--http', $argv, true);
 $routePath = null;
 $routeName = '';
@@ -59,9 +60,9 @@ try {
         if ($scenario === 'save_standalone') {
             $check($r['roles'] === ['college_dean'] && $r['primary_role'] === 'college_dean', 'Standalone College Dean did not persist.');
         } elseif ($scenario === 'update_remove') {
-            $check(!in_array('college_dean', $r['roles'], true) && count($r['roles']) === 7 && $r['college_dean_college_id'] === 0, 'Removing College Dean changed other roles or left its assignment.');
+            $check(!in_array('college_dean', $r['roles'], true) && count($r['roles']) === $roleCount - 1 && $r['college_dean_college_id'] === 0, 'Removing College Dean changed other roles or left its assignment.');
         } else {
-            $check(count($r['roles']) === 8, 'The shared email did not retain all eight roles.');
+            $check(count($r['roles']) === $roleCount, 'The shared email did not retain all supported roles.');
         }
         if ($scenario !== 'save_standalone') $check($r['college_id'] === $r['chair_college'], 'College Dean overwrote the Program Chair assignment.');
         if ($scenario !== 'update_remove') $check($r['college_dean_college_id'] === $r['dean_college'], 'College Dean assignment did not persist.');
@@ -69,7 +70,7 @@ try {
     }
     foreach (['missing_scope' => 'need_college_dean_college', 'invalid_scope' => 'invalid_college_dean_college', 'duplicate_email' => 'dup_email'] as $scenario => $error) {
         $r = $request($scenario);
-        $check($r['response'] === $error && count($r['roles']) === 8, 'Invalid request changed the account: ' . $scenario);
+        $check($r['response'] === $error && count($r['roles']) === $roleCount, 'Invalid request changed the account: ' . $scenario);
     }
     foreach (['matrix_assign','matrix_missing','matrix_remove'] as $scenario) {
         $r = $request($scenario);
@@ -82,7 +83,7 @@ try {
     }
     $r = $request('load');
     $display = $r['response']['accounts'][0];
-    $check($r['response']['status'] === 'ok' && count($display['roles']) === 8 && $display['primary_role'] === 'college_dean', 'Account display lost roles or its default.');
+    $check($r['response']['status'] === 'ok' && count($display['roles']) === $roleCount && $display['primary_role'] === 'college_dean', 'Account display lost roles or its default.');
     $check($display['college_dean_college_label'] !== '' && (int)$display['college_dean_college_id'] === $r['dean_college'] && (int)$display['program_chair_college_id'] === $r['chair_college'], 'Account display did not preserve both college assignments.');
     $r = $request('login');
     $check($r['response']['status'] === 'success' && $r['response']['redirect'] === 'college-dean/' && $r['session_role'] === 'college_dean' && $r['session_college'] === $r['dean_college'], 'The real login chooser selected the wrong role, route, or college.');
@@ -91,7 +92,7 @@ try {
         $check(is_string($r['response']) && strpos($r['response'], 'College Dean') !== false && !preg_match('/Fatal error|Parse error|<b>Warning<\/b>|xdebug-error/i', $r['response']), 'College Dean page failed to render: ' . $page);
         $check($r['session_college'] === $r['dean_college'], 'Portal did not refresh its college assignment.');
         $check(strpos($r['response'], 'href="enrollment.php"') === false && strpos($r['response'], 'href="drafts.php"') === false, 'Removed Dean modules remain in navigation: ' . $page);
-        $check(strpos($r['response'], 'href="custom_css.css"') !== false, 'Dean page does not load the shared dashboard theme: ' . $page);
+        $check(preg_match('/href="custom_css\.css(?:\?[^"\s]*)?"/', $r['response'])===1, 'Dean page does not load the shared dashboard theme: ' . $page);
     }
     foreach (['enrollment','drafts'] as $page) {
         $r = $request('portal_' . $page);

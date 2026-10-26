@@ -100,6 +100,9 @@ if (isset($_POST['complete_role_login'])) {
     if ($selectedRole === '' || !in_array($selectedRole, $allowedRoles, true)) {
         synk_login_json_response(['status' => 'invalid_primary_role']);
     }
+    if ($selectedRole === 'management' && ($pendingLogin['auth_method'] ?? '') !== 'google') {
+        synk_login_json_response(['status' => 'google_only']);
+    }
 
     $avatarUrl = trim((string)($pendingLogin['avatar_url'] ?? ''));
     $activeRole = synk_complete_user_login($row, $conn, $selectedRole, $loginableRoleRows);
@@ -149,6 +152,10 @@ if (isset($_POST['login'])) {
     );
     $loginableRoleRows = synk_filter_loginable_role_rows($conn, $row, $configuredRoleRows);
 
+    $loginableRoleRows = array_values(array_filter($loginableRoleRows, static function (array $roleRow): bool {
+        return $roleRow['role'] !== 'management';
+    }));
+    $_SESSION['auth_method'] = 'legacy';
     if (empty($loginableRoleRows)) {
         synk_login_json_response(['status' => synk_login_empty_role_error($configuredRoleRows)]);
     }
@@ -1153,6 +1160,11 @@ if (isset($_POST['login'])) {
                 icon: "bx-buildings",
                 iconClass: "bg-label-success",
                 description: "College programs, curriculum-based enrollment, and registrar submissions."
+              },
+              management: {
+                icon: "bx-group",
+                iconClass: "bg-label-primary",
+                description: "College community, contributions, events, and imported student records."
               },
               registrar: {
                 icon: "bx-clipboard-check",

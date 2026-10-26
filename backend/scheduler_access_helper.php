@@ -552,6 +552,12 @@ function synk_persist_scheduler_college_access(mysqli $conn, int $userId, $roleO
         $insertStmt->close();
     }
 
+    // Accounts carrying Program Chair store that role's college in college_id.
+    // Scheduler keeps its independent default in tbl_user_college_access.
+    $scopeRoles = is_array($roleOrRoles) ? $roleOrRoles : [$roleOrRoles];
+    if (in_array('program_chair', array_map(static function ($role): string { return strtolower(trim((string)$role)); }, $scopeRoles), true)) {
+        return null;
+    }
     if ($hasSchedulerRole && $defaultCollegeId !== null) {
         $updateStmt = $conn->prepare("UPDATE tbl_useraccount SET college_id = ? WHERE user_id = ?");
         if (!$updateStmt) {

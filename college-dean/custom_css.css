@@ -1,3 +1,5 @@
+@import url("../assets/css/college-portal-sidebar.css");
+
 /* Shared College Dean theme, using the dashboard's existing Bootstrap palette. */
 :root {
   --dean-primary: #696cff;

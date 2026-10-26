@@ -34,6 +34,7 @@ if (count($context['role_rows']) < 2) {
 
 $avatarUrl = (string)($_SESSION['user_avatar_url'] ?? '');
 $currentRole = (string)$_SESSION['role'];
+$authMethod = (string)($_SESSION['auth_method'] ?? 'legacy');
 
 // Keep the verified identity in the chooser and discard the previous workspace's scope.
 session_regenerate_id(true);
@@ -42,6 +43,7 @@ synk_store_pending_role_login($context['account'], $context['role_rows'], [
     'avatar_url' => $avatarUrl,
     'is_account_switch' => true,
     'current_role' => $currentRole,
+    'auth_method' => $authMethod,
 ]);
 
 header('Location: index.php?auth_status=choose_role');
