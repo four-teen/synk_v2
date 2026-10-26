@@ -1377,108 +1377,6 @@ body.swal2-shown .modal {
     min-height: 100%;
 }
 
-.auto-draft-summary {
-    border: 1px solid #d7e1f2;
-    border-radius: 14px;
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-    padding: 1rem;
-    box-shadow: 0 10px 24px rgba(31, 42, 68, 0.05);
-}
-
-.auto-draft-rules {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.auto-draft-rule {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 999px;
-    padding: 0.35rem 0.75rem;
-    background: #eef3ff;
-    color: #3d5aa8;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-
-.auto-draft-list {
-    display: grid;
-    gap: 0.85rem;
-}
-
-.auto-draft-card {
-    border: 1px solid #d6e0f3;
-    border-radius: 14px;
-    background: #fff;
-    padding: 0.95rem;
-    box-shadow: 0 10px 24px rgba(31, 42, 68, 0.05);
-}
-
-.auto-draft-card.manual {
-    border-color: #f0d2b4;
-    background: linear-gradient(180deg, #fffefb 0%, #fff8f0 100%);
-}
-
-.auto-draft-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1f2a44;
-}
-
-.auto-draft-subtitle {
-    font-size: 0.84rem;
-    color: #61708f;
-}
-
-.auto-draft-blocks {
-    display: grid;
-    gap: 0.45rem;
-    margin-top: 0.8rem;
-}
-
-.auto-draft-block {
-    border: 1px solid #dbe4f4;
-    border-radius: 12px;
-    background: #f8fbff;
-    padding: 0.75rem;
-}
-
-.auto-draft-block-meta {
-    font-size: 0.82rem;
-    color: #5f6f8d;
-}
-
-.auto-draft-empty {
-    border: 1px dashed #c7d4ee;
-    border-radius: 12px;
-    background: rgba(249, 251, 255, 0.8);
-    color: #5f6f8d;
-    padding: 1rem;
-    text-align: center;
-}
-
-.auto-draft-reason {
-    font-size: 0.9rem;
-    color: #6a4b2d;
-}
-
-.auto-draft-status-group {
-    border: 1px solid #d7e1f2;
-    border-radius: 14px;
-    background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
-    padding: 0.95rem;
-}
-
-.auto-draft-loader {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #5f6f8d;
-    font-size: 0.84rem;
-    font-weight: 600;
-}
-
 .matrix-vacant {
     background: #eef2f6;
     color: #8b97a8;
@@ -3604,13 +3502,16 @@ while ($ay = $ayQ->fetch_assoc()) {
           <span class="schedule-workspace-eyebrow">Scheduler Workspace</span>
           <h5 class="schedule-workspace-title">Class Offerings</h5>
           <p class="schedule-workspace-subtitle">
-            Review filtered offerings, compare sections with the same subject, and jump quickly into drafting, clearing, or checking room-time availability.
+            Review filtered offerings, compare sections with the same subject, and arrange classes, clear schedules, or check room-time availability.
           </p>
         </div>
 
         <div class="schedule-workspace-actions">
-          <button class="btn btn-outline-success btn-sm" id="btnPreviewAutoDraft">
-            <i class="bx bx-magic-wand"></i> Start Draft
+          <button type="button" class="btn btn-outline-primary btn-sm" id="btnGenerateTba">
+            <i class="bx bx-calendar-plus"></i> Generate TBA
+          </button>
+          <button type="button" class="btn btn-outline-warning btn-sm" id="btnConvertAllTba">
+            <i class="bx bx-time-five"></i> Set All to TBA
           </button>
           <button class="btn btn-outline-danger btn-sm" id="btnClearAllSchedules">
             <i class="bx bx-trash"></i> Clear All Schedules
@@ -4448,80 +4349,30 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
 </div>
 
 
-<!-- AUTO DRAFT MODAL -->
-<div class="modal fade" id="autoDraftModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+<!-- BULK TBA PREVIEW -->
+<div class="modal fade" id="bulkTbaModal" tabindex="-1" aria-labelledby="bulkTbaTitle" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-
       <div class="modal-header">
         <div>
-          <h5 class="modal-title mb-0">Auto Draft Schedule</h5>
-          <div class="small text-muted mt-1">
-            Preview conflict-free drafts before applying them to the selected program term.
-          </div>
+          <h5 class="modal-title" id="bulkTbaTitle">TBA Schedules</h5>
+          <div class="small text-muted text-break" id="bulkTbaScope"></div>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-
       <div class="modal-body">
-        <div class="auto-draft-summary" id="autoDraftSummary">
-          <strong>Draft summary will appear here.</strong>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center gap-3 mt-3 flex-wrap">
-          <div class="auto-draft-rules" id="autoDraftRuleList">
-            <span class="auto-draft-rule">Rules will load with the preview.</span>
-          </div>
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            <div class="auto-draft-loader d-none" id="autoDraftLoader">
-              <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
-              <span id="autoDraftLoaderText">Drafting... 0.0s</span>
-            </div>
-            <button type="button" class="btn btn-outline-primary btn-sm" id="btnRefreshAutoDraft">
-              Start Draft
-            </button>
-          </div>
-        </div>
-
-        <div class="row g-4 mt-1">
-          <div class="col-lg-7">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div>
-                <div class="step-label mb-1">Ready To Apply</div>
-                <div class="schedule-hint mb-0">These offerings have complete lecture and laboratory drafts that passed the preview checks.</div>
-              </div>
-              <span class="badge bg-label-success text-success" id="autoDraftReadyCount">0</span>
-            </div>
-            <div class="auto-draft-list" id="autoDraftReadyList">
-              <div class="auto-draft-empty">Generate a preview to see draft schedules.</div>
-            </div>
-          </div>
-
-          <div class="col-lg-5">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div>
-                <div class="step-label mb-1">Manual Review By Status</div>
-                <div class="schedule-hint mb-0">Offerings that could not be completed are grouped by their current scheduling status.</div>
-              </div>
-              <span class="badge bg-label-warning text-warning" id="autoDraftManualCount">0</span>
-            </div>
-            <div class="auto-draft-list" id="autoDraftStatusGroupList">
-              <div class="auto-draft-empty">Subjects that cannot be auto-scheduled will appear here by status.</div>
-            </div>
-          </div>
-        </div>
+        <div class="alert alert-info" id="bulkTbaDescription"></div>
+        <div id="bulkTbaSummary" role="status" aria-live="polite"></div>
+        <div class="mt-3" id="bulkTbaItems"></div>
       </div>
-
-      <div class="modal-footer">
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" id="btnApplyAutoDraft" disabled>
-          <i class="bx bx-save me-1"></i> Apply Draft
-        </button>
+      <div class="modal-footer gap-2">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-outline-primary" id="btnRefreshBulkTba">Refresh Preview</button>
+        <button type="button" class="btn btn-primary" id="btnApplyBulkTba" disabled>Apply TBA</button>
       </div>
-
     </div>
   </div>
 </div>
-
 
 <!-- ROOM MATRIX MODAL -->
 <div class="modal fade" id="matrixModal" tabindex="-1" data-bs-backdrop="false">
@@ -5512,7 +5363,7 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
     }
 
     function hasSchedulingModalOpen() {
-        return $("#scheduleModal, #dualScheduleModal, #blockScheduleModal, #scheduleMergeModal, #autoDraftModal, #schedulerFacultyWorkloadModal").filter(".show").length > 0;
+        return $("#scheduleModal, #dualScheduleModal, #blockScheduleModal, #scheduleMergeModal, #schedulerFacultyWorkloadModal").filter(".show").length > 0;
     }
 
     function restoreBodyModalStateForScheduling() {
@@ -10140,92 +9991,133 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
         });
     }
 
-    let autoDraftState = null;
-    let autoDraftRequest = null;
-    let autoDraftHasPreview = false;
-    let autoDraftIsLoading = false;
-    let autoDraftStartedAt = 0;
-    let autoDraftLastDurationMs = 0;
-    let autoDraftLoaderTimer = null;
+    let bulkTbaState = null;
+    let bulkTbaRequest = null;
+    let bulkTbaApplying = false;
 
-    function formatAutoDraftElapsed(ms) {
-        const safeMs = Math.max(0, Number(ms || 0));
-        const seconds = safeMs / 1000;
-        if (seconds < 60) {
-            return `${seconds < 10 ? seconds.toFixed(1) : seconds.toFixed(0)}s`;
+    function setBulkTbaBusy(busy) {
+        $("#btnRefreshBulkTba").prop("disabled", busy);
+        $("#bulkTbaModal [data-bs-dismiss]").prop("disabled", bulkTbaApplying);
+        $("#btnApplyBulkTba").prop("disabled", busy || !bulkTbaState?.plan?.summary?.eligible_count);
+    }
+
+    function renderBulkTbaPlan(plan) {
+        const summary = plan.summary || {};
+        const eligibleCount = Number(summary.eligible_count || 0);
+        $("#bulkTbaSummary").html(`
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge bg-label-primary text-primary">${eligibleCount} ${eligibleCount === 1 ? "class" : "classes"} ready</span>
+                <span class="badge bg-label-success text-success">${Number(summary.meeting_count || 0)} meetings</span>
+                <span class="badge bg-label-warning text-warning">${Number(summary.skipped_count || 0)} skipped</span>
+                <span class="badge bg-label-secondary text-secondary">${Number(summary.unchanged_count || 0)} already TBA</span>
+            </div>
+            <div class="small text-muted mt-2">Checked ${Number(summary.total_count || 0)} classes across all sections in this program and term.</div>
+        `);
+        const items = Array.isArray(plan.items) ? plan.items : [];
+        $("#bulkTbaItems").html(items.length ? items.map(item => `
+            <div class="border rounded p-3 mb-2 text-break">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <strong>${escapeHtml(item.sub_code || "")} · ${escapeHtml(item.section_name || "")}</strong>
+                    <span class="badge ${item.status === "ready" ? "bg-label-success text-success" : "bg-label-secondary text-secondary"}">${item.status === "ready" ? "Ready" : (item.status === "unchanged" ? "Already TBA" : "Skipped")}</span>
+                </div>
+                <div class="small text-muted mt-1">${escapeHtml(item.sub_description || "")}</div>
+                <div class="small mt-2">${escapeHtml(item.reason || "")}</div>
+            </div>
+        `).join("") : '<div class="text-muted py-3">No class offerings found for this program and term.</div>');
+    }
+
+    function loadBulkTbaPreview() {
+        if (!bulkTbaState || bulkTbaApplying) return;
+        if (bulkTbaRequest && bulkTbaRequest.readyState !== 4) bulkTbaRequest.abort();
+        bulkTbaState.plan = null;
+        const state = bulkTbaState;
+        $("#bulkTbaSummary").html('<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Checking class schedules...');
+        $("#bulkTbaItems").empty();
+        setBulkTbaBusy(true);
+        bulkTbaRequest = $.ajax({
+            url: "../backend/query_class_schedule.php",
+            type: "POST",
+            dataType: "json",
+            data: { preview_bulk_tba: 1, tba_mode: state.mode, ...state.filters },
+            success: function (res) {
+                if (bulkTbaState !== state) return;
+                if (!res || res.status !== "ok") {
+                    $("#bulkTbaSummary").text(res?.message || "Unable to preview TBA schedules.");
+                    return;
+                }
+                state.plan = res;
+                renderBulkTbaPlan(res);
+            },
+            error: function (xhr, status) {
+                if (status !== "abort" && bulkTbaState === state) {
+                    $("#bulkTbaSummary").text(xhr.responseJSON?.message || "Unable to preview TBA schedules. Try refreshing the preview.");
+                }
+            },
+            complete: function () {
+                if (bulkTbaState === state) setBulkTbaBusy(false);
+            }
+        });
+    }
+
+    function openBulkTbaPreview(mode) {
+        if (bulkTbaApplying) return;
+        const filters = getCurrentScheduleFilters();
+        if (!filters.program_id || !filters.ay_id || !filters.semester) {
+            Swal.fire("Select Filters", "Select Program, Academic Year, and Semester first.", "warning");
+            return;
         }
-
-        const minutes = Math.floor(seconds / 60);
-        const remainder = Math.round(seconds % 60);
-        return `${minutes}m ${String(remainder)}s`;
+        bulkTbaState = { mode, filters, plan: null };
+        $("#bulkTbaTitle").text(mode === "generate" ? "Generate TBA Schedules" : "Set All Schedules to TBA");
+        $("#bulkTbaScope").text([$("#program_id option:selected").text().trim(), $("#ay_id option:selected").text().trim(), $("#semester option:selected").text().trim()].join(" · "));
+        $("#bulkTbaDescription").text(mode === "generate"
+            ? "Create lecture and laboratory blocks as required for classes with no schedule blocks. Days, time, and room will be TBA. Existing schedules, locked classes, and merged classes are skipped."
+            : "Clear the days, time, and room of existing schedules in this program and term. Faculty assignments and meeting groups are kept. Locked classes and merged classes are skipped. Saved schedule sets remain available separately.");
+        $("#btnApplyBulkTba").text(mode === "generate" ? "Generate TBA" : "Set All to TBA");
+        $("#bulkTbaModal").modal("show");
+        loadBulkTbaPreview();
     }
 
-    function updateAutoDraftButtonState() {
-        const label = autoDraftIsLoading
-            ? `Drafting... ${formatAutoDraftElapsed(Date.now() - autoDraftStartedAt)}`
-            : (autoDraftHasPreview ? "Refresh Draft" : "Start Draft");
-
-        $("#btnPreviewAutoDraft").html(`<i class="bx bx-magic-wand me-1"></i> ${escapeHtml(label)}`);
-        $("#btnRefreshAutoDraft").text(label);
-        $("#btnPreviewAutoDraft, #btnRefreshAutoDraft").prop("disabled", autoDraftIsLoading);
-    }
-
-    function stopAutoDraftLoader() {
-        autoDraftIsLoading = false;
-        autoDraftStartedAt = 0;
-        if (autoDraftLoaderTimer) {
-            clearInterval(autoDraftLoaderTimer);
-            autoDraftLoaderTimer = null;
-        }
-        $("#autoDraftLoader").addClass("d-none");
-        $("#autoDraftLoaderText").text("Drafting... 0.0s");
-        updateAutoDraftButtonState();
-    }
-
-    function startAutoDraftLoader() {
-        stopAutoDraftLoader();
-        autoDraftIsLoading = true;
-        autoDraftStartedAt = Date.now();
-        $("#autoDraftLoader").removeClass("d-none");
-        $("#autoDraftLoaderText").text(`Drafting... ${formatAutoDraftElapsed(0)}`);
-        updateAutoDraftButtonState();
-
-        autoDraftLoaderTimer = window.setInterval(function () {
-            const elapsed = Date.now() - autoDraftStartedAt;
-            $("#autoDraftLoaderText").text(`Drafting... ${formatAutoDraftElapsed(elapsed)}`);
-            $("#autoDraftSummaryTimer").text(`Elapsed: ${formatAutoDraftElapsed(elapsed)}`);
-            updateAutoDraftButtonState();
-        }, 200);
-    }
-
-    function resetAutoDraftPreview(message = "Draft summary will appear here.") {
-        autoDraftState = null;
-        autoDraftHasPreview = false;
-        autoDraftLastDurationMs = 0;
-        stopAutoDraftLoader();
-        $("#autoDraftSummary").html(`<strong>${escapeHtml(message)}</strong>`);
-        $("#autoDraftRuleList").html(`<span class="auto-draft-rule">${escapeHtml("Rules will load with the preview.")}</span>`);
-        $("#autoDraftReadyCount").text("0");
-        $("#autoDraftManualCount").text("0");
-        $("#autoDraftReadyList").html(`<div class="auto-draft-empty">Generate a preview to see draft schedules.</div>`);
-        $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Subjects that cannot be auto-scheduled will appear here by status.</div>`);
-        $("#btnApplyAutoDraft").prop("disabled", true);
-        updateAutoDraftButtonState();
-    }
-
-    function renderAutoDraftErrorState(message) {
-        autoDraftState = null;
-        autoDraftHasPreview = false;
-        autoDraftLastDurationMs = 0;
-        stopAutoDraftLoader();
-        $("#autoDraftSummary").html(`<strong>${escapeHtml(message || "Failed to generate the draft preview.")}</strong>`);
-        $("#autoDraftRuleList").html(`<span class="auto-draft-rule">${escapeHtml("Rules were not loaded because the draft did not finish.")}</span>`);
-        $("#autoDraftReadyCount").text("0");
-        $("#autoDraftManualCount").text("0");
-        $("#autoDraftReadyList").html(`<div class="auto-draft-empty">${escapeHtml(message || "Failed to generate the draft preview.")}</div>`);
-        $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Try starting the draft again after checking the selected term filters.</div>`);
-        $("#btnApplyAutoDraft").prop("disabled", true);
-        updateAutoDraftButtonState();
+    function applyBulkTba() {
+        const state = bulkTbaState;
+        if (bulkTbaApplying || !state?.plan?.summary?.eligible_count) return;
+        bulkTbaApplying = true;
+        setBulkTbaBusy(true);
+        $("#btnApplyBulkTba").text("Saving...");
+        $.ajax({
+            url: "../backend/query_class_schedule.php",
+            type: "POST",
+            dataType: "json",
+            data: { apply_bulk_tba: 1, tba_mode: state.mode, preview_token: state.plan.preview_token, ...state.filters },
+            success: function (res) {
+                if (!res || res.status !== "ok") {
+                    state.plan = null;
+                    $("#bulkTbaSummary").text(res?.message || "Unable to save TBA schedules. Refresh the preview before trying again.");
+                    $("#bulkTbaItems").empty();
+                    return;
+                }
+                state.plan = null;
+                bulkTbaApplying = false;
+                $("#bulkTbaModal").modal("hide");
+                refreshScheduleSetLiveState();
+                loadScheduleTable();
+                refreshRoomTimeMatrixIfOpen();
+                Swal.fire({
+                    icon: "success", title: "TBA Schedules Saved",
+                    text: `${Number(res.summary?.eligible_count || 0)} ${Number(res.summary?.eligible_count || 0) === 1 ? "class" : "classes"} updated. ${Number(res.summary?.meeting_count || 0)} ${Number(res.summary?.meeting_count || 0) === 1 ? "meeting" : "meetings"} ${state.mode === "generate" ? "created as" : "set to"} TBA. Skipped: ${Number(res.summary?.skipped_count || 0)}.`,
+                    customClass: { popup: "swal-top" }
+                });
+            },
+            error: function (xhr) {
+                state.plan = null;
+                $("#bulkTbaSummary").text(xhr.responseJSON?.message || "Unable to confirm the save. Refresh the preview to check the current schedules.");
+                $("#bulkTbaItems").empty();
+            },
+            complete: function () {
+                bulkTbaApplying = false;
+                $("#btnApplyBulkTba").text(state.mode === "generate" ? "Generate TBA" : "Set All to TBA");
+                setBulkTbaBusy(false);
+            }
+        });
     }
 
     function getCurrentScheduleFilters() {
@@ -11190,9 +11082,7 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
                     $("#scheduleModal").modal("hide");
                     $("#dualScheduleModal").modal("hide");
                     $("#blockScheduleModal").modal("hide");
-                    $("#autoDraftModal").modal("hide");
 
-                    resetAutoDraftPreview();
                     pendingLoadedScheduleSetId = String(res.schedule_set_id || selectedSet.schedule_set_id || "");
                     loadScheduleSets(String(res.schedule_set_id || selectedSet.schedule_set_id || ""));
                     loadScheduleTable();
@@ -11330,360 +11220,6 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
                     restoreWorkload: restoreWorkload
                 });
             }
-        });
-    }
-
-    function autoDraftStatusBadge(statusKey, statusLabel) {
-        const key = String(statusKey || "").toLowerCase();
-        let badgeClass = "bg-secondary";
-        if (key === "incomplete") {
-            badgeClass = "bg-warning text-dark";
-        } else if (key === "scheduled") {
-            badgeClass = "bg-success";
-        }
-
-        return `<span class="badge ${badgeClass}">${escapeHtml(statusLabel || "Pending")}</span>`;
-    }
-
-    function setAutoDraftLoadingState(message = "Preparing draft preview...") {
-        autoDraftState = null;
-        autoDraftLastDurationMs = 0;
-        startAutoDraftLoader();
-        $("#autoDraftSummary").html(`
-            <div class="d-flex align-items-center gap-2">
-                <span class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></span>
-                <strong>${escapeHtml(message)}</strong>
-            </div>
-            <div class="coverage-detail mt-2" id="autoDraftSummaryTimer">Elapsed: ${escapeHtml(formatAutoDraftElapsed(0))}</div>
-        `);
-        $("#autoDraftRuleList").html(`<span class="auto-draft-rule">${escapeHtml("Rules will load with the preview.")}</span>`);
-        $("#autoDraftReadyCount").text("0");
-        $("#autoDraftManualCount").text("0");
-        $("#autoDraftReadyList").html(`<div class="auto-draft-empty">${escapeHtml(message)}</div>`);
-        $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Subjects that cannot be auto-scheduled will appear here by status.</div>`);
-        $("#btnApplyAutoDraft").prop("disabled", true);
-        updateAutoDraftButtonState();
-    }
-
-    function renderAutoDraftRules(rules) {
-        const list = Array.isArray(rules) ? rules.filter(Boolean) : [];
-        if (list.length === 0) {
-            $("#autoDraftRuleList").html(`<span class="auto-draft-rule">No rule notes were returned.</span>`);
-            return;
-        }
-
-        $("#autoDraftRuleList").html(
-            list.map(rule => `<span class="auto-draft-rule">${escapeHtml(rule)}</span>`).join("")
-        );
-    }
-
-    function renderAutoDraftReadyList(items) {
-        const list = Array.isArray(items) ? items : [];
-        if (list.length === 0) {
-            $("#autoDraftReadyList").html(`<div class="auto-draft-empty">No complete draft could be produced for the current filters.</div>`);
-            return;
-        }
-
-        const html = list.map(item => {
-            const blocksHtml = (Array.isArray(item.blocks) ? item.blocks : []).map(block => `
-                <div class="auto-draft-block">
-                    <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div class="d-flex flex-wrap gap-2">
-                            <span class="badge ${block.type === "LAB" ? "bg-label-success text-success" : "bg-label-primary text-primary"}">${escapeHtml(block.type_label || block.type || "Block")}</span>
-                            <span class="suggestion-chip">${escapeHtml(block.pattern_label || "Draft Pattern")}</span>
-                        </div>
-                        <div class="auto-draft-block-meta">${escapeHtml(block.days_label || "")}</div>
-                    </div>
-                    <div class="suggestion-slot mt-2">${escapeHtml(block.days_label || "")} | ${escapeHtml(block.time_label || "")}</div>
-                    <div class="auto-draft-block-meta mt-1">${escapeHtml(block.room_label || "")}</div>
-                </div>
-            `).join("");
-
-            return `
-                <div class="auto-draft-card">
-                    <div class="d-flex justify-content-between align-items-start gap-3">
-                        <div>
-                            <div class="auto-draft-title">${escapeHtml(item.sub_code || "")} - ${escapeHtml(item.sub_description || "")}</div>
-                            <div class="auto-draft-subtitle mt-1">${escapeHtml(item.section_name || "")}</div>
-                        </div>
-                        ${autoDraftStatusBadge(item.current_status_key, item.current_status_label)}
-                    </div>
-                    <div class="auto-draft-blocks">${blocksHtml}</div>
-                </div>
-            `;
-        }).join("");
-
-        $("#autoDraftReadyList").html(html);
-    }
-
-    function renderAutoDraftManualCards(items) {
-        return (Array.isArray(items) ? items : []).map(item => `
-            <div class="auto-draft-card manual">
-                <div class="d-flex justify-content-between align-items-start gap-3">
-                    <div>
-                        <div class="auto-draft-title">${escapeHtml(item.sub_code || "")} - ${escapeHtml(item.sub_description || "")}</div>
-                        <div class="auto-draft-subtitle mt-1">${escapeHtml(item.section_name || "")}</div>
-                    </div>
-                    ${autoDraftStatusBadge(item.current_status_key, item.current_status_label)}
-                </div>
-                <div class="auto-draft-reason mt-3">${escapeHtml(item.reason || "Manual scheduling is still required.")}</div>
-            </div>
-        `).join("");
-    }
-
-    function groupAutoDraftManualItems(items) {
-        const source = Array.isArray(items) ? items : [];
-        const buckets = {
-            not_scheduled: {
-                key: "not_scheduled",
-                label: "Not Scheduled",
-                items: []
-            },
-            incomplete: {
-                key: "incomplete",
-                label: "Incomplete",
-                items: []
-            }
-        };
-        const otherBuckets = {};
-
-        source.forEach(item => {
-            const key = String(item?.current_status_key || "").toLowerCase();
-            const label = String(item?.current_status_label || "Other Status").trim() || "Other Status";
-            if (key === "not_scheduled") {
-                buckets.not_scheduled.items.push(item);
-                return;
-            }
-
-            if (key === "incomplete") {
-                buckets.incomplete.items.push(item);
-                return;
-            }
-
-            if (!otherBuckets[label]) {
-                otherBuckets[label] = {
-                    key: `other_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`,
-                    label,
-                    items: []
-                };
-            }
-            otherBuckets[label].items.push(item);
-        });
-
-        const groups = [];
-        if (buckets.not_scheduled.items.length > 0) {
-            groups.push(buckets.not_scheduled);
-        }
-        if (buckets.incomplete.items.length > 0) {
-            groups.push(buckets.incomplete);
-        }
-        Object.keys(otherBuckets).sort().forEach(label => {
-            groups.push(otherBuckets[label]);
-        });
-
-        return groups;
-    }
-
-    function renderAutoDraftStatusGroups(items) {
-        const groups = groupAutoDraftManualItems(items);
-        if (groups.length === 0) {
-            $("#autoDraftStatusGroupList").html(`<div class="auto-draft-empty">Everything targeted by the preview found a complete draft.</div>`);
-            return;
-        }
-
-        const html = groups.map(group => `
-            <div class="auto-draft-status-group">
-                <div class="d-flex justify-content-between align-items-center gap-3">
-                    <div>
-                        <div class="step-label mb-1">${escapeHtml(group.label)}</div>
-                        <div class="schedule-hint mb-0">Current status bucket for offerings that still need manual scheduling.</div>
-                    </div>
-                    <span class="badge bg-label-warning text-warning">${escapeHtml(String(group.items.length))}</span>
-                </div>
-                <div class="auto-draft-list mt-3">
-                    ${renderAutoDraftManualCards(group.items)}
-                </div>
-            </div>
-        `).join("");
-
-        $("#autoDraftStatusGroupList").html(html);
-    }
-
-    function renderAutoDraftSummary(summary, durationMs = 0) {
-        const targetCount = Number(summary?.target_count || 0);
-        const readyCount = Number(summary?.ready_count || 0);
-        const manualCount = Number(summary?.manual_count || 0);
-        const skippedCount = Number(summary?.skipped_complete_count || 0);
-        const generatedIn = Number(durationMs || 0) > 0
-            ? `Generated in ${formatAutoDraftElapsed(durationMs)}.`
-            : "";
-
-        let lead = `${readyCount} offering(s) are ready to apply.`;
-        if (targetCount === 0 && skippedCount > 0) {
-            lead = `All ${skippedCount} offering(s) under the current filters are already fully scheduled.`;
-        } else if (targetCount === 0) {
-            lead = "No incomplete or unscheduled offering was found for the current filters.";
-        }
-
-        $("#autoDraftSummary").html(`
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-                <div>
-                    <strong>${escapeHtml(lead)}</strong>
-                    <div class="coverage-detail mt-1">
-                        Preview checked ${escapeHtml(String(targetCount))} incomplete or unscheduled offering(s) and skipped ${escapeHtml(String(skippedCount))} complete offering(s).
-                    </div>
-                    ${generatedIn ? `<div class="coverage-detail mt-1">${escapeHtml(generatedIn)}</div>` : ""}
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="badge bg-label-success text-success">Ready ${escapeHtml(String(readyCount))}</span>
-                    <span class="badge bg-label-warning text-warning">Manual ${escapeHtml(String(manualCount))}</span>
-                    <span class="badge bg-label-secondary text-secondary">Skipped ${escapeHtml(String(skippedCount))}</span>
-                </div>
-            </div>
-        `);
-
-        $("#autoDraftReadyCount").text(String(readyCount));
-        $("#autoDraftManualCount").text(String(manualCount));
-    }
-
-    function loadAutoDraftPreview() {
-        const filters = getCurrentScheduleFilters();
-        if (!filters.program_id || !filters.ay_id || !filters.semester) {
-            Swal.fire("Missing Filters", "Select Program, Academic Year, and Semester first.", "warning");
-            return;
-        }
-
-        if (autoDraftRequest && autoDraftRequest.readyState !== 4) {
-            autoDraftRequest.abort();
-        }
-
-        setAutoDraftLoadingState();
-        $("#autoDraftModal").modal("show");
-
-        autoDraftRequest = $.ajax({
-            url: "../backend/auto_schedule_draft.php",
-            type: "POST",
-            dataType: "json",
-            data: {
-                preview_auto_schedule_draft: 1,
-                program_id: filters.program_id,
-                ay_id: filters.ay_id,
-                semester: filters.semester
-            },
-            success: function (res) {
-                const durationMs = autoDraftStartedAt ? (Date.now() - autoDraftStartedAt) : 0;
-                stopAutoDraftLoader();
-                if (!res || res.status !== "ok") {
-                    renderAutoDraftErrorState((res && res.message) ? res.message : "Failed to generate the draft preview.");
-                    return;
-                }
-
-                autoDraftHasPreview = true;
-                autoDraftLastDurationMs = durationMs;
-                autoDraftState = {
-                    filters,
-                    ready: Array.isArray(res.ready) ? res.ready : [],
-                    manual: Array.isArray(res.manual) ? res.manual : [],
-                    summary: res.summary || {},
-                    rules: Array.isArray(res.rules) ? res.rules : []
-                };
-
-                updateAutoDraftButtonState();
-                renderAutoDraftSummary(autoDraftState.summary, durationMs);
-                renderAutoDraftRules(autoDraftState.rules);
-                renderAutoDraftReadyList(autoDraftState.ready);
-                renderAutoDraftStatusGroups(autoDraftState.manual);
-                $("#btnApplyAutoDraft").prop("disabled", autoDraftState.ready.length === 0);
-            },
-            error: function (xhr) {
-                stopAutoDraftLoader();
-                if (xhr.statusText === "abort") {
-                    return;
-                }
-                renderAutoDraftErrorState("Failed to generate the draft preview.");
-            }
-        });
-    }
-
-    function applyAutoDraft() {
-        if (!autoDraftState || !Array.isArray(autoDraftState.ready) || autoDraftState.ready.length === 0) {
-            Swal.fire("No Draft", "Generate a draft preview first.", "warning");
-            return;
-        }
-
-        const filters = autoDraftState.filters || getCurrentScheduleFilters();
-        const draftPayload = autoDraftState.ready.map(item => ({
-            offering_id: item.offering_id,
-            blocks: item.blocks || []
-        }));
-
-        Swal.fire({
-            icon: "question",
-            title: "Apply Auto Draft?",
-            html: `This will save <b>${escapeHtml(String(draftPayload.length))}</b> generated schedule draft(s). Incomplete drafts are not included.`,
-            showCancelButton: true,
-            confirmButtonText: "Apply Draft",
-            cancelButtonText: "Cancel",
-            allowOutsideClick: false,
-            customClass: { popup: "swal-top" }
-        }).then(function (result) {
-            if (!result.isConfirmed) {
-                return;
-            }
-
-            $("#btnApplyAutoDraft").prop("disabled", true);
-
-            $.ajax({
-                url: "../backend/auto_schedule_draft.php",
-                type: "POST",
-                dataType: "json",
-                data: {
-                    apply_auto_schedule_draft: 1,
-                    program_id: filters.program_id,
-                    ay_id: filters.ay_id,
-                    semester: filters.semester,
-                    draft_items_json: JSON.stringify(draftPayload)
-                },
-                success: function (res) {
-                    const appliedCount = Number(res?.applied_count || 0);
-                    const failedCount = Number(res?.failed_count || 0);
-
-                    if (res && (res.status === "ok" || res.status === "partial")) {
-                        const failureLines = Array.isArray(res.failed)
-                            ? res.failed.slice(0, 6).map(item => `${escapeHtml(item.sub_code || "")} ${escapeHtml(item.section_name || "")}: ${escapeHtml(item.reason || "")}`)
-                            : [];
-
-                        let html = `${escapeHtml(String(appliedCount))} draft(s) applied.`;
-                        if (failedCount > 0) {
-                            html += `<br><br>${escapeHtml(String(failedCount))} draft(s) still need manual review.`;
-                            if (failureLines.length > 0) {
-                                html += `<br><br>${failureLines.join("<br>")}`;
-                            }
-                        }
-
-                        Swal.fire({
-                            icon: res.status === "ok" ? "success" : "warning",
-                            title: res.status === "ok" ? "Draft Applied" : "Draft Applied With Notes",
-                            html: html,
-                            allowOutsideClick: false,
-                            customClass: { popup: "swal-top" }
-                        });
-
-                        $("#autoDraftModal").modal("hide");
-                        resetAutoDraftPreview();
-                        refreshScheduleSetLiveState();
-                        loadScheduleTable();
-                        return;
-                    }
-
-                    Swal.fire("Error", (res && res.message) ? res.message : "Failed to apply the generated draft.", "error");
-                    $("#btnApplyAutoDraft").prop("disabled", false);
-                },
-                error: function (xhr) {
-                    Swal.fire("Error", xhr.responseText || "Failed to apply the generated draft.", "error");
-                    $("#btnApplyAutoDraft").prop("disabled", false);
-                }
-            });
         });
     }
 
@@ -11894,10 +11430,8 @@ If you load schedule-only, existing Faculty Workload assignments can block the l
                     $("#scheduleModal").modal("hide");
                     $("#dualScheduleModal").modal("hide");
                     $("#blockScheduleModal").modal("hide");
-                    $("#autoDraftModal").modal("hide");
                     $("#schedulerFacultyWorkloadModal").modal("hide");
 
-                    resetAutoDraftPreview();
                     refreshScheduleSetLiveState();
                     loadScheduleTable();
                     refreshRoomTimeMatrixIfOpen();
@@ -11919,7 +11453,6 @@ $(document).ready(function () {
 ensureDefaultProgram();
 resetSingleSuggestionPanel();
 resetDualSuggestionPanels();
-resetAutoDraftPreview();
 
 const roomBrowserElement = document.getElementById("roomBrowserDrawer");
 if (roomBrowserElement) {
@@ -11967,7 +11500,6 @@ $("#program_id, #ay_id, #semester").on("change", function () {
       $("#schedulerFacultyWorkloadModal").modal("hide");
     }
   }
-  resetAutoDraftPreview();
   scheduleAutoLoad(true);
 });
 
@@ -12055,16 +11587,20 @@ $("#btnRefreshLectureSuggestions, #btnRefreshLabSuggestions").on("click", functi
   loadDualScheduleSuggestions();
 });
 
-$("#btnPreviewAutoDraft, #btnRefreshAutoDraft").on("click", function () {
-  loadAutoDraftPreview();
-});
-
-$("#btnApplyAutoDraft").on("click", function () {
-  applyAutoDraft();
-});
-
 $("#btnClearAllSchedules").on("click", function () {
   clearAllSchedulesInScope();
+});
+
+$("#btnGenerateTba").on("click", function () { openBulkTbaPreview("generate"); });
+$("#btnConvertAllTba").on("click", function () { openBulkTbaPreview("convert"); });
+$("#btnRefreshBulkTba").on("click", loadBulkTbaPreview);
+$("#btnApplyBulkTba").on("click", applyBulkTba);
+$("#bulkTbaModal").on("hide.bs.modal", function (event) {
+  if (bulkTbaApplying) event.preventDefault();
+});
+$("#bulkTbaModal").on("hidden.bs.modal", function () {
+  bulkTbaState = null;
+  if (bulkTbaRequest && bulkTbaRequest.readyState !== 4) bulkTbaRequest.abort();
 });
 
 $("#btnOpenRoomBrowser").on("click", function () {
@@ -12196,13 +11732,6 @@ $("#dualScheduleModal").on("hidden.bs.modal", function () {
   $("#dual_subject_label, #dual_section_label").text("");
   $("#dual_context_line").addClass("d-none");
   resetDualSuggestionPanels();
-});
-
-$("#autoDraftModal").on("hidden.bs.modal", function () {
-  if (autoDraftRequest && autoDraftRequest.readyState !== 4) {
-    autoDraftRequest.abort();
-  }
-  stopAutoDraftLoader();
 });
 
 $("#matrixModal").on("hidden.bs.modal", function () {
