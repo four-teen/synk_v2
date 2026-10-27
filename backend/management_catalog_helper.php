@@ -266,6 +266,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
     try {
         // Lock current assignment before the record so a simultaneous reassignment cannot widen a write.
         synk_management_lock_assignment($conn,$scope);
+        synk_management_require_permission($conn,$scope,'setup');
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         if (($input['term'] ?? $currentTerm['key']) !== $currentTerm['key']
                 || ($input['exam_term'] ?? $currentTerm['exam_term']) !== $currentTerm['exam_term']) {

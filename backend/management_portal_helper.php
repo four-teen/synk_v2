@@ -4,6 +4,7 @@ require_once __DIR__ . '/auth_config.php';
 require_once __DIR__ . '/academic_term_helper.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/management_period_helper.php';
+require_once __DIR__ . '/management_officer_access_helper.php';
 
 class SynkManagementConflict extends RuntimeException {}
 

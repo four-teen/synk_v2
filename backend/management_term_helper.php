@@ -20,6 +20,7 @@ function synk_management_save_current_exam_term(mysqli $conn, array $scope, arra
     $conn->begin_transaction();
     try {
         synk_management_lock_assignment($conn,$scope);
+        synk_management_require_permission($conn,$scope,'setup');
         $current = synk_management_lock_current_term($conn,$input,$scope);
         if ($current['exam_term'] !== $next || $current['period_version'] === '0') {
             synk_management_execute($conn, 'INSERT INTO tbl_management_period_settings

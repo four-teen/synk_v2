@@ -38,6 +38,7 @@ function synk_management_directory(mysqli $conn, array $scope, array $input): ar
 
 function synk_management_students_detail(mysqli $conn, array $scope, array $input): array
 {
+    $permissions=synk_management_require_permission($conn,$scope,'records');
     $filters = synk_management_directory_filters($conn,$scope,$input);
     $id = synk_management_input_id($input['student_id'] ?? '');
     if (!synk_management_students_ready($conn)) throw new OutOfBoundsException('Student records are unavailable.');
@@ -52,5 +53,7 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
     // Membership is checked before returning this organization's period catalog.
     require_once __DIR__.'/student_profile_image_helper.php';
     $detail['student']['photo_url']=synk_student_profile_image_url($id);
-    return $detail + ['financial'=>synk_management_student_financial_overview($conn,$scope,$period,$id)];
+    $financial=synk_management_student_financial_overview($conn,$scope,$period,$id);
+    $financial['can_pay']=$financial['can_pay'] && $permissions['payments'] && (!$permissions['is_officer'] || $permissions['student_id']!==$id);
+    return $detail + ['financial'=>$financial];
 }

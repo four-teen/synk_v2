@@ -269,12 +269,38 @@ if (strpos($scenario,'collect_')===0) {
     if ($scenario==='collect_fraction') $_POST['amount']='100.50';
     if ($scenario==='collect_array') $_POST['selected']=[];
 }
+if(strpos($scenario,'officer_http_')===0){
+    require_once $root.'/backend/management_officers_helper.php';
+    $faculty=$insert('tbl_faculty',['first_name'=>'OFFICER HTTP','last_name'=>$tag,'status'=>'active']);
+    $insert('tbl_useraccount_faculty_links',['user_id'=>$userId,'faculty_id'=>$faculty]);
+    $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
+    $sid=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'OFFICER','last_name'=>$tag,'email_address'=>str_replace(' ','',strtolower($tag)).'student@sksu.edu.ph','source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+    $_POST=$post+['student_id'=>(string)$sid,'can_view'=>'1','can_attendance'=>'0','can_payments'=>'1','expires_on'=>date('Y-m-d',strtotime('+30 days'))];$_POST['action']='officer_save';
+    if($scenario==='officer_http_search'){$_POST['action']='officer_search';$_POST['search']=$tag;}
+    if($scenario==='officer_http_csrf')$_POST['csrf_token']='wrong';
+    if($scenario==='officer_http_foreign')$_POST['organization_id']=$foreignOrg;
+    if($scenario==='officer_http_no_faculty')$conn->query('DELETE FROM tbl_useraccount_faculty_links WHERE user_id='.$userId);
+    if(in_array($scenario,['officer_http_student_setup','officer_http_student_grant','officer_http_own_payment','officer_http_revoked','officer_http_expired','officer_http_revoke'],true)){
+        synk_management_officer_write($conn,$scope,'officer_save',$_POST);
+        $grant=synk_management_query($conn,'SELECT * FROM tbl_management_officers WHERE student_id=?','i',[$sid])[0];
+        if($scenario==='officer_http_revoke'){$_POST['action']='officer_revoke';$_POST['revision']=(string)$grant['revision'];}
+        else{
+            $_SESSION['user_id']=(int)$grant['user_id'];
+            if($scenario==='officer_http_student_setup'){$_POST['action']='save_management_term';$_POST['exam_term']=$term['exam_term'];}
+            if($scenario==='officer_http_student_grant')$_POST['action']='officer_search';
+            if($scenario==='officer_http_own_payment')$_POST['action']='payment_post';
+            if($scenario==='officer_http_revoked'){$conn->query("UPDATE tbl_management_officers SET status='REVOKED' WHERE officer_id=".(int)$grant['officer_id']);$_POST['action']='student_detail';}
+            if($scenario==='officer_http_expired'){$conn->query("UPDATE tbl_management_officers SET expires_on='2020-01-01' WHERE officer_id=".(int)$grant['officer_id']);$_POST['action']='student_detail';}
+        }
+    }
+}
 $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
     foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_payments','tbl_management_payment_items']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_officers','tbl_management_officer_audit']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();

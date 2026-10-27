@@ -174,6 +174,29 @@ if (strpos($scenario,'account_')===0) {
         $handler='administrator/manage-organizations.php';
     }
 }
+if(strpos($scenario,'officers_')===0){
+    require_once $root.'/backend/management_officers_helper.php';
+    $faculty=$clone('tbl_faculty',[],['first_name'=>'QA Faculty','last_name'=>$tag,'status'=>'active']);
+    $clone('tbl_useraccount_faculty_links',[],['user_id'=>$userId,'faculty_id'=>$faculty]);
+    $sid=$students[0];$studentEmail=strtolower($tag).'student@sksu.edu.ph';
+    $stmt=$conn->prepare('UPDATE tbl_student_management SET email_address=? WHERE student_id=?');$stmt->bind_param('si',$studentEmail,$sid);$stmt->execute();$stmt->close();
+    $flags=['can_view'=>'1','can_attendance'=>'0','can_payments'=>'0'];
+    if($scenario==='officers_attendance')$flags=['can_view'=>'0','can_attendance'=>'1','can_payments'=>'0'];
+    if($scenario==='officers_payments')$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'1'];
+    synk_management_officer_write($conn,$scope,'officer_save',$flags+['student_id'=>(string)$sid,'expires_on'=>date('Y-m-d',strtotime('+30 days')),'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']]);
+    $handler='management/officers.php';
+    if(in_array($scenario,['officers_attendance','officers_viewer'],true)){
+        require_once $root.'/backend/management_attendance_helper.php';
+        $eventId=$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
+        synk_management_attendance_write($conn,$scope,'attendance_open',['event_id'=>$eventId,'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']]);
+    }
+    if($scenario!=='officers_page'){
+        $grant=synk_management_query($conn,'SELECT * FROM tbl_management_officers WHERE student_id=?','i',[$sid])[0];
+        $_SESSION['user_id']=(int)$grant['user_id'];$_SESSION['email']=$studentEmail;
+        if($scenario==='officers_attendance'||$scenario==='officers_viewer')$handler='management/events.php';
+        if($scenario==='officers_payments'){$handler='management/students.php';$_GET['search']=$tag;}
+    }
+}
 $take=static function () use($conn,$tag):array {
     return ['accounts'=>$conn->query("SELECT user_id,email,role,college_id,management_college_id,management_organization_id,status,google_sub FROM tbl_useraccount WHERE username='".$tag."' ORDER BY user_id")->fetch_all(MYSQLI_ASSOC),
         'roles'=>$conn->query("SELECT r.* FROM tbl_useraccount_roles r JOIN tbl_useraccount u ON u.user_id=r.user_id WHERE u.username='".$tag."' ORDER BY r.account_role_id")->fetch_all(MYSQLI_ASSOC)];

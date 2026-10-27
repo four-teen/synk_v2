@@ -31,7 +31,7 @@ $avatar = synk_resolve_user_avatar_url((string)$_SESSION['email'],(string)($_SES
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Apply</button></div>
     </form>
-    <details class="px-4 pb-4" id="management-current-period-settings">
+    <details class="px-4 pb-4" id="management-current-period-settings"<?= !$permissions['setup']?' hidden':'' ?>>
       <summary class="fw-semibold">Set current Management term</summary>
       <form id="management-current-period-form" method="post" class="mt-3">
         <p class="small text-muted">For <?= synk_management_h($organizationLabel) ?> · <?= synk_management_h($currentTerm['term_text']) ?>. This setting applies only to Management.</p>

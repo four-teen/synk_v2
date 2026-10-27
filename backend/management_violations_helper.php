@@ -34,6 +34,7 @@ function synk_management_violation_write(mysqli $conn, array $scope, string $act
     $conn->begin_transaction();
     try {
         synk_management_lock_assignment($conn,$scope);
+        synk_management_require_permission($conn,$scope,'setup');
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         $existing = null;
         if ($id) {
