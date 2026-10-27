@@ -101,7 +101,7 @@
     $('attendance-status').textContent='Loading…';['eligible','present','absent'].forEach(key=>$('attendance-'+key).textContent='—');
     $('attendance-confirm').checked=false;$('attendance-state-change').disabled=true;$('attendance-camera-start').disabled=true;$('attendance-upload').disabled=true;$('attendance-code').disabled=true;$('attendance-code-submit').disabled=true;modal.show();
     element.querySelector('.management-attendance-close').open=button.dataset.attendanceMode==='manage';
-    try{let data=await request('attendance_get');if(run!==generation)return;if(data.attendance.attendance_status==='NOT_STARTED')data=await request('attendance_open');if(run!==generation)return;render(data.attendance);if(state.attendance_status==='OPEN' && button.dataset.attendanceMode!=='manage')startCamera();}
+    try{if(config.permissions?.is_officer)element.querySelector('.management-attendance-close').hidden=true;let data=await request('attendance_get');if(run!==generation)return;if(data.attendance.attendance_status==='NOT_STARTED'){if(config.permissions?.is_officer)throw Error('Your faculty manager must open attendance before you can scan.');data=await request('attendance_open');}if(run!==generation)return;render(data.attendance);if(state.attendance_status==='OPEN' && button.dataset.attendanceMode!=='manage')startCamera();}
     catch(e){if(run===generation)error(e.message);}
   });
   $('attendance-camera-start').addEventListener('click',startCamera);$('attendance-camera-stop').addEventListener('click',stopCamera);

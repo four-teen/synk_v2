@@ -44,6 +44,10 @@ connected scanner remain available.
 
 ## Account setup and sign-in
 
+Assigned faculty managers can delegate limited access through **Student
+Officers**. See [management-student-officers.md](management-student-officers.md)
+for student selection, permissions, expiry, revocation, and setup.
+
 1. Create the organization in **Administrator → Institution Setup → Organizations**,
    selecting its campus and college. Every organization belongs to exactly one college.
 2. In Accounts, add or edit the account and select **Management**.

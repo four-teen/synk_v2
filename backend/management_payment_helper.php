@@ -92,6 +92,7 @@ function synk_management_payment_plan(array $financial,array $input): array
 
 function synk_management_payment_preview(mysqli $conn,array $scope,array $input): array
 {
+    synk_management_require_permission($conn,$scope,'payments',(int)($input['student_id'] ?? 0));
     if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
     $period=synk_management_fetch_current_period($conn,$scope);
     $id=synk_management_payment_context($conn,$scope,$input,$period);
@@ -111,6 +112,7 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
         // Catalog, attendance and period writes also lock this organization.
         // Serialize recalculation and insert so concurrent cashiers cannot overpay.
         synk_management_lock_assignment($conn,$scope);
+        synk_management_require_permission($conn,$scope,'payments',(int)($input['student_id'] ?? 0));
         $period=synk_management_lock_current_term($conn,$input,$scope);
         $id=synk_management_payment_context($conn,$scope,$input,$period);
         $prior=synk_management_query($conn,'SELECT payment_id,receipt_number,payload_hash,student_id,recorded_by FROM tbl_management_payments WHERE organization_id=? AND request_key=?','is',[$scope['organization_id'],$key]);
@@ -131,6 +133,7 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
             $chargeId=(int)substr($item['key'],2);
             synk_management_execute($conn,'INSERT INTO tbl_management_payment_items (payment_id,charge_key,contribution_id,event_id,title,charge_amount,paid_before,amount,balance_after) VALUES (?,?,?,?,?,?,?,?,?)','isiisssss',[$paymentId,$item['key'],$item['key'][0]==='C'?$chargeId:null,$item['key'][0]==='E'?$chargeId:null,$item['title'],$item['charge_amount'],$item['paid_before'],$item['amount'],$item['balance_after']]);
         }
+        synk_management_audit_officer_operation($conn,$scope,'PAYMENT',['payment_id'=>$paymentId,'student_id'=>$id,'amount'=>$plan['amount'],'receipt'=>$number]);
         $conn->commit();
         return ['payment_id'=>$paymentId,'receipt_number'=>$number,'receipt_url'=>'payment-receipt.php?payment_id='.$paymentId,'duplicate'=>false];
     } catch (Throwable $error) { $conn->rollback();throw $error; }

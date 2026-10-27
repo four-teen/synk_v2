@@ -16,6 +16,12 @@ $request=static function(string$scenario)use($name,$token):array {
     $data=json_decode((string)$body,true);if(!is_array($data)||isset($data['fixture_error']))throw new RuntimeException($scenario.': '.substr((string)$body,0,2400));return $data;
 };
 try {
+    $r=$request('officers_page');$check($r['status']===200&&strpos($r['response'],'officer-search-form')!==false&&strpos($r['response'],'Students you supervise')!==false,'Faculty Student Officers page did not render.');
+    $r=$request('officers_denied');$check($r['status']===403,'Student officer accessed faculty delegation page.');
+    $r=$request('officers_attendance');$check($r['status']===200&&strpos($r['response'],'Scan attendance')!==false&&strpos($r['response'],'id="management-add" disabled')!==false,'Attendance officer cannot view scan operations or still edits events.');
+    $check(strpos($r['response'],'officers.php?')===false&&strpos($r['response'],'id="management-current-period-settings" hidden')!==false,'Officer navigation exposes delegation or period administration.');
+    $r=$request('officers_viewer');$check($r['status']===200&&strpos($r['response'],'Scan attendance')===false,'Viewer received attendance collection controls.');
+    $r=$request('officers_payments');$check($r['status']===200&&strpos($r['response'],'Financial overview')!==false,'Treasurer cannot access financial overviews.');
     $check($conn->query("SHOW COLUMNS FROM tbl_academic_settings LIKE 'current_exam_term'")->num_rows===0,'Management term leaked into shared Academic Settings storage.');
     require_once __DIR__.'/../backend/academic_term_helper.php';
     $check(!array_key_exists('exam_term',synk_fetch_current_academic_term($conn)),'Shared academic helper exposes a Management-only term.');

@@ -8,7 +8,7 @@ header('Cache-Control: no-store, private');
 if (empty($_SESSION['management_login_csrf'])) $_SESSION['management_login_csrf'] = bin2hex(random_bytes(32));
 $status = is_string($_GET['auth_status'] ?? null) ? $_GET['auth_status'] : '';
 $messages = [
-    'management_access_denied'=>'Your Google account needs an active Management role and an assigned college. Ask your synQ Administrator to check your access.',
+    'management_access_denied'=>'Your Google account needs active Management access for an organization. Student officers should ask their faculty manager to check permissions, expiry, and current-semester membership. Faculty managers can contact the synQ Administrator.',
     'google_identity_mismatch'=>'This Google identity does not match the account on record. Ask your synQ Administrator to review your account.',
     'google_cancelled'=>'Sign-in was cancelled. You can try again when you are ready.',
     'google_state_invalid'=>'Your sign-in link expired. Start again from this page.',

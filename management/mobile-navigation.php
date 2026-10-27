@@ -4,7 +4,7 @@ $mobilePages = ['dashboard'=>'Home','students'=>'Students','events'=>'Events','f
 $moreActive = !isset($mobilePages[$page]);
 ?>
 <nav class="management-mobile-nav" id="management-mobile-nav" aria-label="Management mobile navigation">
-  <?php foreach ($mobilePages as $key=>$label): $item=$navigation[$key]; ?>
+  <?php foreach ($mobilePages as $key=>$label): if(in_array($key,['students','financial'],true)&&!($permissions['view']||$permissions['payments']))continue;if($key==='events'&&!($permissions['view']||$permissions['attendance']))continue;$item=$navigation[$key]; ?>
     <a href="<?= synk_management_h($pageUrl($item[1])) ?>"<?= $key===$page ? ' aria-current="page"' : '' ?>><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><span><?= $label ?></span></a>
   <?php endforeach; ?>
   <button type="button" id="management-more-toggle" data-bs-toggle="offcanvas" data-bs-target="#management-mobile-more" aria-controls="management-mobile-more" aria-expanded="false"<?= $moreActive ? ' class="is-current"' : '' ?>><i class="bx bx-grid-alt" aria-hidden="true"></i><span>More</span></button>
@@ -12,7 +12,7 @@ $moreActive = !isset($mobilePages[$page]);
 <div class="offcanvas offcanvas-bottom management-mobile-more" tabindex="-1" id="management-mobile-more" aria-labelledby="management-mobile-more-title">
   <div class="offcanvas-header"><div><h2 class="offcanvas-title fs-5" id="management-mobile-more-title">More options</h2><p><?= synk_management_h($scope['organization_name']) ?></p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close more options"></button></div>
   <div class="offcanvas-body"><nav aria-label="More Management pages">
-    <?php foreach (['contributions','violations'] as $key): $item=$navigation[$key]; ?>
+    <?php foreach (['contributions','violations','officers'] as $key): if($key==='officers'?!$permissions['officers']:!($permissions['view']||$permissions['payments']))continue;$item=$navigation[$key]; ?>
       <a href="<?= synk_management_h($pageUrl($item[1])) ?>"<?= $key===$page ? ' aria-current="page"' : '' ?>><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><span><strong><?= synk_management_h($item[0]) ?></strong><small><?= synk_management_h($item[3]) ?></small></span><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
     <?php endforeach; ?>
   </nav><p class="management-mobile-college"><?= synk_management_h($scope['college_name']) ?></p></div>

@@ -18,6 +18,14 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if(strpos($action,'officer_')===0){
+        require_once __DIR__.'/management_officers_helper.php';
+        synk_management_require_permission($conn,$scope,'officers');
+        if($action==='officer_search')synk_management_response(['status'=>'ok','students'=>synk_management_officer_search($conn,$scope,(string)($_POST['search'] ?? ''))]);
+        synk_management_response(['status'=>'ok']+synk_management_officer_write($conn,$scope,$action,$_POST));
+    }
+    $permission=in_array($action,['payment_preview','payment_post'],true)?'payments':($action==='attendance_scan'?'attendance':($action==='attendance_get'?'events':($action==='student_detail'?'records':($action==='get'?'view':'setup'))));
+    synk_management_require_permission($conn,$scope,$permission,isset($_POST['student_id'])?(int)$_POST['student_id']:null);
     if (in_array($action,['payment_preview','payment_post'],true)) {
         require_once __DIR__.'/management_payment_helper.php';
         $result=$action==='payment_preview' ? synk_management_payment_preview($conn,$scope,$_POST) : synk_management_payment_post($conn,$scope,$_POST);
@@ -59,6 +67,7 @@ try {
     synk_management_response(['status'=>'ok'] + $result);
 } catch (OutOfBoundsException $error) { synk_management_response(['status'=>'error','message'=>$error->getMessage()],404); }
 catch (SynkManagementConflict $error) { synk_management_response(['status'=>'error','message'=>$error->getMessage()],409); }
+catch (SynkManagementPermissionDenied $error) { synk_management_response(['status'=>'error','message'=>$error->getMessage()],403); }
 catch (DomainException $error) { synk_management_response(['status'=>'error','message'=>$error->getMessage()],422); }
 catch (Throwable $error) {
     error_log('Management request: ' . $error->getMessage());

@@ -519,7 +519,9 @@ function synk_management_account_has_access(mysqli $conn, array $account): bool
     $stmt->execute();
     $valid = $stmt->get_result()->num_rows > 0;
     $stmt->close();
-    return $valid;
+    if (!$valid) return false;
+    require_once __DIR__.'/management_officer_access_helper.php';
+    return synk_management_officer_account_allowed($conn,$account);
 }
 
 function synk_account_email_allowed(string $email, array $roles, string $allowedDomain): bool
