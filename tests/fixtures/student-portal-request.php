@@ -62,6 +62,14 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
+if (strpos($scenario,'attendance_qr_')===0) {
+    $_SESSION['management_student_qr_csrf']=$csrf;
+    $handler=$scenario==='attendance_qr_page'?'student/attendance-qr.php':'backend/query_management_student_qr.php';
+    if ($scenario!=='attendance_qr_page' && $scenario!=='attendance_qr_get') $_POST=['csrf_token'=>$csrf,'student_id'=>$students['other']];
+    if ($scenario==='attendance_qr_csrf') $_POST['csrf_token']='wrong';
+    if ($scenario==='attendance_qr_staff') $_SESSION['role']='admin';
+    if ($scenario==='attendance_qr_anonymous') $_SESSION=[];
+}
 if ($scenario==='profile_page') $handler='student/profile.php';
 if ($scenario==='profile_complete_page') {
     synk_student_save_first_portal_profile_setup($conn,$email,(int)$program['program_id'],(string)(100000000+$students['first']));
@@ -158,6 +166,51 @@ if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-acc
 if (strpos($scenario,'login_activity_')===0) require __DIR__.'/student-login-activity-scenarios.php';
 if (strpos($scenario,'login_report_')===0) require __DIR__.'/dean-login-report-scenarios.php';
 if (strpos($scenario,'presence_')===0 || strpos($scenario,'activity_grid_')===0) require __DIR__.'/student-live-activity-scenarios.php';
+if (strpos($scenario,'finances_')===0) require __DIR__.'/management-student-finances-scenarios.php';
+require_once $root.'/backend/student_profile_image_helper.php';
+$qaPhotoFiles=[];$qaPhotoBefore=[];
+foreach($students as$key=>$photoStudentId) {
+    $photoPath=synk_student_profile_image_path((int)$photoStudentId);
+    if (is_file($photoPath)) throw new RuntimeException('A fixture photo already exists; refusing to overwrite it.');
+    $qaPhotoFiles[$key]=$photoPath;
+}
+register_shutdown_function(static function()use(&$qaPhotoFiles,&$qaPhotoBefore):void {
+    $state=[];
+    foreach($qaPhotoFiles as$key=>$photoPath) {
+        clearstatcache(true,$photoPath);
+        $info=is_file($photoPath) ? @getimagesize($photoPath) : false;
+        $state[$key]=['exists'=>is_file($photoPath),'hash'=>is_file($photoPath)?hash_file('sha256',$photoPath):null,'before'=>$qaPhotoBefore[$key] ?? null,
+            'files'=>count(glob(substr($photoPath,0,-4).'.*')),'mime'=>$info['mime'] ?? null,'width'=>$info[0] ?? null,'height'=>$info[1] ?? null];
+    }
+    header('X-QA-Student-Photos: '.rawurlencode(json_encode($state)));
+    foreach($qaPhotoFiles as$photoPath)if(is_file($photoPath))unlink($photoPath);
+});
+foreach($qaPhotoFiles as$key=>$photoPath) {
+    $missing=$key==='first' && (strpos($scenario,'photo_required_')===0 || $scenario==='finances_photo_required');
+    if(!$missing) {
+        if(!is_dir(dirname($photoPath)))mkdir(dirname($photoPath),0755,true);
+        $image=imagecreatetruecolor(8,8);imagefill($image,0,0,imagecolorallocate($image,20,40,80));imagejpeg($image,$photoPath,88);imagedestroy($image);
+    }
+    if($key==='first' && $scenario==='photo_required_corrupt')file_put_contents($photoPath,'Invalid image');
+    $qaPhotoBefore[$key]=is_file($photoPath)?hash_file('sha256',$photoPath):null;
+}
+if (strpos($scenario,'photo_required_')===0 || strpos($scenario,'photo_upload_')===0) {
+    $handler='student/profile.php';
+    if($scenario==='photo_required_dashboard')$handler='student/index.php';
+    if($scenario==='photo_required_qr')$handler='student/attendance-qr.php';
+    if($scenario==='photo_required_prospectus')$handler='student/prospectus.php';
+    if($scenario==='photo_required_previous_login')synk_student_save_first_portal_profile_setup($conn,$email,(int)$program['program_id'],(string)(100000000+$students['first']));
+    if(strpos($scenario,'photo_upload_')===0 || $scenario==='photo_required_upload') {
+        $_POST=['save_student_photo'=>'1','csrf_token'=>$scenario==='photo_upload_bad_csrf'?'invalid':$csrf,
+            'student_id'=>$students['other'],'first_name'=>'FORGED NAME','student_number'=>'00000000'];
+    }
+    if($scenario==='photo_upload_staff')$_SESSION['role']='admin';
+    if($scenario==='photo_upload_anonymous')$_SESSION=[];
+    if(in_array($scenario,['photo_required_preview','photo_upload_preview'],true)) {
+        $_SESSION['role']='admin';$_SESSION['user_id']=$adminId;
+        $_GET['preview_student_id']=$students['first'];$_GET['return_to']='../administrator/students/directory.php';
+    }
+}
 $protected=['tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college_faculty','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_login_activity'];
 $snapshot=static function(array $tables)use($conn):string{$values=[];foreach($tables as $table)$values[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($values));};
 $protectedBefore=$snapshot($protected);
@@ -167,6 +220,10 @@ register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$
     // The deliberate invalid-address preflight scenarios use non-tagged emails.
     if(isset($_POST['email'])&&in_array($_POST['email'],['invalid email','qa@example.com'],true))$issues=$conn->query("SELECT submitted_email,google_email,failure_code,identity_verified,attempt_count,review_status FROM tbl_student_login_issues WHERE submitted_email IN ('invalid email','qa@example.com')")->fetch_all(MYSQLI_ASSOC);
     header('X-QA-Issues: '.rawurlencode(json_encode($issues)));header('X-QA-Students: '.rawurlencode(json_encode($students)));
+    if (strpos($_GET['scenario'] ?? '','attendance_qr_')===0) {
+        $owners=$conn->query('SELECT student_id FROM tbl_management_student_qr_tokens WHERE student_id IN ('.(int)$students['first'].','.(int)$students['other'].') ORDER BY student_id')->fetch_all(MYSQLI_ASSOC);
+        header('X-QA-QR-Owners: '.rawurlencode(json_encode(array_map('intval',array_column($owners,'student_id')))));
+    }
     header('X-QA-Protected-Unchanged: '.($snapshot($protected)===$protectedBefore?'yes':'no'));
     if (preg_match('/^(start_|callback_|verified_)/',$_GET['scenario'] ?? '')) {
         $activity=$conn->query('SELECT student_id,submitted_email,outcome,reason_code,identity_verified,auth_method,ip_address,browser,operating_system,device_type FROM tbl_student_login_activity WHERE activity_id>'.$loginActivityFloor.' ORDER BY activity_id')->fetch_all(MYSQLI_ASSOC);

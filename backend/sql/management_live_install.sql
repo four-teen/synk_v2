@@ -1,9 +1,11 @@
 -- SYNK MANAGEMENT: complete schema installation / upgrade.
 -- Select the LIVE SYNK database in phpMyAdmin before running the entire file.
 -- Tested on MySQL 5.7.25; no stored routines or DELIMITER commands required.
--- Existing Synk tbl_college, tbl_academic_years and tbl_useraccount are required.
--- This installs schema only. It does not import catalog rows, assign accounts,
--- change the current academic term, or create payments.
+-- Existing Synk tbl_college, tbl_academic_years, tbl_useraccount and
+-- tbl_student_management are required.
+-- Installs/updates Management schema and normalizes catalog/session statuses.
+-- Does not import catalog rows, assign accounts, change the current academic
+-- term, or create payments.
 -- DDL commits implicitly. Take a database backup before applying to live.
 
 SET NAMES utf8mb4;
@@ -30,11 +32,12 @@ CREATE TABLE IF NOT EXISTS tbl_management_events (
     organization_id INT UNSIGNED NULL,
     ay_id INT UNSIGNED NULL,
     semester TINYINT UNSIGNED NULL,
+    exam_term ENUM('MIDTERM','FINAL') NULL DEFAULT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NULL,
     event_date DATE NOT NULL,
     audience_mode ENUM('ALL','SELECTED','UNSPECIFIED') NOT NULL DEFAULT 'UNSPECIFIED',
-    status ENUM('DRAFT','OPEN','CLOSED','ARCHIVED') NOT NULL DEFAULT 'DRAFT',
+    status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
     absence_fine DECIMAL(12,2) NULL,
     latitude DECIMAL(10,7) NULL,
     longitude DECIMAL(10,7) NULL,
@@ -49,6 +52,7 @@ CREATE TABLE IF NOT EXISTS tbl_management_events (
     UNIQUE KEY uq_management_event_scope (college_id, event_id),
     UNIQUE KEY uq_management_event_source (college_id, source_table, source_record_id),
     KEY ix_management_event_term (college_id, ay_id, semester, event_date),
+    KEY ix_management_event_period (college_id, organization_id, ay_id, semester, exam_term, event_id),
     KEY ix_management_event_org (college_id, organization_id),
     KEY ix_management_event_ay (ay_id),
     CONSTRAINT fk_management_event_college FOREIGN KEY (college_id) REFERENCES tbl_college (college_id) ON DELETE RESTRICT,
@@ -66,7 +70,7 @@ CREATE TABLE IF NOT EXISTS tbl_management_event_sessions (
     fine_per_minute DECIMAL(12,4) NOT NULL DEFAULT 0,
     grace_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     potential_fine DECIMAL(12,2) NULL COMMENT 'IMPORTED REFERENCE AMOUNT; NOT A STUDENT CHARGE',
-    status ENUM('DRAFT','OPEN','CLOSED','ARCHIVED') NOT NULL DEFAULT 'DRAFT',
+    status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
     source_table VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
     source_record_id INT UNSIGNED NULL,
     source_checksum CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
@@ -85,13 +89,14 @@ CREATE TABLE IF NOT EXISTS tbl_management_contributions (
     organization_id INT UNSIGNED NULL,
     ay_id INT UNSIGNED NOT NULL,
     semester TINYINT UNSIGNED NOT NULL,
+    exam_term ENUM('MIDTERM','FINAL') NULL DEFAULT NULL,
     event_id INT UNSIGNED NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NULL,
     contribution_date DATE NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     audience_mode ENUM('ALL','SELECTED','UNSPECIFIED') NOT NULL DEFAULT 'UNSPECIFIED',
-    status ENUM('DRAFT','OPEN','CLOSED','ARCHIVED') NOT NULL DEFAULT 'DRAFT',
+    status ENUM('ACTIVE','INACTIVE') NOT NULL DEFAULT 'ACTIVE',
     source_table VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NULL,
     source_record_id INT UNSIGNED NULL,
     source_checksum CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NULL,
@@ -102,6 +107,7 @@ CREATE TABLE IF NOT EXISTS tbl_management_contributions (
     UNIQUE KEY uq_management_contribution_scope (college_id, contribution_id),
     UNIQUE KEY uq_management_contribution_source (college_id, source_table, source_record_id),
     KEY ix_management_contribution_term (college_id, ay_id, semester, contribution_date),
+    KEY ix_management_contribution_period (college_id, organization_id, ay_id, semester, exam_term, contribution_id),
     KEY ix_management_contribution_org (college_id, organization_id),
     KEY ix_management_contribution_event (college_id, event_id),
     KEY ix_management_contribution_ay (ay_id),
@@ -128,6 +134,109 @@ CREATE TABLE IF NOT EXISTS tbl_management_violations (
     CONSTRAINT fk_management_violation_org FOREIGN KEY (college_id, organization_id) REFERENCES tbl_management_organizations (college_id, organization_id) ON DELETE RESTRICT,
     CONSTRAINT fk_management_violation_ay FOREIGN KEY (ay_id) REFERENCES tbl_academic_years (ay_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Upgrade existing contribution storage without guessing a historical term.
+SET @synk_management_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = @synk_management_database
+      AND TABLE_NAME = 'tbl_management_contributions' AND COLUMN_NAME = 'exam_term'),
+  'ALTER TABLE tbl_management_contributions ADD COLUMN exam_term ENUM(''MIDTERM'',''FINAL'') NULL DEFAULT NULL AFTER semester',
+  'DO 0'
+);
+PREPARE synk_management_stmt FROM @synk_management_ddl;
+EXECUTE synk_management_stmt;
+DEALLOCATE PREPARE synk_management_stmt;
+SET @synk_management_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = @synk_management_database
+      AND TABLE_NAME = 'tbl_management_contributions' AND INDEX_NAME = 'ix_management_contribution_period'),
+  'ALTER TABLE tbl_management_contributions ADD INDEX ix_management_contribution_period (college_id, organization_id, ay_id, semester, exam_term, contribution_id)',
+  'DO 0'
+);
+PREPARE synk_management_stmt FROM @synk_management_ddl;
+EXECUTE synk_management_stmt;
+DEALLOCATE PREPARE synk_management_stmt;
+
+-- Contribution statuses: retain raw source fields and original timestamps.
+SET @synk_contribution_status_upgrade = EXISTS (
+  SELECT 1 FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tbl_management_contributions'
+    AND COLUMN_NAME = 'status' AND COLUMN_TYPE <> 'enum(''ACTIVE'',''INACTIVE'')'
+);
+SET @synk_contribution_status_ddl = IF(@synk_contribution_status_upgrade,
+  'ALTER TABLE tbl_management_contributions MODIFY COLUMN status ENUM(''DRAFT'',''OPEN'',''CLOSED'',''ARCHIVED'',''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_contribution_status_stmt FROM @synk_contribution_status_ddl;
+EXECUTE synk_contribution_status_stmt;
+DEALLOCATE PREPARE synk_contribution_status_stmt;
+UPDATE tbl_management_contributions
+SET status = CASE WHEN status = 'OPEN' THEN 'ACTIVE' ELSE 'INACTIVE' END,
+    updated_at = updated_at
+WHERE status IN ('DRAFT','OPEN','CLOSED','ARCHIVED');
+SET @synk_contribution_status_ddl = IF(@synk_contribution_status_upgrade,
+  'ALTER TABLE tbl_management_contributions MODIFY COLUMN status ENUM(''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_contribution_status_stmt FROM @synk_contribution_status_ddl;
+EXECUTE synk_contribution_status_stmt;
+DEALLOCATE PREPARE synk_contribution_status_stmt;
+
+-- Management event periods. Existing events retain an unknown exam term for
+-- explicit review. Session periods are inherited from their parent event.
+SET @synk_event_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_events' AND COLUMN_NAME='exam_term'),
+  'ALTER TABLE tbl_management_events ADD COLUMN exam_term ENUM(''MIDTERM'',''FINAL'') NULL DEFAULT NULL AFTER semester',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
+SET @synk_event_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_events' AND INDEX_NAME='ix_management_event_period'),
+  'ALTER TABLE tbl_management_events ADD INDEX ix_management_event_period (college_id,organization_id,ay_id,semester,exam_term,event_id)',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
+
+-- Normalize event and session statuses without altering source fields/timestamps.
+SET @synk_event_status_upgrade = EXISTS (
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_events' AND COLUMN_NAME='status'
+    AND COLUMN_TYPE<>'enum(''ACTIVE'',''INACTIVE'')');
+SET @synk_event_ddl = IF(@synk_event_status_upgrade,
+  'ALTER TABLE tbl_management_events MODIFY COLUMN status ENUM(''DRAFT'',''OPEN'',''CLOSED'',''ARCHIVED'',''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
+UPDATE tbl_management_events SET status=CASE WHEN status='OPEN' THEN 'ACTIVE' ELSE 'INACTIVE' END,
+  updated_at=updated_at WHERE status IN ('DRAFT','OPEN','CLOSED','ARCHIVED');
+SET @synk_event_ddl = IF(@synk_event_status_upgrade,
+  'ALTER TABLE tbl_management_events MODIFY COLUMN status ENUM(''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
+
+SET @synk_session_status_upgrade = EXISTS (
+  SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_event_sessions' AND COLUMN_NAME='status'
+    AND COLUMN_TYPE<>'enum(''ACTIVE'',''INACTIVE'')');
+SET @synk_event_ddl = IF(@synk_session_status_upgrade,
+  'ALTER TABLE tbl_management_event_sessions MODIFY COLUMN status ENUM(''DRAFT'',''OPEN'',''CLOSED'',''ARCHIVED'',''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
+UPDATE tbl_management_event_sessions SET status=CASE WHEN status='OPEN' THEN 'ACTIVE' ELSE 'INACTIVE' END,
+  updated_at=updated_at WHERE status IN ('DRAFT','OPEN','CLOSED','ARCHIVED');
+SET @synk_event_ddl = IF(@synk_session_status_upgrade,
+  'ALTER TABLE tbl_management_event_sessions MODIFY COLUMN status ENUM(''ACTIVE'',''INACTIVE'') NOT NULL DEFAULT ''ACTIVE''',
+  'DO 0');
+PREPARE synk_event_stmt FROM @synk_event_ddl;
+EXECUTE synk_event_stmt;
+DEALLOCATE PREPARE synk_event_stmt;
 
 -- 2. Extend the account role without replacing existing enum values/defaults.
 SELECT COLUMN_TYPE, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT,
@@ -342,7 +451,7 @@ PREPARE synk_management_stmt FROM @synk_management_ddl;
 EXECUTE synk_management_stmt;
 DEALLOCATE PREPARE synk_management_stmt;
 
--- 5. Completion summary. No existing business rows were changed.
+-- 5. Completion summary. Catalog statuses upgraded; source values preserved.
 SELECT @synk_management_database AS database_name,
        'MANAGEMENT SCHEMA INSTALLED / UPDATED' AS result;
 
@@ -373,4 +482,70 @@ CREATE TABLE IF NOT EXISTS tbl_management_period_settings (
         REFERENCES tbl_management_organizations (college_id, organization_id) ON DELETE RESTRICT,
     CONSTRAINT fk_management_period_ay FOREIGN KEY (ay_id)
         REFERENCES tbl_academic_years (ay_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Fresh, Management-only attendance. No legacy history or shared settings changes.
+CREATE TABLE IF NOT EXISTS tbl_management_attendance_events (
+    event_id INT UNSIGNED NOT NULL,
+    college_id INT UNSIGNED NOT NULL,
+    organization_id INT UNSIGNED NOT NULL,
+    ay_id INT UNSIGNED NOT NULL,
+    semester TINYINT UNSIGNED NOT NULL,
+    exam_term ENUM('MIDTERM','FINAL') NOT NULL,
+    attendance_status ENUM('OPEN','CLOSED') NOT NULL DEFAULT 'OPEN',
+    absence_fine DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    opened_by INT NOT NULL,
+    opened_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_by INT NULL,
+    closed_at DATETIME NULL,
+    revision INT UNSIGNED NOT NULL DEFAULT 1,
+    PRIMARY KEY (event_id),
+    KEY ix_management_attendance_period (college_id,organization_id,ay_id,semester,exam_term),
+    CONSTRAINT fk_management_attendance_event FOREIGN KEY (college_id,event_id)
+        REFERENCES tbl_management_events (college_id,event_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_management_attendance_roster (
+    event_id INT UNSIGNED NOT NULL,
+    student_id INT UNSIGNED NOT NULL,
+    PRIMARY KEY (event_id,student_id),
+    KEY ix_management_attendance_student (student_id,event_id),
+    CONSTRAINT fk_management_attendance_roster_event FOREIGN KEY (event_id)
+        REFERENCES tbl_management_attendance_events (event_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_management_attendance_roster_student FOREIGN KEY (student_id)
+        REFERENCES tbl_student_management (student_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_management_attendance_logs (
+    event_id INT UNSIGNED NOT NULL,
+    student_id INT UNSIGNED NOT NULL,
+    recorded_by INT NOT NULL,
+    recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (event_id,student_id),
+    CONSTRAINT fk_management_attendance_log_roster FOREIGN KEY (event_id,student_id)
+        REFERENCES tbl_management_attendance_roster (event_id,student_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_management_student_qr_tokens (
+    student_id INT UNSIGNED NOT NULL,
+    qr_token CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (student_id),
+    UNIQUE KEY uq_management_student_qr_token (qr_token),
+    CONSTRAINT fk_management_student_qr_student FOREIGN KEY (student_id)
+        REFERENCES tbl_student_management (student_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_management_attendance_audit (
+    audit_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    event_id INT UNSIGNED NOT NULL,
+    action ENUM('OPEN','CLOSE','REOPEN') NOT NULL,
+    recorded_by INT NOT NULL,
+    roster_count INT UNSIGNED NOT NULL,
+    present_count INT UNSIGNED NOT NULL,
+    recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (audit_id),
+    KEY ix_management_attendance_audit_event (event_id,audit_id),
+    CONSTRAINT fk_management_attendance_audit_event FOREIGN KEY (event_id)
+        REFERENCES tbl_management_attendance_events (event_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

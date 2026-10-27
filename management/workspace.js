@@ -25,19 +25,35 @@
     notice($('management-current-period-error'),'');
     try {
       const data=await request('save_management_term',{exam_term:select.value});
-      const url=new URL(location.href); url.searchParams.set('exam_term',data.current_exam_term);
+      const url=new URL(location.href); url.searchParams.set('term',config.current_term); url.searchParams.set('exam_term',data.current_exam_term);
+      ['view_ay_id','view_semester','page'].forEach(key=>url.searchParams.delete(key));
       location.assign(url.href);
     } catch (error) { notice($('management-current-period-error'),error.message); }
     finally { button.disabled=false; select.disabled=false; }
   });
   const flashKey = `synk-management-${config.organization_id}-${config.page}`;
-  function complete(message) {
+  function complete(message, firstPage = false) {
     try { sessionStorage.setItem(flashKey,message); } catch (_) { /* Storage may be disabled. */ }
-    location.reload();
+    if (firstPage) { const url=new URL(location.href); url.searchParams.delete('page'); location.assign(url.href); }
+    else location.reload();
   }
   const pageNotice = $('management-page-notice');
   if (pageNotice) {
     try { const message = sessionStorage.getItem(flashKey); if (message) { notice(pageNotice,message); sessionStorage.removeItem(flashKey); } } catch (_) { /* Optional feedback storage. */ }
+  }
+  const automaticFilters = config.page === 'students' ? $('management-student-filters') : $('management-catalog-filters');
+  if (['contributions','events','students'].includes(config.page) && automaticFilters) {
+    let searchTimer;
+    const applyFilters = () => { clearTimeout(searchTimer); automaticFilters.requestSubmit(); };
+    automaticFilters.querySelectorAll('select').forEach(select => select.addEventListener('change',applyFilters));
+    const search = $(config.page === 'students' ? 'student-search' : 'catalog-search');
+    const queueSearch = event => {
+      clearTimeout(searchTimer);
+      if (!event.isComposing) searchTimer = setTimeout(applyFilters,400);
+    };
+    search.addEventListener('input',queueSearch);
+    search.addEventListener('compositionend',queueSearch);
+    automaticFilters.addEventListener('submit',() => clearTimeout(searchTimer));
   }
   const catalog = $('management-catalog');
   if (catalog) {
@@ -48,7 +64,7 @@
     const editorElement = $('management-editor'), deleteElement = $('management-delete-modal');
     const editor = bootstrap.Modal.getOrCreateInstance(editorElement), deletion = bootstrap.Modal.getOrCreateInstance(deleteElement);
     const saveButton = $('management-record-save'), deleteButton = $('management-delete-confirm');
-    let busy = false, generation = 0, deleteRecord = null, sessionSequence = 0, editorOpener = null, deleteOpener = null;
+    let busy = false, generation = 0, deleteRecord = null, editorOpener = null, deleteOpener = null;
     function lock(value) {
       busy = value; fields.disabled = value; saveButton.disabled = value;
       editorElement.querySelectorAll('[data-bs-dismiss]').forEach(button => { button.disabled = value; });
@@ -57,23 +73,6 @@
     editorElement.addEventListener('hide.bs.modal', event => { if (busy) event.preventDefault(); else generation++; });
     editorElement.addEventListener('hidden.bs.modal',()=>editorOpener?.focus());
     deleteElement.addEventListener('hidden.bs.modal',()=>deleteOpener?.focus());
-    function syncSessions() { if (isEvents) $('management-session-empty').hidden = $('management-session-list').children.length > 0; }
-    function session(value = {}) {
-      if ($('management-session-list').children.length >= 50) { notice($('management-editor-error'),'Use up to 50 sessions per event.'); return; }
-      const index = ++sessionSequence, id = `session-${index}`;
-      const box = document.createElement('article'); box.className = 'management-session'; box.dataset.sessionId = value.session_id || '';
-      const date = form.elements.event_date.value || config.today;
-      const input = (key,title,type,extra,valueText) => `<div class="col-md-${key === 'title' ? '8' : '4'}"><label class="form-label" for="${id}-${key}">${title}</label><input class="form-control${key === 'title' ? ' management-uppercase' : ''}" id="${id}-${key}" data-field="${key}" type="${type}" ${extra} value="${escape(valueText)}"></div>`;
-      box.innerHTML = `<div class="management-section-heading"><h4 class="fs-6 mb-0">Session</h4><button type="button" class="btn btn-sm btn-outline-danger" data-remove-session aria-label="Remove session">Remove Session</button></div><div class="row g-3 mt-1">`
-        + input('title','Session title *','text','maxlength="255" required',value.title || '')
-        + `<div class="col-md-4"><label class="form-label" for="${id}-status">Status</label><select class="form-select" id="${id}-status" data-field="status">${['DRAFT','OPEN','CLOSED','ARCHIVED'].map(status=>`<option${value.status === status ? ' selected' : ''}>${status}</option>`).join('')}</select></div>`
-        + input('starts_at','Starts *','datetime-local','step="1" required',(value.starts_at || `${date} 08:00:00`).replace(' ','T'))
-        + input('ends_at','Ends *','datetime-local','step="1" required',(value.ends_at || `${date} 12:00:00`).replace(' ','T'))
-        + input('grace_minutes','Grace period (minutes) *','number','min="0" max="65535" step="1" required',value.grace_minutes ?? '0')
-        + input('fine_per_minute','Fine per minute (PHP) *','number','min="0" max="99999999.9999" step="0.0001" required',value.fine_per_minute ?? '0')
-        + input('potential_fine','Reference fine amount (PHP)','number','min="0" max="9999999999.99" step="0.01"',value.potential_fine ?? '') + '</div>';
-      $('management-session-list').append(box); syncSessions();
-    }
     function fill(record) {
       form.reset();
       form.elements.record_id.value = record?.[recordKey] || '';
@@ -85,19 +84,12 @@
       form.elements.record_term.value = record ? (record.ay_id && record.semester ? `${record.ay_id}:${record.semester}` : '') : config.current_term;
       if (isViolation) return;
       form.elements.organization_id.value = config.organization_id;
-      $('record-term').value = config.term_labels[form.elements.record_term.value] || 'TERM UNASSIGNED';
       if (!isEvents) for (const option of form.elements.event_id.options) {
         if (option.value) option.hidden = option.disabled = option.dataset.term !== form.elements.record_term.value;
       }
       if (!record) {
         form.elements[isEvents ? 'event_date' : 'contribution_date'].value = config.today;
-        form.elements.status.value = 'DRAFT'; form.elements.audience_mode.value = 'ALL';
-      }
-      if (isEvents) {
-        $('management-session-list').replaceChildren();
-        for (const row of record?.sessions || []) session(row);
-        syncSessions();
-        $('management-location').open = Boolean(record && (record.absence_fine !== null || record.latitude !== null));
+        form.elements.status.value = 'ACTIVE'; form.elements.audience_mode.value = 'ALL';
       }
     }
     async function openEditor(id) {
@@ -120,20 +112,11 @@
       }
     }
     $('management-add').addEventListener('click',()=>{ fields.disabled=false; saveButton.disabled=false; openEditor(null); });
-    if (isEvents) {
-      $('management-session-add').addEventListener('click',()=>{ session(); $('management-session-list').lastElementChild?.querySelector('input').focus(); });
-      $('management-session-list').addEventListener('click',event=>{ if (event.target.closest('[data-remove-session]')) { event.target.closest('.management-session').remove(); syncSessions(); } });
-    }
     form.addEventListener('submit',async event=>{
       event.preventDefault(); if (busy || !form.reportValidity()) return;
       const values = Object.fromEntries(new FormData(form));
-      if (isEvents) values.sessions = JSON.stringify([...$('management-session-list').children].map(box=>{
-        const row = { session_id:box.dataset.sessionId };
-        box.querySelectorAll('[data-field]').forEach(element=>{ row[element.dataset.field] = element.value; });
-        return row;
-      }));
       notice($('management-editor-error'),''); lock(true); saveButton.textContent = 'Saving…';
-      try { const result = await request('save',{ kind, ...values }); complete(result.message); }
+      try { const result = await request('save',{ kind, ...values }); complete(result.message,!isViolation && !values.record_id); }
       catch (error) { notice($('management-editor-error'),error.message); $('management-editor-error').scrollIntoView({ block:'nearest' }); }
       finally { lock(false); saveButton.textContent = `Save ${label}`; }
     });
@@ -150,7 +133,7 @@
         $('management-delete-name').textContent = isViolation ? deleteRecord.violation_type : deleteRecord.title;
         const linked = isEvents ? Number(deleteRecord.linked_contributions) : 0;
         $('management-delete-explanation').textContent = linked
-          ? `This event is linked to ${linked} contribution(s). Remove those event links first, or set the event status to ARCHIVED.`
+          ? `This event is linked to ${linked} contribution(s). Remove those event links first, or set the event status to Inactive.`
           : `This permanently removes the ${label.toLowerCase()}${isEvents ? ` and its ${deleteRecord.sessions.length} session(s)` : ''}.`;
         lockDelete(false); deleteButton.disabled = linked > 0;
       } catch (error) { notice($('management-delete-error'),error.message); lockDelete(false); deleteButton.disabled=true; }
@@ -178,15 +161,12 @@
       const button = event.target.closest('[data-student]'); if (!button) return;
       detailOpener=button;
       const current = ++generation;
-      $('management-student-detail-title').textContent = 'Student details';
-      $('management-student-detail-content').textContent = 'Loading student details…'; modal.show();
+      $('management-student-detail-title').textContent = 'Financial overview';
+      $('management-student-detail-content').textContent = 'Loading financial overview…'; modal.show();
       try {
         const data = await request('student_detail',{ directory_term:config.directory_term,student_id:button.dataset.student });
         if (current !== generation) return;
-        $('management-student-detail-title').textContent = data.student.student_name;
-        const profile = `<div class="management-student-profile"><strong>${escape(data.student.student_number)}</strong><h3 class="fs-5">${escape(data.student.student_name)}</h3><p>${escape(data.student.email_address || 'Email not provided')}</p></div>`;
-        const subjects = data.subjects.length ? `<div class="management-table-scroll"><table class="table dean-students-table management-table"><thead><tr><th>Subject</th><th>Program / Class Section</th><th>Academic Term</th><th>Faculty</th></tr></thead><tbody>${data.subjects.map(row=>`<tr><td><strong>${escape(row.subject_code)}</strong><span>${escape(row.descriptive_title)}</span></td><td>${escape(row.section_label)}<span>${escape(row.program_label)}</span></td><td>${escape(row.term_label)}</td><td>${escape(row.faculty_name || 'Not assigned')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="text-muted">No active imported subjects in this academic scope.</p>';
-        $('management-student-detail-content').innerHTML = profile + `<h3 class="fs-6">Imported Subjects <span class="badge bg-label-primary">${data.subjects.length}</span></h3>` + subjects;
+        $('management-student-detail-content').innerHTML = window.SynkManagementFinancial.render(data);
       } catch (error) { if (current === generation) $('management-student-detail-content').innerHTML = `<div class="alert alert-danger" role="alert">${escape(error.message)}</div>`; }
     });
   }

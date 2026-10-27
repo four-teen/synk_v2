@@ -28,3 +28,11 @@ Payment collection and the fresh recording workflow have not been implemented in
 this reset. The retained Financial page intentionally shows an empty state. Build
 new records directly in Synk after the new process is agreed, without depending
 on legacy IDs, imported balances, or old-system receipts.
+
+The Students page now has a **Financial overview** account view. It uses
+the selected student's profile and the organization's active period catalogs.
+Contributions total automatically; absence fines apply only after attendance is
+closed. QR scans and closure history use fresh Management-only attendance tables.
+Payment collection, deductions, and student violation assignments remain future
+work; no payment/legacy import schema is restored. See
+[management-student-financial-overview.md](management-student-financial-overview.md).

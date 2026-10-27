@@ -11,6 +11,7 @@
 .management-menu-toggle, .management-menu-close, .management-avatar-button { border: 0; background: none; color: inherit; }
 .management-menu-close { padding: .5rem; }
 .management-avatar-button { padding: 0; }
+.management-mobile-nav, .management-mobile-brand { display: none; }
 .management-portal .dropdown-item-text { max-width: 20rem; overflow-wrap: anywhere; }
 .management-portal .layout-overlay { border: 0; padding: 0; }
 #layout-menu .management-nav-section { margin: .8rem 0 .15rem; padding: .25rem 1.1rem; font-size: .65rem; font-weight: 600; line-height: 1rem; letter-spacing: .06em; color: #8391a7; }
@@ -60,22 +61,61 @@
 .management-filters label { display: block; margin-bottom: .5rem; font-size: .75rem; text-transform: uppercase; }
 .management-filters .form-select, .management-filters .form-control { max-width: 100%; }
 .management-filters > .management-filter-actions { display: flex; gap: .5rem; flex-wrap: wrap; flex: 1 0 100%; }
-.management-student-search-form { display: grid; grid-template-columns: minmax(0,1fr) 160px auto; align-items: end; }
+.management-student-search-form { display: grid; grid-template-columns: minmax(0,1fr) 160px; align-items: end; }
 .management-student-listing { margin-bottom: 1.5rem; }
+.management-student-heading { display: flex; align-items: center; gap: .5rem; white-space: nowrap; }
 .management-student-search-form > div { min-width: 0; }
-.management-student-search-form > .btn { white-space: nowrap; }
 .management-table-scroll { overflow: auto; max-width: 100%; }
 .management-table { margin-bottom: 0; min-width: 620px; }
 .management-table td { vertical-align: middle; }
 .management-table td > strong { display: block; font-weight: 600; }
 .management-table td > span:not(.badge), .management-table td > small { display: block; font-size: .8rem; color: var(--dean-text); }
-.management-catalog-table { min-width: 1000px; }
+.management-catalog-table { min-width: 720px; }
+.management-record-title .management-event-date{font-style:italic;text-transform:lowercase;font-size:.75rem;font-weight:400;margin-top:.35rem;color:var(--dean-muted)}
+.management-event-attendance-count{display:flex;align-items:center;gap:.5rem;font-size:1rem}
+.management-attendance-present{color:#28794c}
+.management-attendance-remaining{color:#b44545}
+.management-event-count-label{display:block;color:var(--dean-muted);font-size:.65rem;margin-top:.25rem;white-space:nowrap}
+.management-table .management-event-attendance-state[data-event-attendance-status]{display:inline-flex;align-items:center;gap:.35rem;border-radius:.35rem;padding:.4rem .6rem;background:#f1f3f8;color:#718096;font-size:.75rem;white-space:nowrap}
+.management-table .management-event-attendance-state[data-event-attendance-status="OPEN"]{color:#28794c;background:#e8f7ee}
+.management-table .management-event-attendance-state[data-event-attendance-status="CLOSED"]{color:#b44545;background:#ffeded}
+.management-financial-pending.management-financial-present{color:#28794c;background:#e8f7ee}
+.management-financial-pending.management-financial-absent{color:#b44545;background:#ffeded}
+.management-financial-event-totals strong[data-financial-absence-count]{color:#b44545}
 .management-record-title { min-width: 15rem; max-width: 25rem; overflow-wrap: anywhere; }
 .management-table .badge { display: inline-flex; }
-.management-student-table { min-width: 820px; }
+.management-student-table { min-width: 0; width: 100%; table-layout: fixed; }
+.management-student-table .management-record-title { min-width: 0; max-width: none; }
+.management-student-table .dean-student-id { overflow: hidden; text-overflow: ellipsis; }
+.management-student-table th:last-child { width: 165px; }
+.management-financial-open { max-width: 100%; white-space: normal; }
 .management-row-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .management-row-actions .btn { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
 .management-row-actions .bx { font-size: 1rem; }
+#management-catalog[data-kind="events"] .management-row-actions { flex-wrap: wrap; }
+.management-attendance-summary { display: flex; gap: 1rem; flex-wrap: wrap; padding: .8rem; background: #f7f8fc; border-radius: .4rem; margin-bottom: 1rem; }
+.management-attendance-summary span { display: flex; flex-direction: column; min-width: 75px; font-size: .75rem; color: var(--dean-muted); }
+.management-attendance-summary strong { font-size: 1rem; color: var(--dean-heading); }
+.management-attendance-summary #attendance-present{color:#28794c}
+.management-attendance-summary #attendance-absent[data-finalized="true"]{color:#b44545}
+.management-attendance-camera { position: relative; aspect-ratio: 4/3; background: #f0f2f8; display: grid; place-items: center; overflow: hidden; border-radius: .5rem; text-align: center; }
+.management-attendance-camera video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.management-attendance-camera i { font-size: 3rem; color: var(--dean-primary); }
+.management-attendance-camera p { font-size: .85rem; margin: .75rem 1.25rem; }
+.management-attendance-close { padding: 1rem; border: 1px solid #e1e4ed; border-radius: .5rem; }
+.management-attendance-reader-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem}
+.management-attendance-reader-grid>div{min-width:0}
+.management-attendance-camera-status{font-size:.75rem;color:var(--dean-primary);margin:.65rem 0;min-height:1.2rem}
+.management-attendance-result{padding:1rem;border:1px solid #bde5cd;border-radius:.5rem;background:#f0fbf4;display:flex;gap:1rem;align-items:center;margin-bottom:1rem}
+.management-attendance-result[hidden]{display:none}
+.management-attendance-result.is-duplicate{background:#fff9ed;border-color:#f0d9a2}
+.management-attendance-result>img{width:72px;height:72px;object-fit:cover;border-radius:50%;flex-shrink:0;background:#fff}
+.management-attendance-result>div{min-width:0;overflow-wrap:anywhere}
+.management-attendance-result strong{font-size:.75rem;color:#28794c}
+.management-attendance-result.is-duplicate strong{color:#956918}
+.management-attendance-result h3{font-size:.95rem;margin:.35rem 0;color:var(--dean-heading)}
+.management-attendance-result span,.management-attendance-result small{display:block;font-size:.75rem;color:var(--dean-muted);margin-top:.25rem}
+@media(max-width:767.98px){.management-attendance-reader-grid{grid-template-columns:minmax(0,1fr);gap:.75rem}.management-attendance-camera-column,.management-attendance-result-column{display:contents}.management-attendance-reader-grid #attendance-result{order:-2}.management-attendance-reader-grid #attendance-ready-note{order:-1}.management-attendance-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}.management-attendance-summary span{min-width:0}.management-attendance-result{gap:.75rem;margin-bottom:0}.management-attendance-result>img{width:60px;height:60px}#management-attendance .modal-dialog{margin:.5rem auto;width:calc(100% - 1rem)}#management-attendance .btn{min-height:44px}}
 .management-pagination { padding: 1.25rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
 .management-pagination > span { font-size: .875rem; color: var(--dean-muted); }
 .management-pagination > div { display: flex; gap: .5rem; }
@@ -94,13 +134,100 @@
 .management-student-profile > strong { color: var(--dean-primary); display: block; margin-bottom: .5rem; }
 .management-student-profile p { color: var(--dean-text); margin-bottom: 0; }
 #management-term-modal .btn-close { margin: 0 0 0 auto; transform: none; box-shadow: none; }
+.management-financial-modal .modal-dialog { max-width: 1440px; width: calc(100% - 3rem); margin: 1.5rem auto; }
+.management-financial-modal .modal-content { height: calc(100dvh - 3rem); max-height: calc(100dvh - 3rem); border: 0; overflow: hidden; }
+.management-financial-modal .modal-header { padding: 1.15rem 1.5rem; border-bottom: 1px solid var(--dean-border); gap: 1rem; }
+.management-financial-modal-title { flex: 1; min-width: 0; }
+.management-financial-kicker { display: block; color: var(--dean-muted); font-size: .65rem; font-weight: 600; letter-spacing: .07em; line-height: 1.6; }
+.management-financial-modal .modal-title { margin-top: .15rem; }
+.management-financial-modal .btn-close { margin: 0; transform: none; box-shadow: none; flex-shrink: 0; }
+.management-financial-modal .modal-body { padding: 0; background: #f8f9fc; min-height: 0; overflow: hidden; }
+.management-financial-modal .modal-footer { padding: .8rem 1.5rem; border-top: 1px solid var(--dean-border); background: #fff; gap: 1rem; }
+.management-financial-footer-note { margin-right: auto; color: var(--dean-muted); font-size: .75rem; }
+.management-financial-layout { display: grid; grid-template-columns: 250px minmax(0,1fr); min-height: 0; height: 100%; }
+.management-financial-sidebar { background: #fff; padding: 2rem 1.4rem; border-right: 1px solid var(--dean-border); min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; text-align: center; }
+.management-financial-avatar { width: 100px; height: 100px; margin: 0 auto 1.15rem; display: grid; place-items: center; border: 7px solid #f4f3ff; border-radius: 50%; background: #e5e4ff; color: var(--dean-primary); font-size: 2rem; font-weight: 600; }
+.management-financial-student-name { font-size: 1rem; font-weight: 600; line-height: 1.55; color: var(--dean-heading); margin: .55rem 0; overflow-wrap: anywhere; }
+.management-financial-student-id { display: inline-block; color: var(--dean-primary); background: var(--dean-primary-soft); border-radius: .3rem; padding: .3rem .65rem; font-size: .75rem; font-weight: 600; overflow-wrap: anywhere; }
+.management-financial-profile-fields { margin: 1.4rem 0 0; text-align: left; display: grid; gap: 1rem; padding-top: 1.2rem; border-top: 1px solid var(--dean-border); }
+.management-financial-profile-fields dt { font-size: .65rem; font-weight: 500; text-transform: uppercase; letter-spacing: .03em; color: var(--dean-muted); }
+.management-financial-profile-fields dd { font-size: .8rem; line-height: 1.6; color: var(--dean-heading); margin: .2rem 0 0; overflow-wrap: anywhere; }
+.management-financial-profile-period { display: flex; text-align: left; gap: .6rem; margin-top: 1.5rem; padding: .8rem; background: #f7f8fc; border-radius: .4rem; }
+.management-financial-profile-period > i { color: var(--dean-primary); font-size: 1.1rem; padding-top: .15rem; }
+.management-financial-profile-period span { display: block; color: var(--dean-muted); font-size: .65rem; }
+.management-financial-profile-period strong { display: block; font-weight: 500; color: var(--dean-heading); font-size: .75rem; margin-top: .2rem; line-height: 1.6; }
+.management-financial-main { padding: 1.5rem; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.management-financial-period { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.management-financial-period h3 { font-size: .95rem; color: var(--dean-heading); margin: .4rem 0 0; line-height: 1.5; }
+.management-financial-status { display: inline-flex; align-items: center; gap: .4rem; font-size: .7rem; color: #8b651b; background: #fff4de; padding: .4rem .65rem; border-radius: .35rem; white-space: nowrap; }
+.management-financial-status > span { width: 5px; height: 5px; border-radius: 50%; background: #d9a138; }
+.management-financial-actions { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; }
+.management-financial-pay { display: inline-flex; align-items: center; white-space: nowrap; }
+.management-financial-summary { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .8rem; margin-bottom: 1.25rem; }
+.management-financial-stat { padding: 1rem; background: #fff; border: 1px solid var(--dean-border); border-radius: .5rem; min-width: 0; }
+.management-financial-stat-label { display: flex; align-items: center; gap: .35rem; color: var(--dean-muted); font-size: .7rem; }
+.management-financial-stat-label > i { font-size: .95rem; color: var(--dean-primary); }
+.management-financial-stat > strong { display: block; color: var(--dean-heading); font-size: 1.45rem; font-weight: 600; margin: .7rem 0 .35rem; line-height: 1.3; overflow-wrap: anywhere; }
+.management-financial-stat > small { display: block; color: var(--dean-muted); font-size: .65rem; line-height: 1.6; }
+.management-financial-stat-due { background: #eeedff; border-color: #dedcff; }
+.management-financial-stat-due > strong { color: var(--dean-primary); }
+.management-financial-section { border: 1px solid var(--dean-border); background: #fff; border-radius: .5rem; overflow: hidden; margin-bottom: 1rem; }
+.management-financial-section-heading, .management-financial-section-heading > div { display: flex; align-items: center; gap: .65rem; }
+.management-financial-section-heading { padding: .9rem 1.1rem; justify-content: space-between; border-bottom: 1px solid var(--dean-border); flex-wrap: wrap; }
+.management-financial-section-heading h3 { font-size: .875rem; font-weight: 600; color: var(--dean-heading); margin: 0; }
+.management-financial-section-icon { display: grid; place-items: center; width: 28px; height: 28px; color: var(--dean-primary); background: var(--dean-primary-soft); border-radius: .35rem; }
+.management-financial-count { color: var(--dean-muted); font-size: .7rem; }
+.management-financial-pending { display: inline-block; color: var(--dean-muted); background: #f2f4f8; padding: .3rem .5rem; border-radius: .3rem; font-size: .65rem; white-space: nowrap; }
+.management-financial-table-scroll { overflow-x: auto; max-width: 100%; }
+.management-financial-table { margin: 0; font-size: .78rem; color: var(--dean-text); min-width: 560px; width: 100%; }
+.management-financial-table th { background: #fafbfe; font-size: .62rem; color: var(--dean-muted); font-weight: 500; padding: .65rem 1.1rem; white-space: nowrap; }
+.management-financial-table td { padding: .85rem 1.1rem; vertical-align: middle; }
+.management-financial-table td > strong { display: block; color: var(--dean-heading); font-weight: 500; min-width: 150px; max-width: 340px; overflow-wrap: anywhere; }
+.management-financial-table small { display: block; color: var(--dean-muted); font-size: .65rem; margin-top: .25rem; font-weight: 400; }
+.management-financial-table td.text-end { white-space: nowrap; }
+.management-financial-table tfoot th, .management-financial-table tfoot td { background: #fafbfe; color: var(--dean-heading); font-size: .75rem; font-weight: 600; }
+.management-financial-empty { padding: 1.1rem; display: flex; align-items: flex-start; gap: .8rem; }
+.management-financial-empty > i { color: #a6afbd; font-size: 1.5rem; margin-top: .2rem; }
+.management-financial-empty strong { color: var(--dean-heading); font-size: .8rem; font-weight: 500; }
+.management-financial-empty p { color: var(--dean-muted); font-size: .73rem; line-height: 1.6; margin: .3rem 0 0; }
+.management-financial-event-totals { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid var(--dean-border); background: #fafbfe; }
+.management-financial-event-totals > div { padding: .8rem 1.1rem; }
+.management-financial-event-totals span { display: block; font-size: .65rem; color: var(--dean-muted); }
+.management-financial-event-totals strong { display: block; font-size: 1rem; color: var(--dean-heading); margin-top: .25rem; font-weight: 500; }
+.management-financial-reconciliation { display: grid; grid-template-columns: minmax(0,1fr) minmax(230px,.85fr); gap: 2rem; padding: 1.25rem; background: #fff; border: 1px solid var(--dean-border); border-radius: .5rem; }
+.management-financial-reconciliation h3 { font-size: .95rem; color: var(--dean-heading); margin: 0 0 .6rem; }
+.management-financial-reconciliation p { font-size: .75rem; color: var(--dean-muted); line-height: 1.7; margin: 0; max-width: 260px; }
+.management-financial-reconciliation dl { margin: 0; }
+.management-financial-reconciliation dl > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: .4rem 0; font-size: .75rem; }
+.management-financial-reconciliation dt { color: var(--dean-muted); font-weight: 400; }
+.management-financial-reconciliation dt > small { display: block; font-size: .65rem; }
+.management-financial-reconciliation dd { margin: 0; color: var(--dean-heading); font-weight: 500; white-space: nowrap; }
+.management-financial-reconciliation .management-financial-balance { margin-top: .55rem; padding-top: .8rem; border-top: 1px solid var(--dean-border); font-size: .95rem; }
+.management-financial-balance dt, .management-financial-balance dd { font-weight: 600; color: var(--dean-primary); }
 @media (max-width:1199.98px) { .management-dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width:991.98px) { .management-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .management-catalog-stats .management-stat:last-child { grid-column: 1/-1; } }
+@media (max-width:1199.98px) { .management-financial-layout { grid-template-columns: 220px minmax(0,1fr); } .management-financial-summary { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width:767.98px) {
+  .management-financial-modal .modal-dialog { width: calc(100% - 1rem); margin: .5rem auto; }
+  .management-financial-modal .modal-content { height: calc(100dvh - 1rem); max-height: calc(100dvh - 1rem); }
+  .management-financial-modal .modal-header, .management-financial-modal .modal-footer { padding: 1rem; }
+  .management-financial-layout { grid-template-columns: minmax(0,1fr); grid-template-rows: auto minmax(0,1fr); }
+  .management-financial-sidebar { padding: 1.25rem; border-right: 0; border-bottom: 1px solid var(--dean-border); max-height: min(280px,36dvh); }
+  .management-financial-profile-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem 1.25rem; }
+  .management-financial-profile-period { margin-top: 1rem; }
+  .management-financial-main { padding: 1rem; }
+  .management-financial-reconciliation { grid-template-columns: minmax(0,1fr); gap: 1rem; }
+  .management-financial-footer-note { display: none; }
+}
 @media (max-width:575.98px) {
-  .management-student-search-form { grid-template-columns: minmax(0,1fr) auto; gap: .75rem; }
-  .management-student-search-form > .management-filter-search { grid-column: 1; grid-row: 1; }
-  .management-student-search-form > .btn { grid-column: 2; grid-row: 1; }
-  .management-student-page-size { grid-column: 1 / -1; max-width: 160px; }
+  .management-student-search-form { grid-template-columns: minmax(0,1fr); gap: .75rem; }
+  .management-student-page-size { max-width: 160px; }
+  .management-student-table th:last-child { width: 125px; }
+  .management-financial-stat { padding: .8rem; }
+  .management-financial-stat > strong { font-size: 1.25rem; }
+  .management-financial-event-totals { grid-template-columns: minmax(0,1fr); }
+  .management-financial-event-totals > div { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .6rem 1rem; }
+  .management-financial-event-totals strong { margin: 0; }
   .management-stats { gap: 1rem; }
   .management-stat { padding: 1rem; gap: .75rem; flex-direction: column; align-items: flex-start; }
   .management-filters > div, .management-filters > .management-filter-search { flex-basis: 100%; }
@@ -108,4 +235,152 @@
   .management-panel-heading, .management-filters { padding-left: 1.25rem; padding-right: 1.25rem; }
   .management-session, .management-rules { padding: 1rem; }
   .management-pagination { padding: 1.25rem; }
+}
+
+/* Management's phone/tablet shell: reachable navigation, with room for safe areas. */
+@media (max-width:1199.98px) {
+  .management-portal #layout-menu, .management-portal .layout-overlay { display: none !important; }
+  .management-portal .layout-page { padding-left: 0 !important; min-width: 0; }
+  .management-portal .layout-page .content-wrapper { padding-bottom: calc(80px + env(safe-area-inset-bottom,0px)) !important; }
+  .management-main { scroll-margin-bottom: 90px; }
+  .management-mobile-brand { display: flex; flex: 0 0 32px; align-items: center; margin-right: .75rem; min-height: 44px; }
+  .management-mobile-nav { position: fixed; z-index: 1030; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: #fff; border-top: 1px solid #e4e8f0; box-shadow: 0 -3px 16px #4359710a; padding: .35rem max(.35rem,env(safe-area-inset-right,0px)) calc(.35rem + env(safe-area-inset-bottom,0px)) max(.35rem,env(safe-area-inset-left,0px)); }
+  .management-mobile-nav > a, .management-mobile-nav > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; min-width: 0; min-height: 56px; padding: .4rem .1rem; margin: 0 .1rem; border: 0; border-radius: .65rem; background: transparent; color: #697a8d; font-size: .7rem; line-height: 1.25; font-weight: 500; touch-action: manipulation; }
+  .management-mobile-nav .bx { font-size: 1.4rem; }
+  .management-mobile-nav [aria-current="page"], .management-mobile-nav .is-current, .management-mobile-nav [aria-expanded="true"] { color: #696cff; background: #f2f2ff; }
+  .management-portal.modal-open .management-mobile-nav { visibility: hidden; }
+  .management-mobile-more { height: auto; max-height: min(80vh,600px); max-height: min(80dvh,600px); border-radius: 1rem 1rem 0 0; padding-bottom: env(safe-area-inset-bottom,0px); }
+  .management-mobile-more .offcanvas-header { gap: 1rem; padding: 1.25rem 1.25rem .5rem; }
+  .management-mobile-more .offcanvas-header > div { min-width: 0; }
+  .management-mobile-more .offcanvas-header p { margin: .4rem 0 0; font-size: .8rem; overflow-wrap: anywhere; }
+  .management-mobile-more .btn-close { width: 44px; height: 44px; box-sizing: border-box; margin: 0; padding: 0; flex-shrink: 0; }
+  .management-mobile-more .offcanvas-body { padding: .75rem 1.25rem 1.25rem; }
+  .management-mobile-more nav { display: grid; gap: .75rem; }
+  .management-mobile-more nav a { display: flex; gap: 1rem; align-items: center; min-height: 64px; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; color: #566a7f; }
+  .management-mobile-more nav a[aria-current="page"] { background: #f2f2ff; border-color: #696cff; }
+  .management-mobile-more nav a > .bx:first-child { color: #696cff; font-size: 1.5rem; }
+  .management-mobile-more nav span { flex: 1; min-width: 0; }
+  .management-mobile-more nav strong, .management-mobile-more nav small { display: block; }
+  .management-mobile-more nav small { font-size: .75rem; margin-top: .25rem; }
+  .management-mobile-college { font-size: .75rem; color: #8592a3; margin: 1.25rem 0 0; overflow-wrap: anywhere; }
+  .management-portal .btn, .management-portal .form-control, .management-portal .form-select { min-height: 44px; }
+  .management-portal .btn-close { min-width: 44px; min-height: 44px; box-sizing: border-box; margin: 0; padding: 0; transform: none; flex-shrink: 0; }
+  .management-portal .form-control, .management-portal .form-select { font-size: 16px; }
+  .management-portal summary { padding: .75rem 0; min-height: 44px; cursor: pointer; }
+  .management-portal .dropdown-menu { max-width: calc(100vw - 1.5rem); }
+  .management-portal .dropdown-item { min-height: 44px; white-space: normal; }
+}
+@media (min-width:1200px) { .management-mobile-more { display: none; } }
+
+@media (max-width:767.98px), (max-width:1199.98px) and (max-height:500px) {
+  .management-portal .management-main { padding: 1rem; }
+  .management-portal #layout-navbar { margin-top: .75rem; padding: .65rem .75rem; width: calc(100% - 2rem); }
+  .management-portal #navbar-collapse { gap: .5rem !important; min-width: 0; }
+  .management-portal .dean-navbar-context { gap: .2rem; flex-direction: column; align-items: flex-start; flex: 1; }
+  .management-portal .dean-navbar-context > .badge { font-size: .6rem; }
+  .management-portal .dean-view-label { font-size: .7rem; overflow-wrap: anywhere; }
+  .management-portal .dean-view-summary { width: 100%; gap: .3rem; }
+  .management-portal .dean-view-summary > .bx { display: none; }
+  .management-portal .dean-view-settings { width: 44px; margin-left: auto; }
+  .management-portal .management-avatar-button { min-width: 44px; min-height: 44px; }
+  .management-heading { padding: 1.25rem; }
+  .management-panel-heading > div { min-width: 0; }
+  .management-panel-heading h1, .management-panel-heading h2 { overflow-wrap: anywhere; }
+  .management-student-heading { white-space: normal; flex-wrap: wrap; }
+  .management-pagination > div { width: 100%; }
+  .management-pagination > div .btn { flex: 1; }
+  .management-program-row > div:first-child { flex-wrap: wrap; }
+  .management-portal .modal-dialog { max-height: calc(var(--management-viewport-height,100dvh) - 1rem); }
+  .management-portal .modal .modal-dialog { padding: 0 !important; }
+  .management-portal .modal-content { max-height: calc(var(--management-viewport-height,100dvh) - 1rem); }
+  .management-portal .modal-header { padding: .75rem 1rem; }
+  .management-portal .modal-header .modal-title { overflow-wrap: anywhere; }
+  .management-portal .modal-footer { padding: .75rem 1rem; gap: .5rem; }
+  .management-portal .modal-footer > .btn { flex: 1; margin: 0; }
+  #management-term-modal .modal-content { overflow-y: auto; }
+  .management-portal .dean-term-default { flex-wrap: wrap; }
+  .management-portal .dean-term-default .btn { width: 100%; white-space: normal; }
+  .management-financial-modal .modal-body { overflow-y: auto; }
+  .management-financial-layout { display: block; height: auto; }
+  .management-financial-sidebar, .management-financial-main { overflow: visible; max-height: none; }
+  .management-financial-avatar { width: 64px; height: 64px; font-size: 1.4rem; margin-bottom: .5rem; }
+  .management-financial-profile-fields { margin-top: 1rem; }
+
+  /* The scanner occupies the viewport; navigation stays behind the modal. */
+  .management-portal #management-attendance { padding: 0 !important; }
+  #management-attendance .modal-dialog { width: 100%; max-width: none; height: var(--management-viewport-height,100dvh); min-height: 0; max-height: none; margin: 0; padding: 0 !important; }
+  #management-attendance .modal-content { height: 100%; max-height: 100%; border: 0; border-radius: 0; }
+  #management-attendance .modal-header { padding-top: max(.75rem,env(safe-area-inset-top,0px)); }
+  #management-attendance .modal-body { padding: .75rem 1rem 1rem; overscroll-behavior-y: contain; }
+  #management-attendance .modal-footer { padding-bottom: max(.75rem,env(safe-area-inset-bottom,0px)); }
+  #management-attendance .modal-header, #management-attendance .modal-body, #management-attendance .modal-footer { padding-left: max(1rem,env(safe-area-inset-left,0px)); padding-right: max(1rem,env(safe-area-inset-right,0px)); }
+  .management-attendance-summary { grid-template-columns: repeat(4,minmax(0,1fr)); gap: .35rem; padding: .65rem; margin-bottom: .5rem; }
+  .management-attendance-summary span { font-size: .65rem; }
+  .management-attendance-summary strong { font-size: .85rem; overflow-wrap: anywhere; }
+  #attendance-event-context { font-size: .7rem; margin-bottom: .5rem !important; }
+  .management-attendance-camera { max-height: min(42dvh,320px); aspect-ratio: 4/3; width: 100%; }
+  .management-attendance-camera video { max-height: min(42dvh,320px); }
+  .management-attendance-result { position: sticky; top: -.75rem; z-index: 2; padding: .75rem; box-shadow: 0 3px 8px #43597112; }
+  .management-attendance-result > img { width: 48px; height: 48px; }
+  .management-attendance-result h3 { margin: .2rem 0; font-size: .85rem; }
+  .management-attendance-result small { font-size: .65rem; }
+  #management-attendance .management-attendance-camera-actions { display: grid !important; grid-template-columns: minmax(0,1fr) minmax(0,1fr); margin: .25rem 0 !important; }
+  .management-attendance-camera-actions label { grid-column: 1/-1; }
+  .management-attendance-camera-actions [aria-disabled="true"] { opacity: .5; cursor: default; }
+  .management-attendance-camera-status { margin: .25rem 0; }
+  .management-attendance-camera-column > p.small { font-size: .7rem; margin: .5rem 0; }
+  .management-attendance-close { padding: .25rem .75rem; }
+  .management-attendance-close summary, .management-attendance-recent summary { font-size: .8rem; font-weight: 600; }
+  .management-attendance-close label { min-height: 44px; padding: .5rem 0; }
+  #attendance-state-change { width: 100%; }
+  #attendance-code-form { flex-wrap: wrap; }
+  #attendance-code { min-width: 0; flex: 1 1 150px; }
+}
+
+/* Catalog rows become labeled cards instead of requiring sideways scrolling. */
+@media (max-width:575.98px) {
+  .management-filters:not(.management-student-search-form) { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; padding: 0 1rem 1rem; }
+  .management-filters:not(.management-student-search-form) > .management-filter-search, .management-filters:not(.management-student-search-form) > .management-filter-actions { grid-column: 1/-1; }
+  .management-mobile-records { display: block; min-width: 0; width: 100%; }
+  .management-mobile-records > :not(:first-child) { border-top: 0; }
+  .management-mobile-records thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .management-mobile-records tbody { display: grid; gap: .75rem; padding: 0 1rem; }
+  .management-mobile-records tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .9rem; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; box-shadow: none; }
+  .management-mobile-records tbody td { display: block; min-width: 0; width: auto; padding: 0; border: 0; text-align: left !important; background: transparent; box-shadow: none; }
+  .management-mobile-records tbody td.text-nowrap { white-space: normal !important; overflow-wrap: anywhere; }
+  .management-mobile-records td[data-label]::before { content: attr(data-label); display: block; color: #8592a3; font-size: .65rem; line-height: 1.5; margin-bottom: .35rem; }
+  .management-mobile-records .management-record-title, .management-mobile-records .management-record-actions, .management-mobile-records .management-record-empty { grid-column: 1/-1; min-width: 0; max-width: none; }
+  .management-mobile-records .management-row-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
+  .management-mobile-records .management-row-actions .btn { justify-content: center; white-space: normal; padding: .5rem; }
+  .management-mobile-records .management-row-actions [data-attendance] { grid-column: 1/-1; }
+  .management-mobile-records .management-event-attendance-state { min-height: 44px; }
+  .management-mobile-records .management-record-actions > .text-muted { float: none !important; }
+  .management-financial-table { display: block; width: 100%; min-width: 0; }
+  .management-financial-table thead { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .management-financial-table tbody { display: block; }
+  .management-financial-table tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; padding: 1rem; border-bottom: 1px solid #e4e8f0; }
+  .management-financial-table tbody td { display: block; padding: 0; border: 0; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left !important; }
+  .management-financial-table tbody td.text-end { white-space: normal; }
+  .management-financial-table .management-financial-pending { max-width: 100%; white-space: normal; }
+  .management-financial-table tbody td:first-child { grid-column: 1/-1; }
+  .management-financial-table td[data-label]::before { content: attr(data-label); display: block; font-size: .65rem; color: #8592a3; margin-bottom: .3rem; }
+  .management-financial-table tfoot { display: block; }
+  .management-financial-table tfoot tr { display: flex; align-items: center; justify-content: space-between; }
+  .management-financial-table tfoot th, .management-financial-table tfoot td { border: 0; padding: .75rem 1rem; }
+  .management-financial-table tfoot th { min-width: 0; white-space: normal; }
+  .management-financial-table tfoot td:last-child:empty { display: none; }
+  .management-student-table th:last-child { width: 110px; }
+  .management-student-table td { padding: .75rem; }
+  .management-student-table .dean-student-full-name, .management-student-table .dean-student-contact { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+  .management-catalog-stats { grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; }
+  .management-catalog-stats .management-stat:last-child { grid-column: auto; }
+  .management-catalog-stats .management-stat { padding: .75rem; gap: .5rem; }
+  .management-catalog-stats .management-stat-icon { width: 32px; height: 32px; flex-basis: 32px; font-size: 1.1rem; }
+  .management-catalog-stats .management-stat > div > span { font-size: .65rem; line-height: 1.4; display: block; }
+  .management-catalog-stats .management-stat strong { font-size: 1.2rem; }
+}
+@media (max-width:1199.98px) and (max-height:500px) {
+  #management-attendance .management-attendance-summary { display: flex; justify-content: space-between; }
+  #management-attendance .management-attendance-camera { max-height: 60dvh; }
+  #management-attendance .management-attendance-camera video { max-height: 60dvh; }
 }

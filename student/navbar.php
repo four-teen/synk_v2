@@ -1,6 +1,6 @@
 <?php
 require_once '../backend/academic_term_helper.php';
-require_once '../backend/user_avatar_helper.php';
+require_once __DIR__.'/../backend/student_profile_image_helper.php';
 
 $studentCurrentTerm = $studentPortalViewTerm ?? synk_fetch_current_academic_term($conn);
 $studentTermText = trim((string)($studentCurrentTerm['term_text'] ?? 'Current academic term'));
@@ -10,8 +10,10 @@ $studentPreviewMode = !empty($studentPortalPreviewMode);
 $studentBackUrl = trim((string)($studentPortalBackUrl ?? ''));
 $studentPortalBadge = $studentPreviewMode ? 'Student Preview' : 'Student Portal';
 $studentRoleLabel = $studentPreviewMode ? synk_student_preview_label().' · Read only' : 'Student';
-$studentAvatarFallback = synk_default_user_avatar_path();
-$studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, $studentPreviewMode ? '' : (string)($_SESSION['user_avatar_url'] ?? ''), 80);
+$studentAvatarFallback = '../student/profile-placeholder.svg';
+$studentPhotoId=$studentPreviewMode ? synk_student_preview_student_id_from_request() : (int)($_SESSION['student_id'] ?? 0);
+$studentUploadedPhotoUrl=synk_student_profile_image_url($studentPhotoId);
+$studentAvatarUrl = $studentUploadedPhotoUrl ?: $studentAvatarFallback;
 ?>
 
 <nav
@@ -69,6 +71,8 @@ $studentAvatarUrl = synk_resolve_user_avatar_url($studentEmail, $studentPreviewM
           </li>
 
           <li><div class="dropdown-divider"></div></li>
+
+          <li><a class="dropdown-item" href="<?= htmlspecialchars(synk_student_build_portal_url('profile.php'), ENT_QUOTES, 'UTF-8') ?>"><i class="bx bx-user-circle me-2" aria-hidden="true"></i><span class="align-middle">Manage Profile</span></a></li>
 
           <li>
             <a class="dropdown-item" href="<?= htmlspecialchars($studentPreviewMode ? $studentBackUrl : '../logout.php', ENT_QUOTES, 'UTF-8') ?>">

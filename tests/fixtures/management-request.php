@@ -143,11 +143,11 @@ if (strpos($scenario,'account_')===0) {
     if($scenario==='students_otherterm')$_GET['term']=$term['ay_id'].':'.($term['semester']===1?2:1);
     if($scenario==='contributions') {
         $handler='management/contributions.php';
-        $clone('tbl_management_contributions',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'title'=>strtoupper($tag).' CONTRIBUTION','contribution_date'=>'2026-10-26','amount'=>'25.50']);
+        $clone('tbl_management_contributions',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>strtoupper($tag).' CONTRIBUTION','contribution_date'=>'2026-10-26','amount'=>'25.50']);
     }
     if($scenario==='events') {
         $handler='management/events.php';
-        $clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'title'=>strtoupper($tag).' EVENT','event_date'=>'2026-10-26']);
+        $clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>strtoupper($tag).' EVENT','event_date'=>'2026-10-26']);
     }
     if($scenario==='violations') {
         $handler='management/violations.php';

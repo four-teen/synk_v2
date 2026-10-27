@@ -1,0 +1,21 @@
+<?php if (!isset($scope)) { http_response_code(404);exit; } ?>
+<div class="modal fade" id="management-attendance" tabindex="-1" aria-labelledby="attendance-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+<div class="modal-header"><div><span class="management-financial-kicker">EVENT ATTENDANCE</span><h2 class="modal-title fs-5" id="attendance-title">Take attendance</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+<div class="modal-body"><div id="attendance-error" class="alert alert-danger" role="alert" hidden></div>
+<div class="management-attendance-summary"><span>Status <strong id="attendance-status">Loading…</strong></span><span>Roster <strong id="attendance-eligible">—</strong></span><span>Present <strong id="attendance-present">—</strong></span><span>Absent <strong id="attendance-absent">—</strong></span></div>
+<p class="small text-muted mt-2 mb-3" id="attendance-event-context"></p>
+<div class="management-attendance-reader-grid"><div class="management-attendance-camera-column">
+<div class="management-attendance-camera"><video id="attendance-video" autoplay playsinline muted hidden></video><div id="attendance-camera-placeholder"><i class="bx bx-qr-scan" aria-hidden="true"></i><p>Point your camera at the student's attendance QR.</p></div></div>
+<p class="management-attendance-camera-status" id="attendance-camera-status" role="status">Camera stopped</p>
+<div class="mb-3" id="attendance-camera-picker" hidden><label for="attendance-camera-device" class="form-label">Camera</label><select class="form-select" id="attendance-camera-device"></select></div>
+<div class="d-flex gap-2 flex-wrap my-3 management-attendance-camera-actions"><button type="button" class="btn btn-primary" id="attendance-camera-start">Start camera</button><button type="button" class="btn btn-outline-secondary" id="attendance-camera-stop" disabled>Stop camera</button><label class="btn btn-outline-primary mb-0" for="attendance-upload" id="attendance-upload-label" tabindex="0">Read QR image</label><input type="file" id="attendance-upload" accept="image/*" class="visually-hidden"></div>
+<p class="small text-muted">Verify the student's name after each scan. Camera access uses HTTPS or localhost. You can also read a QR image or use a connected QR scanner.</p>
+<details id="attendance-hardware"><summary>Use a connected QR scanner</summary><form id="attendance-code-form" class="d-flex gap-2 mt-2"><label class="visually-hidden" for="attendance-code">Student attendance QR</label><input class="form-control" id="attendance-code" autocomplete="off" maxlength="100" placeholder="Scan the student QR here"><button class="btn btn-outline-primary" id="attendance-code-submit" type="submit">Record</button></form></details>
+</div><div class="management-attendance-result-column">
+<div id="attendance-result" class="management-attendance-result" role="status" aria-live="polite" hidden><img id="attendance-student-photo" src="../student/profile-placeholder.svg" alt="Student profile photo"><div><strong id="attendance-result-status"></strong><h3 id="attendance-student-name"></h3><span id="attendance-student-number"></span><small id="attendance-recorded-at"></small></div></div>
+<p class="small text-muted" id="attendance-ready-note">The scanned student’s photo and details will appear here after attendance is saved.</p>
+<details class="management-attendance-recent mt-3"><summary>Recent attendance</summary><ul id="attendance-recent" class="list-group list-group-flush mt-2"></ul></details>
+</div></div>
+<details class="management-attendance-close mt-3"><summary>Close or reopen attendance</summary><div class="mt-3"><p id="attendance-close-description" class="small mb-2"></p><label class="d-flex gap-2 align-items-start"><input class="form-check-input" type="checkbox" id="attendance-confirm"><span class="small" id="attendance-confirm-label">I confirm this attendance change.</span></label><button class="btn btn-outline-danger mt-2" type="button" id="attendance-state-change" disabled>Close attendance</button></div></details>
+</div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Done</button></div>
+</div></div></div>

@@ -1,0 +1,12 @@
+.student-attendance-card { max-width: 570px; margin: 1.5rem auto; padding: 2rem; align-items: center; text-align: center; min-width: 0; }
+.student-attendance-card h1 { font-size: 1.5rem; }
+.student-attendance-card h2 { font-size: 1.1rem; margin: .25rem 0 .5rem; max-width: 100%; overflow-wrap: anywhere; }
+.student-attendance-qr { width: min(100%,360px); aspect-ratio: 1; display: grid; place-items: center; background: #fff; margin: 1rem 0; flex-shrink: 0; }
+.student-attendance-qr svg { width: 100%; height: auto; display: block; }
+.student-attendance-id { max-width: 100%; overflow-wrap: anywhere; }
+.student-qr-save { margin-top: 1.25rem; min-height: 48px; justify-content: center; align-items: center; }
+.student-qr-save:not([hidden]) { display: inline-flex; }
+@media(max-width:575px) {
+  .student-attendance-card { padding: 1rem .75rem; margin: 0 auto; }
+  .student-qr-save { width: 100%; }
+}

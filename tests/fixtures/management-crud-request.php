@@ -38,11 +38,14 @@ $conn->query('UPDATE tbl_useraccount SET management_organization_id='.$org.' WHE
 $foreignOrg=$insert('tbl_management_organizations',['college_id'=>$foreign['college_id'],'organization_code'=>'QA'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag]);
 $siblingOrg=$insert('tbl_management_organizations',['college_id'=>$scope['college_id'],'organization_code'=>'SIB'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag.' SIBLING']);
 $eventBase=['college_id'=>$scope['college_id'],'organization_id'=>$org,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'title'=>$tag.' EVENT','event_date'=>'2026-10-26','audience_mode'=>'ALL','status'=>'DRAFT','source_table'=>'TBLEVENT','source_record_id'=>4000000000,'source_checksum'=>str_repeat('A',64),'source_metadata'=>'{"STATUS":"ALL","STAT":0}'];
+$eventBase['exam_term']=$term['exam_term'];$eventBase['status']='ACTIVE';
 $event=$insert('tbl_management_events',$eventBase);
 $siblingEvent=$insert('tbl_management_events',array_merge($eventBase,['organization_id'=>$siblingOrg,'source_table'=>null,'source_record_id'=>null,'source_checksum'=>null]));
 $foreignEvent=$insert('tbl_management_events',array_merge($eventBase,['college_id'=>$foreign['college_id'],'organization_id'=>$foreignOrg]));
-$session=$insert('tbl_management_event_sessions',['college_id'=>$scope['college_id'],'event_id'=>$event,'title'=>$tag.' SESSION','starts_at'=>'2026-10-26 08:00:00','ends_at'=>'2026-10-26 12:00:00','fine_per_minute'=>'0.1250','grace_minutes'=>15,'potential_fine'=>'28.12','status'=>'DRAFT','source_table'=>'TBLEVENTS','source_record_id'=>4000000000,'source_checksum'=>str_repeat('B',64)]);
+$session=$insert('tbl_management_event_sessions',['college_id'=>$scope['college_id'],'event_id'=>$event,'title'=>$tag.' SESSION','starts_at'=>'2026-10-26 08:00:00','ends_at'=>'2026-10-26 12:00:00','fine_per_minute'=>'0.1250','grace_minutes'=>15,'potential_fine'=>'28.12','status'=>'ACTIVE','source_table'=>'TBLEVENTS','source_record_id'=>4000000000,'source_checksum'=>str_repeat('B',64)]);
 $contributionBase=['college_id'=>$scope['college_id'],'organization_id'=>$org,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'event_id'=>$event,'title'=>$tag.' CONTRIBUTION','contribution_date'=>'2026-10-26','amount'=>'25.50','audience_mode'=>'SELECTED','status'=>'DRAFT','source_table'=>'TBLCONTIBUTION','source_record_id'=>4000000000,'source_checksum'=>str_repeat('C',64),'source_metadata'=>'{"STATUS":"OTHERS"}'];
+$contributionBase['exam_term']=$term['exam_term'];
+$contributionBase['status']='INACTIVE';
 $contribution=$insert('tbl_management_contributions',$contributionBase);
 $siblingContribution=$insert('tbl_management_contributions',array_merge($contributionBase,['organization_id'=>$siblingOrg,'event_id'=>$siblingEvent,'source_table'=>null,'source_record_id'=>null,'source_checksum'=>null]));
 $foreignContribution=$insert('tbl_management_contributions',array_merge($contributionBase,['college_id'=>$foreign['college_id'],'organization_id'=>$foreignOrg,'event_id'=>$foreignEvent]));
@@ -57,10 +60,14 @@ $recordId=$kind==='events' ? $event : $contribution;
 $record=synk_management_catalog_get($conn,$scope,$kind,$recordId);
 $post=['action'=>'save','kind'=>$kind,'csrf_token'=>str_repeat('d',64),'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],
     'record_id'=>$recordId,'version'=>$record['version'],'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version'],'term'=>$term['key'],'record_term'=>$term['key'],'organization_id'=>$org,'title'=>'new lowercase title ñ',
-    'description'=>"description with <script>ignored</script>",'status'=>'OPEN','audience_mode'=>'ALL','contribution_date'=>'2026-10-27','amount'=>'123.45','event_id'=>$event,
+    'description'=>"description with <script>ignored</script>",'status'=>'ACTIVE','audience_mode'=>'ALL','contribution_date'=>'2026-10-27','amount'=>'123.45','event_id'=>$event,
     'event_date'=>'2026-10-26','absence_fine'=>'25.25','latitude'=>'6.6155942','longitude'=>'124.5997341','attendance_radius_m'=>'100'];
-$sessions=[['session_id'=>$session,'title'=>'updated session','starts_at'=>'2026-10-26T08:00','ends_at'=>'2026-10-26T12:00','fine_per_minute'=>'0.1250','grace_minutes'=>'20','potential_fine'=>'28.12','status'=>'OPEN']];
+$sessions=[['session_id'=>$session,'title'=>'updated session','starts_at'=>'2026-10-26T08:00','ends_at'=>'2026-10-26T12:00','fine_per_minute'=>'0.1250','grace_minutes'=>'20','potential_fine'=>'28.12','status'=>'ACTIVE']];
 if ($scenario==='get_contribution' || $scenario==='get_event') $post['action']='get';
+if ($scenario==='contribution_other_period_get') { $post['action']='get';$post['exam_term']=$term['exam_term']==='MIDTERM'?'FINAL':'MIDTERM'; }
+if ($scenario==='event_other_period_get') { $post['action']='get';$post['exam_term']=$term['exam_term']==='MIDTERM'?'FINAL':'MIDTERM'; }
+if ($scenario==='old_event_status') $post['status']='OPEN';
+if ($scenario==='old_session_status') $sessions[0]['status']='OPEN';
 if ($scenario==='add_contribution' || $scenario==='add_event') { $post['record_id']=''; $post['version']=''; if($kind==='events')$sessions[0]['session_id']=''; }
 if ($scenario==='delete_contribution' || $scenario==='delete_event' || $scenario==='delete_linked_event') {
     $post['action']='delete';
@@ -73,7 +80,7 @@ if ($scenario==='stale_contribution') { $post['version']=str_repeat('0',64); }
 if ($scenario==='stale_delete_event') { $post['action']='delete'; $post['version']=str_repeat('0',64); }
 if ($scenario==='foreign_contribution' || $scenario==='foreign_event') $post['record_id']=$kind==='events' ? $foreignEvent : $foreignContribution;
 if ($scenario==='foreign_org') $post['organization_id']=$foreignOrg;
-if ($scenario==='foreign_event_link') { $kind='contributions'; $post['kind']=$kind; $post['record_id']=$contribution; $post['version']=synk_management_catalog_get($conn,$scope,$kind,$contribution)['version']; $post['event_id']=$foreignEvent; }
+if ($scenario==='foreign_event_link') { $kind='contributions'; $post['kind']=$kind; $post['status']='ACTIVE'; $post['record_id']=$contribution; $post['version']=synk_management_catalog_get($conn,$scope,$kind,$contribution)['version']; $post['event_id']=$foreignEvent; }
 if ($scenario==='bad_amount') $post['amount']='0.001';
 if ($scenario==='negative_amount') $post['amount']='-1';
 if ($scenario==='large_amount') $post['amount']='10000000000';
@@ -107,6 +114,11 @@ if (in_array($scenario,['add_organization','duplicate_organization','invalid_org
     if($scenario==='invalid_organization')$post['organization_code']='<SCRIPT>';
 }
 $post['sessions']=json_encode($sessions); $_POST=$post;
+if ($scenario==='save_event_simple') {
+    $conn->query('UPDATE tbl_management_events SET latitude=6.6155942,longitude=124.5997341,attendance_radius_m=100 WHERE event_id='.$event);
+    $_POST['version']=synk_management_catalog_get($conn,$scope,'events',$event)['version'];
+    foreach(['sessions','latitude','longitude','attendance_radius_m']as$key)unset($_POST[$key]);
+}
 if(strpos($scenario,'violation_')===0) {
     require_once $root.'/backend/management_violations_helper.php';
     $violationRecord=synk_management_violation_get($conn,$scope,$violation);
@@ -147,7 +159,7 @@ if ($scenario==='sibling_event') { $_POST['record_id']=$siblingEvent; $_POST['ac
 if ($scenario==='sibling_contribution') { $_POST['record_id']=$siblingContribution; $_POST['action']='get'; }
 if ($scenario==='sibling_violation') { $_POST['kind']='violations'; $_POST['record_id']=$siblingViolation; $_POST['action']='get'; }
 if ($scenario==='sibling_event_link' || $scenario==='historical_event_link') {
-    $_POST['kind']='contributions'; $_POST['record_id']=$contribution;
+    $_POST['kind']='contributions'; $_POST['status']='ACTIVE'; $_POST['record_id']=$contribution;
     $_POST['version']=synk_management_catalog_get($conn,$scope,'contributions',$contribution)['version'];
     $_POST['event_id']=$scenario==='sibling_event_link' ? $siblingEvent : $event;
 }
@@ -223,10 +235,27 @@ if (strpos($scenario,'management_term_')===0) {
     if ($scenario==='management_term_csrf') $_POST['csrf_token']='bad';
     if ($scenario==='management_term_switch_back') $handler='';
 }
+if (strpos($scenario,'attendance_http_')===0) {
+    require_once $root.'/backend/management_attendance_helper.php';
+    $_POST=array_merge($post,['action'=>'attendance_open','event_id'=>$event]);
+    if (in_array($scenario,['attendance_http_scan','attendance_http_duplicate','attendance_http_close'],true)) {
+        $opened=synk_management_attendance_write($conn,$scope,'attendance_open',$_POST);
+        $studentId=(int)$conn->query('SELECT student_id FROM tbl_management_attendance_roster WHERE event_id='.$event.' ORDER BY student_id LIMIT 1')->fetch_assoc()['student_id'];
+        $_POST['qr_code']=synk_management_student_qr($conn,$studentId);$_POST['action']='attendance_scan';
+        if ($scenario==='attendance_http_duplicate') synk_management_attendance_write($conn,$scope,'attendance_scan',$_POST);
+        if ($scenario==='attendance_http_close') { $_POST['action']='attendance_close';$_POST['attendance_revision']=$opened['attendance']['revision'];$_POST['confirm']='1'; }
+    }
+    if ($scenario==='attendance_http_csrf') $_POST['csrf_token']='wrong';
+    if ($scenario==='attendance_http_role') $_SESSION['role']='admin';
+    if ($scenario==='attendance_http_foreign') $_POST['event_id']=$foreignEvent;
+    if ($scenario==='attendance_http_stale') $_POST['current_period_version']='999';
+    if ($scenario==='attendance_http_array') $_POST['qr_code']=['unexpected'];
+}
 $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
     foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();
@@ -268,10 +297,10 @@ if($handler==='') {
         $all=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag,'catalog_scope'=>'all']);
         $unassigned=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag,'catalog_scope'=>'unassigned']);
         $wildcard=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag.'%','catalog_scope'=>'all']);
-        $open=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag,'status'=>'OPEN','catalog_scope'=>'all']);
+        $inactive=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag,'status'=>'INACTIVE','catalog_scope'=>'all']);
         $organization=synk_management_catalog_list($conn,$scope,$term,'events',['search'=>$tag,'organization_id'=>$org,'catalog_scope'=>'all']);
         $fixtureResult=['selected'=>$selected['pagination']['total'],'all'=>$all['pagination']['total'],'unassigned'=>$unassigned['pagination']['total'],
-            'wildcard'=>$wildcard['pagination']['total'],'open'=>$open['pagination']['total'],'organization'=>$organization['pagination']['total']]; exit;
+            'wildcard'=>$wildcard['pagination']['total'],'inactive'=>$inactive['pagination']['total'],'organization'=>$organization['pagination']['total']]; exit;
     }
     $filters=synk_management_directory_filters($conn,$scope,['term'=>$term['key'],'directory_term'=>'all','email_status'=>'missing','page_size'=>'50']);
     $management=synk_management_directory($conn,$scope,['term'=>$term['key'],'directory_term'=>'all','email_status'=>'missing','page_size'=>'50']);

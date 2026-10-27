@@ -7,41 +7,27 @@ require_once '../backend/student_dashboard_helper.php';
 
 synk_student_require_login($conn, true);
 
-$studentProgramOptions = synk_student_fetch_profile_program_options($conn);
-$studentPortalContext = synk_student_resolve_portal_context($conn);
-$isAdminPreview = (bool)($studentPortalContext['is_admin_preview'] ?? false);
-$previewStudentId = (int)($studentPortalContext['preview_student_id'] ?? 0);
-$studentEmail = (string)($studentPortalContext['student_email'] ?? '');
-$studentDirectoryRecord = is_array($studentPortalContext['directory_record'] ?? null)
-    ? $studentPortalContext['directory_record']
-    : null;
-$studentPortalProfile = is_array($studentPortalContext['portal_profile'] ?? null)
-    ? $studentPortalContext['portal_profile']
-    : null;
-$studentName = (string)($studentPortalContext['student_name'] ?? 'Student');
-$profileSetupError = '';
-$profileSetupStatus = $isAdminPreview ? '' : trim((string)($_GET['profile_setup'] ?? ''));
-
-if (!$isAdminPreview && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['complete_student_profile'])) {
+$isAdminPreview=synk_student_is_staff_preview_mode();
+$previewStudentId=$isAdminPreview ? synk_student_preview_student_id_from_request() : 0;
+$studentId=$isAdminPreview ? $previewStudentId : (int)$_SESSION['student_id'];
+$studentDirectoryRecord=synk_student_fetch_directory_record_by_student_id($conn,$studentId);
+if (!$studentDirectoryRecord) { http_response_code(404);exit('Student record unavailable.'); }
+$studentEmail=(string)$studentDirectoryRecord['email_address'];
+$studentName=synk_student_directory_display_name($studentDirectoryRecord);
+require_once __DIR__.'/../backend/student_profile_image_helper.php';
+$profilePhotoError='';
+$photoWasRequired=synk_student_profile_image_url($studentId)==='';
+if (!$isAdminPreview && ($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST') {
     try {
-        if (!synk_student_login_check_csrf($_POST['csrf_token'] ?? null)) throw new RuntimeException('Refresh the profile page before saving.');
-        $studentPortalProfile = synk_student_save_first_portal_profile_setup(
-            $conn,
-            $studentEmail,
-            (int)($_POST['program_id'] ?? 0),
-            (string)($_POST['student_number'] ?? '')
-        );
-
-        header('Location: ' . synk_student_build_portal_url('profile.php', ['profile_setup' => 'completed']));
-        exit;
-    } catch (Throwable $e) {
-        $profileSetupError = $e->getMessage();
-    }
+        if (!synk_student_login_check_csrf($_POST['csrf_token'] ?? null)) throw new DomainException('Reload your profile before uploading a photo.',403);
+        synk_student_profile_save_image($conn,$studentId,$_FILES['profile_photo'] ?? null);
+        header('Location: '.($photoWasRequired ? 'index.php' : 'profile.php?photo_updated=1'),true,303);exit;
+    } catch (DomainException|InvalidArgumentException $error) { http_response_code((int)$error->getCode()===403 ? 403 : 422);$profilePhotoError=$error->getMessage(); }
+    catch (Throwable $error) { error_log('Student photo: '.$error->getMessage());http_response_code(503);$profilePhotoError='Your photo could not be saved. Please try again.'; }
 }
-
-$profileIsComplete = (bool)($studentPortalContext['profile_is_complete'] ?? false);
-$currentTerm = synk_fetch_current_academic_term($conn);
-$studentId = (int)($studentDirectoryRecord['student_id'] ?? 0);
+$profilePhotoUrl=synk_student_profile_image_url($studentId);
+$profilePhotoRequired=!$isAdminPreview && $profilePhotoUrl==='';
+$currentTerm=synk_fetch_current_academic_term($conn);
 $subjectYearOptions = synk_student_fetch_subject_year_options($conn, $studentId);
 $availableSubjectAyIds = array_map(static function (array $row): int {
     return (int)($row['ay_id'] ?? 0);
@@ -73,58 +59,8 @@ foreach ($subjectYearOptions as $subjectYearOption) {
     }
 }
 
-$studentNumberValue = $profileIsComplete
-    ? trim((string)($studentPortalProfile['student_number'] ?? $studentDirectoryRecord['student_number'] ?? ''))
-    : trim((string)($_POST['student_number'] ?? (string)($studentDirectoryRecord['student_number'] ?? '')));
-$suggestedProgramId = synk_student_resolve_suggested_program_id($studentProgramOptions, $studentDirectoryRecord);
-$selectedProgramSetupId = ($profileIsComplete && (int)($studentPortalProfile['program_id'] ?? 0) > 0)
-    ? (int)($studentPortalProfile['program_id'] ?? 0)
-    : max(0, (int)($_POST['program_id'] ?? $suggestedProgramId));
-$studentSetupCampusOptions = [];
-foreach ($studentProgramOptions as $programOption) {
-    $campusId = (int)($programOption['campus_id'] ?? 0);
-    if ($campusId <= 0 || isset($studentSetupCampusOptions[$campusId])) {
-        continue;
-    }
-
-    $studentSetupCampusOptions[$campusId] = [
-        'campus_id' => $campusId,
-        'campus_code' => (string)($programOption['campus_code'] ?? ''),
-        'campus_name' => (string)($programOption['campus_name'] ?? ''),
-    ];
-}
-
-$selectedSetupCampusId = 0;
-foreach ($studentProgramOptions as $programOption) {
-    if ((int)($programOption['program_id'] ?? 0) === $selectedProgramSetupId) {
-        $selectedSetupCampusId = (int)($programOption['campus_id'] ?? 0);
-        break;
-    }
-}
-
-$requestedSetupCampusId = (int)($_POST['setup_campus_id'] ?? 0);
-if ($requestedSetupCampusId > 0 && isset($studentSetupCampusOptions[$requestedSetupCampusId])) {
-    $selectedSetupCampusId = $requestedSetupCampusId;
-} elseif ($selectedSetupCampusId <= 0 && $studentDirectoryRecord) {
-    $directoryCampusName = strtolower(trim((string)($studentDirectoryRecord['campus_name'] ?? '')));
-    foreach ($studentSetupCampusOptions as $campusOption) {
-        if (strtolower(trim((string)($campusOption['campus_name'] ?? ''))) === $directoryCampusName) {
-            $selectedSetupCampusId = (int)($campusOption['campus_id'] ?? 0);
-            break;
-        }
-    }
-}
-
-$activeCampusName = trim((string)($studentPortalProfile['campus_name'] ?? $studentDirectoryRecord['campus_name'] ?? ''));
-if ($activeCampusName === '') {
-    $activeCampusName = 'All Campuses';
-}
-
-$activeCollegeName = trim((string)($studentPortalProfile['college_name'] ?? $studentDirectoryRecord['college_name'] ?? ''));
-if ($activeCollegeName === '') {
-    $activeCollegeName = 'All Colleges';
-}
-
+$activeCampusName=trim((string)($studentDirectoryRecord['campus_name'] ?? ''));
+$activeCollegeName=trim((string)($studentDirectoryRecord['college_name'] ?? ''));
 $studentPortalDisplayName = $studentName;
 $studentPortalDisplayEmail = $studentEmail !== '' || $isAdminPreview
     ? $studentEmail
@@ -150,7 +86,7 @@ $studentPortalBackUrl = $isAdminPreview
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
-    <title>My Profile | Synk</title>
+    <title>Manage Profile | Synk Student</title>
 
     <link rel="icon" type="image/png" href="../assets/img/favicon/synk-icon.png" />
     <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css" />
@@ -188,8 +124,14 @@ $studentPortalBackUrl = $isAdminPreview
               <section class="card student-profile-workspace mb-4" aria-labelledby="studentWorkspaceTitle">
                 <div>
                   <p class="student-eyebrow">Student Workspace</p>
-                  <h1 id="studentWorkspaceTitle">Welcome, <?= synk_student_h($studentName) ?>.</h1>
-                  <p class="student-profile-intro">Review your enrolled subjects and class details by academic year.</p>
+                  <h1 id="studentWorkspaceTitle">Manage Profile</h1>
+                  <p class="student-profile-intro">Your name and student ID come from your college?s imported records.</p>
+                  <div class="student-managed-profile">
+                    <img class="student-profile-photo" src="<?= synk_student_h($profilePhotoUrl ?: 'profile-placeholder.svg') ?>" alt="<?= synk_student_h($studentName) ?>" onerror="this.onerror=null;this.src='profile-placeholder.svg';">
+                    <div><strong><?= synk_student_h($studentName) ?></strong><span><?= synk_student_h($studentDirectoryRecord['student_number']) ?></span><small><?= synk_student_h($studentEmail) ?></small>
+                    <?php if (!$isAdminPreview): ?><button class="btn btn-outline-primary mt-2" type="button" data-bs-toggle="modal" data-bs-target="#studentProfilePhotoModal"><i class="bx bx-camera me-1" aria-hidden="true"></i><?= $profilePhotoUrl ? 'Update photo' : 'Add photo' ?></button><?php endif; ?></div>
+                  </div>
+                  <?php if (!$isAdminPreview && ($_GET['photo_updated'] ?? '')==='1'): ?><p class="text-success mt-3 mb-0" role="status">Your profile photo has been updated.</p><?php endif; ?>
                 </div>
                 <div class="student-profile-context" aria-label="Current academic term and college">
                   <span class="badge bg-label-primary"><?= synk_student_h($currentTerm['term_text'] ?? 'Current academic term') ?></span>
@@ -267,105 +209,7 @@ $studentPortalBackUrl = $isAdminPreview
               </section>
             </div>
 
-            <?php if (!$isAdminPreview && !$profileIsComplete): ?>
-              <div
-                class="modal fade student-setup-modal"
-                id="studentSetupModal"
-                tabindex="-1"
-                aria-labelledby="studentSetupModalLabel"
-                aria-hidden="true"
-                data-bs-backdrop="static"
-                data-bs-keyboard="false"
-              >
-                <div class="modal-dialog modal-dialog-centered">
-                  <div class="modal-content">
-                    <div class="modal-header px-4 pt-4">
-                      <div>
-                        <h4 class="modal-title mb-1" id="studentSetupModalLabel">First-Time Student Setup</h4>
-                        <p class="text-muted mb-0">Complete your profile once. Your imported subjects are already available on the dashboard.</p>
-                      </div>
-                    </div>
-                    <div class="modal-body px-4 pb-4">
-                      <?php if ($profileSetupError !== ''): ?>
-                        <div class="alert alert-danger mb-3" role="alert">
-                          <?php echo synk_student_h($profileSetupError); ?>
-                        </div>
-                      <?php endif; ?>
-
-                      <?php if ($profileSetupStatus === 'required'): ?>
-                        <div class="alert alert-warning mb-3" role="alert">
-                          Complete your enrolled program and ID number first before opening the rest of the student portal.
-                        </div>
-                      <?php endif; ?>
-
-                      <p class="student-setup-lead mb-3">
-                        Enter your enrolled program and ID number now. Once submitted, these details cannot be changed from the student portal because they will be used as the basis of future student information.
-                      </p>
-
-                      <div class="student-setup-lock-note mb-4">
-                        Review the program and student number carefully. They are locked after the first successful submission.
-                      </div>
-
-                      <form method="post" class="row g-3">
-                        <input type="hidden" name="csrf_token" value="<?php echo synk_student_h(synk_student_login_csrf()); ?>">
-                        <input type="hidden" name="complete_student_profile" value="1" />
-
-                        <div class="col-md-6">
-                          <label class="form-label fw-semibold" for="student_profile_campus_id">Campus</label>
-                          <select class="form-select" id="student_profile_campus_id" name="setup_campus_id" required>
-                            <option value="0">Select campus first</option>
-                            <?php foreach ($studentSetupCampusOptions as $campusOption): ?>
-                              <option value="<?php echo (int)($campusOption['campus_id'] ?? 0); ?>"<?php echo (int)($campusOption['campus_id'] ?? 0) === $selectedSetupCampusId ? ' selected' : ''; ?>>
-                                <?php echo synk_student_h((string)($campusOption['campus_name'] ?? 'Campus')); ?>
-                              </option>
-                            <?php endforeach; ?>
-                          </select>
-                        </div>
-
-                        <div class="col-md-6">
-                          <label class="form-label fw-semibold" for="student_profile_program_id">Enrolled Program</label>
-                          <select class="form-select" id="student_profile_program_id" name="program_id" required<?php echo $selectedSetupCampusId > 0 ? '' : ' disabled'; ?>>
-                            <option value="0"><?php echo $selectedSetupCampusId > 0 ? 'Select enrolled program' : 'Select campus first'; ?></option>
-                          </select>
-                          <div class="form-text student-setup-hint" id="student_profile_program_help">Program options will show as program code and major only.</div>
-                        </div>
-
-                        <div class="col-md-6">
-                          <label class="form-label fw-semibold" for="student_profile_student_number">ID Number</label>
-                          <input
-                            type="text"
-                            class="form-control"
-                            id="student_profile_student_number"
-                            name="student_number"
-                            value="<?php echo synk_student_h($studentNumberValue); ?>"
-                            inputmode="numeric"
-                            pattern="\d{4,10}"
-                            maxlength="10"
-                            placeholder="Enter your ID number"
-                            required
-                          />
-                        </div>
-
-                        <div class="col-md-6">
-                          <label class="form-label fw-semibold">Institutional Email</label>
-                          <input type="text" class="form-control" value="<?php echo synk_student_h($studentEmail); ?>" readonly />
-                        </div>
-
-                        <div class="col-md-6">
-                          <label class="form-label fw-semibold">Directory Name</label>
-                          <input type="text" class="form-control" value="<?php echo synk_student_h($studentName); ?>" readonly />
-                        </div>
-
-                        <div class="col-12 d-flex flex-wrap gap-2">
-                          <button type="submit" class="btn btn-primary">I Confirm</button>
-                          <a href="../logout.php" class="btn btn-outline-secondary">Log Out</a>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            <?php endif; ?>
+            <?php if (!$isAdminPreview) require __DIR__.'/profile-photo-modal.php'; ?>
 
             <?php include '../footer.php'; ?>
           </div>
@@ -379,102 +223,6 @@ $studentPortalBackUrl = $isAdminPreview
     <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
     <script src="../assets/vendor/js/menu.js"></script>
     <script src="../assets/js/main.js"></script>
-    <?php if (!$isAdminPreview && !$profileIsComplete): ?>
-      <script>
-        window.addEventListener('load', function () {
-          var setupPrograms = <?php
-          $setupProgramsPayload = array_map(static function (array $programOption): array {
-              return [
-                  'program_id' => (int)($programOption['program_id'] ?? 0),
-                  'campus_id' => (int)($programOption['campus_id'] ?? 0),
-                  'label' => synk_student_format_setup_program_label($programOption),
-              ];
-          }, $studentProgramOptions);
-          echo json_encode($setupProgramsPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-          ?>;
-          var modalElement = document.getElementById('studentSetupModal');
-          var campusSelect = document.getElementById('student_profile_campus_id');
-          var programSelect = document.getElementById('student_profile_program_id');
-          var programHelp = document.getElementById('student_profile_program_help');
-          var selectedProgramId = <?php echo (int)$selectedProgramSetupId; ?>;
-
-          if (!modalElement) {
-            return;
-          }
-
-          function renderProgramOptions() {
-            if (!campusSelect || !programSelect) {
-              return;
-            }
-
-            var campusId = parseInt(campusSelect.value || '0', 10);
-            var filteredPrograms = setupPrograms.filter(function (program) {
-              return campusId > 0 && program.campus_id === campusId;
-            });
-
-            programSelect.innerHTML = '';
-
-            var placeholder = document.createElement('option');
-            placeholder.value = '0';
-
-            if (campusId <= 0) {
-              placeholder.textContent = 'Select campus first';
-              programSelect.appendChild(placeholder);
-              programSelect.disabled = true;
-              if (programHelp) {
-                programHelp.textContent = 'Select a campus first to load matching programs.';
-              }
-              return;
-            }
-
-            placeholder.textContent = filteredPrograms.length > 0 ? 'Select enrolled program' : 'No programs available for this campus';
-            programSelect.appendChild(placeholder);
-            programSelect.disabled = filteredPrograms.length === 0;
-
-            filteredPrograms.forEach(function (program) {
-              var option = document.createElement('option');
-              option.value = String(program.program_id);
-              option.textContent = program.label;
-              if (program.program_id === selectedProgramId) {
-                option.selected = true;
-              }
-              programSelect.appendChild(option);
-            });
-
-            if (!filteredPrograms.some(function (program) { return program.program_id === selectedProgramId; })) {
-              selectedProgramId = 0;
-              programSelect.value = '0';
-            }
-
-            if (programHelp) {
-              programHelp.textContent = filteredPrograms.length > 0
-                ? 'Only programs under the selected campus are shown.'
-                : 'No active programs are available under the selected campus.';
-            }
-          }
-
-          if (campusSelect) {
-            campusSelect.addEventListener('change', function () {
-              selectedProgramId = 0;
-              renderProgramOptions();
-            });
-          }
-
-          if (programSelect) {
-            programSelect.addEventListener('change', function () {
-              selectedProgramId = parseInt(programSelect.value || '0', 10);
-            });
-          }
-
-          renderProgramOptions();
-
-          var studentSetupModal = new bootstrap.Modal(modalElement, {
-            backdrop: 'static',
-            keyboard: false
-          });
-          studentSetupModal.show();
-        });
-      </script>
-    <?php endif; ?>
+    <?php if (!$isAdminPreview): ?><script src="profile-photo.js?v=<?= (int)filemtime(__DIR__.'/profile-photo.js') ?>" defer></script><?php endif; ?>
   </body>
 </html>

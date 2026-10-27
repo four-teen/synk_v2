@@ -21,6 +21,27 @@ Management navigation groups pages by usage: **Overview** contains Dashboard;
 Contributions, Events, and Violations. Every page retains its existing route,
 organization access checks, active-page indicator, and selected viewing period.
 
+Below 1200px, Management replaces the sidebar with a fixed bottom navigation bar:
+Home, Students, Events, Financial, and More. More opens a dismissible bottom sheet
+for Contributions and Violations. All links retain the viewing period. The page
+reserves space for the bar and the phone's safe area; dialogs hide the bar and
+prevent it from receiving focus. Desktop navigation continues to use the sidebar.
+
+Below 576px, event, contribution, and violation tables become labeled cards with
+full-width attendance actions. Student financial tables also use labeled records
+without sideways scrolling. Table roles and headers remain available to screen
+readers. Controls have touch targets of at least 44px, inputs use 16px text to
+avoid focus zoom, and financial details scroll as one panel on phones.
+
+QR attendance fills the phone viewport, including short landscape screens. Its
+Done button stays in the footer, the latest scanned student stays visible while
+scrolling, and recent scans and attendance closure are separate
+expandable sections. Managing attendance status opens the closure section;
+Take attendance starts the camera. Rotation preserves the camera stream. Closing
+the dialog or hiding the page stops the camera. Camera access still requires HTTPS
+or localhost and the user's browser permission; reading a QR image and using a
+connected scanner remain available.
+
 ## Account setup and sign-in
 
 1. Create the organization in **Administrator → Institution Setup → Organizations**,
@@ -82,9 +103,14 @@ Final for the assigned organization in the current academic year/semester. Other
 organizations keep their own setting. Changing the viewing selection does not
 change the operational period.
 
-Student enrollments and contribution, event, and violation definitions cover the
-whole semester. They are shown for both terms. Historical definitions have no
-reliable Midterm/Final field and are not assigned one by inference. Future
+Student enrollments and violation definitions cover the whole semester.
+Contributions and events store their Management-only Midterm/Final term, use the current
+period on creation, and are listed only for the selected year/semester/exam term.
+Changing a period filters records without moving them. Catalog records outside the
+current operational period are available for viewing only. Sessions inherit their
+parent event's period, and contribution event links require the same full period.
+Historical definitions
+without a reliable term are not assigned one by inference. Future
 Management payments, clearance, and attendance history must use Management's
 period helper and storage. The shared academic helper must not gain an exam term.
 
@@ -112,19 +138,30 @@ the imported class, not the shared identity's original home program. This handle
 students imported in more than one college without granting access to another
 college's classes. Students are counted once per selected term, including when
 they have multiple imported subjects. The Students page starts with three summary cards and uses the header's selected
-academic year/semester. Its listing form contains a wide name/student-number
-search, a 25/50/100 students-per-page selector, and one Search button. The separate
+academic year/semester. The heading reads **DIRECTORY | Student listing** on one
+line. Its listing form contains a wide name/student-number search that applies
+after typing pauses, and a 25/50/100 students-per-page selector that applies
+immediately. There is no Search button or repeated period/count heading. The
+list shows Student Name (ID, name, email) and Actions. **Financial overview** opens
+the wider financial account view with the selected student's profile sidebar,
+contributions, events/attendance, violations, payment history, and account total.
+Active contributions are automatically totaled. Closed event attendance adds
+absence fines for roster students without a scan; open events remain pending.
+Payment collection, deductions, and student violation assignment remain future work. See
+[management-student-financial-overview.md](management-student-financial-overview.md).
+The separate
 directory term, program, class section, email status, sort, refresh, and reset
 controls have been removed. Old bookmarked filter values do not override the
-header's period or silently restrict the listing. Student details retain the
-selected college's subjects, sections, academic year/semester, and assigned faculty.
+header's period or silently restrict the listing. The profile uses the selected
+college's class context for course, year level, and section information.
 The college name is displayed at the bottom of the Management sidebar.
 Profile edits, account
 changes, email generation, and roster deletion remain in the existing roles.
 
 Contributions and Events provide organization-scoped lists, filters, pagination, and
-add/edit/delete dialogs. Events include editable sessions and attendance rule
-settings. The dashboard shows actual definition counts for the selected term.
+add/edit/delete dialogs. Event forms show Event date, status, and Absence fine
+together, with no attendance/location or session controls. Simplified saves retain
+existing location and session records. The dashboard shows actual definition counts for the selected term.
 The imported definitions and their relationships are described in
 [management-catalog.md](management-catalog.md). Payment collection, student charge
 assignments, and attendance capture are separate future workflows.
@@ -157,7 +194,7 @@ Financial rows were removed for the fresh start.
 ## Database deployment
 
 For manual live deployment, select the intended Synk database in phpMyAdmin and
-import `backend/sql/management_live_install.sql` as one file. It combines the six
+import `backend/sql/management_live_install.sql` as one file. It combines the eleven
 Management table definitions, account role/scope/Google-field preparation, and the
 earlier Violations schema upgrade. Existing enum role values and their metadata
 are preserved. The file checks for existing columns, keys, and constraints before
@@ -173,6 +210,11 @@ scripts against that server's configured database:
 php backend/tools/prepare_management_portal.php
 php backend/tools/prepare_management_violations.php
 php backend/tools/prepare_management_organizations.php
+php backend/tools/prepare_management_exam_terms.php
+php backend/tools/prepare_management_contribution_periods.php
+php backend/tools/prepare_management_contribution_status.php
+php backend/tools/prepare_management_event_periods.php
+php backend/tools/prepare_management_attendance.php
 ```
 
 The repeatable preparation script extends `tbl_useraccount.role` with `management`
@@ -198,19 +240,24 @@ Run database fixture suites sequentially:
 ```powershell
 php tests/management-portal.php
 php tests/management-crud.php
+php tests/management-attendance.php
+php tests/management-contribution-periods.php
+php tests/management-event-periods.php
 php tests/college-dean-accounts.php --http
 php tests/account-switching.php --http
 php tests/student-portal.php
 php tests/professor-account-links-http.php
 node tests/college-dean-account-form.js
 node tests/management-portal-browser.cjs
+node tests/management-qr-roundtrip.cjs
 ```
 
 Fixtures roll back test accounts and student imports. Browser tests use an isolated
 headless profile and token-guarded localhost fixture routes, intercept account
-requests, and check login, analytics, student pagination, menu behavior, account
-role/campus/college/organization controls, Administrator organization CRUD, contribution/event forms, session editing, delete dialogs,
-student details, and 320–1440px layouts. Browser mutations are intercepted; real
+requests, and check login, analytics, student pagination, mobile navigation, account
+role/campus/college/organization controls, Administrator organization CRUD, contribution/event forms, delete dialogs,
+student financial totals, QR camera scanning, attendance closure, camera cleanup,
+touch navigation, portrait/landscape scanning, and 320–1440px layouts. Browser mutations are intercepted; real
 CRUD HTTP scenarios use a separate transaction per request and roll back fixtures.
 The local existing CCS account was explicitly assigned to CSSO. Repeatable deployment
 migrations do not assign arbitrary accounts; use Accounts to choose their organization.

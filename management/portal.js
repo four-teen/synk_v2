@@ -1,24 +1,26 @@
 'use strict';
 (() => {
-  const toggle=document.getElementById('management-menu-toggle');
   const menuElement=document.getElementById('layout-menu');
   const backdrop=document.getElementById('management-menu-backdrop');
+  const mobileNav=document.getElementById('management-mobile-nav');
+  const more=document.getElementById('management-mobile-more'),moreToggle=document.getElementById('management-more-toggle');
   const desktop=window.matchMedia('(min-width: 1200px)');
-  if (!toggle || !menuElement || !backdrop) return;
+  if (!menuElement || !mobileNav) return;
   function sync() {
-    const open=!desktop.matches && document.documentElement.classList.contains('layout-menu-expanded');
-    backdrop.hidden=!open; menuElement.inert=!desktop.matches && !open;
-    toggle.setAttribute('aria-expanded',String(open)); toggle.setAttribute('aria-label',open ? 'Close navigation' : 'Open navigation');
+    menuElement.inert=!desktop.matches;
+    mobileNav.inert=desktop.matches || document.body.classList.contains('modal-open');
+    if(backdrop)backdrop.hidden=true;
+    if(!desktop.matches && document.documentElement.classList.contains('layout-menu-expanded'))window.Helpers.setCollapsed(true,true);
+    if(desktop.matches && more?.classList.contains('show'))bootstrap.Offcanvas.getOrCreateInstance(more).hide();
   }
   new MutationObserver(sync).observe(document.documentElement,{ attributes:true, attributeFilter:['class'] });
+  new MutationObserver(sync).observe(document.body,{ attributes:true, attributeFilter:['class'] });
   desktop.addEventListener('change',sync);
-  document.addEventListener('keydown',event=>{
-    if(event.key==='Escape' && document.documentElement.classList.contains('layout-menu-expanded')) {
-      window.Helpers.setCollapsed(true,true); sync(); toggle.focus();
-    }
-  });
-  backdrop.addEventListener('click',()=>toggle.focus());
-  document.querySelector('.management-menu-close')?.addEventListener('click',()=>toggle.focus());
+  more?.addEventListener('show.bs.offcanvas',()=>moreToggle.setAttribute('aria-expanded','true'));
+  more?.addEventListener('hidden.bs.offcanvas',()=>{moreToggle.setAttribute('aria-expanded','false');if(!desktop.matches)moreToggle.focus();});
+  const viewport=window.visualViewport;
+  function sizeViewport(){if(!viewport || viewport.scale===1)document.documentElement.style.setProperty('--management-viewport-height',`${Math.round(viewport?.height || innerHeight)}px`);}
+  viewport?.addEventListener('resize',sizeViewport);window.addEventListener('resize',sizeViewport);sizeViewport();
   const year=document.getElementById('management-view-year'), semester=document.getElementById('management-view-semester');
   const examTerm=document.getElementById('management-view-exam-term'), key=document.getElementById('management-term');
   function setPeriod(term, exam) {

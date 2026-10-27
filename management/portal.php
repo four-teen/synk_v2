@@ -15,7 +15,7 @@ $navigation = [
     'dashboard'=>['Dashboard','index.php','bx-home-circle','College metrics and community overview','primary'],
     'financial'=>['Financial','financial.php','bx-receipt','New student financial records','info'],
     'contributions'=>['Contributions','contributions.php','bx-wallet','Contribution setup, amounts, and records','primary'],
-    'events'=>['Events','events.php','bx-calendar-event','Organization activities and event sessions','success'],
+    'events'=>['Events','events.php','bx-calendar-event','Organization events and QR attendance','success'],
     'violations'=>['Violations','violations.php','bx-error-circle','Violation types and standard amounts','warning'],
     'students'=>['Students','students.php','bx-user-pin','Unique students and imported subject lists','secondary'],
 ];
@@ -37,10 +37,13 @@ try {
     }
     $catalog = null; $catalogOptions = null; $activityCounts = ['contributions'=>0,'events'=>0];
     if (synk_management_catalog_ready($conn)) {
-        foreach (['contributions','events'] as $kind) $activityCounts[$kind] = (int)synk_management_query($conn, 'SELECT COUNT(*) AS n FROM tbl_management_' . $kind . ' WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=?','iiii',[$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester']])[0]['n'];
+        foreach (['contributions','events'] as $kind) {
+            $periodValues = [$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester'],$term['exam_term']];
+            $activityCounts[$kind] = (int)synk_management_query($conn, 'SELECT COUNT(*) AS n FROM tbl_management_' . $kind . ' WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=?','iiiis',$periodValues)[0]['n'];
+        }
         if (in_array($page,['contributions','events'],true)) {
             $catalog = synk_management_catalog_list($conn,$scope,$term,$page,$_GET);
-            $catalogOptions = synk_management_catalog_options($conn,$scope);
+            $catalogOptions = synk_management_catalog_options($conn,$scope,$term);
         }
     } elseif (in_array($page,['contributions','events'],true)) throw new RuntimeException('The Management catalog has not been prepared.');
 } catch (OutOfBoundsException $error) { http_response_code(404); exit(synk_management_h($error->getMessage())); }
@@ -79,7 +82,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php require __DIR__ . '/navbar.php'; ?>
   <div class="content-wrapper">
   <main id="main-content" class="container-xxl flex-grow-1 container-p-y management-main">
-    <?php if($page!=='students'): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section><?php endif; ?>
+    <?php if(!in_array($page,['students','contributions','events'],true)): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section><?php endif; ?>
     <?php if ($page === 'dashboard'): ?>
       <section class="management-stats" aria-label="College overview">
         <?php foreach ([['students','Students','bx-group','primary'],['programs','Programs represented','bx-book-open','success'],['sections','Class sections','bx-buildings','info'],['enrollments','Subject registrations','bx-list-check','warning']] as $stat): ?>
@@ -115,9 +118,12 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 </div></div>
 <button type="button" class="layout-overlay layout-menu-toggle" id="management-menu-backdrop" aria-label="Close navigation" hidden></button>
 </div>
+<?php require __DIR__.'/mobile-navigation.php'; ?>
 <script type="application/json" id="management-config"><?= json_encode(['csrf_token'=>$_SESSION['management_csrf_token'],'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],'organization_id'=>$scope['organization_id'],'current_term'=>$currentTerm['key'],'current_exam_term'=>$currentTerm['exam_term'],'current_period_version'=>$currentTerm['period_version'],'current_period'=>$currentTerm['period_key'],'current_term_text'=>$currentTerm['term_text'],'term'=>$term['key'],'exam_term'=>$term['exam_term'],'directory_term'=>$directory['filters']['term'] ?? $term['key'],'term_labels'=>array_reduce($years,static function($labels,$year){ for($sem=1;$sem<=3;$sem++) $labels[$year['ay_id'].':'.$sem]=$year['ay'].' · '.synk_semester_label($sem); return $labels; },[]),'page'=>$page,'today'=>date('Y-m-d'),'endpoint'=>'../backend/query_management.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script src="../assets/vendor/js/bootstrap.js"></script>
 <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
 <script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script><script src="portal.js?v=<?= (int)filemtime(__DIR__.'/portal.js') ?>" defer></script>
+<?php if ($page === 'students'): ?><script src="student-financial.js?v=<?= (int)filemtime(__DIR__.'/student-financial.js') ?>" defer></script><?php endif; ?>
+<?php if ($page === 'events'): ?><script src="../assets/vendor/libs/management-qr/jsQR.js" defer></script><script src="attendance.js?v=<?= (int)filemtime(__DIR__.'/attendance.js') ?>" defer></script><?php endif; ?>
 <script src="workspace.js?v=<?= (int)filemtime(__DIR__.'/workspace.js') ?>" defer></script>
 </body></html>

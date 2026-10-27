@@ -16,9 +16,9 @@ $studentSidebarItems = [
         'href' => 'profile.php',
         'icon_bg' => 'bg-label-secondary',
         'icon' => 'bx-id-card',
-        'title' => 'My Profile',
+        'title' => 'Manage Profile',
         'mobile_title' => 'Profile',
-        'description' => 'Review your student details',
+        'description' => 'Update your photo and review student details',
         'pages' => ['profile.php'],
     ],
     [
@@ -41,6 +41,14 @@ $studentSidebarItems = [
         'description' => 'Evaluate faculty members who handled your subjects',
         'pages' => ['class-program.php'],
     ],
+];
+if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
+    'key'=>'finances','href'=>'finances.php','icon_bg'=>'bg-label-warning','icon'=>'bx-wallet',
+    'title'=>'My Finances','mobile_title'=>'Finances','description'=>'Contributions, attendance and charges','pages'=>['finances.php'],
+];
+if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
+    'key'=>'attendance_qr','href'=>'attendance-qr.php','icon_bg'=>'bg-label-primary','icon'=>'bx-qr',
+    'title'=>'My QR','mobile_title'=>'QR','description'=>'Show or save your student QR','pages'=>['attendance-qr.php'],
 ];
 $studentSidebarStudentId = synk_student_is_staff_preview_mode()
     ? synk_student_preview_student_id_from_request() : (int)($_SESSION['student_id'] ?? 0);

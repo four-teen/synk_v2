@@ -18,6 +18,15 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if (strpos($action,'attendance_')===0) {
+        require_once __DIR__.'/management_attendance_helper.php';
+        if ($action==='attendance_get') {
+            $event=synk_management_catalog_get($conn,$scope,'events',synk_management_input_id($_POST['event_id'] ?? null));
+            if (!synk_management_catalog_in_period($event,synk_management_view_term($conn,$_POST,$scope))) throw new OutOfBoundsException('This event is outside the selected period.');
+            synk_management_response(['status'=>'ok','attendance'=>synk_management_attendance_summary($conn,$scope,(int)$event['event_id'])]);
+        }
+        synk_management_response(['status'=>'ok']+synk_management_attendance_write($conn,$scope,$action,$_POST));
+    }
     if ($action === 'save_management_term') {
         synk_management_response(['status'=>'ok'] + synk_management_save_current_exam_term($conn,$scope,$_POST));
     }
@@ -36,6 +45,9 @@ try {
     $kind = (string)($_POST['kind'] ?? ''); synk_management_catalog_kind($kind);
     if ($action === 'get') {
         $record = synk_management_catalog_get($conn,$scope,$kind,synk_management_input_id($_POST['record_id'] ?? ''));
+        if (!synk_management_catalog_in_period($record,synk_management_view_term($conn,$_POST,$scope))) {
+            throw new OutOfBoundsException('This record is unavailable in the selected Management period.');
+        }
         synk_management_response(['status'=>'ok','record'=>$record]);
     }
     $result = synk_management_catalog_write($conn,$scope,$kind,$action,$_POST);

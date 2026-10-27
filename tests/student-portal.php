@@ -11,6 +11,10 @@ $request=static function(string $scenario,bool $authorized=true)use($route,$toke
 };
 $header=static function(array $response,string $name){preg_match('/'.preg_quote($name,'/').': ([^\r\n]+)/i',$response['headers'],$m);return isset($m[1])?json_decode(rawurldecode($m[1]),true):null;};
 try{
+    $r=$request('attendance_qr_page');$check($r['status']===200 && strpos($r['body'],'My QR')!==false && strpos($r['body'],'student-attendance-config')!==false && strpos($r['body'],'student-qr-save')!==false,'Student QR page or save action is unavailable.');
+    $r=$request('attendance_qr_issue');$check($r['status']===200 && preg_match('/^SYNK-ATTENDANCE:[a-f0-9]{64}$/D',$r['data']['qr_code'] ?? '')===1,'Authenticated student could not obtain a private QR.');
+    $check($header($r,'X-QA-QR-Owners')===[$header($r,'X-QA-Students')['first']],'A forged student ID issued another student\'s QR.');
+    foreach(['attendance_qr_get'=>405,'attendance_qr_csrf'=>403,'attendance_qr_staff'=>401,'attendance_qr_anonymous'=>401]as$scenario=>$expected){$r=$request($scenario);$check($r['status']===$expected,'Student QR access/CSRF/method restriction failed: '.$scenario);}
     $r=$request('student_evaluation');
     $check($r['status']===200&&substr_count($r['body'],'name="ratings[')===30&&strpos($r['body'],'Always manifested')!==false&&strpos($r['body'],'Content Knowledge, Pedagogy and Technology')!==false,'Student forms use 15 revised statements per faculty and the document frequency scale.');
     $check(strpos($r['body'],'on the provided answer sheet')===false&&strpos($r['body'],'January 14, 2026')!==false,'The revised instrument has online instructions and its effective date.');
