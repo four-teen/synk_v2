@@ -43,6 +43,12 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
     if (!synk_management_students_ready($conn)) throw new OutOfBoundsException('Student records are unavailable.');
     $detail = synk_dean_students_detail($conn,$scope,$id,$filters);
     if (!$detail) throw new OutOfBoundsException('This student is unavailable in your college.');
-    // Return directory information only; sign-in histories and student editing stay in their existing roles.
-    return $detail;
+    require_once __DIR__ . '/management_student_financial_helper.php';
+    $period = synk_management_view_term($conn,$input,$scope);
+    $membership=synk_dean_students_source($scope,['ay_id'=>$period['ay_id'],'semester'=>$period['semester']],$conn);
+    if (!synk_management_query($conn,'SELECT DISTINCT s.student_id '.$membership['sql'].' AND s.student_id=? LIMIT 1',$membership['types'].'i',array_merge($membership['params'],[$id]))) {
+        throw new OutOfBoundsException('This student is not in the selected academic year and semester.');
+    }
+    // Membership is checked before returning this organization's period catalog.
+    return $detail + ['financial'=>synk_management_student_financial_overview($conn,$scope,$period,$id)];
 }

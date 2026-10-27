@@ -76,6 +76,19 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 .student-profile-intro{font-size:13px;line-height:1.6;margin:0}
 .student-profile-context{display:flex;flex:0 0 270px;flex-wrap:wrap;justify-content:flex-end;gap:7px;max-width:100%}
 .student-profile-context .badge{font-size:10px;line-height:1.5;white-space:normal;overflow-wrap:anywhere}
+.student-managed-profile{display:flex;align-items:center;gap:18px;margin-top:20px}
+.student-managed-profile>div{min-width:0}
+.student-managed-profile strong,.student-managed-profile span,.student-managed-profile small{display:block;overflow-wrap:anywhere}
+.student-managed-profile span,.student-managed-profile small{color:#7b8799;margin-top:4px}
+.student-profile-photo{width:96px;height:96px;object-fit:cover;border-radius:50%;flex-shrink:0;border:3px solid #eeedff;background:#f5f6fa}
+.student-photo-modal .modal-content>form{display:flex;flex-direction:column;min-height:0;max-height:inherit}
+.student-photo-modal .modal-body{overflow-y:auto;min-height:0}
+.student-photo-preview{display:block;width:144px;height:144px;margin:16px auto}
+.student-photo-identity{text-align:center;overflow-wrap:anywhere}
+.student-photo-identity strong,.student-photo-identity span{display:block}
+.student-photo-identity span{margin-top:4px;color:#7b8799}
+.student-photo-required-note{background:#f2f1ff;border-radius:8px;padding:12px;color:#5659b9}
+@media(max-width:575px){.student-managed-profile{align-items:flex-start;gap:12px}.student-managed-profile>.student-profile-photo{width:72px;height:72px}.student-photo-modal .modal-footer{gap:8px}.student-photo-modal .modal-footer .btn{margin:0;min-height:44px}}
 .student-subject-filter{display:grid;gap:5px;flex:0 0 230px;width:230px;max-width:100%;min-width:0;margin:0}
 .student-subject-filter .form-label{font-size:11px;color:var(--student-muted)}
 .student-subject-filter .form-select{font-size:12px;min-height:40px;width:100%;min-width:0}
@@ -145,6 +158,7 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 
 /* The same authorized menu becomes a bottom bar on phones and tablets. */
 .student-bottom-nav{display:none}
+@media screen and (max-width:359.98px){.student-bottom-nav .student-bottom-link{font-size:9px}}
 @media screen and (max-width:1199.98px){
   .student-portal #layout-menu,
   .student-portal .layout-navbar>.layout-menu-toggle,

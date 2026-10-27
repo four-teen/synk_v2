@@ -1,0 +1,67 @@
+.student-finance-heading{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}
+.student-finance-heading h1{font-size:28px;font-weight:600;color:#3d4c64;margin:0 0 8px}
+.student-finance-heading p:last-child{margin:0;color:#7c899d}
+.student-finance-heading>.badge{white-space:normal;text-align:left;line-height:1.6}
+.student-finance-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px}
+.student-finance-stat{padding:22px;min-width:0;border:1px solid #e5e9f1;box-shadow:none}
+.student-finance-stat>span{display:flex;align-items:center;gap:8px;color:#718097;font-size:13px}
+.student-finance-stat>span>i{font-size:20px;color:#696cff}
+.student-finance-stat>strong{display:block;font-size:27px;font-weight:600;line-height:1.3;margin:14px 0 8px;color:#3d4c64;overflow-wrap:anywhere}
+.student-finance-stat>small{font-size:11px;color:#7c899d}
+.student-finance-due{background:#efeeff;border-color:#dcd9ff}
+.student-finance-due>strong{color:#696cff}
+.student-finance-periods{padding:20px 24px;gap:14px;box-shadow:none;border:1px solid #e5e9f1}
+.student-finance-periods>div>strong{font-size:13px;color:#4c5d75}
+.student-finance-periods p{font-size:12px;color:#7c899d;margin:5px 0 0}
+.student-finance-period-list{display:flex;gap:10px;flex-wrap:wrap}
+.student-finance-period-list>span{display:flex;flex-direction:column;gap:4px;max-width:100%;padding:10px 12px;background:#f7f8fc;border-radius:8px;font-size:11px;overflow-wrap:anywhere;color:#718097}
+.student-finance-period-list strong{color:#5969aa;font-size:12px}
+.student-finance-links{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+.student-finance-links>a{padding:9px 12px;background:#fff;border:1px solid #e5e9f1;border-radius:8px;font-size:12px;color:#596b86;min-height:40px}
+.student-finance-links>a:hover,.student-finance-links>a:focus-visible{background:#f0efff;color:#696cff}
+.student-finance-panel{border:1px solid #e5e9f1;box-shadow:none;margin-bottom:20px;overflow:hidden;scroll-margin-top:24px}
+.student-finance-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;border-bottom:1px solid #edf0f5}
+.student-finance-panel-heading>div{display:flex;align-items:center;gap:10px;min-width:0}
+.student-finance-panel-heading i{font-size:22px;color:#696cff}
+.student-finance-panel-heading h2{font-size:16px;font-weight:600;color:#4c5d75;margin:0}
+.student-finance-panel-heading>span{font-size:12px;color:#8a95a7;white-space:nowrap}
+.student-finance-records{list-style:none;margin:0;padding:0}
+.student-finance-records>li{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:20px 24px;border-bottom:1px solid #edf0f5}
+.student-finance-records>li:last-child{border-bottom:0}
+.student-finance-record-main{min-width:0;flex:1}
+.student-finance-record-main h3{font-size:14px;line-height:1.5;font-weight:600;margin:0 0 6px;color:#4c5d75;overflow-wrap:anywhere}
+.student-finance-record-main p{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;margin:0 0 4px;color:#718097;overflow-wrap:anywhere}
+.student-finance-record-main p>span{font-weight:500}
+.student-finance-record-main small{display:block;color:#8a95a7;font-size:11px;line-height:1.7;overflow-wrap:anywhere}
+.student-finance-record-amount{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;max-width:45%}
+.student-finance-record-amount strong{font-size:17px;color:#4c5d75;font-weight:600;overflow-wrap:anywhere;text-align:right}
+.student-finance-record-amount>small{font-size:11px;color:#8a95a7;text-align:right}
+.student-finance-status{font-size:11px;padding:5px 9px;border-radius:6px;background:#f1f3f8;color:#7a879a;line-height:1.5;text-align:center}
+.student-finance-present{background:#e8f7ee;color:#28794c}
+.student-finance-absent{background:#ffeded;color:#b44545}
+.student-finance-unpaid{background:#fff5e4;color:#9b6d19}
+.student-finance-attendance-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:20px 24px 12px}
+.student-finance-attendance-summary>div{display:flex;align-items:center;gap:10px;padding:12px;background:#f7f8fc;border-radius:8px}
+.student-finance-attendance-summary strong{font-size:22px;color:#4c5d75;font-weight:600}
+.student-finance-attendance-summary [data-attendance-count="present"]{color:#28794c}
+.student-finance-attendance-summary [data-attendance-count="absent"]{color:#b44545}
+.student-finance-attendance-summary span{font-size:12px;color:#7c899d}
+.student-finance-attendance-note{font-size:12px;color:#7c899d;padding:0 24px 16px;margin:0;border-bottom:1px solid #edf0f5;line-height:1.7}
+.student-finance-empty{padding:24px;margin:0;color:#8a95a7;font-size:13px;line-height:1.8}
+.student-finance-section-total{padding:15px 24px;background:#fafbfe;display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #edf0f5;font-size:13px;color:#718097}
+.student-finance-section-total strong{font-weight:600;color:#4c5d75;white-space:nowrap}
+.student-finance-secondary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.student-finance-secondary-grid>.student-finance-panel{display:flex;flex-direction:column}
+.student-finance-secondary-grid .student-finance-empty{flex:1}
+.student-finance-account-total{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,.85fr);gap:30px;padding:28px;border:1px solid #e5e9f1;box-shadow:none;scroll-margin-top:24px}
+.student-finance-account-total h2{font-size:21px;color:#4c5d75;font-weight:600;margin:0 0 10px}
+.student-finance-account-total p:last-child{font-size:13px;color:#8a95a7;line-height:1.8;max-width:330px;margin:0}
+.student-finance-account-total dl{margin:0}
+.student-finance-account-total dl>div{display:flex;justify-content:space-between;gap:20px;font-size:13px;padding:8px 0}
+.student-finance-account-total dt{font-weight:400;color:#7c899d}
+.student-finance-account-total dd{margin:0;color:#4c5d75;white-space:nowrap}
+.student-finance-account-total .student-finance-total-due{border-top:1px solid #e5e9f1;margin-top:10px;padding-top:20px;font-size:19px}
+.student-finance-total-due dt,.student-finance-total-due dd{color:#696cff;font-weight:600}
+@media(max-width:991.98px){.student-finance-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.student-finance-secondary-grid{grid-template-columns:minmax(0,1fr);gap:0}.student-finance-attendance-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:767.98px){.student-finance-heading{align-items:flex-start;flex-direction:column;gap:12px}.student-finance-account-total{grid-template-columns:minmax(0,1fr);gap:20px}.student-finance-heading h1{font-size:25px}}
+@media(max-width:575.98px){.student-finance-summary{gap:10px}.student-finance-stat{padding:16px 12px}.student-finance-stat>strong{font-size:22px}.student-finance-stat>span{font-size:11px;gap:5px}.student-finance-stat>span>i{font-size:17px}.student-finance-records>li{flex-direction:column;align-items:stretch;gap:12px;padding:18px 16px}.student-finance-record-amount{flex-direction:row;align-items:center;justify-content:space-between;max-width:100%;flex-wrap:wrap}.student-finance-panel-heading,.student-finance-periods{padding:18px 16px}.student-finance-panel-heading h2{font-size:14px}.student-finance-attendance-summary{padding:16px 16px 12px;gap:8px}.student-finance-attendance-summary>div{gap:8px;padding:10px}.student-finance-attendance-summary span{font-size:11px}.student-finance-attendance-note{padding:0 16px 16px}.student-finance-section-total{padding:14px 16px}.student-finance-empty{padding:20px 16px}.student-finance-account-total{padding:22px 16px}.student-finance-links>a{font-size:11px;padding:9px 10px}}

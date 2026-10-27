@@ -201,6 +201,16 @@ function synk_student_require_login(?mysqli $conn = null, bool $allowAdminPrevie
             }
         }
 
+        // Enforce photo completion before a Student page reads or processes its
+        // content. Profile itself remains available for the required upload.
+        $studentPage=(string)($_SERVER['PHP_SELF'] ?? '');
+        if (basename(dirname($studentPage))==='student' && basename($studentPage)!=='profile.php') {
+            require_once __DIR__.'/student_profile_image_helper.php';
+            if (synk_student_profile_image_url((int)$_SESSION['student_id'])==='') {
+                header('Location: profile.php?photo_required=1');exit;
+            }
+        }
+
         return;
     }
 

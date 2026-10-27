@@ -17,8 +17,16 @@ $request=static function(string $scenario)use($name,$token):array {
 };
 $find=static function(array $rows,int $id,string $key):?array {foreach($rows as $row)if((int)$row[$key]===$id)return $row;return null;};
 try {
+    foreach(['attendance_http_open','attendance_http_scan','attendance_http_duplicate','attendance_http_close']as$scenario){
+        $r=$request($scenario);$check($r['status']===200 && $r['response']['status']==='ok',$scenario.': attendance endpoint failed.');
+        if ($scenario==='attendance_http_duplicate')$check($r['response']['duplicate'] && $r['response']['attendance']['present']===1,'HTTP duplicate scan was not idempotent.');
+        if ($scenario==='attendance_http_close')$check($r['response']['attendance']['attendance_status']==='CLOSED','HTTP attendance close was not saved.');
+    }
+    foreach(['attendance_http_csrf'=>403,'attendance_http_role'=>401,'attendance_http_foreign'=>404,'attendance_http_stale'=>409,'attendance_http_array'=>400]as$scenario=>$status){
+        $r=$request($scenario);$check($r['status']===$status && $r['before']===$r['after'],$scenario.': unauthorized attendance request changed data.');
+    }
     foreach(['get_contribution','get_event']as$scenario){$r=$request($scenario);$check($r['status']===200&&strlen($r['response']['record']['version']??'')===64,$scenario.': record/version unavailable.');$check($r['before']===$r['after'],'Reading changed catalog records.');}
-    foreach(['add_contribution','save_contribution','add_event','save_event','add_second_session','remove_session']as$scenario){
+    foreach(['add_contribution','save_contribution','add_event','save_event','save_event_simple','add_second_session','remove_session']as$scenario){
         $r=$request($scenario);$check($r['status']===200&&($r['response']['status']??'')==='ok',$scenario.': save failed: '.json_encode($r['response']));
         $events=strpos($scenario,'event')!==false || strpos($scenario,'session')!==false;$table='tbl_management_'.($events?'events':'contributions');$key=$events?'event_id':'contribution_id';
         $row=$find($r['after'][$table],(int)$r['response']['record_id'],$key);
@@ -29,9 +37,13 @@ try {
         if($events){$expected=$scenario==='add_second_session'?2:($scenario==='remove_session'?0:1);$check(count($sessions)===$expected,'Event sessions were not saved atomically.');}
         if(strpos($scenario,'add_')!==0){$check($row['source_checksum']===str_repeat($events?'A':'C',64),'Editing changed source provenance.');}
         if($scenario==='save_event')$check($sessions[0]['fine_per_minute']==='0.1250'&&$sessions[0]['source_checksum']===str_repeat('B',64),'Editing lost exact rate or session provenance.');
+        if($scenario==='save_event_simple'){
+            $check($row['absence_fine']==='25.25' && $row['latitude']==='6.6155942' && $row['longitude']==='124.5997341' && $row['attendance_radius_m']==='100','The simplified event form lost its absence fine or existing location.');
+            $check($r['before']['tbl_management_event_sessions']===$r['after']['tbl_management_event_sessions'],'The simplified event form changed or removed existing sessions.');
+        }
     }
     foreach(['delete_contribution','delete_event']as$scenario){$r=$request($scenario);$check($r['status']===200,$scenario.': deletion failed.');$events=$scenario==='delete_event';$key=$events?'event_id':'contribution_id';$table='tbl_management_'.($events?'events':'contributions');$check($find($r['after'][$table],$r['ids'][$events?'event':'contribution'],$key)===null,'Deletion retained its definition.');if($events)$check($find($r['after']['tbl_management_event_sessions'],$r['ids']['session'],'session_id')===null,'Deleting an event retained its sessions.');}
-    $invalid=['delete_linked_event'=>409,'stale_contribution'=>409,'stale_delete_event'=>409,'foreign_contribution'=>404,'foreign_event'=>404,'foreign_org'=>403,'unassigned_event'=>403,'foreign_event_link'=>422,
+    $invalid=['delete_linked_event'=>409,'stale_contribution'=>409,'stale_delete_event'=>409,'foreign_contribution'=>404,'contribution_other_period_get'=>404,'event_other_period_get'=>404,'old_event_status'=>422,'old_session_status'=>422,'foreign_event'=>404,'foreign_org'=>403,'unassigned_event'=>403,'foreign_event_link'=>422,
         'bad_amount'=>422,'negative_amount'=>422,'large_amount'=>422,'bad_date'=>422,'bad_term'=>422,'bad_title'=>422,'bad_utf8'=>422,'bad_coordinates_event'=>422,'partial_coordinates_event'=>422,
         'bad_session'=>422,'duplicate_session'=>422,'foreign_session'=>422,'bad_csrf'=>403,'array_input'=>400,'forged_college'=>403,'forged_campus'=>403,'no_google'=>403,'no_role'=>401,'anonymous'=>401,'revoked'=>403,'reassigned'=>403,'get_method'=>405,'invalid_action'=>422,'invalid_kind'=>422,'add_organization'=>422,'duplicate_organization'=>422,'invalid_organization'=>422,
         'violation_foreign'=>404,'violation_stale'=>409,'violation_negative'=>422,'violation_precision'=>422,'violation_blank'=>422,'violation_duplicate'=>422,'violation_duplicate_legacy'=>422];
@@ -63,11 +75,15 @@ try {
         else $check($row['violation_type']==='NEW VIOLATION Ñ'&&$row['amount']==='125.25'&&(int)$row['college_id']===$r['scope']['college_id'],'Violation type, amount, or college was not saved correctly.');
     }
     $r=$request('student_detail');$check($r['status']===200&&isset($r['response']['student'],$r['response']['subjects']),'Student detail is unavailable.');
+    $financial=$r['response']['financial'];
+    $check(!array_key_exists('is_draft',$financial) && $financial['summary']['amount_paid']==='0.00' && $financial['summary']['absence_count']===0 && $financial['summary']['total_to_pay']==='0.00' && $financial['violations']===[],'Financial overview did not calculate automatic totals or treated pending attendance as an absence.');
+    $check($financial['summary']['contribution_count']===0 && $financial['summary']['event_count']===1 && $financial['events'][0]['event_id']==$r['ids']['event'],'Financial overview mixed inactive records or another organization.');
+    $check($r['before']===$r['after'],'Financial overview changed financial catalog or period data.');
     foreach(['student_foreign'=>404,'student_foreign_program'=>422,'student_array'=>400]as$scenario=>$code){$r=$request($scenario);$check($r['status']===$code,$scenario.': student access was not scoped.');}
     $r=$request('directory_comparison');$check(!empty($r['response']['same']),'Management and Dean directory results diverged.');
-    $r=$request('catalog_lists');$check($r['response']===['selected'=>1,'all'=>2,'unassigned'=>1,'wildcard'=>0,'open'=>0,'organization'=>2],'Catalog filters mixed terms, colleges, organizations, or literal search characters.');
+    $r=$request('catalog_lists');$check($r['response']===['selected'=>1,'all'=>1,'unassigned'=>1,'wildcard'=>0,'inactive'=>0,'organization'=>1],'Catalog filters mixed periods, colleges, organizations, or literal search characters.');
     $check($r['before']===$r['after'],'Reading filtered catalog lists changed records.');
-    foreach (['sibling_event'=>404,'sibling_contribution'=>404,'sibling_violation'=>404,'sibling_event_link'=>422,'sibling_scope'=>403,'historical_event_link'=>422,'stale_term'=>409,'changed_term'=>409,
+    foreach (['sibling_event'=>404,'sibling_contribution'=>404,'sibling_violation'=>404,'sibling_event_link'=>422,'sibling_scope'=>403,'historical_event_link'=>422,'historical_edit'=>409,'stale_term'=>409,'changed_term'=>409,
         'violation_stale_term'=>409,'violation_changed_term'=>409,'org_admin_forbidden'=>403,'org_admin_revoked'=>403,'org_admin_csrf'=>403,'org_admin_array'=>400,'org_admin_college'=>422,'org_admin_campus'=>422,'org_admin_all_colleges'=>422,'org_admin_code'=>422,'org_admin_duplicate'=>422,'org_admin_stale'=>409,'org_admin_delete_used'=>409,'org_admin_move_used'=>409] as $scenario=>$code) {
         $r=$request($scenario); $check($r['status']===$code,$scenario.': expected '.$code.', received '.json_encode($r['response']));
         $check($r['before']===$r['after'],$scenario.': rejected request changed records.');
@@ -76,13 +92,14 @@ try {
     $row=$find($r['after']['tbl_management_violations'],(int)$r['response']['record_id'],'violation_id');
     $source=$find($r['before']['tbl_management_contributions'],$r['ids']['contribution'],'contribution_id');
     $check((int)$row['organization_id']===$r['scope']['organization_id']&&$row['ay_id']===$source['ay_id']&&$row['semester']===$source['semester'],'New violation did not adopt the assigned organization and current term.');
-    foreach (['auto_term_contribution','auto_term_event','historical_edit'] as $scenario) {
+    foreach (['auto_term_contribution','auto_term_event'] as $scenario) {
         $r=$request($scenario); $check($r['status']===200,$scenario.': automatic term save failed: '.json_encode($r['response']));
         $event=$scenario==='auto_term_event'; $table=$event?'tbl_management_events':'tbl_management_contributions'; $key=$event?'event_id':'contribution_id';
         $row=$find($r['after'][$table],(int)$r['response']['record_id'],$key);
         $check((int)$row['organization_id']===$r['scope']['organization_id'] && (int)$row['college_id']===$r['scope']['college_id'],$scenario.': automatic organization scope failed.');
-        if ($scenario==='historical_edit') $check($row['semester']!==$find($r['before']['tbl_management_events'],$r['ids']['event'],'event_id')['semester'],'Historical edit silently changed its academic term.');
-        else { $source=$find($r['before']['tbl_management_contributions'],$r['ids']['contribution'],'contribution_id'); $check($row['ay_id']===$source['ay_id'] && $row['semester']===$source['semester'],'New record did not adopt the current academic term.'); }
+        $source=$find($r['before']['tbl_management_contributions'],$r['ids']['contribution'],'contribution_id');
+        $check($row['ay_id']===$source['ay_id'] && $row['semester']===$source['semester'],'New record did not adopt the current academic term.');
+        $check($row['exam_term']===$source['exam_term'],'New record did not adopt the current Management term.');
     }
     foreach (['org_admin_get','org_admin_edit','org_admin_inactive','org_admin_delete_unused','org_admin_add'] as $scenario) {
         $r=$request($scenario); $check($r['status']===200,$scenario.': organization CRUD failed: '.json_encode($r['response']));

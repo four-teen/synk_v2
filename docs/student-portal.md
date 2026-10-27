@@ -52,21 +52,68 @@ The cog opens a term-selection modal for reviewing the student's own imported
 terms. Apply saves that student's viewing preference; Cancel preserves the
 displayed term. Search filters the displayed cards on the client.
 
-Profile setup does not block the dashboard. The existing one-time profile
-setup is retained at `student/profile.php`, with CSRF validation. Existing
-Prospectus and Faculty Evaluation pages are retained.
+Student name, ID, email, and program come from the imported directory. The old
+First-Time Student Setup form is removed. **Manage Profile** lets the signed-in
+student upload or replace their own photo without editing imported identity data.
+Students without an uploaded photo are redirected from portal pages to Manage
+Profile, including returning students. Its required **Update Profile** dialog
+cannot be dismissed; a successful first upload continues to My Subjects. Staff
+previews remain read-only and do not receive the required-photo prompt.
 
-My Profile starts with a compact Student Workspace card, followed by the academic
+Uploads require the authenticated student session and a CSRF token. JPG, PNG, and
+WebP files up to 5 MB, 6,000 pixels per side, and 16 megapixels are validated,
+decoded, oriented, and re-encoded as JPEG (up to 1,200px per side). The only saved
+photo is `uploads/student-profile/student_<student_id>.jpg`. A replacement is
+published only after processing succeeds, so invalid uploads keep the previous
+image. Student locks serialize replacements; temporary files are removed. No
+database schema or imported student fields change. The navbar uses the uploaded
+photo, with a content hash to refresh cached images. Storage scaffolding denies
+directory listing and serves only the generated JPEG filenames.
+
+Manage Profile starts with a compact photo and imported identity card, followed by the academic
 year subject listing. The separate Student details card is removed. Its subject
 rows use the same shared `student/subject-card.php` view as My Subjects, including
 professor photos, orange names and compact schedules. The academic-year filter,
-semester groups and first-time profile setup remain available.
+semester groups remain available. The profile form only accepts a photo.
+
+Photo checks: `php tests/student-profile-photo.php` covers real multipart uploads,
+required-photo redirects, replacement, invalid files, CSRF, ownership, and unchanged
+academic/student data. `node tests/student-portal-browser.cjs` checks the required
+dialog, preview, validation, and mobile layouts. Fixtures clean up their photos.
 
 On screens below 1,200px, the student sidebar becomes a fixed bottom navigation
-bar on all four portal pages. It contains the same available Subjects, Profile,
-Prospectus and Faculty Evaluation destinations, including preview parameters and
+bar on the student portal pages. It contains the same available Subjects, Profile,
+Prospectus, Faculty Evaluation, Finances, and QR destinations, including preview parameters and
 evaluation availability rules. Content has space below it for the bar and device
 safe area. Desktop keeps the sidebar. Mobile pages allow pinch zoom.
+
+## My Finances
+
+**My Finances** in the desktop sidebar, or **Finances** in the phone menu, opens
+`student/finances.php`. This is a single read-only account page for the authenticated
+student. It includes automatic contributions, events with present/absent/pending
+attendance, absence fines, recorded violations, payment history, deductions, and
+the total to pay. Student photo completion is required before opening the page.
+
+The page reads the existing Management calculations and saved organization
+periods. It does not accept a student ID, organization, or period from URL inputs.
+Current college membership determines the eligible organizations, including
+students whose original master profile differs from their current class lists.
+Organizations are labeled separately so charges from different organizations are
+clear. The page uses a consistent read-only database transaction and exact centavo
+totals. Student identities, academic settings, schedules, and workloads are unchanged.
+
+Only finalized attendance adds an absence fine. A missing scan while attendance
+is pending does not create a charge. A student outside a frozen event roster is
+shown as not in that roster. Violation definitions do not become personal student
+violations. Student violation recording and payment collection are still deferred;
+the corresponding sections currently show recorded-data empty states.
+
+Implementation: `backend/management_student_account_helper.php` resolves and
+combines Management accounts. `management/student-financial-page.php` owns the
+financial period presentation. The Student page supplies only the authenticated
+student identity and portal layout. No new financial tables or migration are needed.
+Checks: `php tests/student-finances.php` and `node tests/student-portal-browser.cjs`.
 
 ## Faculty Evaluation
 
