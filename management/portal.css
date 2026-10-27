@@ -146,7 +146,7 @@
 .management-financial-footer-note { margin-right: auto; color: var(--dean-muted); font-size: .75rem; }
 .management-financial-layout { display: grid; grid-template-columns: 250px minmax(0,1fr); min-height: 0; height: 100%; }
 .management-financial-sidebar { background: #fff; padding: 2rem 1.4rem; border-right: 1px solid var(--dean-border); min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; text-align: center; }
-.management-financial-avatar { width: 100px; height: 100px; margin: 0 auto 1.15rem; display: grid; place-items: center; border: 7px solid #f4f3ff; border-radius: 50%; background: #e5e4ff; color: var(--dean-primary); font-size: 2rem; font-weight: 600; }
+.management-financial-avatar { width: min(190px,100%); height: auto; aspect-ratio: 1; margin: 0 auto 1.15rem; display: grid; place-items: center; border: 5px solid #f4f3ff; border-radius: 50%; background: #e5e4ff; color: var(--dean-primary); font-size: 3.5rem; font-weight: 600; }
 .management-financial-student-name { font-size: 1rem; font-weight: 600; line-height: 1.55; color: var(--dean-heading); margin: .55rem 0; overflow-wrap: anywhere; }
 .management-financial-student-id { display: inline-block; color: var(--dean-primary); background: var(--dean-primary-soft); border-radius: .3rem; padding: .3rem .65rem; font-size: .75rem; font-weight: 600; overflow-wrap: anywhere; }
 .management-financial-profile-fields { margin: 1.4rem 0 0; text-align: left; display: grid; gap: 1rem; padding-top: 1.2rem; border-top: 1px solid var(--dean-border); }
@@ -203,7 +203,34 @@
 .management-financial-reconciliation dt > small { display: block; font-size: .65rem; }
 .management-financial-reconciliation dd { margin: 0; color: var(--dean-heading); font-weight: 500; white-space: nowrap; }
 .management-financial-reconciliation .management-financial-balance { margin-top: .55rem; padding-top: .8rem; border-top: 1px solid var(--dean-border); font-size: .95rem; }
-.management-financial-balance dt, .management-financial-balance dd { font-weight: 600; color: var(--dean-primary); }
+.management-financial-balance dt, .management-financial-balance dd { font-weight: 600; color: #b44545; }
+.management-financial-stat-due{background:#ffeded!important;border-color:#f6cece!important}
+.management-financial-stat-due>strong{color:#b44545!important}
+.management-financial-stat-due.is-paid{background:#e8f7ee!important;border-color:#c5e8d1!important}
+.management-financial-stat-due.is-paid>strong,.management-financial-balance.is-paid dt,.management-financial-balance.is-paid dd{color:#28794c!important}
+.management-financial-balance{background:#ffeded;border-radius:8px;padding:12px!important}
+.management-financial-balance.is-paid{background:#e8f7ee}
+.management-financial-avatar{position:relative;overflow:hidden}
+.management-financial-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:white}
+.management-payment-panel{padding:20px;border:1px solid #dce1ec;border-radius:10px;margin-bottom:20px;background:#fafbff}
+.management-payment-panel h3{font-size:18px}
+.management-payment-form fieldset{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:10px}
+.management-payment-form legend{font-size:13px;font-weight:600;margin-bottom:8px}
+.management-payment-form label{cursor:pointer}
+.management-payment-form input[type=radio],.management-payment-form input[type=checkbox]{width:18px;height:18px;vertical-align:middle;margin-right:5px}
+.management-payment-help{font-size:13px;line-height:1.6}
+.management-payment-choices{max-height:230px;overflow:auto;margin-bottom:16px}
+.management-payment-choice{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e5e8ed;font-size:13px}
+.management-payment-choice span{flex:1;min-width:0;overflow-wrap:anywhere}
+.management-payment-choice strong{white-space:nowrap}
+.management-payment-preview ul,.management-payment-history{list-style:none;padding:0;margin:16px 0}
+.management-payment-preview li,.management-payment-history li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #e5e8ed;font-size:13px}
+.management-payment-preview li span,.management-payment-history li>div{min-width:0;overflow-wrap:anywhere}
+.management-payment-history small{display:block;color:#7c899d}
+.management-payment-history{padding:0 16px}
+.management-payment-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.management-payment-buttons .btn{min-height:44px}
+@media(max-width:575px){.management-payment-panel{padding:14px}.management-payment-history li{flex-wrap:wrap}.management-payment-history li>div{flex:1 1 100%}.management-payment-buttons .btn{width:100%}}
 @media (max-width:1199.98px) { .management-dashboard-grid { grid-template-columns: 1fr; } }
 @media (max-width:991.98px) { .management-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .management-catalog-stats .management-stat:last-child { grid-column: 1/-1; } }
 @media (max-width:1199.98px) { .management-financial-layout { grid-template-columns: 220px minmax(0,1fr); } .management-financial-summary { grid-template-columns: repeat(2,minmax(0,1fr)); } }
@@ -303,7 +330,7 @@
   .management-financial-modal .modal-body { overflow-y: auto; }
   .management-financial-layout { display: block; height: auto; }
   .management-financial-sidebar, .management-financial-main { overflow: visible; max-height: none; }
-  .management-financial-avatar { width: 64px; height: 64px; font-size: 1.4rem; margin-bottom: .5rem; }
+  .management-financial-avatar { width: min(160px,100%); height: auto; font-size: 3rem; margin-bottom: 1rem; }
   .management-financial-profile-fields { margin-top: 1rem; }
 
   /* The scanner occupies the viewport; navigation stays behind the modal. */

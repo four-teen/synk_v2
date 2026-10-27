@@ -549,3 +549,57 @@ CREATE TABLE IF NOT EXISTS tbl_management_attendance_audit (
     CONSTRAINT fk_management_attendance_audit_event FOREIGN KEY (event_id)
         REFERENCES tbl_management_attendance_events (event_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Fresh native Management payments. No imported history or shared-setting writes.
+CREATE TABLE IF NOT EXISTS tbl_management_payments (
+    payment_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    receipt_number VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    request_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    payload_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    college_id INT UNSIGNED NOT NULL,
+    organization_id INT UNSIGNED NOT NULL,
+    student_id INT UNSIGNED NOT NULL,
+    ay_id INT UNSIGNED NOT NULL,
+    semester TINYINT UNSIGNED NOT NULL,
+    exam_term ENUM('MIDTERM','FINAL') NOT NULL,
+    allocation_mode ENUM('DISTRIBUTE','SELECTED') NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    balance_before DECIMAL(14,2) NOT NULL,
+    balance_after DECIMAL(14,2) NOT NULL,
+    student_number VARCHAR(100) NOT NULL,
+    student_name VARCHAR(500) NOT NULL,
+    organization_code VARCHAR(100) NOT NULL,
+    organization_name VARCHAR(255) NOT NULL,
+    period_text VARCHAR(150) NOT NULL,
+    recorded_by INT NOT NULL,
+    recorded_by_name VARCHAR(255) NOT NULL,
+    recorded_at DATETIME NOT NULL,
+    PRIMARY KEY (payment_id),
+    UNIQUE KEY uq_management_receipt_number (receipt_number),
+    UNIQUE KEY uq_management_payment_request (organization_id,request_key),
+    KEY ix_management_payment_account (organization_id,student_id,ay_id,semester,exam_term),
+    KEY ix_management_payment_student (student_id,payment_id),
+    CONSTRAINT fk_management_payment_student FOREIGN KEY (student_id) REFERENCES tbl_student_management (student_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_management_payment_organization FOREIGN KEY (organization_id) REFERENCES tbl_management_organizations (organization_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_management_payment_items (
+    payment_item_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    payment_id BIGINT UNSIGNED NOT NULL,
+    charge_key VARCHAR(40) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    contribution_id INT UNSIGNED NULL,
+    event_id INT UNSIGNED NULL,
+    title VARCHAR(255) NOT NULL,
+    charge_amount DECIMAL(12,2) NOT NULL,
+    paid_before DECIMAL(12,2) NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    balance_after DECIMAL(12,2) NOT NULL,
+    PRIMARY KEY (payment_item_id),
+    UNIQUE KEY uq_management_payment_item (payment_id,charge_key),
+    KEY ix_management_paid_contribution (contribution_id),
+    KEY ix_management_paid_event (event_id),
+    CONSTRAINT fk_management_payment_item FOREIGN KEY (payment_id) REFERENCES tbl_management_payments (payment_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_management_paid_contribution FOREIGN KEY (contribution_id) REFERENCES tbl_management_contributions (contribution_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_management_paid_event FOREIGN KEY (event_id) REFERENCES tbl_management_events (event_id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

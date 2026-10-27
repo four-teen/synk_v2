@@ -17,6 +17,7 @@ $request=static function(string $scenario)use($name,$token):array {
 };
 $find=static function(array $rows,int $id,string $key):?array {foreach($rows as $row)if((int)$row[$key]===$id)return $row;return null;};
 try {
+    foreach(['collect_preview'=>200,'collect_post'=>200,'collect_csrf'=>403,'collect_role'=>401,'collect_foreign'=>403,'collect_stale'=>409,'collect_period'=>409,'collect_overpay'=>422,'collect_fraction'=>422,'collect_array'=>400]as$scenario=>$code){$r=$request($scenario);$check($r['status']===$code,$scenario.': payment endpoint returned '.$r['status']);if($scenario==='collect_post'){$check(isset($r['response']['receipt_number'])&&count($r['after']['tbl_management_payments'])===count($r['before']['tbl_management_payments'])+1,'Payment HTTP request did not create a receipt.');}else{$check($r['before']===$r['after'],'Preview or invalid payment changed data: '.$scenario);}}
     foreach(['attendance_http_open','attendance_http_scan','attendance_http_duplicate','attendance_http_close']as$scenario){
         $r=$request($scenario);$check($r['status']===200 && $r['response']['status']==='ok',$scenario.': attendance endpoint failed.');
         if ($scenario==='attendance_http_duplicate')$check($r['response']['duplicate'] && $r['response']['attendance']['present']===1,'HTTP duplicate scan was not idempotent.');

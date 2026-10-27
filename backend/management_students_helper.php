@@ -50,5 +50,7 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
         throw new OutOfBoundsException('This student is not in the selected academic year and semester.');
     }
     // Membership is checked before returning this organization's period catalog.
+    require_once __DIR__.'/student_profile_image_helper.php';
+    $detail['student']['photo_url']=synk_student_profile_image_url($id);
     return $detail + ['financial'=>synk_management_student_financial_overview($conn,$scope,$period,$id)];
 }

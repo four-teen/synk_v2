@@ -67,6 +67,10 @@ function synk_management_attendance_write(mysqli $conn,array $scope,string $acti
             $student['recorded_at']=synk_management_query($conn,'SELECT recorded_at FROM tbl_management_attendance_logs WHERE event_id=? AND student_id=?','ii',[$eventId,$student['student_id']])[0]['recorded_at'];
             $student['photo_url']=synk_student_profile_image_url((int)$student['student_id']);
         } elseif ($action==='attendance_close' || $action==='attendance_reopen') {
+            if ($action==='attendance_reopen') {
+                require_once __DIR__.'/management_payment_read_helper.php';
+                if (synk_management_charge_has_payments($conn,'events',$eventId)) throw new SynkManagementConflict('Absence-fine payments have already been recorded. Attendance must remain closed to preserve those payments.');
+            }
             if (!$settings || (string)($input['attendance_revision'] ?? '')!==(string)$settings['revision']) throw new SynkManagementConflict('Attendance changed. Reload before continuing.');
             $next=$action==='attendance_close'?'CLOSED':'OPEN';
             if ($settings['attendance_status']===$next) throw new SynkManagementConflict('Attendance is already '.strtolower($next).'.');

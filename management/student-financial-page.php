@@ -9,7 +9,7 @@ $attendanceLabels=['PRESENT'=>'Present','ABSENT'=>'Absent','PENDING'=>'Attendanc
 <section class="student-finance-heading"><div><p class="student-eyebrow">STUDENT ACCOUNT</p><h1>My Finances</h1><p>Contributions, event attendance, and your recorded charges in one place.</p></div><span class="badge bg-label-primary"><?= $h($financialAccount['academic_period']) ?></span></section>
 <section class="student-finance-summary" aria-label="Financial summary">
   <?php foreach ([['due','Total to pay','bx-wallet','Current charges'],['contributions','Contributions','bx-receipt',count($financialAccount['contributions']).' active contributions'],['event_fines','Absence fines','bx-calendar-x',$attendance['absent'].' recorded absences'],['paid','Recorded payments','bx-check-circle','Payments posted to your account']] as $item): ?>
-  <article class="card student-finance-stat<?= $item[0]==='due'?' student-finance-due':'' ?>"><span><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><?= $item[1] ?></span><strong data-finance-total="<?= $item[0] ?>"><?= $money($totals[$item[0]]) ?></strong><small><?= $h($item[3]) ?></small></article>
+  <article class="card student-finance-stat<?= $item[0]==='due'?' student-finance-due'.($totals['due']==='0.00'?' is-paid':''):'' ?>"><span><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><?= $item[1] ?></span><strong data-finance-total="<?= $item[0] ?>"><?= $money($totals[$item[0]]) ?></strong><small><?= $h($item[3]) ?></small></article>
   <?php endforeach; ?>
 </section>
 <section class="card student-finance-periods" aria-label="Current organization periods">
@@ -23,7 +23,7 @@ $attendanceLabels=['PRESENT'=>'Present','ABSENT'=>'Absent','PENDING'=>'Attendanc
   <?php if (!$financialAccount['contributions']): ?><p class="student-finance-empty">No active contributions are listed for your current organization periods.</p><?php else: ?>
   <ul class="student-finance-records"><?php foreach ($financialAccount['contributions'] as $row): ?><li>
     <div class="student-finance-record-main"><h3><?= $h($row['title']) ?></h3><p><span><?= $h($row['organization_code']) ?></span><time datetime="<?= $h($row['contribution_date']) ?>"><?= $date($row['contribution_date']) ?></time></p><small><?= $h($row['period_text']) ?></small></div>
-    <div class="student-finance-record-amount"><strong><?= $money($row['amount']) ?></strong><span class="student-finance-status student-finance-unpaid">Unpaid</span></div>
+    <div class="student-finance-record-amount"><strong><?= $money($row['amount_due']) ?></strong><small>Remaining of <?= $money($row['amount']) ?></small><span class="student-finance-status student-finance-<?= strtolower($row['payment_status']) ?>"><?= $h(['PAID'=>'Paid','PARTIALLY_PAID'=>'Partially paid','UNPAID'=>'Unpaid'][$row['payment_status']]) ?></span></div>
   </li><?php endforeach; ?></ul>
   <?php endif; ?>
   <div class="student-finance-section-total"><span>Contribution total</span><strong><?= $money($totals['contributions']) ?></strong></div>
@@ -50,11 +50,11 @@ $attendanceLabels=['PRESENT'=>'Present','ABSENT'=>'Absent','PENDING'=>'Attendanc
 </section>
 <section class="card student-finance-panel" id="student-payments" aria-labelledby="student-payments-title">
   <div class="student-finance-panel-heading"><div><i class="bx bx-credit-card" aria-hidden="true"></i><h2 id="student-payments-title">Payment history</h2></div></div>
-  <?php if (!$financialAccount['payments']): ?><p class="student-finance-empty">No posted payments are available. Contact your organization for payment confirmations.</p><?php else: ?><ul class="student-finance-records"><?php foreach ($financialAccount['payments'] as $row): ?><li><div class="student-finance-record-main"><h3><?= $h($row['reference'] ?? 'Payment') ?></h3><p><?= $h($row['organization_code']) ?> · <?= $date($row['date']) ?></p></div><div class="student-finance-record-amount"><strong><?= $money($row['amount']) ?></strong></div></li><?php endforeach; ?></ul><?php endif; ?>
-  <div class="student-finance-section-total"><span>Recorded payments</span><strong><?= $money($totals['paid']) ?></strong></div>
+  <?php if (!$financialAccount['payments']): ?><p class="student-finance-empty">No posted payments are available. Contact your organization for payment confirmations.</p><?php else: ?><ul class="student-finance-records"><?php foreach ($financialAccount['payments'] as $row): ?><li><div class="student-finance-record-main"><h3><?= $h($row['reference']) ?></h3><p><?= $h($row['organization_code']) ?> · <?= $date($row['date']) ?></p><small><?= $h($row['period_text']) ?></small><a href="payment-receipt.php?payment_id=<?= (int)$row['payment_id'] ?>" target="_blank" rel="noopener">View receipt</a></div><div class="student-finance-record-amount"><strong><?= $money($row['amount']) ?></strong></div></li><?php endforeach; ?></ul><?php endif; ?>
+  <div class="student-finance-section-total"><span>Recorded payments · all periods</span><strong><?= $money($financialAccount['payment_history_total']) ?></strong></div>
 </section>
 </div>
 <section class="card student-finance-account-total" id="student-account-total" aria-labelledby="student-account-total-title"><div><p class="student-eyebrow">ACCOUNT SUMMARY</p><h2 id="student-account-total-title">Your total to pay</h2><p>Automatic contributions plus recorded fines, less posted payments and deductions.</p></div><dl>
   <?php foreach (['contributions'=>'Contributions','event_fines'=>'Event absence fines','violations'=>'Violation charges','paid'=>'Less: recorded payments','deductions'=>'Less: recorded deductions'] as $key=>$label): ?><div><dt><?= $label ?></dt><dd><?= $money($totals[$key]) ?></dd></div><?php endforeach; ?>
-  <div class="student-finance-total-due"><dt>Total to pay</dt><dd><?= $money($totals['due']) ?></dd></div>
+  <div class="student-finance-total-due<?= $totals['due']==='0.00'?' is-paid':'' ?>"><dt>Total to pay</dt><dd><?= $money($totals['due']) ?></dd></div>
 </dl></section>

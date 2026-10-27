@@ -17,13 +17,28 @@ $studentName=synk_student_directory_display_name($studentDirectoryRecord);
 require_once __DIR__.'/../backend/student_profile_image_helper.php';
 $profilePhotoError='';
 $photoWasRequired=synk_student_profile_image_url($studentId)==='';
+$photoJson=strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''),'application/json')!==false;
 if (!$isAdminPreview && ($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST') {
+    header('Cache-Control: no-store');
     try {
         if (!synk_student_login_check_csrf($_POST['csrf_token'] ?? null)) throw new DomainException('Reload your profile before uploading a photo.',403);
-        synk_student_profile_save_image($conn,$studentId,$_FILES['profile_photo'] ?? null);
-        header('Location: '.($photoWasRequired ? 'index.php' : 'profile.php?photo_updated=1'),true,303);exit;
+        if (($_POST['photo_action'] ?? '')==='start') {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success'=>true]+synk_student_photo_begin_capture($studentId));exit;
+        }
+        synk_student_profile_save_image($conn,$studentId,$_FILES['profile_photo'] ?? null,$_POST);
+        $redirect=$photoWasRequired ? 'index.php' : 'profile.php?photo_updated=1';
+        if ($photoJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success'=>true,'photo_url'=>synk_student_profile_image_url($studentId),'redirect'=>$redirect]);exit;
+        }
+        header('Location: '.$redirect,true,303);exit;
     } catch (DomainException|InvalidArgumentException $error) { http_response_code((int)$error->getCode()===403 ? 403 : 422);$profilePhotoError=$error->getMessage(); }
     catch (Throwable $error) { error_log('Student photo: '.$error->getMessage());http_response_code(503);$profilePhotoError='Your photo could not be saved. Please try again.'; }
+    if ($photoJson) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success'=>false,'message'=>$profilePhotoError]);exit;
+    }
 }
 $profilePhotoUrl=synk_student_profile_image_url($studentId);
 $profilePhotoRequired=!$isAdminPreview && $profilePhotoUrl==='';

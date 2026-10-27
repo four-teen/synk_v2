@@ -88,6 +88,17 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 .student-photo-identity strong,.student-photo-identity span{display:block}
 .student-photo-identity span{margin-top:4px;color:#7b8799}
 .student-photo-required-note{background:#f2f1ff;border-radius:8px;padding:12px;color:#5659b9}
+.student-photo-modal .modal-dialog{max-width:540px}
+.student-photo-instructions{font-size:13px;line-height:1.6;margin:14px 0}
+.student-camera-frame{position:relative;width:min(100%,300px);aspect-ratio:1;margin:0 auto;overflow:hidden;border:1px solid var(--student-border);border-radius:12px;background:#f4f5f8}
+.student-camera-frame>img,.student-camera-frame>video{display:block;width:100%;height:100%;object-fit:cover}
+.student-camera-frame>video{transform:scaleX(-1)}
+.student-camera-frame [hidden]{display:none!important}
+.student-camera-guide{position:absolute;top:11%;left:23%;width:54%;height:64%;border:2px dashed #fff;border-radius:48%;box-shadow:0 0 0 100vmax #0003;pointer-events:none}
+.student-camera-status{font-size:13px;line-height:1.5;text-align:center;min-height:2.9em;margin:12px 0 8px}
+.student-camera-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:12px}
+.student-camera-actions .btn{min-height:44px}
+.student-photo-modal .form-text{font-size:12px;line-height:1.6;margin-bottom:0}
 @media(max-width:575px){.student-managed-profile{align-items:flex-start;gap:12px}.student-managed-profile>.student-profile-photo{width:72px;height:72px}.student-photo-modal .modal-footer{gap:8px}.student-photo-modal .modal-footer .btn{margin:0;min-height:44px}}
 .student-subject-filter{display:grid;gap:5px;flex:0 0 230px;width:230px;max-width:100%;min-width:0;margin:0}
 .student-subject-filter .form-label{font-size:11px;color:var(--student-muted)}
