@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SYNK Systems — Under Construction </title>
-  <meta name="description" content="SYNK Systems is currently under construction." />
+  <title>synQ Systems — Under Construction </title>
+  <meta name="description" content="synQ Systems is currently under construction." />
   <style>
     :root { color-scheme: light dark; }
     body {
@@ -58,15 +58,12 @@
   </style>
 </head>
 <body>
-  <main class="card" role="main" aria-label="SYNK Systems Under Construction">
+  <main class="card" role="main" aria-label="synQ Systems Under Construction">
     <div class="badge">🚧 Under Construction</div>
-    <h1>SYNK Systems</h1>
+    <h1>synQ Systems</h1>
     <p>We’re currently building something awesome. Please check back soon.</p>
-    <div class="small">© <span id="year"></span> SYNK Systems</div>
+    <div class="small">synQ - One Institution. One Connected Ecosystem.</div>
   </main>
 
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
 </body>
 </html>

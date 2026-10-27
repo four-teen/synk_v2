@@ -32,7 +32,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
 <html lang="en" class="light-style customizer-hide" dir="ltr" data-theme="theme-default" data-assets-path="../assets/">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Student Sign In | Synk</title>
+  <title>Student Sign In | synQ</title>
   <link rel="icon" href="../assets/img/favicon/synk-icon.png" type="image/png">
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
@@ -53,12 +53,12 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
         <i class="synk-login-logo-piece synk-login-logo-piece-left"></i>
         <i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
       </div>
-      <span>synk</span>
+      <span>synQ</span>
     </div>
   </div>
   <main class="student-login-shell">
     <div class="student-login-wrap" data-synk-login-content>
-      <a class="student-login-brand" href="login.php" aria-label="Synk Student Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>Synk</span><span class="badge bg-label-primary">Student Portal</span></a>
+      <a class="student-login-brand" href="login.php" aria-label="synQ Student Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>synQ</span><span class="badge bg-label-primary">Student Portal</span></a>
       <section class="card student-login-card" aria-labelledby="login-title">
         <div class="card-body">
           <h1 id="login-title"><span class="student-login-title-lead">Your subjects.</span> <span class="student-login-title-accent">One place.</span></h1>
@@ -75,7 +75,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
           <div class="student-login-support"><i class="bx bx-help-circle" aria-hidden="true"></i><div><strong>Having trouble signing in?</strong><p>Ask your college office to check your school email in the Student Directory.</p></div></div>
         </div>
       </section>
-      <p class="student-login-footer">Sultan Kudarat State University <span aria-hidden="true">·</span> Student access</p>
+      <p class="student-login-footer">synQ - One Institution. One Connected Ecosystem.</p>
     </div>
   </main>
   <script src="login.js?v=<?= (int)filemtime(__DIR__.'/login.js') ?>" defer></script>

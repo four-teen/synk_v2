@@ -29,7 +29,7 @@
   font-weight: 700;
   letter-spacing: -1.5px;
   color: var(--synk-login-intro-wordmark, #566a7f);
-  text-transform: lowercase;
+  text-transform: none;
 }
 
 /* Login intro: every fragment uses the original artwork, clipped by color.

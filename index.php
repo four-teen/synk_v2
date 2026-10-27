@@ -204,7 +204,7 @@ if (isset($_POST['login'])) {
       content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
     />
 
-    <title>SKSU Synk</title>
+    <title>SKSU synQ</title>
 
     <meta name="description" content="" />
 
@@ -361,7 +361,7 @@ if (isset($_POST['login'])) {
         font-weight: 800;
         letter-spacing: 0.06em;
         line-height: 1.1;
-        text-transform: lowercase;
+        text-transform: none;
         color: var(--login-title);
       }
 
@@ -843,7 +843,7 @@ if (isset($_POST['login'])) {
           <i class="synk-login-logo-piece synk-login-logo-piece-left"></i>
           <i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
         </div>
-        <span>synk</span>
+        <span>synQ</span>
       </div>
     </div>
     <div class="login-shell">
@@ -864,7 +864,7 @@ if (isset($_POST['login'])) {
 
           <div class="card login-card">
             <div class="card-body">
-              <div class="login-brand"><span>s</span><span>y</span><span>n</span><span>k</span></div>
+              <div class="login-brand"><span>s</span><span>y</span><span>n</span><span>Q</span></div>
 
               <?php if ($isAccountSwitch): ?>
                 <h1 class="login-title">Switch Account</h1>
@@ -880,13 +880,12 @@ if (isset($_POST['login'])) {
               <?php else: ?>
               <h1 class="login-title">Centralized Academic Management Platform</h1>
               <p class="login-subtitle">
-                Official platform for centralized academic operations, designed to unify scheduling,
-                enrollment, faculty profiling, and other university processes in one system.
+                One Institution. One Connected Ecosystem.
                 <small>Sultan Kudarat State University</small>
               </p>
 
               <div class="alert alert-info login-alert" role="alert">
-                Only official SKSU Google accounts with an exact matching Synk access record can
+                Only official SKSU Google accounts with an exact matching synQ access record can
                 access this system.
               </div>
 
@@ -965,10 +964,10 @@ if (isset($_POST['login'])) {
                 <?php endif; ?>
 
                 <div class="login-footnote">
-                  Access is limited to approved Synk administrator, scheduler, professor, program chair, college dean, registrar, VPAA, and DI accounts.
+                  Access is limited to approved synQ administrator, scheduler, professor, program chair, college dean, registrar, VPAA, and DI accounts.
                 </div>
 
-                <div class="login-project-note">SYNKronized 2025</div>
+                <div class="login-project-note">synQ 2026</div>
               </div>
               <?php endif; ?>
             </div>
@@ -1062,7 +1061,7 @@ if (isset($_POST['login'])) {
           account_not_allowed: {
             icon: "warning",
             title: "Access Not Allowed",
-            text: "Your account is not in the Synk access allowlist."
+            text: "Your account is not in the synQ access allowlist."
           },
           account_inactive: {
             icon: "warning",
@@ -1077,7 +1076,7 @@ if (isset($_POST['login'])) {
           role_not_supported: {
             icon: "warning",
             title: "Role Not Supported",
-            text: "This account does not have a supported Synk module role."
+            text: "This account does not have a supported synQ module role."
           },
           google_identity_mismatch: {
             icon: "error",
@@ -1189,7 +1188,7 @@ if (isset($_POST['login'])) {
               isPrimary: Boolean(roleRow && roleRow.is_primary),
               icon: meta[role] ? meta[role].icon : "bx-grid-alt",
               iconClass: meta[role] ? meta[role].iconClass : "bg-label-secondary",
-              description: meta[role] ? meta[role].description : "Open this assigned Synk workspace."
+              description: meta[role] ? meta[role].description : "Open this assigned synQ workspace."
             };
           }).filter(Boolean);
         }
@@ -1405,7 +1404,7 @@ if (isset($_POST['login'])) {
             Swal.fire({
               icon: "warning",
               title: "Role Not Supported",
-              text: "This account does not have a supported Synk module role.",
+              text: "This account does not have a supported synQ module role.",
               width: "360px",
               padding: "1.5rem"
             });
