@@ -43,10 +43,14 @@ function synk_management_student_account(mysqli $conn,int $studentId): array
     }
     usort($contributions,static function($a,$b){return (int)$b['contribution_id']<=>(int)$a['contribution_id'];});
     usort($events,static function($a,$b){return (int)$b['event_id']<=>(int)$a['event_id'];});
+    // Receipt history stays accessible after a Management term changes, using
+    // only this signed-in student's native payment records.
+    $payments=synk_management_payment_history($conn,$studentId);
+    $historyTotal=0;foreach($payments as$row)$historyTotal+=synk_management_money_cents($row['amount']);
     foreach ($totals as &$value) $value=synk_management_money_text($value);
     unset($value);
     return ['academic_period'=>$academic['term_text'],'accounts'=>$accounts,'contributions'=>$contributions,'events'=>$events,
-        'violations'=>$violations,'payments'=>$payments,'totals'=>$totals,'attendance'=>$attendance];
+        'violations'=>$violations,'payments'=>$payments,'payment_history_total'=>synk_management_money_text($historyTotal),'totals'=>$totals,'attendance'=>$attendance];
 }
 
 function synk_management_account_money(string $amount): string

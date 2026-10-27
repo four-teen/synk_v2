@@ -251,11 +251,30 @@ if (strpos($scenario,'attendance_http_')===0) {
     if ($scenario==='attendance_http_stale') $_POST['current_period_version']='999';
     if ($scenario==='attendance_http_array') $_POST['qr_code']=['unexpected'];
 }
+if (strpos($scenario,'collect_')===0) {
+    require_once $root.'/backend/management_payment_helper.php';
+    $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
+    $testStudent=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'PAYMENT','last_name'=>'TEST','source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+    $conn->query("UPDATE tbl_management_contributions SET status='ACTIVE',amount='300.00' WHERE contribution_id=".$contribution);
+    $overview=synk_management_student_financial_overview($conn,$scope,$term,$testStudent);
+    $_POST=$post+['student_id'=>(string)$testStudent,'allocation_mode'=>'DISTRIBUTE','account_version'=>$overview['account_version'],'request_key'=>bin2hex(random_bytes(32)),'selected'=>'[]'];
+    $_POST['action']='payment_post';$_POST['amount']='100';$_POST['exam_term']=$term['exam_term'];
+    if ($scenario==='collect_preview') $_POST['action']='payment_preview';
+    if ($scenario==='collect_csrf') $_POST['csrf_token']='invalid';
+    if ($scenario==='collect_role') $_SESSION['role']='student';
+    if ($scenario==='collect_foreign') $_POST['organization_id']=$foreignOrg;
+    if ($scenario==='collect_stale') $_POST['account_version']=str_repeat('0',64);
+    if ($scenario==='collect_period') $_POST['exam_term']=$term['exam_term']==='FINAL'?'MIDTERM':'FINAL';
+    if ($scenario==='collect_overpay') $_POST['amount']='301';
+    if ($scenario==='collect_fraction') $_POST['amount']='100.50';
+    if ($scenario==='collect_array') $_POST['selected']=[];
+}
 $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
     foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_payments','tbl_management_payment_items']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();

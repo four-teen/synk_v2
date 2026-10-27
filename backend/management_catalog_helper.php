@@ -272,6 +272,10 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
             throw new SynkManagementConflict('Switch to the current Management period before saving records.');
         }
         $existing = $id ? synk_management_catalog_get($conn,$scope,$kind,$id,true) : null;
+        if ($existing) {
+            require_once __DIR__.'/management_payment_read_helper.php';
+            if (synk_management_charge_has_payments($conn,$kind,$id)) throw new SynkManagementConflict('Payments have already been recorded for this charge. Its details must be preserved for the receipts.');
+        }
         if ($existing && (!is_string($input['version'] ?? null) || !hash_equals($existing['version'],$input['version']))) throw new SynkManagementConflict('This record changed after you opened it. Reload its details before saving or deleting.');
         if ($existing && !synk_management_catalog_in_period($existing,$currentTerm)) {
             throw new SynkManagementConflict('Only records in the current Management period can be changed.');

@@ -1,6 +1,6 @@
-# Faculty photo detection assets
+# Photo detection assets
 
-Self-hosted assets used by the opted-in College Dean and Professor faculty photo editors.
+Self-hosted assets used by Student camera capture and the opted-in College Dean and Professor faculty photo editors.
 
 - MediaPipe Tasks Vision **1.1.0**, Apache-2.0:
   https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-1.1.0.tgz
@@ -12,4 +12,6 @@ Self-hosted assets used by the opted-in College Dean and Professor faculty photo
 
 Deploy this directory at assets/vendor/mediapipe, including the `wasm` subdirectory.
 Detection runs in the browser. Photos are not sent to an external detection service.
-The uploader can adjust the crop manually if detection is unavailable or ambiguous.
+Faculty editors allow a manual crop when detection is unavailable or ambiguous.
+Student capture requires the photo checks to load before saving. These checks do
+not establish identity, liveness, or protection against virtual camera feeds.

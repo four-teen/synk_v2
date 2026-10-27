@@ -4,7 +4,7 @@ Open **Financial overview** from the Management Students list. The wider modal i
 a financial account view scoped to the assigned organization and the header's
 selected academic year, semester, and Management Midterm/Final term.
 
-The left sidebar contains an initials avatar placeholder, student name and ID,
+The left sidebar loads the student's saved profile photo, with initials as a fallback, student name and ID,
 course, combined class section/year level, email, and selected period.
 Course and year information comes from the student's class memberships in the
 selected college and semester, without changing the shared student profile.
@@ -33,12 +33,42 @@ Management term apply automatically to each student in that college/semester.
 Amounts use integer centavos for exact arithmetic. No date-based term inference
 or shared profile updates occur.
 
-Total to pay is contributions plus finalized event absence fines. Amount paid,
-deductions, and assigned violations are currently zero: payment collection,
-waivers/deductions, and student violation assignment remain separate future work.
-The violation catalog is never treated as a student's committed violations. Pay
-remains disabled until payment collection is implemented. No legacy financial
-history is used.
+Total to pay is contributions plus finalized event absence fines, less posted
+payments. Deductions and assigned violations remain separate future work. The
+violation catalog is never treated as a student's committed violations. No
+legacy financial history is used.
+
+## Payments and receipts
+
+Prepare the two new native tables once with `backend/sql/management_payments.sql`
+in phpMyAdmin, or run `php backend/tools/prepare_management_payments.php`. The
+combined `management_live_install.sql` also includes these tables. No existing
+period settings, shared profiles, old imports, or balances are populated.
+
+Pay is available only for the assigned organization, an eligible student and the
+current Management period. Distribute is the default. It divides an entered
+whole-peso amount fairly across outstanding charges, caps shares at each charge's
+remaining whole pesos, and redistributes the remainder in stable date/ID order.
+For example, ₱500 across three equal large balances becomes ₱167, ₱167 and ₱166.
+Across ₱150/₱400/₱400 balances it becomes ₱150/₱175/₱175. Payments exceeding the
+available capacity are rejected. A centavo balance can be settled with Selected.
+
+Selected shows checkboxes and calculates the exact outstanding total of the
+checked charges. Partial payments against a selected charge are not accepted.
+Review allocation shows the proposed amounts before Record payment commits them.
+
+Payments and their allocations commit together. Organization/period locks and a
+balance version reject stale updates; a unique request key makes network retries
+idempotent. Paid contributions cannot be edited/deleted, and attendance with paid
+absence fines cannot reopen. A future reversal/refund workflow must explicitly
+handle those cases rather than silently changing collected amounts.
+
+Every payment snapshots the student identity, organization, period, cashier and
+itemized balances into a printable receipt. Management shows its selected-period
+receipts inside Financial overview. My Finances shows the student's own receipt
+history across periods, while its summary totals remain for current periods.
+Receipt URLs check student ownership or the cashier's assigned organization.
+Total to pay is light red while outstanding and light green when settled.
 
 Attendance uses the event's **Take attendance** action. It is available only for
 active events in the current Management period, on or after the event date.

@@ -26,21 +26,24 @@
       ? `${Array.from(student.first_name || '')[0] || ''}${Array.from(student.last_name || '')[0] || ''}`
       : Array.from(student.student_name || 'S').slice(0,1).join('');
     const field = (label,value) => `<div><dt>${label}</dt><dd>${escape(value || 'Not available')}</dd></div>`;
+    const photo = /^\.\.\/uploads\/student-profile\/student_[0-9]+\.jpg\?v=[a-f0-9]+$/.test(student.photo_url || '') ? `<img src="${escape(student.photo_url)}" alt="${escape(student.student_name)}">` : '';
     const profile = `<aside class="management-financial-sidebar" tabindex="0" aria-label="Selected student profile">
-      <div class="management-financial-avatar" role="img" aria-label="Student photo placeholder"><span>${escape(initials.toUpperCase())}</span></div>
+      <div class="management-financial-avatar" role="img" aria-label="Student photo"><span>${escape(initials.toUpperCase())}</span>${photo}</div>
       <h3 class="management-financial-student-name">${escape(student.student_name)}</h3>
       <span class="management-financial-student-id">${escape(student.student_number)}</span>
       <dl class="management-financial-profile-fields">${field('Course',programNames.join(' / ') || programs.join(' / '))}${field('Section & year level',[sections.join(' / '),years.join(' / ')].filter(Boolean).join(', '))}${field('Email',student.email_address || 'Email not provided')}</dl>
       <div class="management-financial-profile-period"><i class="bx bx-calendar" aria-hidden="true"></i><div><span>Selected period</span><strong>${escape(financial.period.text)}</strong></div></div>
     </aside>`;
-    const stat = (icon,label,value,copy,accent=false) => `<article class="management-financial-stat${accent ? ' management-financial-stat-due' : ''}"><span class="management-financial-stat-label"><i class="bx ${icon}" aria-hidden="true"></i>${label}</span><strong>${value}</strong><small>${copy}</small></article>`;
+    const settled = Number(summary.total_to_pay) === 0;
+    const stat = (icon,label,value,copy,accent=false) => `<article class="management-financial-stat${accent ? ` management-financial-stat-due${settled ? ' is-paid' : ''}` : ''}"><span class="management-financial-stat-label"><i class="bx ${icon}" aria-hidden="true"></i>${label}</span><strong>${value}</strong><small>${copy}</small></article>`;
     const stats = `<div class="management-financial-summary" aria-label="Student financial summary">
       ${stat('bx-wallet','Contribution total',money(summary.contribution_catalog_total),`${summary.contribution_count} active contribution${summary.contribution_count===1?'':'s'}`)}
       ${stat('bx-calendar-event','Events',String(summary.event_count),`${escape(summary.absence_count ?? 0)} absences${summary.attendance_pending_count ? ` · ${escape(summary.attendance_pending_count)} pending` : ''}`)}
       ${stat('bx-receipt','Amount paid',money(summary.amount_paid),'Posted payments')}
       ${stat('bx-credit-card','Total to pay',money(summary.total_to_pay),'Contributions + recorded fines',true)}
     </div>`;
-    const contributionRows = contributions.map(row => `<tr role="row"><td role="cell"><strong>${escape(row.title)}</strong><small>All students</small></td><td role="cell" data-label="Event date">${date(row.contribution_date)}</td><td role="cell" data-label="Amount" class="text-end">${money(row.amount)}</td><td role="cell" data-label="Payment status" class="text-end">${pending('Unpaid')}</td></tr>`).join('');
+    const paymentStatus = value => ({PAID:'Paid',PARTIALLY_PAID:'Partially paid',UNPAID:'Unpaid'}[value] || 'Unpaid');
+    const contributionRows = contributions.map(row => `<tr role="row"><td role="cell"><strong>${escape(row.title)}</strong><small>All students</small></td><td role="cell" data-label="Event date">${date(row.contribution_date)}</td><td role="cell" data-label="Amount" class="text-end">${money(row.amount)}<small>Remaining: ${money(row.amount_due ?? row.amount)}</small></td><td role="cell" data-label="Payment status" class="text-end"><span class="management-financial-pending${row.payment_status==='PAID'?' management-financial-present':''}">${paymentStatus(row.payment_status)}</span></td></tr>`).join('');
     const contributionBody = contributions.length
       ? `<div class="management-financial-table-scroll"><table class="table management-financial-table" role="table"><thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Contribution</th><th role="columnheader" scope="col">Event date</th><th role="columnheader" scope="col" class="text-end">Amount</th><th role="columnheader" scope="col" class="text-end">Payment status</th></tr></thead><tbody role="rowgroup">${contributionRows}</tbody><tfoot role="rowgroup"><tr role="row"><th role="rowheader" scope="row" colspan="2">Contribution total</th><td role="cell" class="text-end">${money(summary.contribution_catalog_total)}</td><td role="cell"></td></tr></tfoot></table></div>`
       : empty('bx-wallet','No active contributions','No contributions are listed for this organization and selected period.');
@@ -57,14 +60,57 @@
       ? `<div class="management-financial-table-scroll"><table class="table management-financial-table" role="table"><thead role="rowgroup"><tr role="row"><th>Violation</th><th>Date</th><th class="text-end">Amount</th><th class="text-end">Status</th></tr></thead><tbody role="rowgroup">${violations.map(row=>`<tr role="row"><td role="cell"><strong>${escape(row.title)}</strong></td><td role="cell" data-label="Date">${date(row.date)}</td><td role="cell" data-label="Amount" class="text-end">${money(row.amount)}</td><td role="cell" data-label="Status" class="text-end">${escape(row.status)}</td></tr>`).join('')}</tbody></table></div>`
       : empty('bx-shield-quarter','No violation entries available','There are no student violation entries to display for this period.');
     const violationSection = section('financial-violations','bx-shield-quarter','Violations','',violationBody);
-    const paymentSection = section('financial-payments','bx-receipt','Payment history','',empty('bx-receipt','No posted payments available','There are no posted payments to display for this period.'));
+    const paymentRows=(financial.payments || []).map(row=>`<li><div><strong>${escape(row.reference)}</strong><small>${escape(row.date)} · ${escape(row.recorded_by_name)}</small></div><strong>${money(row.amount)}</strong><a href="payment-receipt.php?payment_id=${encodeURIComponent(row.payment_id)}" target="_blank" rel="noopener">View receipt</a></li>`).join('');
+    const paymentSection = section('financial-payments','bx-receipt','Payment history','',paymentRows ? `<ul class="management-payment-history">${paymentRows}</ul>` : empty('bx-receipt','No posted payments available','There are no posted payments to display for this period.'));
     const reconciliation = `<section class="management-financial-reconciliation" aria-labelledby="financial-total-title"><div><h3 id="financial-total-title">Account total</h3><p>Contributions apply automatically. Absence fines apply only after event attendance closes.</p></div><dl><div><dt>Contributions</dt><dd>${money(summary.contribution_catalog_total)}</dd></div><div><dt>Event absence charges</dt><dd>${money(summary.event_fine_total)}</dd></div><div><dt>Violation charges</dt><dd>${money(summary.violation_total)}</dd></div><div><dt>Less: payments received</dt><dd>${money(summary.amount_paid)}</dd></div><div class="management-financial-balance"><dt>Total to pay</dt><dd>${money(summary.total_to_pay)}</dd></div></dl></section>`;
     const statusLabel={UNPAID:'Unpaid',NO_CHARGES:'No charges',PAID:'Paid',PARTIALLY_PAID:'Partially paid'}[summary.payment_status] || 'Unpaid';
+    const choices=(financial.charges || []).filter(row=>Number(row.amount_due)>0).map(row=>`<label class="management-payment-choice"><input type="checkbox" name="charge" value="${escape(row.key)}" data-amount="${escape(row.amount_due)}"><span>${escape(row.title)}</span><strong>${money(row.amount_due)}</strong></label>`).join('');
+    const payForm=financial.can_pay ? `<section class="management-payment-panel" hidden><h3>Record payment</h3><form class="management-payment-form"><fieldset><legend>Payment allocation</legend><label><input type="radio" name="allocation_mode" value="DISTRIBUTE" checked> Distribute</label><label><input type="radio" name="allocation_mode" value="SELECTED"> Selected</label></fieldset><p class="management-payment-help">Distribute shares the payment across unpaid charges in whole pesos. Each charge is capped at its remaining balance.</p><div class="management-payment-choices" hidden>${choices}</div><label class="form-label" for="management-payment-amount">Amount received (₱)</label><input class="form-control" id="management-payment-amount" name="amount" type="number" min="1" step="1" inputmode="decimal" required><div class="management-payment-error alert alert-danger" role="alert" hidden></div><div class="management-payment-preview" aria-live="polite"></div><div class="management-payment-buttons"><button class="btn btn-outline-primary" type="submit">Review allocation</button><button class="btn btn-primary management-payment-record" type="button" disabled>Record payment</button><button class="btn btn-outline-secondary management-payment-reload" type="button">Reload balance</button></div></form></section>` : '';
     return `<div class="management-financial-layout">${profile}<div class="management-financial-main" tabindex="0" role="region" aria-label="Student financial details">
-      <div class="management-financial-period"><div><span class="management-financial-kicker">${escape(financial.organization.code)} · FINANCIAL OVERVIEW</span><h3>${escape(financial.period.text)}</h3></div><div class="management-financial-actions"><span class="management-financial-status"><span aria-hidden="true"></span>${statusLabel}</span><button type="button" class="btn btn-primary management-financial-pay" disabled title="Payment collection is not enabled."><i class="bx bx-wallet me-1" aria-hidden="true"></i>Pay</button></div></div>
+      <div class="management-financial-period"><div><span class="management-financial-kicker">${escape(financial.organization.code)} · FINANCIAL OVERVIEW</span><h3>${escape(financial.period.text)}</h3></div><div class="management-financial-actions"><span class="management-financial-status"><span aria-hidden="true"></span>${statusLabel}</span><button type="button" class="btn btn-primary management-financial-pay"${financial.can_pay ? '' : ' disabled'}><i class="bx bx-wallet me-1" aria-hidden="true"></i>Pay</button></div></div>
       ${stats}
-      ${contributionSection}${eventSection}${violationSection}${paymentSection}${reconciliation}
+      ${payForm}${contributionSection}${eventSection}${violationSection}${paymentSection}${reconciliation.replace('class="management-financial-balance"',`class="management-financial-balance${settled ? ' is-paid' : ''}"`)}
     </div></div>`;
   }
-  window.SynkManagementFinancial = { render };
+  function bind(data,root,request,reload) {
+    root.querySelector('.management-financial-avatar img')?.addEventListener('error',event=>event.target.remove(),{once:true});
+    const panel=root.querySelector('.management-payment-panel'),form=panel?.querySelector('form');
+    if(!form)return;
+    const amount=form.elements.amount,choices=form.querySelector('.management-payment-choices'),error=form.querySelector('.management-payment-error'),preview=form.querySelector('.management-payment-preview'),record=form.querySelector('.management-payment-record');
+    let version=0,requestKey='',reviewed=false,saving=false;
+    const newKey=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
+    const cents=value=>Math.round(Number(value)*100);
+    const showError=text=>{error.textContent=text;error.hidden=!text;};
+    const mode=()=>form.querySelector('input[name=allocation_mode]:checked').value;
+    const selected=()=>[...form.querySelectorAll('input[name=charge]:checked')].map(input=>input.value);
+    function changed() {
+      version++;reviewed=false;requestKey=newKey();record.disabled=true;preview.innerHTML='';showError('');
+      const isSelected=mode()==='SELECTED';choices.hidden=!isSelected;amount.readOnly=isSelected;amount.step=isSelected?'.01':'1';amount.min=isSelected?'.01':'1';
+      form.querySelector('.management-payment-help').textContent=isSelected?'Check the charges to settle. The amount must match their exact remaining balances.':'Distribute shares the payment across unpaid charges in whole pesos. Each charge is capped at its remaining balance.';
+      if(isSelected){const total=[...form.querySelectorAll('input[name=charge]:checked')].reduce((sum,input)=>sum+cents(input.dataset.amount),0);amount.value=(total/100).toFixed(2);}
+    }
+    const values=()=>({student_id:String(data.student.student_id),allocation_mode:mode(),amount:amount.value,selected:JSON.stringify(mode()==='SELECTED'?selected():[]),account_version:data.financial.account_version,request_key:requestKey});
+    root.querySelector('.management-financial-pay').addEventListener('click',()=>{panel.hidden=false;panel.scrollIntoView({block:'nearest',behavior:'smooth'});amount.focus();});
+    form.addEventListener('input',changed);form.addEventListener('change',event=>{if(event.target.name==='allocation_mode'&&mode()==='DISTRIBUTE')amount.value='';changed();});
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();if(saving||!form.reportValidity())return;
+      const current=++version;record.disabled=true;showError('');preview.textContent='Calculating allocation…';
+      try {const result=await request('payment_preview',values());if(current!==version||!root.contains(form))return;
+        preview.innerHTML=`<ul>${result.items.map(item=>`<li><span>${escape(item.title)}</span><strong>${money(item.amount)}</strong></li>`).join('')}</ul><p><strong>Payment: ${money(result.amount)}</strong> · Remaining balance: ${money(result.balance_after)}</p>`;
+        reviewed=true;record.disabled=false;
+      }catch(failure){if(current===version){preview.innerHTML='';showError(failure.message);}}
+    });
+    record.addEventListener('click',async()=>{
+      if(!reviewed||saving)return;saving=true;const payload=values();
+      form.querySelectorAll('input,button').forEach(input=>input.disabled=true);showError('');record.textContent='Recording…';
+      try {const result=await request('payment_post',payload);await reload(result);}
+      catch(failure){showError(failure.message);form.querySelectorAll('input,button').forEach(input=>input.disabled=false);record.textContent='Record payment';}
+      finally{saving=false;}
+    });
+    form.querySelector('.management-payment-reload').addEventListener('click',async()=>{
+      try{await reload();}catch(failure){showError(failure.message);}
+    });
+    changed();
+  }
+  window.SynkManagementFinancial = { render, bind };
 })();

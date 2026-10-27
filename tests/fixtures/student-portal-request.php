@@ -32,6 +32,7 @@ class StudentPortalQAConnection extends mysqli {
 }
 $conn->close();$conn=new StudentPortalQAConnection($servername,$username,$password,$dbase);$conn->set_charset('utf8mb4');$conn->begin_transaction();
 $scenario=is_string($_GET['scenario']??null)?$_GET['scenario']:'dashboard';
+$qaCameraPost=$_POST;
 $loginActivityFloor=(int)$conn->query('SELECT COALESCE(MAX(activity_id),0) AS n FROM tbl_student_login_activity')->fetch_assoc()['n'];
 $tag='PortalQA'.bin2hex(random_bytes(6));$domain=synk_auth_settings()['allowed_domain'];$email=strtolower($tag).'@'.$domain;
 $term=synk_fetch_current_academic_term($conn);
@@ -174,16 +175,17 @@ foreach($students as$key=>$photoStudentId) {
     if (is_file($photoPath)) throw new RuntimeException('A fixture photo already exists; refusing to overwrite it.');
     $qaPhotoFiles[$key]=$photoPath;
 }
-register_shutdown_function(static function()use(&$qaPhotoFiles,&$qaPhotoBefore):void {
+register_shutdown_function(static function()use(&$qaPhotoFiles,&$qaPhotoBefore,$scenario):void {
     $state=[];
     foreach($qaPhotoFiles as$key=>$photoPath) {
         clearstatcache(true,$photoPath);
         $info=is_file($photoPath) ? @getimagesize($photoPath) : false;
         $state[$key]=['exists'=>is_file($photoPath),'hash'=>is_file($photoPath)?hash_file('sha256',$photoPath):null,'before'=>$qaPhotoBefore[$key] ?? null,
-            'files'=>count(glob(substr($photoPath,0,-4).'.*')),'mime'=>$info['mime'] ?? null,'width'=>$info[0] ?? null,'height'=>$info[1] ?? null];
+            'files'=>count(glob(substr($photoPath,0,-4).'.*')),'mime'=>$info['mime'] ?? null,'width'=>$info[0] ?? null,'height'=>$info[1] ?? null,
+            'web_readable'=>is_file($photoPath) && (fileperms($photoPath)&0044)===0044];
     }
     header('X-QA-Student-Photos: '.rawurlencode(json_encode($state)));
-    foreach($qaPhotoFiles as$photoPath)if(is_file($photoPath))unlink($photoPath);
+    foreach($qaPhotoFiles as$key=>$photoPath)if(is_file($photoPath) && !($key==='first' && $scenario==='photo_required_browser'))unlink($photoPath);
 });
 foreach($qaPhotoFiles as$key=>$photoPath) {
     $missing=$key==='first' && (strpos($scenario,'photo_required_')===0 || $scenario==='finances_photo_required');
@@ -200,9 +202,33 @@ if (strpos($scenario,'photo_required_')===0 || strpos($scenario,'photo_upload_')
     if($scenario==='photo_required_qr')$handler='student/attendance-qr.php';
     if($scenario==='photo_required_prospectus')$handler='student/prospectus.php';
     if($scenario==='photo_required_previous_login')synk_student_save_first_portal_profile_setup($conn,$email,(int)$program['program_id'],(string)(100000000+$students['first']));
-    if(strpos($scenario,'photo_upload_')===0 || $scenario==='photo_required_upload') {
+    if(strpos($scenario,'photo_upload_')===0 || $scenario==='photo_required_upload' || ($scenario==='photo_required_browser' && $qaCameraPost)) {
         $_POST=['save_student_photo'=>'1','csrf_token'=>$scenario==='photo_upload_bad_csrf'?'invalid':$csrf,
             'student_id'=>$students['other'],'first_name'=>'FORGED NAME','student_number'=>'00000000'];
+        // Transport fixtures supply a controlled browser report. The browser
+        // suite separately exercises the real self-hosted face detector.
+        $capture=synk_student_photo_begin_capture((int)$students['first']);
+        $captureFace=['x'=>.30,'y'=>.22,'width'=>.40,'height'=>.43,
+            'keypoints'=>[['x'=>.40,'y'=>.36],['x'=>.60,'y'=>.36],['x'=>.50,'y'=>.45]]];
+        $captureReport=['face_count'=>1,'face'=>$captureFace,'sha256'=>isset($_FILES['profile_photo']['tmp_name']) ? hash_file('sha256',$_FILES['profile_photo']['tmp_name']) : str_repeat('0',64)];
+        $_POST['capture_token']=$capture['capture_token'];
+        if ($scenario==='photo_upload_no_token') unset($_POST['capture_token']);
+        if ($scenario==='photo_upload_expired') $_SESSION['student_photo_capture']['started_at']=time()-601;
+        if ($scenario==='photo_upload_wrong_student') $_SESSION['student_photo_capture']['student_id']=$students['other'];
+        if ($scenario==='photo_upload_hash') $captureReport['sha256']=str_repeat('0',64);
+        if ($scenario==='photo_upload_no_face') $captureReport['face_count']=0;
+        if ($scenario==='photo_upload_multiple') $captureReport['face_count']=2;
+        if ($scenario==='photo_upload_bad_framing') $captureReport['face']['x']=0;
+        if ($scenario==='photo_upload_bad_points') $captureReport['face']['keypoints']='invalid';
+        $_POST['capture_report']=json_encode($captureReport);
+        if ($scenario==='photo_upload_start') $_POST['photo_action']='start';
+        if ($scenario==='photo_required_browser') {
+            // Preserve the real browser's report and JPEG. This fixture uses
+            // fresh rollback-only students per request, so it binds a fresh
+            // challenge here; challenge enforcement is tested by the PHP suite.
+            $_POST['capture_report']=$qaCameraPost['capture_report'] ?? '';
+            if (($qaCameraPost['photo_action'] ?? '')==='start') $_POST['photo_action']='start';
+        }
     }
     if($scenario==='photo_upload_staff')$_SESSION['role']='admin';
     if($scenario==='photo_upload_anonymous')$_SESSION=[];

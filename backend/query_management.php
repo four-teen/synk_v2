@@ -18,6 +18,11 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if (in_array($action,['payment_preview','payment_post'],true)) {
+        require_once __DIR__.'/management_payment_helper.php';
+        $result=$action==='payment_preview' ? synk_management_payment_preview($conn,$scope,$_POST) : synk_management_payment_post($conn,$scope,$_POST);
+        synk_management_response(['status'=>'ok']+$result);
+    }
     if (strpos($action,'attendance_')===0) {
         require_once __DIR__.'/management_attendance_helper.php';
         if ($action==='attendance_get') {
