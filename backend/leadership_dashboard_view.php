@@ -10,7 +10,7 @@ require_once __DIR__ . '/account_switch_helper.php';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?= synk_leadership_h($moduleRole) ?> Dashboard | Synk</title>
+    <title><?= synk_leadership_h($moduleRole) ?> Dashboard | synQ</title>
     <link rel="icon" type="image/x-icon" href="../assets/img/favicon/favicon.ico" />
     <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css" />
     <link rel="stylesheet" href="../assets/vendor/css/core.css" />
@@ -37,7 +37,7 @@ require_once __DIR__ . '/account_switch_helper.php';
           <div class="app-brand demo">
             <a href="index.php" class="app-brand-link">
               <span class="app-brand-logo demo"><i class="bx <?= synk_leadership_h($moduleIcon) ?> text-primary module-icon"></i></span>
-              <span class="app-brand-text demo menu-text fw-bolder ms-2">Synk</span>
+              <span class="app-brand-text demo menu-text fw-bolder ms-2">synQ</span>
             </a>
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none" aria-label="Close menu"><i class="bx bx-chevron-left bx-sm"></i></a>
           </div>

@@ -8,8 +8,8 @@ header('Cache-Control: no-store, private');
 if (empty($_SESSION['management_login_csrf'])) $_SESSION['management_login_csrf'] = bin2hex(random_bytes(32));
 $status = is_string($_GET['auth_status'] ?? null) ? $_GET['auth_status'] : '';
 $messages = [
-    'management_access_denied'=>'Your Google account needs an active Management role and an assigned college. Ask your Synk Administrator to check your access.',
-    'google_identity_mismatch'=>'This Google identity does not match the account on record. Ask your Synk Administrator to review your account.',
+    'management_access_denied'=>'Your Google account needs an active Management role and an assigned college. Ask your synQ Administrator to check your access.',
+    'google_identity_mismatch'=>'This Google identity does not match the account on record. Ask your synQ Administrator to review your account.',
     'google_cancelled'=>'Sign-in was cancelled. You can try again when you are ready.',
     'google_state_invalid'=>'Your sign-in link expired. Start again from this page.',
     'login_request_invalid'=>'Refresh this page and start your sign-in again.',
@@ -23,7 +23,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
 <html lang="en" class="light-style customizer-hide" dir="ltr" data-theme="theme-default" data-assets-path="../assets/">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Management Sign In | Synk</title>
+  <title>Management Sign In | synQ</title>
   <link rel="icon" href="../assets/img/favicon/synk-icon.png" type="image/png">
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
@@ -36,9 +36,9 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <div class="synk-login-splash" aria-hidden="true"><div class="synk-login-splash-brand"><div class="synk-login-logo">
     <img class="synk-login-logo-complete" src="../assets/img/favicon/synk-icon.png" alt="" width="144" height="144" fetchpriority="high">
     <i class="synk-login-logo-piece synk-login-logo-piece-cap"></i><i class="synk-login-logo-piece synk-login-logo-piece-tassel"></i><i class="synk-login-logo-piece synk-login-logo-piece-upper"></i><i class="synk-login-logo-piece synk-login-logo-piece-ribbon"></i><i class="synk-login-logo-piece synk-login-logo-piece-left"></i><i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
-  </div><span>synk</span></div></div>
+  </div><span>synQ</span></div></div>
   <main class="student-login-shell"><div class="student-login-wrap" data-synk-login-content>
-    <a class="student-login-brand" href="login.php" aria-label="Synk Management Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>Synk</span><span class="badge bg-label-primary">Management</span></a>
+    <a class="student-login-brand" href="login.php" aria-label="synQ Management Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>synQ</span><span class="badge bg-label-primary">Management</span></a>
     <section class="card student-login-card" aria-labelledby="login-title"><div class="card-body">
       <h1 id="login-title"><span class="student-login-title-lead"><?= $h($settings['management_login_title']) ?></span><span class="student-login-title-accent">One Place.</span></h1>
       <p class="student-login-intro">Your college community, contributions, and events in one workspace.</p>
@@ -53,7 +53,8 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
       </form>
       <div class="student-login-support"><i class="bx bx-check-shield" aria-hidden="true"></i><div><strong>Access assigned by your Administrator</strong><p>Choose the Google account registered for Management. Your assigned college opens automatically.</p></div></div>
     </div></section>
-    <p class="student-login-footer">Sultan Kudarat State University <span aria-hidden="true">&middot;</span> Management Portal<br><a href="../index.php">Staff sign-in</a> <span aria-hidden="true">&middot;</span> <a href="../student/login.php">Student sign-in</a></p>
+    <nav class="student-login-footer" aria-label="Other sign-in portals"><a href="../index.php">Staff sign-in</a> <span aria-hidden="true">&middot;</span> <a href="../student/login.php">Student sign-in</a></nav>
+    <p class="student-login-footer">synQ - One Institution. One Connected Ecosystem.</p>
   </div></main>
   <script src="login.js?v=<?= (int)filemtime(__DIR__.'/login.js') ?>" defer></script>
 </body></html>

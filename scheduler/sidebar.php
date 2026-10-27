@@ -241,7 +241,7 @@ foreach ($sidebarSections as $section) {
       <span class="app-brand-logo demo">
         <img src="../assets/img/favicon/synk-icon.png" width="40" height="40" alt="" />
       </span>
-      <span class="app-brand-text demo menu-text fw-bolder ms-2">Synk</span>
+      <span class="app-brand-text demo menu-text fw-bolder ms-2">synQ</span>
     </a>
 
     <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none">
