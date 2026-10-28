@@ -2,6 +2,27 @@
 // Used by account authorization; no schema creation or session overrides.
 class SynkManagementPermissionDenied extends DomainException {}
 
+function synk_management_operation_labels(): array
+{
+    return ['view'=>'View records','attendance'=>'Scan attendance','payments'=>'Collect payments',
+        'manage_contributions'=>'Manage contributions','manage_events'=>'Manage events','manage_violations'=>'Manage violations'];
+}
+
+function synk_management_operation_summary(array $permissions,string $prefix=''): string
+{
+    $labels=[];
+    foreach(synk_management_operation_labels() as $operation=>$label)if(!empty($permissions[$prefix.$operation]))$labels[]=$label;
+    return implode(', ',$labels);
+}
+
+function synk_management_operation_allowed(array $permissions,string $operation): bool
+{
+    if($operation==='records')return $permissions['view']||$permissions['payments'];
+    if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation];
+    if($operation==='events')return $permissions['view']||$permissions['attendance']||$permissions['manage_events'];
+    return !empty($permissions[$operation]);
+}
+
 function synk_management_officer_record(mysqli $conn,int $userId): ?array
 {
     if(!synk_table_exists($conn,'tbl_management_officers'))return null;
@@ -28,7 +49,7 @@ function synk_management_officer_valid(mysqli $conn,array $account,array $grant)
 {
     if($grant['status']!=='ACTIVE' || $grant['expires_on']<(new DateTimeImmutable('now',new DateTimeZone('Asia/Manila')))->format('Y-m-d')
         || (int)$grant['organization_id']!==(int)$account['management_organization_id'] || (int)$grant['college_id']!==(int)$account['management_college_id']
-        || !($grant['can_view']||$grant['can_attendance']||$grant['can_payments']))return false;
+        || synk_management_operation_summary($grant,'can_')==='')return false;
     $supervisor=synk_find_useraccount_by_id($conn,(int)$grant['supervisor_user_id']);
     if(!$supervisor || !synk_management_faculty_supervisor($conn,$supervisor)
         || (int)$supervisor['management_organization_id']!==(int)$grant['organization_id'] || (int)$supervisor['management_college_id']!==(int)$grant['college_id'])return false;
@@ -58,16 +79,14 @@ function synk_management_permissions(mysqli $conn,array $scope): array
     if(!$account || !synk_management_account_has_access($conn,$account)
         || (int)$account['management_organization_id']!==(int)$scope['organization_id'] || (int)$account['management_college_id']!==(int)$scope['college_id'])throw new SynkManagementPermissionDenied('Your Management access changed. Sign in again.');
     $grant=synk_management_officer_record($conn,(int)$account['user_id']);
-    if(!$grant)return ['is_officer'=>false,'view'=>true,'attendance'=>true,'payments'=>true,'setup'=>true,'officers'=>synk_management_faculty_supervisor($conn,$account),'student_id'=>0];
-    return ['is_officer'=>true,'view'=>(bool)$grant['can_view'],'attendance'=>(bool)$grant['can_attendance'],
-        'payments'=>(bool)$grant['can_payments'],'setup'=>false,'officers'=>false,'student_id'=>(int)$grant['student_id']];
+    $permissions=['is_officer'=>(bool)$grant,'setup'=>!$grant,'officers'=>!$grant && synk_management_faculty_supervisor($conn,$account),'student_id'=>(int)($grant['student_id'] ?? 0)];
+    foreach(synk_management_operation_labels() as $operation=>$label)$permissions[$operation]=!$grant || !empty($grant['can_'.$operation]);
+    return $permissions;
 }
 
 function synk_management_require_permission(mysqli $conn,array $scope,string $operation,?int $studentId=null): array
 {
-    $p=synk_management_permissions($conn,$scope);$allowed=$p[$operation] ?? false;
-    if($operation==='records')$allowed=$p['view']||$p['payments'];
-    if($operation==='events')$allowed=$p['view']||$p['attendance'];
+    $p=synk_management_permissions($conn,$scope);$allowed=synk_management_operation_allowed($p,$operation);
     if(!$allowed)throw new SynkManagementPermissionDenied('Your faculty manager has not enabled this operation for your account.');
     if($operation==='payments' && $p['is_officer'] && $studentId===$p['student_id'])throw new SynkManagementPermissionDenied('Ask your faculty manager or another authorized cashier to record payments on your own account.');
     return $p;

@@ -24,7 +24,14 @@ try {
         if($action==='officer_search')synk_management_response(['status'=>'ok','students'=>synk_management_officer_search($conn,$scope,(string)($_POST['search'] ?? ''))]);
         synk_management_response(['status'=>'ok']+synk_management_officer_write($conn,$scope,$action,$_POST));
     }
-    $permission=in_array($action,['payment_preview','payment_post'],true)?'payments':($action==='attendance_scan'?'attendance':($action==='attendance_get'?'events':($action==='student_detail'?'records':($action==='get'?'view':'setup'))));
+    $kind=(string)($_POST['kind'] ?? '');
+    $permission='setup';
+    if(in_array($action,['payment_preview','payment_post'],true))$permission='payments';
+    elseif($action==='attendance_scan')$permission='attendance';
+    elseif($action==='attendance_get')$permission='events';
+    elseif(in_array($action,['attendance_open','attendance_close','attendance_reopen'],true))$permission='manage_events';
+    elseif($action==='student_detail')$permission='records';
+    elseif(in_array($kind,['contributions','events','violations'],true) && in_array($action,['get','save','delete'],true))$permission=$action==='get'?$kind:'manage_'.$kind;
     synk_management_require_permission($conn,$scope,$permission,isset($_POST['student_id'])?(int)$_POST['student_id']:null);
     if (in_array($action,['payment_preview','payment_post'],true)) {
         require_once __DIR__.'/management_payment_helper.php';

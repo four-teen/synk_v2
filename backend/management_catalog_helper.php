@@ -266,7 +266,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
     try {
         // Lock current assignment before the record so a simultaneous reassignment cannot widen a write.
         synk_management_lock_assignment($conn,$scope);
-        synk_management_require_permission($conn,$scope,'setup');
+        synk_management_require_permission($conn,$scope,'manage_'.$kind);
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         if (($input['term'] ?? $currentTerm['key']) !== $currentTerm['key']
                 || ($input['exam_term'] ?? $currentTerm['exam_term']) !== $currentTerm['exam_term']) {
@@ -292,6 +292,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
                 synk_management_execute($conn, 'DELETE FROM tbl_management_event_sessions WHERE college_id=? AND event_id=?', 'ii', [$scope['college_id'],$id]);
             }
             synk_management_execute($conn, 'DELETE FROM ' . $meta['table'] . ' WHERE college_id=? AND ' . $meta['key'] . '=?','ii',[$scope['college_id'],$id]);
+            synk_management_audit_officer_operation($conn,$scope,'CATALOG_DELETE',['kind'=>$kind,'record_id'=>$id,'title'=>$existing['title']]);
             $conn->commit(); return ['message'=>$meta['label'] . ' deleted.','record_id'=>$id];
         }
         $record = synk_management_catalog_payload($conn,$scope,$kind,$input,$currentTerm,$existing);
@@ -331,6 +332,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
                 synk_management_execute($conn,'DELETE FROM tbl_management_event_sessions WHERE college_id=? AND event_id=? AND session_id=?','iii',[$scope['college_id'],$id,(int)$old['session_id']]);
             }
         }
+        synk_management_audit_officer_operation($conn,$scope,$existing?'CATALOG_UPDATE':'CATALOG_ADD',['kind'=>$kind,'record_id'=>$id,'title'=>$record['title']]);
         $conn->commit();
         return ['message'=>$meta['label'] . ' saved.','record_id'=>$id];
     } catch (Throwable $error) { $conn->rollback(); throw $error; }

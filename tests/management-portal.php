@@ -22,6 +22,11 @@ try {
     $check(strpos($r['response'],'officers.php?')===false&&strpos($r['response'],'id="management-current-period-settings" hidden')!==false,'Officer navigation exposes delegation or period administration.');
     $r=$request('officers_viewer');$check($r['status']===200&&strpos($r['response'],'Scan attendance')===false,'Viewer received attendance collection controls.');
     $r=$request('officers_payments');$check($r['status']===200&&strpos($r['response'],'Financial overview')!==false,'Treasurer cannot access financial overviews.');
+    foreach(['contributions','events','violations']as$kind){
+        $r=$request('officers_manage_'.$kind);$html=$r['response'];$check($r['status']===200&&strpos($html,'id="management-add"><')!==false,'Management-only officer cannot open/add '.$kind);
+        $check(strpos($html,'officers.php?')===false&&strpos($html,'id="management-current-period-settings" hidden')!==false,'Catalog manager gained delegation or period settings.');
+        foreach(['contributions','events','violations']as$otherKind)if($otherKind!==$kind)$check(strpos($html,$otherKind.'.php?')===false,'Catalog manager sees unassigned navigation: '.$otherKind);
+    }
     $check($conn->query("SHOW COLUMNS FROM tbl_academic_settings LIKE 'current_exam_term'")->num_rows===0,'Management term leaked into shared Academic Settings storage.');
     require_once __DIR__.'/../backend/academic_term_helper.php';
     $check(!array_key_exists('exam_term',synk_fetch_current_academic_term($conn)),'Shared academic helper exposes a Management-only term.');

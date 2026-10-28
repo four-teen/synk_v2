@@ -2,7 +2,7 @@
 // Delegation lifecycle and permissions on real native tables; roll back fixtures.
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 mysqli_report(MYSQLI_REPORT_ERROR|MYSQLI_REPORT_STRICT);
-require __DIR__.'/../backend/db.php';require __DIR__.'/../backend/management_officers_helper.php';require __DIR__.'/../backend/management_payment_helper.php';require __DIR__.'/../backend/management_attendance_helper.php';require __DIR__.'/../backend/student_login_helper.php';
+require __DIR__.'/../backend/db.php';require __DIR__.'/../backend/management_officers_helper.php';require __DIR__.'/../backend/management_payment_helper.php';require __DIR__.'/../backend/management_attendance_helper.php';require __DIR__.'/../backend/management_violations_helper.php';require __DIR__.'/../backend/student_login_helper.php';
 session_save_path(__DIR__.'/../temp');session_id('officerqa'.bin2hex(random_bytes(12)));session_start();
 class OfficerQAConnection extends mysqli{
  public function start():void{parent::begin_transaction();}public function discard():void{parent::rollback();}
@@ -12,7 +12,7 @@ class OfficerQAConnection extends mysqli{
 }
 $checks=0;$check=static function(bool $ok,string $msg)use(&$checks):void{if(!$ok)throw new RuntimeException($msg);$checks++;};
 $reject=static function(callable $fn,string $msg)use($check):void{try{$fn();}catch(DomainException|SynkManagementConflict|OutOfBoundsException $error){$check(true,$msg);return;}$check(false,$msg);};
-$tables=['tbl_management_officers','tbl_management_officer_audit','tbl_useraccount','tbl_useraccount_roles','tbl_useraccount_faculty_links','tbl_faculty','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_academic_settings','tbl_management_period_settings','tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens','tbl_management_payments','tbl_management_payment_items','tbl_class_schedule','tbl_faculty_workload_sched'];
+$tables=['tbl_management_officers','tbl_management_officer_audit','tbl_useraccount','tbl_useraccount_roles','tbl_useraccount_faculty_links','tbl_faculty','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_academic_settings','tbl_management_period_settings','tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens','tbl_management_payments','tbl_management_payment_items','tbl_class_schedule','tbl_faculty_workload_sched'];
 $snapshot=static function()use($conn,$tables):string{$rows=[];foreach($tables as$table)$rows[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);return hash('sha256',json_encode($rows));};$before=$snapshot();
 $db=new OfficerQAConnection($servername,$username,$password,$dbase);$db->set_charset('utf8mb4');$db->start();
 try{
@@ -36,7 +36,7 @@ try{
  synk_management_complete_verified_login($db,['email'=>strtolower($tag).'@sksu.edu.ph','sub'=>'officer-qa-'.$tag,'email_verified'=>true,'name'=>'Officer QA']);$check($_SESSION['role']==='management'&&(int)$_SESSION['user_id']===$officer,'Verified officer Google identity did not enter Management under its own account.');
  $reject(static function()use($db,$tag){synk_management_complete_verified_login($db,['email'=>strtolower($tag).'@sksu.edu.ph','sub'=>'different-identity','email_verified'=>true,'name'=>'Wrong']);},'A different Google identity took over the officer account.');
  $session($officer);$p=synk_management_permissions($db,$scope);$check($p['view']&&!$p['setup']&&!$p['officers']&&!$p['payments']&&!$p['attendance'],'Viewer inherited elevated permissions.');
- foreach(['setup','payments','attendance','officers']as$op)$reject(static function()use($db,$scope,$op){synk_management_require_permission($db,$scope,$op);},'Viewer accessed '.$op);
+ foreach(['setup','payments','attendance','officers','manage_contributions','manage_events','manage_violations']as$op)$reject(static function()use($db,$scope,$op){synk_management_require_permission($db,$scope,$op);},'Viewer accessed '.$op);
  $reject(static function()use($db,$scope,$grantInput){synk_management_officer_write($db,$scope,'officer_save',$grantInput);},'Officer created or changed access.');
  $session($manager);$grantInput['revision']=$revision;$grantInput['can_view']='0';$grantInput['can_attendance']='1';$grantInput['can_payments']='1';synk_management_officer_write($db,$scope,'officer_save',$grantInput);
  $session($officer);$check(synk_management_permissions($db,$scope)['payments'],'Permission change did not take effect.');
@@ -49,6 +49,42 @@ try{
  $f=synk_management_student_financial_overview($db,$scope,$period,$other);$paid=synk_management_payment_post($db,$scope,$input(['student_id'=>(string)$other,'allocation_mode'=>'DISTRIBUTE','amount'=>'50','selected'=>'[]','account_version'=>$f['account_version'],'request_key'=>bin2hex(random_bytes(32))]));
  $receipt=synk_management_payment_receipt($db,(int)$paid['payment_id'],null,$scope);$check((int)$receipt['recorded_by']===$officer,'Receipt does not identify the actual student cashier.');
  $session($manager);$actions=array_column(synk_management_officer_audit($db,$scope),'action');$check(in_array('PAYMENT',$actions,true)&&in_array('ATTENDANCE_SCAN',$actions,true)&&in_array('GRANT',$actions,true),'Supervising faculty cannot see officer operations.');
+ // Each management permission works by itself and never widens another operation.
+ $write=static function(string $kind,string $action,array $data)use($db,$scope):array{return $kind==='violations'?synk_management_violation_write($db,$scope,$action,$data):synk_management_catalog_write($db,$scope,$kind,$action,$data);};
+ $get=static function(string $kind,int $id)use($db,$scope):array{return $kind==='violations'?synk_management_violation_get($db,$scope,$id):synk_management_catalog_get($db,$scope,$kind,$id);};
+ $siblingOrg=$insert('tbl_management_organizations',['college_id'=>$scope['college_id'],'organization_code'=>$tag.'S','organization_name'=>$tag.' SIBLING']);
+ foreach(['contributions','events','violations']as$kind){
+  $session($manager);$catalogGrant=$grantInput;foreach(array_keys(synk_management_operation_labels())as$op)$catalogGrant['can_'.$op]='0';$catalogGrant['can_manage_'.$kind]='1';$catalogGrant['revision']=(string)synk_management_officers_list($db,$scope)[0]['revision'];
+  synk_management_officer_write($db,$scope,'officer_save',$catalogGrant);
+  $session($officer);$p=synk_management_permissions($db,$scope);$check($p['manage_'.$kind]&&!$p['view']&&!$p['attendance']&&!$p['payments']&&!$p['setup']&&!$p['officers'],'Management-only grant inherited extra permissions.');
+  synk_management_require_permission($db,$scope,$kind);
+  foreach(['setup','officers','attendance','payments','records']as$op)$reject(static function()use($db,$scope,$op){synk_management_require_permission($db,$scope,$op);},$kind.' manager accessed '.$op);
+  foreach(['contributions','events','violations']as$otherKind)if($otherKind!==$kind){$reject(static function()use($db,$scope,$otherKind){synk_management_require_permission($db,$scope,$otherKind);},'Management permission exposed another catalog.');$reject(static function()use($write,$otherKind,$input){$write($otherKind,'save',$input([]));},'Management permission authorized another catalog write.');}
+  $payload=$input(['title'=>$tag.' CATALOG','violation_type'=>$tag.' CATALOG','contribution_date'=>date('Y-m-d'),'event_date'=>date('Y-m-d'),'amount'=>'15','absence_fine'=>'5']);
+  $id=$write($kind,'save',$payload)['record_id'];$record=$get($kind,$id);
+  $check(($record['title'] ?? $record['violation_type'])===strtoupper($tag.' CATALOG'),'Officer could not add '.$kind);
+  $payload['record_id']=(string)$id;$payload['version']=$record['version'];$payload['title']=$payload['violation_type']=$tag.' UPDATED';$write($kind,'save',$payload);$record=$get($kind,$id);
+  $check(($record['title'] ?? $record['violation_type'])===strtoupper($tag.' UPDATED'),'Officer could not edit '.$kind);
+  $reject(static function()use($write,$kind,$payload){$write($kind,'delete',$payload);},'Stale officer write was accepted.');$payload['version']=$record['version'];
+  $foreignId=$insert('tbl_management_'.$kind,['college_id'=>$scope['college_id'],'organization_id'=>$siblingOrg,'ay_id'=>$period['ay_id'],'semester'=>$period['semester']]+($kind==='violations'?['violation_type'=>$tag,'amount'=>'1']:['title'=>$tag,($kind==='events'?'event_date':'contribution_date')=>date('Y-m-d'),'exam_term'=>$period['exam_term']]+($kind==='contributions'?['amount'=>'1']:[])));
+  $reject(static function()use($write,$kind,$payload,$foreignId){$payload['record_id']=(string)$foreignId;$write($kind,'delete',$payload);},'Officer changed a sibling organization record.');
+  if($kind==='events'){
+   $opened=synk_management_attendance_write($db,$scope,'attendance_open',$input(['event_id'=>$id]));
+   $check($opened['attendance']['attendance_status']==='OPEN','Event manager cannot open attendance.');
+   $reject(static function()use($db,$scope,$input,$id,$qr){synk_management_attendance_write($db,$scope,'attendance_scan',$input(['event_id'=>$id,'qr_code'=>$qr]));},'Event management implicitly enabled scanning.');
+   $closed=synk_management_attendance_write($db,$scope,'attendance_close',$input(['event_id'=>$id,'attendance_revision'=>$opened['attendance']['revision'],'confirm'=>'1']));
+   $reopened=synk_management_attendance_write($db,$scope,'attendance_reopen',$input(['event_id'=>$id,'attendance_revision'=>$closed['attendance']['revision'],'confirm'=>'1']));
+   $check($reopened['attendance']['attendance_status']==='OPEN','Event manager cannot close/reopen attendance.');
+   $payload['version']=$get($kind,$id)['version'];$reject(static function()use($write,$kind,$payload){$write($kind,'delete',$payload);},'Officer deleted an event with attendance.');
+   unset($payload['record_id'],$payload['version']);$payload['title']=$tag.' DELETE';$id=$write($kind,'save',$payload)['record_id'];$payload['record_id']=(string)$id;
+  }
+  $payload['version']=$get($kind,$id)['version'];$write($kind,'delete',$payload);
+  $reject(static function()use($get,$kind,$id){$get($kind,$id);},'Officer deletion retained '.$kind);
+  if($kind==='contributions'){$paidPayload=$payload;$paidPayload['record_id']=(string)$charge;$paidPayload['version']=$get($kind,$charge)['version'];$reject(static function()use($write,$kind,$paidPayload){$write($kind,'delete',$paidPayload);},'Officer deleted a paid charge.');}
+ }
+ $session($manager);$actions=array_column(synk_management_officer_audit($db,$scope),'action');foreach(['CATALOG_ADD','CATALOG_UPDATE','CATALOG_DELETE','ATTENDANCE_OPEN','ATTENDANCE_CLOSE','ATTENDANCE_REOPEN']as$op)$check(in_array($op,$actions,true),'Missing supervising faculty audit: '.$op);
+ $grantInput['revision']=(string)synk_management_officers_list($db,$scope)[0]['revision'];synk_management_officer_write($db,$scope,'officer_save',$grantInput);
+ $session($officer);foreach(['manage_contributions','manage_events','manage_violations']as$op)$reject(static function()use($db,$scope,$op){synk_management_require_permission($db,$scope,$op);},'Removed permission remained usable in a signed-in session.');$session($manager);
  $rows=synk_management_officers_list($db,$scope);$grantInput['revision']=(string)$rows[0]['revision'];synk_management_officer_write($db,$scope,'officer_revoke',$grantInput);
  $check(!synk_management_account_has_access($db,synk_find_useraccount_by_id($db,$officer)),'Revoked account remains authorized.');$session($officer);$reject(static function()use($db,$scope){synk_management_require_permission($db,$scope,'payments');},'Existing revoked session still has access.');
  $session($manager);$grantInput['revision']=(string)((int)$grantInput['revision']+1);synk_management_officer_write($db,$scope,'officer_save',$grantInput);

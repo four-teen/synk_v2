@@ -39,7 +39,7 @@ function synk_management_attendance_write(mysqli $conn,array $scope,string $acti
     $conn->begin_transaction();
     try {
         synk_management_lock_assignment($conn,$scope);
-        synk_management_require_permission($conn,$scope,$action==='attendance_scan'?'attendance':'setup');
+        synk_management_require_permission($conn,$scope,$action==='attendance_scan'?'attendance':'manage_events');
         $period=synk_management_lock_current_term($conn,$input,$scope);
         $event=synk_management_catalog_get($conn,$scope,'events',$eventId,true);
         if (!synk_management_catalog_in_period($event,$period) || $event['status']!=='ACTIVE') throw new SynkManagementConflict('Attendance requires an active event in the current Management period.');
@@ -82,6 +82,7 @@ function synk_management_attendance_write(mysqli $conn,array $scope,string $acti
         $summary=synk_management_attendance_summary($conn,$scope,$eventId);
         if ($auditAction) synk_management_execute($conn,'INSERT INTO tbl_management_attendance_audit (event_id,action,recorded_by,roster_count,present_count) VALUES (?,?,?,?,?)','isiii',[$eventId,$auditAction,(int)$_SESSION['user_id'],$summary['eligible'],$summary['present']]);
         if($action==='attendance_scan' && !$duplicate)synk_management_audit_officer_operation($conn,$scope,'ATTENDANCE_SCAN',['event_id'=>$eventId,'student_id'=>(int)$student['student_id']]);
+        if($auditAction)synk_management_audit_officer_operation($conn,$scope,'ATTENDANCE_'.$auditAction,['event_id'=>$eventId,'title'=>$event['title'],'eligible'=>$summary['eligible'],'present'=>$summary['present']]);
         $conn->commit();
         return ['attendance'=>$summary,'student'=>$student ?? null,'duplicate'=>$duplicate ?? false];
     } catch (Throwable $error) { $conn->rollback();throw $error; }

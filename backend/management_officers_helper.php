@@ -5,7 +5,9 @@ require_once __DIR__.'/college_dean_students_helper.php';
 
 function synk_management_officers_ready(mysqli $conn): bool
 {
-    return synk_table_exists($conn,'tbl_management_officers') && synk_table_exists($conn,'tbl_management_officer_audit');
+    if(!synk_table_exists($conn,'tbl_management_officers') || !synk_table_exists($conn,'tbl_management_officer_audit'))return false;
+    foreach(array_keys(synk_management_operation_labels()) as $operation)if(!synk_table_has_column($conn,'tbl_management_officers','can_'.$operation))return false;
+    return true;
 }
 
 function synk_management_officer_search(mysqli $conn,array $scope,string $search): array
@@ -66,7 +68,7 @@ function synk_management_officer_write(mysqli $conn,array $scope,string $action,
                 $email=synk_normalize_email((string)$student['email_address']);
                 if(strlen($email)>150 || !filter_var($email,FILTER_VALIDATE_EMAIL) || !synk_is_allowed_email_domain($email,(string)synk_auth_settings()['allowed_domain']))throw new DomainException('The student needs a valid school email in the Student Directory.');
                 if(count(synk_student_login_directory_for_officer($conn,$email))!==1)throw new DomainException('This email is assigned to multiple student records. Ask the college office to correct it first.');
-                $flags=[];foreach(['can_view','can_attendance','can_payments']as$key){$value=$input[$key] ?? '0';if(!in_array((string)$value,['0','1'],true))throw new DomainException('Choose valid permissions.');$flags[$key]=(int)$value;}
+                $flags=[];foreach(array_keys(synk_management_operation_labels())as$operation){$key='can_'.$operation;$value=$input[$key] ?? '0';if(!is_scalar($value) || !in_array((string)$value,['0','1'],true))throw new DomainException('Choose valid permissions.');$flags[$key]=(int)$value;}
                 if(!array_sum($flags))throw new DomainException('Enable at least one operation.');
                 $expiry=synk_management_input_date($input['expires_on'] ?? '');
                 $today=date('Y-m-d');if($expiry<$today || $expiry>(new DateTimeImmutable('today'))->modify('+1 year')->format('Y-m-d'))throw new DomainException('Choose an expiry date from today up to one year ahead. Access also ends when the academic semester changes.');
@@ -75,13 +77,13 @@ function synk_management_officer_write(mysqli $conn,array $scope,string $action,
                 if($grant){
                     $userId=(int)$grant['user_id'];$account=synk_find_useraccount_by_id($conn,$userId);
                     if(!$account || synk_normalize_email($account['email'])!==$email || (int)$account['management_organization_id']!==$scope['organization_id'] || $account['status']!=='active')throw new SynkManagementConflict('The account identity, assignment, or status changed. Ask the Administrator to review it.');
-                    synk_management_execute($conn,"UPDATE tbl_management_officers SET ay_id=?,semester=?,can_view=?,can_attendance=?,can_payments=?,expires_on=?,status='ACTIVE',revision=revision+1 WHERE officer_id=?",'iiiiisi',[$period['ay_id'],$period['semester'],$flags['can_view'],$flags['can_attendance'],$flags['can_payments'],$expiry,(int)$grant['officer_id']]);
+                    synk_management_execute($conn,"UPDATE tbl_management_officers SET ay_id=?,semester=?,can_view=?,can_attendance=?,can_payments=?,can_manage_contributions=?,can_manage_events=?,can_manage_violations=?,expires_on=?,status='ACTIVE',revision=revision+1 WHERE officer_id=?",'iiiiiiiisi',array_merge([$period['ay_id'],$period['semester']],array_values($flags),[$expiry,(int)$grant['officer_id']]));
                     $auditAction='UPDATE';
                 }else{
                     $name=trim($student['first_name'].' '.$student['last_name']);$password=synk_build_placeholder_password();
                     synk_management_execute($conn,"INSERT INTO tbl_useraccount (username,email,password,role,status,auth_provider,management_college_id,management_organization_id) VALUES (?,?,?,'management','active','google',?,?)",'sssii',[$name,$email,$password,$scope['college_id'],$scope['organization_id']]);$userId=(int)$conn->insert_id;
                     if(synk_persist_useraccount_roles($conn,$userId,['management'],'management')!==null)throw new RuntimeException('The student officer role could not be saved.');
-                    synk_management_execute($conn,'INSERT INTO tbl_management_officers (user_id,student_id,supervisor_user_id,organization_id,college_id,ay_id,semester,can_view,can_attendance,can_payments,expires_on) VALUES (?,?,?,?,?,?,?,?,?,?,?)','iiiiiiiiiis',[$userId,$studentId,(int)$_SESSION['user_id'],$scope['organization_id'],$scope['college_id'],$period['ay_id'],$period['semester'],$flags['can_view'],$flags['can_attendance'],$flags['can_payments'],$expiry]);
+                    synk_management_execute($conn,'INSERT INTO tbl_management_officers (user_id,student_id,supervisor_user_id,organization_id,college_id,ay_id,semester,can_view,can_attendance,can_payments,can_manage_contributions,can_manage_events,can_manage_violations,expires_on) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)','iiiiiiiiiiiiis',array_merge([$userId,$studentId,(int)$_SESSION['user_id'],$scope['organization_id'],$scope['college_id'],$period['ay_id'],$period['semester']],array_values($flags),[$expiry]));
                     $grant=['officer_id'=>(int)$conn->insert_id];$auditAction='GRANT';
                 }
                 $details=$flags+['expires_on'=>$expiry,'ay_id'=>$period['ay_id'],'semester'=>$period['semester']];

@@ -269,13 +269,32 @@ if (strpos($scenario,'collect_')===0) {
     if ($scenario==='collect_fraction') $_POST['amount']='100.50';
     if ($scenario==='collect_array') $_POST['selected']=[];
 }
-if(strpos($scenario,'officer_http_')===0){
+if(strpos($scenario,'officer_http_')===0 || strpos($scenario,'officer_catalog_')===0){
     require_once $root.'/backend/management_officers_helper.php';
     $faculty=$insert('tbl_faculty',['first_name'=>'OFFICER HTTP','last_name'=>$tag,'status'=>'active']);
     $insert('tbl_useraccount_faculty_links',['user_id'=>$userId,'faculty_id'=>$faculty]);
     $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
     $sid=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'OFFICER','last_name'=>$tag,'email_address'=>str_replace(' ','',strtolower($tag)).'student@sksu.edu.ph','source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
     $_POST=$post+['student_id'=>(string)$sid,'can_view'=>'1','can_attendance'=>'0','can_payments'=>'1','expires_on'=>date('Y-m-d',strtotime('+30 days'))];$_POST['action']='officer_save';
+    if(strpos($scenario,'officer_catalog_')===0){
+        require_once $root.'/backend/management_violations_helper.php';
+        [,,$catalogKind,$mode]=explode('_',$scenario,4);
+        foreach(array_keys(synk_management_operation_labels())as$op)$_POST['can_'.$op]='0';
+        $_POST['can_manage_'.$catalogKind]='1';
+        synk_management_officer_write($conn,$scope,'officer_save',$_POST);
+        $grant=synk_management_officer_record($conn,(int)$conn->query('SELECT user_id FROM tbl_management_officers WHERE student_id='.$sid)->fetch_assoc()['user_id']);
+        $_SESSION['user_id']=(int)$grant['user_id'];
+        $catalogId=['contributions'=>$contribution,'events'=>$event,'violations'=>$violation][$catalogKind];
+        $catalogRecord=$catalogKind==='violations'?synk_management_violation_get($conn,$scope,$catalogId):synk_management_catalog_get($conn,$scope,$catalogKind,$catalogId);
+        $_POST=array_merge($post,['kind'=>$catalogKind,'action'=>'save','record_id'=>$catalogId,'version'=>$catalogRecord['version'],'violation_type'=>$tag.' HTTP VIOLATION']);unset($_POST['sessions']);
+        if($mode==='get')$_POST['action']='get';
+        if($mode==='add'){$_POST['record_id']='';$_POST['version']='';}
+        if($mode==='delete'){$_POST['action']='delete';if($catalogKind==='events'){$conn->query('UPDATE tbl_management_contributions SET event_id=NULL WHERE contribution_id='.$contribution);$_POST['version']=synk_management_catalog_get($conn,$scope,'events',$event)['version'];}}
+        if($mode==='denied'){$_POST['kind']=$catalogKind==='events'?'contributions':'events';}
+        if($mode==='stale')$_POST['version']=str_repeat('0',64);
+        if($mode==='foreign')$_POST['record_id']=['contributions'=>$foreignContribution,'events'=>$foreignEvent,'violations'=>$foreignViolation][$catalogKind];
+        if($mode==='removed')$conn->query('UPDATE tbl_management_officers SET can_manage_'.$catalogKind.'=0,can_view=1 WHERE officer_id='.(int)$grant['officer_id']);
+    }
     if($scenario==='officer_http_search'){$_POST['action']='officer_search';$_POST['search']=$tag;}
     if($scenario==='officer_http_csrf')$_POST['csrf_token']='wrong';
     if($scenario==='officer_http_foreign')$_POST['organization_id']=$foreignOrg;

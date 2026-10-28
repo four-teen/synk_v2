@@ -24,8 +24,8 @@ $navigation = [
 if (!isset($navigation[$page])) { http_response_code(404); exit('Page not found.'); }
 try{
     if($page==='officers')synk_management_require_permission($conn,$scope,'officers');
-    elseif(in_array($page,['students','financial','contributions','violations'],true))synk_management_require_permission($conn,$scope,'records');
-    elseif($page==='events')synk_management_require_permission($conn,$scope,'events');
+    elseif(in_array($page,['students','financial'],true))synk_management_require_permission($conn,$scope,'records');
+    elseif(in_array($page,['contributions','events','violations'],true))synk_management_require_permission($conn,$scope,$page);
 }catch(SynkManagementPermissionDenied $error){http_response_code(403);exit(synk_management_h($error->getMessage()));}
 try {
     $term = synk_management_view_term($conn, $_GET, $scope);
@@ -90,7 +90,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php require __DIR__ . '/navbar.php'; ?>
   <div class="content-wrapper">
   <main id="main-content" class="container-xxl flex-grow-1 container-p-y management-main">
-    <?php if($permissions['is_officer']): ?><div class="alert alert-info" role="status"><strong>Student officer access</strong> ? <?= synk_management_h(implode(', ',array_filter([$permissions['view']?'View records':'',$permissions['attendance']?'Scan attendance':'',$permissions['payments']?'Collect payments':'']))) ?>. Your faculty manager controls these operations.</div><?php endif; ?>
+    <?php if($permissions['is_officer']): ?><div class="alert alert-info" role="status"><strong>Student officer access</strong> · <?= synk_management_h(synk_management_operation_summary($permissions)) ?>. Your faculty manager controls these operations.</div><?php endif; ?>
 
     <?php if(!in_array($page,['students','contributions','events'],true)): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section><?php endif; ?>
     <?php if ($page === 'dashboard'): ?>
@@ -108,8 +108,8 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
           <?php endforeach; ?></div><?php endif; ?>
         </section>
         <section class="card management-panel" aria-labelledby="activity-title"><div class="management-panel-heading"><div><span class="management-eyebrow">YOUR WORKSPACE</span><h2 id="activity-title">Organization activities</h2></div></div>
-          <a class="management-feature"<?= !($permissions['view']||$permissions['payments'])?' hidden':'' ?> href="<?= synk_management_h($pageUrl('contributions.php')) ?>"><span class="management-stat-icon bg-label-primary"><i class="bx bx-wallet" aria-hidden="true"></i></span><div><strong>Contributions</strong><p>Contribution records for your organization.</p><span class="management-feature-state"><?= number_format($activityCounts['contributions']) ?> in this term</span></div><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
-          <a class="management-feature"<?= !($permissions['view']||$permissions['attendance'])?' hidden':'' ?> href="<?= synk_management_h($pageUrl('events.php')) ?>"><span class="management-stat-icon bg-label-success"><i class="bx bx-calendar-event" aria-hidden="true"></i></span><div><strong>Events</strong><p>Your organization calendar and participation records.</p><span class="management-feature-state"><?= number_format($activityCounts['events']) ?> in this term</span></div><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
+          <a class="management-feature"<?= !synk_management_operation_allowed($permissions,'contributions')?' hidden':'' ?> href="<?= synk_management_h($pageUrl('contributions.php')) ?>"><span class="management-stat-icon bg-label-primary"><i class="bx bx-wallet" aria-hidden="true"></i></span><div><strong>Contributions</strong><p>Contribution records for your organization.</p><span class="management-feature-state"><?= number_format($activityCounts['contributions']) ?> in this term</span></div><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
+          <a class="management-feature"<?= !synk_management_operation_allowed($permissions,'events')?' hidden':'' ?> href="<?= synk_management_h($pageUrl('events.php')) ?>"><span class="management-stat-icon bg-label-success"><i class="bx bx-calendar-event" aria-hidden="true"></i></span><div><strong>Events</strong><p>Your organization calendar and participation records.</p><span class="management-feature-state"><?= number_format($activityCounts['events']) ?> in this term</span></div><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
         </section>
       </div>
     <?php elseif ($page === 'officers'): ?>

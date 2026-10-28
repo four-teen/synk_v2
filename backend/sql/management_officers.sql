@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS tbl_management_officers (
     can_view TINYINT(1) NOT NULL DEFAULT 0,
     can_attendance TINYINT(1) NOT NULL DEFAULT 0,
     can_payments TINYINT(1) NOT NULL DEFAULT 0,
+    can_manage_contributions TINYINT(1) NOT NULL DEFAULT 0,
+    can_manage_events TINYINT(1) NOT NULL DEFAULT 0,
+    can_manage_violations TINYINT(1) NOT NULL DEFAULT 0,
     expires_on DATE NOT NULL,
     status ENUM('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
     revision INT UNSIGNED NOT NULL DEFAULT 1,
@@ -38,3 +41,29 @@ CREATE TABLE IF NOT EXISTS tbl_management_officer_audit (
     KEY ix_management_officer_org_audit (organization_id,audit_id),
     CONSTRAINT fk_management_officer_audit FOREIGN KEY (officer_id) REFERENCES tbl_management_officers (officer_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- New operations remain disabled for every existing student officer.
+SET @synk_officer_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_officers' AND COLUMN_NAME='can_manage_contributions'),
+  'ALTER TABLE tbl_management_officers ADD COLUMN can_manage_contributions TINYINT(1) NOT NULL DEFAULT 0 AFTER can_payments',
+  'DO 0');
+PREPARE synk_officer_stmt FROM @synk_officer_ddl;
+EXECUTE synk_officer_stmt;
+DEALLOCATE PREPARE synk_officer_stmt;
+SET @synk_officer_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_officers' AND COLUMN_NAME='can_manage_events'),
+  'ALTER TABLE tbl_management_officers ADD COLUMN can_manage_events TINYINT(1) NOT NULL DEFAULT 0 AFTER can_manage_contributions',
+  'DO 0');
+PREPARE synk_officer_stmt FROM @synk_officer_ddl;
+EXECUTE synk_officer_stmt;
+DEALLOCATE PREPARE synk_officer_stmt;
+SET @synk_officer_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_officers' AND COLUMN_NAME='can_manage_violations'),
+  'ALTER TABLE tbl_management_officers ADD COLUMN can_manage_violations TINYINT(1) NOT NULL DEFAULT 0 AFTER can_manage_events',
+  'DO 0');
+PREPARE synk_officer_stmt FROM @synk_officer_ddl;
+EXECUTE synk_officer_stmt;
+DEALLOCATE PREPARE synk_officer_stmt;

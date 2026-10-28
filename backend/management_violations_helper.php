@@ -34,7 +34,7 @@ function synk_management_violation_write(mysqli $conn, array $scope, string $act
     $conn->begin_transaction();
     try {
         synk_management_lock_assignment($conn,$scope);
-        synk_management_require_permission($conn,$scope,'setup');
+        synk_management_require_permission($conn,$scope,'manage_violations');
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         $existing = null;
         if ($id) {
@@ -58,6 +58,7 @@ function synk_management_violation_write(mysqli $conn, array $scope, string $act
             }
             $message = 'Violation saved.';
         }
+        synk_management_audit_officer_operation($conn,$scope,$action==='delete'?'CATALOG_DELETE':($existing?'CATALOG_UPDATE':'CATALOG_ADD'),['kind'=>'violations','record_id'=>$id,'title'=>$action==='delete'?$existing['violation_type']:$type]);
         $conn->commit(); return ['record_id'=>$id,'message'=>$message];
     } catch (mysqli_sql_exception $error) {
         $conn->rollback();
