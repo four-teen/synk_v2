@@ -181,8 +181,11 @@ if(strpos($scenario,'officers_')===0){
     $sid=$students[0];$studentEmail=strtolower($tag).'student@sksu.edu.ph';
     $stmt=$conn->prepare('UPDATE tbl_student_management SET email_address=? WHERE student_id=?');$stmt->bind_param('si',$studentEmail,$sid);$stmt->execute();$stmt->close();
     $flags=['can_view'=>'1','can_attendance'=>'0','can_payments'=>'0'];
+    if($scenario==='officers_page')$flags['can_manage_events']='1';
     if($scenario==='officers_attendance')$flags=['can_view'=>'0','can_attendance'=>'1','can_payments'=>'0'];
     if($scenario==='officers_payments')$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'1'];
+    if(strpos($scenario,'officers_manage_')===0){$managedKind=substr($scenario,16);$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'0','can_manage_'.$managedKind=>'1'];}
+    if(($managedKind ?? '')==='events')$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
     synk_management_officer_write($conn,$scope,'officer_save',$flags+['student_id'=>(string)$sid,'expires_on'=>date('Y-m-d',strtotime('+30 days')),'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']]);
     $handler='management/officers.php';
     if(in_array($scenario,['officers_attendance','officers_viewer'],true)){
@@ -195,6 +198,7 @@ if(strpos($scenario,'officers_')===0){
         $_SESSION['user_id']=(int)$grant['user_id'];$_SESSION['email']=$studentEmail;
         if($scenario==='officers_attendance'||$scenario==='officers_viewer')$handler='management/events.php';
         if($scenario==='officers_payments'){$handler='management/students.php';$_GET['search']=$tag;}
+        if(isset($managedKind))$handler='management/'.$managedKind.'.php';
     }
 }
 $take=static function () use($conn,$tag):array {

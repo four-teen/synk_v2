@@ -5,8 +5,10 @@ $auditSummary=static function(array $row):string{
     $data=json_decode($row['details'],true) ?: [];
     if($row['action']==='PAYMENT')return 'Payment received: ₱'.number_format((float)($data['amount'] ?? 0),2).' · Receipt '.($data['receipt'] ?? '');
     if($row['action']==='ATTENDANCE_SCAN')return 'Student attendance recorded.';
+    if(strpos($row['action'],'CATALOG_')===0)return ucfirst((string)($data['kind'] ?? 'Record')).': '.($data['title'] ?? '').' (record '.($data['record_id'] ?? '').')';
+    if(strpos($row['action'],'ATTENDANCE_')===0)return 'Event: '.($data['title'] ?? '').' ('.($data['present'] ?? 0).' present / '.($data['eligible'] ?? 0).' eligible)';
     if($row['action']==='REVOKE')return 'Management access revoked.';
-    return implode(', ',array_filter([!empty($data['can_view'])?'View records':'',!empty($data['can_attendance'])?'Scan attendance':'',!empty($data['can_payments'])?'Collect payments':''])).' · Expires '.($data['expires_on'] ?? '');
+    return synk_management_operation_summary($data,'can_').' · Expires '.($data['expires_on'] ?? '');
 };
 ?>
 <section class="card management-panel management-officers" id="management-officers">
@@ -21,16 +23,19 @@ $auditSummary=static function(array $row):string{
 <h2 class="fs-5" id="officer-selected-name">Selected student</h2><p id="officer-selected-email"></p><input type="hidden" name="student_id"><input type="hidden" name="revision">
 <fieldset><legend class="fs-6">Allowed operations</legend>
 <label><input type="checkbox" name="can_view" value="1"><span><strong>View records</strong><small>Read student financial overviews, receipts, and organization records.</small></span></label>
-<label><input type="checkbox" name="can_attendance" value="1"><span><strong>Scan attendance</strong><small>Record QR attendance for events already opened by the faculty manager.</small></span></label>
+<label><input type="checkbox" name="can_attendance" value="1"><span><strong>Scan attendance</strong><small>Record QR attendance for events opened by the faculty manager or an authorized event manager.</small></span></label>
 <label><input type="checkbox" name="can_payments" value="1"><span><strong>Collect payments</strong><small>Record payments and issue receipts for other students. Cannot collect for their own account.</small></span></label>
+<label><input type="checkbox" name="can_manage_contributions" value="1"><span><strong>Manage contributions</strong><small>Add, edit, and delete contributions, including amounts and event links, within your organization.</small></span></label>
+<label><input type="checkbox" name="can_manage_events" value="1"><span><strong>Manage events</strong><small>Add, edit, and delete events and fines; open, close, and reopen attendance. Enable Scan attendance separately to record QR attendance.</small></span></label>
+<label><input type="checkbox" name="can_manage_violations" value="1"><span><strong>Manage violations</strong><small>Add, edit, and delete violation types and standard amounts within your organization.</small></span></label>
 </fieldset><label class="form-label mt-3" for="officer-expiry">Access expires on</label><input type="date" class="form-control" id="officer-expiry" name="expires_on" min="<?= date('Y-m-d') ?>" max="<?= (new DateTimeImmutable('today'))->modify('+1 year')->format('Y-m-d') ?>" required>
-<p class="small text-muted mt-2">Officers cannot add accounts, change contributions or fines, open/close attendance, or change Management settings.</p>
+<p class="small text-muted mt-2">These operations apply to your assigned organization. Students receive only the permissions you enable. Officers cannot delegate access or change Management settings. Existing payment and attendance protections still apply.</p>
 <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">Save student access</button><button class="btn btn-outline-secondary" type="button" id="officer-cancel">Cancel</button></div>
 </form>
 <h2 class="fs-5 mt-4">Students you supervise</h2>
 <?php if(!$officers): ?><p class="text-muted">No student officers assigned yet. Search above to add one.</p><?php endif; ?>
 <div class="management-officer-list"><?php foreach($officers as$officer): ?>
-<article><div><h3 class="fs-6"><?= synk_management_h($officer['first_name'].' '.$officer['last_name']) ?></h3><p><?= synk_management_h($officer['student_number'].' · '.$officer['email']) ?></p><p class="small">Status: <strong><?= synk_management_h($officer['effective_status']) ?></strong> · Expires <?= synk_management_h($officer['expires_on']) ?></p><p class="small">Operations: <?= synk_management_h(implode(', ',array_filter([$officer['can_view']?'View records':'',$officer['can_attendance']?'Scan attendance':'',$officer['can_payments']?'Collect payments':'']))) ?></p></div>
+<article><div><h3 class="fs-6"><?= synk_management_h($officer['first_name'].' '.$officer['last_name']) ?></h3><p><?= synk_management_h($officer['student_number'].' · '.$officer['email']) ?></p><p class="small">Status: <strong><?= synk_management_h($officer['effective_status']) ?></strong> · Expires <?= synk_management_h($officer['expires_on']) ?></p><p class="small">Operations: <?= synk_management_h(synk_management_operation_summary($officer,'can_')) ?></p></div>
 <div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-primary" type="button" data-officer-edit="<?= (int)$officer['student_id'] ?>">Edit permissions / Renew</button><?php if($officer['status']==='ACTIVE'): ?><button class="btn btn-outline-danger" type="button" data-officer-revoke="<?= (int)$officer['student_id'] ?>">Revoke access</button><?php endif; ?></div></article>
 <?php endforeach; ?></div>
 <details class="mt-4"><summary class="fw-semibold">Recent officer activity and permission changes</summary><ul class="management-officer-audit"><?php foreach($audit as$row): ?><li><strong><?= synk_management_h($row['first_name'].' '.$row['last_name'].' · '.str_replace('_',' ',$row['action'])) ?></strong><span><?= synk_management_h($row['actor_name']) ?> · <?= synk_management_h((new DateTimeImmutable($row['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A')) ?></span><small><?= synk_management_h($auditSummary($row)) ?></small></li><?php endforeach; ?><?php if(!$audit): ?><li>No activity recorded yet.</li><?php endif; ?></ul></details>

@@ -34,9 +34,9 @@
     }
     ['eligible','present','absent'].forEach(key=>$(('attendance-'+key)).textContent=next.attendance_status==='OPEN' && key==='absent'?'Pending':next[key]);
     $('attendance-absent').dataset.finalized=next.attendance_status==='CLOSED'?'true':'false';
-    const closed=next.attendance_status==='CLOSED';$('attendance-camera-start').disabled=closed;$('attendance-upload').disabled=closed;$('attendance-camera-device').disabled=closed;
-    $('attendance-upload-label').setAttribute('aria-disabled',String(closed));$('attendance-upload-label').tabIndex=closed?-1:0;
-    $('attendance-code').disabled=closed;$('attendance-code-submit').disabled=closed;
+    const closed=next.attendance_status==='CLOSED',scanDisabled=next.attendance_status!=='OPEN'||!config.permissions?.attendance;$('attendance-camera-start').disabled=scanDisabled;$('attendance-upload').disabled=scanDisabled;$('attendance-camera-device').disabled=scanDisabled;
+    $('attendance-upload-label').setAttribute('aria-disabled',String(scanDisabled));$('attendance-upload-label').tabIndex=scanDisabled?-1:0;
+    $('attendance-code').disabled=scanDisabled;$('attendance-code-submit').disabled=scanDisabled;
     $('attendance-event-context').textContent=`${next.event_date} · ${config.current_term_text} · ${config.current_exam_term==='FINAL'?'Final':'Midterm'}`;
     $('attendance-confirm').checked=false;$('attendance-state-change').disabled=true;$('attendance-state-change').textContent=closed?'Reopen attendance':'Close attendance';
     const amount=new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(next.absence_fine));
@@ -48,7 +48,7 @@
     if(closed)stopCamera();
   }
   async function record(code) {
-    if(busy || !state || state.attendance_status!=='OPEN')return false;
+    if(busy || !config.permissions?.attendance || !state || state.attendance_status!=='OPEN')return false;
     if(code===lastCode && Date.now()-lastAt<2500)return;
     lastCode=code;lastAt=Date.now();busy=true;error('');$('attendance-result').hidden=true;$('attendance-ready-note').hidden=false;const run=generation;
     $('attendance-ready-note').textContent='Saving attendance…';
@@ -71,7 +71,7 @@
     if(scanning && cameraRun===cameraGeneration)timer=setTimeout(()=>frame(cameraRun),220);
   }
   async function startCamera() {
-    stopCamera();if(!state || state.attendance_status!=='OPEN')return;const run=generation,cameraRun=cameraGeneration;
+    stopCamera();if(!config.permissions?.attendance || !state || state.attendance_status!=='OPEN')return;const run=generation,cameraRun=cameraGeneration;
     if(!element.classList.contains('show')) { element.addEventListener('shown.bs.modal',()=>{if(run===generation && cameraRun===cameraGeneration)startCamera();},{once:true});return; }
     error('');$('attendance-camera-stop').disabled=false;cameraStatus('Waiting for camera permission…');
     try {
@@ -101,7 +101,7 @@
     $('attendance-status').textContent='Loading…';['eligible','present','absent'].forEach(key=>$('attendance-'+key).textContent='—');
     $('attendance-confirm').checked=false;$('attendance-state-change').disabled=true;$('attendance-camera-start').disabled=true;$('attendance-upload').disabled=true;$('attendance-code').disabled=true;$('attendance-code-submit').disabled=true;modal.show();
     element.querySelector('.management-attendance-close').open=button.dataset.attendanceMode==='manage';
-    try{if(config.permissions?.is_officer)element.querySelector('.management-attendance-close').hidden=true;let data=await request('attendance_get');if(run!==generation)return;if(data.attendance.attendance_status==='NOT_STARTED'){if(config.permissions?.is_officer)throw Error('Your faculty manager must open attendance before you can scan.');data=await request('attendance_open');}if(run!==generation)return;render(data.attendance);if(state.attendance_status==='OPEN' && button.dataset.attendanceMode!=='manage')startCamera();}
+    try{element.querySelector('.management-attendance-close').hidden=!config.permissions?.manage_events;let data=await request('attendance_get');if(run!==generation)return;if(data.attendance.attendance_status==='NOT_STARTED'){if(!config.permissions?.manage_events)throw Error('Your faculty manager or an authorized event manager must open attendance before you can scan.');data=await request('attendance_open');}if(run!==generation)return;render(data.attendance);if(config.permissions?.attendance && state.attendance_status==='OPEN' && button.dataset.attendanceMode!=='manage')startCamera();}
     catch(e){if(run===generation)error(e.message);}
   });
   $('attendance-camera-start').addEventListener('click',startCamera);$('attendance-camera-stop').addEventListener('click',stopCamera);

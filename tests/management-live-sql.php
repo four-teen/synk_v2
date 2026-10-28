@@ -14,7 +14,7 @@ $execute=static function(mysqli $db,string $sql): void {
         if (!$db->more_results()) break;
     } while ($db->next_result());
 };
-$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit'];
+$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit'];
 foreach (['fresh','legacy','varchar'] as $scenario) {
     $database='synk_management_sql_qa_'.bin2hex(random_bytes(8));
     if (!preg_match('/^synk_management_sql_qa_[a-f0-9]{16}$/D',$database)) throw new RuntimeException('Invalid scratch database name.');
@@ -107,6 +107,15 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $db->query("INSERT INTO tbl_management_event_sessions (college_id,event_id,title,starts_at,ends_at) VALUES (2,$event,'EXISTING SESSION','2026-10-26 08:00:00','2026-10-26 12:00:00')");
         $db->query("INSERT INTO tbl_management_violations (college_id,organization_id,ay_id,semester,violation_type,amount) VALUES (2,$org,2,1,'EXISTING SCOPED TYPE',25.50)");
         $db->query("UPDATE tbl_useraccount SET management_college_id=2,management_organization_id=$org,google_sub='EXISTING_GOOGLE_SUBJECT',google_email_verified=1 WHERE user_id=1");
+        // Simulate the previous officer schema and verify an existing grant stays intact.
+        $db->query('INSERT INTO tbl_student_management VALUES (1)');
+        $db->query("INSERT INTO tbl_management_officers (user_id,student_id,supervisor_user_id,organization_id,college_id,ay_id,semester,can_view,can_payments,expires_on) VALUES (1,1,1,$org,2,2,1,1,1,'2027-01-01')");
+        $db->query('ALTER TABLE tbl_management_officers DROP COLUMN can_manage_contributions,DROP COLUMN can_manage_events,DROP COLUMN can_manage_violations');
+        $oldGrant=$db->query('SELECT * FROM tbl_management_officers')->fetch_assoc();
+        $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_officers.sql'));
+        $upgradedGrant=$db->query('SELECT * FROM tbl_management_officers')->fetch_assoc();
+        foreach(['contributions','events','violations']as$kind){$check($upgradedGrant['can_manage_'.$kind]==='0','Upgrade automatically enabled officer management permissions.');unset($upgradedGrant['can_manage_'.$kind]);}
+        $check($upgradedGrant===$oldGrant,'Officer schema upgrade modified an existing grant.');
         $snapshot=static function()use($db,$tables):array {
             $state=[];
             foreach (array_merge(['tbl_useraccount','tbl_academic_settings'],$tables) as $table) {
