@@ -174,7 +174,7 @@
             const updated=await request('student_detail',{directory_term:config.directory_term,student_id:button.dataset.student});
             show(updated,receipt);
           });
-          if(saved){const notice=document.createElement('div');notice.className='alert alert-success';notice.setAttribute('role','status');notice.innerHTML=`Payment recorded: ${escape(saved.receipt_number)}. <a href="payment-receipt.php?payment_id=${encodeURIComponent(saved.payment_id)}" target="_blank" rel="noopener">View receipt</a>`;content.querySelector('.management-financial-main').prepend(notice);}
+          if(saved){const notice=document.createElement('div');notice.className='alert alert-success';notice.setAttribute('role','status');if(saved.receipt_number)notice.innerHTML=`Payment recorded: ${escape(saved.receipt_number)}. <a href="payment-receipt.php?payment_id=${encodeURIComponent(saved.payment_id)}" target="_blank" rel="noopener">View receipt</a>`;else notice.textContent=saved.message || 'Student account updated.';content.querySelector('.management-financial-main').prepend(notice);}
         };
         show(data);
       } catch (error) { if (current === generation) $('management-student-detail-content').innerHTML = `<div class="alert alert-danger" role="alert">${escape(error.message)}</div>`; }

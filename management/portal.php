@@ -19,17 +19,23 @@ $navigation = [
     'events'=>['Events','events.php','bx-calendar-event','Organization events and QR attendance','success'],
     'violations'=>['Violations','violations.php','bx-error-circle','Violation types and standard amounts','warning'],
     'students'=>['Students','students.php','bx-user-pin','Unique students and imported subject lists','secondary'],
+    'reports'=>['Reports','reports.php','bx-printer','Period collections, fines, and event attendance','info'],
     'officers'=>['Student Officers','officers.php','bx-user-check','Authorize students and choose their operations','primary'],
 ];
 if (!isset($navigation[$page])) { http_response_code(404); exit('Page not found.'); }
 try{
     if($page==='officers')synk_management_require_permission($conn,$scope,'officers');
-    elseif(in_array($page,['students','financial'],true))synk_management_require_permission($conn,$scope,'records');
-    elseif(in_array($page,['contributions','events','violations'],true))synk_management_require_permission($conn,$scope,$page);
+    elseif(in_array($page,['students','financial'],true))synk_management_require_permission($conn,$scope,$page==='students'?'student_records':'records');
+    elseif(in_array($page,['contributions','events','violations','reports'],true))synk_management_require_permission($conn,$scope,$page);
 }catch(SynkManagementPermissionDenied $error){http_response_code(403);exit(synk_management_h($error->getMessage()));}
 try {
     $term = synk_management_view_term($conn, $_GET, $scope);
-    $analytics = synk_management_analytics($conn, $scope, $term);
+    $report=null;
+    if($page==='reports'){
+        require_once __DIR__.'/../backend/management_reports_helper.php';
+        $report=synk_management_reports_prepare($conn,$scope,$term,$_GET);
+    }
+    $analytics = $page==='reports' ? [] : synk_management_analytics($conn, $scope, $term);
     $directory = null;
     if ($page === 'students') {
         // The header owns the viewing period. Removed controls must not remain
@@ -43,7 +49,7 @@ try {
         $violations = synk_management_violations_list($conn,$scope,$_GET);
     }
     $catalog = null; $catalogOptions = null; $activityCounts = ['contributions'=>0,'events'=>0];
-    if (synk_management_catalog_ready($conn)) {
+    if ($page!=='reports' && synk_management_catalog_ready($conn)) {
         foreach (['contributions','events'] as $kind) {
             $periodValues = [$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester'],$term['exam_term']];
             $activityCounts[$kind] = (int)synk_management_query($conn, 'SELECT COUNT(*) AS n FROM tbl_management_' . $kind . ' WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=?','iiiis',$periodValues)[0]['n'];
@@ -53,7 +59,8 @@ try {
             $catalogOptions = synk_management_catalog_options($conn,$scope,$term);
         }
     } elseif (in_array($page,['contributions','events'],true)) throw new RuntimeException('The Management catalog has not been prepared.');
-} catch (OutOfBoundsException $error) { http_response_code(404); exit(synk_management_h($error->getMessage())); }
+} catch (SynkManagementPermissionDenied $error) { http_response_code(403); exit(synk_management_h($error->getMessage())); }
+catch (OutOfBoundsException $error) { http_response_code(404); exit(synk_management_h($error->getMessage())); }
 catch (DomainException $error) { http_response_code(400); exit(synk_management_h($error->getMessage())); }
 catch (Throwable $error) {
     error_log('Management portal: ' . $error->getMessage());
@@ -80,6 +87,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <link rel="stylesheet" href="../college-dean/students.css?v=<?= (int)filemtime(__DIR__.'/../college-dean/students.css') ?>">
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
   <?php if($page==='officers'): ?><link rel="stylesheet" href="officers.css?v=<?= (int)filemtime(__DIR__.'/officers.css') ?>"><?php endif; ?>
+  <?php if($page==='reports'): ?><link rel="stylesheet" href="reports.css?v=<?= (int)filemtime(__DIR__.'/reports.css') ?>"><?php endif; ?>
   <link rel="stylesheet" href="portal.css?v=<?= (int)filemtime(__DIR__.'/portal.css') ?>">
 </head>
 <body class="management-portal">
@@ -101,10 +109,10 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
       </section>
       <p class="management-data-note">Unique students and active imported class records in <?= synk_management_h($term['term_text']) ?>.<?php if ($analytics['last_import']): ?> Latest import: <?= synk_management_h(date('M j, Y, g:i A', strtotime($analytics['last_import']))) ?>.<?php endif; ?></p>
       <div class="management-dashboard-grid">
-        <section class="card management-panel" aria-labelledby="program-distribution-title"><div class="management-panel-heading"><div><span class="management-eyebrow">COLLEGE COMMUNITY</span><h2 id="program-distribution-title">Students by program</h2></div><a<?= !($permissions['view']||$permissions['payments'])?' hidden':'' ?> href="<?= synk_management_h($pageUrl('students.php')) ?>">View students <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a></div>
+        <section class="card management-panel" aria-labelledby="program-distribution-title"><div class="management-panel-heading"><div><span class="management-eyebrow">COLLEGE COMMUNITY</span><h2 id="program-distribution-title">Students by program</h2></div><a<?= !synk_management_operation_allowed($permissions,'student_records')?' hidden':'' ?> href="<?= synk_management_h($pageUrl('students.php')) ?>">View students <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a></div>
           <?php if (!$analytics['by_program']): ?><div class="management-empty"><i class="bx bx-group" aria-hidden="true"></i><h3>No students for this term yet</h3><p>Your college students will appear when class lists are imported into Synk.</p></div>
           <?php else: $maxStudents=max(array_column($analytics['by_program'],'students')); ?><div class="management-programs"><?php foreach ($analytics['by_program'] as $program): ?>
-            <div class="management-program-row"><div><a<?= !($permissions['view']||$permissions['payments'])?' style="pointer-events:none;color:inherit" tabindex="-1"':'' ?> href="<?= synk_management_h($pageUrl('students.php',['program_id'=>$program['program_id']])) ?>"><?= synk_management_h($program['program_code']) ?><?= trim((string)$program['major']) !== '' ? ' · '.synk_management_h($program['major']) : '' ?></a><strong><?= number_format($program['students']) ?> <small>students</small></strong></div><div class="management-bar-track" aria-hidden="true"><span style="width:<?= max(1,round($program['students']/$maxStudents*100)) ?>%"></span></div><small><?= synk_management_h($program['program_name']) ?></small></div>
+            <div class="management-program-row"><div><a<?= !synk_management_operation_allowed($permissions,'student_records')?' style="pointer-events:none;color:inherit" tabindex="-1"':'' ?> href="<?= synk_management_h($pageUrl('students.php',['program_id'=>$program['program_id']])) ?>"><?= synk_management_h($program['program_code']) ?><?= trim((string)$program['major']) !== '' ? ' · '.synk_management_h($program['major']) : '' ?></a><strong><?= number_format($program['students']) ?> <small>students</small></strong></div><div class="management-bar-track" aria-hidden="true"><span style="width:<?= max(1,round($program['students']/$maxStudents*100)) ?>%"></span></div><small><?= synk_management_h($program['program_name']) ?></small></div>
           <?php endforeach; ?></div><?php endif; ?>
         </section>
         <section class="card management-panel" aria-labelledby="activity-title"><div class="management-panel-heading"><div><span class="management-eyebrow">YOUR WORKSPACE</span><h2 id="activity-title">Organization activities</h2></div></div>
@@ -114,6 +122,8 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
       </div>
     <?php elseif ($page === 'officers'): ?>
       <?php require __DIR__.'/officers-view.php'; ?>
+    <?php elseif ($page === 'reports'): ?>
+      <?php require __DIR__.'/reports-view.php'; ?>
     <?php elseif ($page === 'financial'): ?>
       <?php require __DIR__.'/financial-view.php'; ?>
     <?php elseif ($page === 'violations'): ?>
@@ -137,6 +147,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 <script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script><script src="portal.js?v=<?= (int)filemtime(__DIR__.'/portal.js') ?>" defer></script>
 <?php if ($page === 'students'): ?><script src="student-financial.js?v=<?= (int)filemtime(__DIR__.'/student-financial.js') ?>" defer></script><?php endif; ?>
 <?php if ($page === 'officers'): ?><script src="officers.js?v=<?= (int)filemtime(__DIR__.'/officers.js') ?>" defer></script><?php endif; ?>
+<?php if ($page === 'reports'): ?><script src="reports.js?v=<?= (int)filemtime(__DIR__.'/reports.js') ?>" defer></script><?php endif; ?>
 <?php if ($page === 'events'): ?><script src="../assets/vendor/libs/management-qr/jsQR.js" defer></script><script src="attendance.js?v=<?= (int)filemtime(__DIR__.'/attendance.js') ?>" defer></script><?php endif; ?>
 <script src="workspace.js?v=<?= (int)filemtime(__DIR__.'/workspace.js') ?>" defer></script>
 </body></html>

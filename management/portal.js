@@ -1,5 +1,11 @@
 'use strict';
 (() => {
+  // Image failures must keep the reserved avatar size and avoid retry loops.
+  document.querySelectorAll('.management-student-avatar').forEach(avatar=>{
+    const fallback=()=>{if(avatar.getAttribute('src')!==avatar.dataset.fallback)avatar.src=avatar.dataset.fallback;};
+    avatar.addEventListener('error',fallback);
+    if(avatar.complete && !avatar.naturalWidth)fallback();
+  });
   const menuElement=document.getElementById('layout-menu');
   const backdrop=document.getElementById('management-menu-backdrop');
   const mobileNav=document.getElementById('management-mobile-nav');

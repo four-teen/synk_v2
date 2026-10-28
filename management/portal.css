@@ -1,8 +1,13 @@
-/* Layout extensions only. Palette, controls, navigation, and list typography
-   come from Synk's core theme and the shared College Dean styles. */
+/* Management layout and readable text colors, using the shared portal theme. */
 :root {
   --management-primary: var(--dean-primary);
   --management-muted: var(--dean-muted);
+}
+.management-portal {
+  --dean-heading: #1f2937;
+  --dean-text: #334155;
+  --dean-muted: #526175;
+  color: var(--dean-text);
 }
 .management-portal [hidden] { display: none !important; }
 .management-skip { position: fixed; top: -100px; left: 1rem; z-index: 1200; padding: .75rem; background: #fff; border-radius: .5rem; }
@@ -14,11 +19,11 @@
 .management-mobile-nav, .management-mobile-brand { display: none; }
 .management-portal .dropdown-item-text { max-width: 20rem; overflow-wrap: anywhere; }
 .management-portal .layout-overlay { border: 0; padding: 0; }
-#layout-menu .management-nav-section { margin: .8rem 0 .15rem; padding: .25rem 1.1rem; font-size: .65rem; font-weight: 600; line-height: 1rem; letter-spacing: .06em; color: #8391a7; }
+#layout-menu .management-nav-section { margin: .8rem 0 .15rem; padding: .25rem 1.1rem; font-size: .65rem; font-weight: 600; line-height: 1rem; letter-spacing: .06em; color: var(--dean-muted); }
 #layout-menu .management-nav-section:first-child { margin-top: .35rem; }
 .management-sidebar-college { flex: 0 0 auto; margin-top: auto; padding: 1rem 1.1rem 1.15rem; border-top: 1px solid #e4e8f0; background: #fff; }
-.management-sidebar-college > span { display: block; margin-bottom: .4rem; font-size: .65rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #8391a7; }
-.management-sidebar-college > strong { display: block; font-size: .8rem; font-weight: 600; line-height: 1.5; color: #364152; overflow-wrap: anywhere; }
+.management-sidebar-college > span { display: block; margin-bottom: .4rem; font-size: .65rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dean-muted); }
+.management-sidebar-college > strong { display: block; font-size: .8rem; font-weight: 600; line-height: 1.5; color: var(--dean-heading); overflow-wrap: anywhere; }
 .management-heading { padding: 1.5rem; margin-bottom: 1.5rem; }
 .management-heading h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: .5rem; }
 .management-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1.5rem; }
@@ -36,7 +41,7 @@
 .management-panel-heading h2 .badge { vertical-align: middle; font-size: .75rem; margin-left: .35rem; }
 .management-panel-heading p:not(.card-section-title) { color: var(--dean-muted); margin: .5rem 0 0; }
 .management-panel-heading > a { font-size: .875rem; }
-.management-eyebrow { font-size: .9rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .05em; }
+.management-eyebrow { font-size: .9rem; font-weight: 600; color: var(--dean-muted); text-transform: uppercase; letter-spacing: .05em; }
 .management-programs { padding: 0 1.5rem 1.5rem; }
 .management-program-row { padding-top: 1.25rem; }
 .management-program-row > div:first-child { display: flex; justify-content: space-between; gap: .75rem; margin-bottom: .65rem; }
@@ -76,7 +81,7 @@
 .management-attendance-present{color:#28794c}
 .management-attendance-remaining{color:#b44545}
 .management-event-count-label{display:block;color:var(--dean-muted);font-size:.65rem;margin-top:.25rem;white-space:nowrap}
-.management-table .management-event-attendance-state[data-event-attendance-status]{display:inline-flex;align-items:center;gap:.35rem;border-radius:.35rem;padding:.4rem .6rem;background:#f1f3f8;color:#718096;font-size:.75rem;white-space:nowrap}
+.management-table .management-event-attendance-state[data-event-attendance-status]{display:inline-flex;align-items:center;gap:.35rem;border-radius:.35rem;padding:.4rem .6rem;background:#f1f3f8;color:var(--dean-muted);font-size:.75rem;white-space:nowrap}
 .management-table .management-event-attendance-state[data-event-attendance-status="OPEN"]{color:#28794c;background:#e8f7ee}
 .management-table .management-event-attendance-state[data-event-attendance-status="CLOSED"]{color:#b44545;background:#ffeded}
 .management-financial-pending.management-financial-present{color:#28794c;background:#e8f7ee}
@@ -85,10 +90,26 @@
 .management-record-title { min-width: 15rem; max-width: 25rem; overflow-wrap: anywhere; }
 .management-table .badge { display: inline-flex; }
 .management-student-table { min-width: 0; width: 100%; table-layout: fixed; }
+.management-student-table .management-student-photo { width: 80px; padding-left: 1rem; padding-right: 1rem; text-align: center; }
+.management-student-avatar { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 6px; background: #f0f2f7; }
 .management-student-table .management-record-title { min-width: 0; max-width: none; }
 .management-student-table .dean-student-id { overflow: hidden; text-overflow: ellipsis; }
+.management-student-table .dean-student-full-name { color: #f05a00; }
 .management-student-table th:last-child { width: 165px; }
 .management-financial-open { max-width: 100%; white-space: normal; }
+.management-violation-panel { border: 1px solid var(--dean-border); border-radius: .5rem; padding: 1rem; margin: 0 0 1.25rem; background: #fafbff; }
+.management-violation-panel h4 { font-size: .95rem; line-height: 1.6; }
+.management-violation-form fieldset { min-width: 0; }
+.management-violation-form legend { font-size: .8rem; margin-top: .5rem; }
+.management-violation-choices { max-height: 230px; overflow-y: auto; border: 1px solid var(--dean-border); border-radius: .35rem; background: #fff; }
+.management-violation-choice { display: flex; align-items: flex-start; gap: .75rem; padding: .85rem; cursor: pointer; }
+.management-violation-choice + .management-violation-choice { border-top: 1px solid var(--dean-border); }
+.management-violation-choice input { margin-top: .2rem; flex-shrink: 0; }
+.management-violation-choice span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: .8rem; }
+.management-violation-choice strong { flex-shrink: 0; font-size: .8rem; }
+.management-violation-help, .management-violation-total { margin: 1rem 0; font-size: .8rem; line-height: 1.7; }
+.management-violation-fields { display: grid; grid-template-columns: minmax(140px,1fr) minmax(0,2fr); gap: 1rem; }
+@media(max-width:575.98px) { .management-violation-fields { grid-template-columns: minmax(0,1fr); } .management-violation-choice { gap: .5rem; padding: .75rem; } }
 .management-row-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .management-row-actions .btn { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
 .management-row-actions .bx { font-size: 1rem; }
@@ -226,7 +247,7 @@
 .management-payment-preview ul,.management-payment-history{list-style:none;padding:0;margin:16px 0}
 .management-payment-preview li,.management-payment-history li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #e5e8ed;font-size:13px}
 .management-payment-preview li span,.management-payment-history li>div{min-width:0;overflow-wrap:anywhere}
-.management-payment-history small{display:block;color:#7c899d}
+.management-payment-history small{display:block;color:var(--dean-muted)}
 .management-payment-history{padding:0 16px}
 .management-payment-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 .management-payment-buttons .btn{min-height:44px}
@@ -272,7 +293,7 @@
   .management-main { scroll-margin-bottom: 90px; }
   .management-mobile-brand { display: flex; flex: 0 0 32px; align-items: center; margin-right: .75rem; min-height: 44px; }
   .management-mobile-nav { position: fixed; z-index: 1030; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: #fff; border-top: 1px solid #e4e8f0; box-shadow: 0 -3px 16px #4359710a; padding: .35rem max(.35rem,env(safe-area-inset-right,0px)) calc(.35rem + env(safe-area-inset-bottom,0px)) max(.35rem,env(safe-area-inset-left,0px)); }
-  .management-mobile-nav > a, .management-mobile-nav > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; min-width: 0; min-height: 56px; padding: .4rem .1rem; margin: 0 .1rem; border: 0; border-radius: .65rem; background: transparent; color: #697a8d; font-size: .7rem; line-height: 1.25; font-weight: 500; touch-action: manipulation; }
+  .management-mobile-nav > a, .management-mobile-nav > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; min-width: 0; min-height: 56px; padding: .4rem .1rem; margin: 0 .1rem; border: 0; border-radius: .65rem; background: transparent; color: var(--dean-text); font-size: .7rem; line-height: 1.25; font-weight: 500; touch-action: manipulation; }
   .management-mobile-nav .bx { font-size: 1.4rem; }
   .management-mobile-nav [aria-current="page"], .management-mobile-nav .is-current, .management-mobile-nav [aria-expanded="true"] { color: #696cff; background: #f2f2ff; }
   .management-portal.modal-open .management-mobile-nav { visibility: hidden; }
@@ -283,13 +304,13 @@
   .management-mobile-more .btn-close { width: 44px; height: 44px; box-sizing: border-box; margin: 0; padding: 0; flex-shrink: 0; }
   .management-mobile-more .offcanvas-body { padding: .75rem 1.25rem 1.25rem; }
   .management-mobile-more nav { display: grid; gap: .75rem; }
-  .management-mobile-more nav a { display: flex; gap: 1rem; align-items: center; min-height: 64px; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; color: #566a7f; }
+  .management-mobile-more nav a { display: flex; gap: 1rem; align-items: center; min-height: 64px; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; color: var(--dean-heading); }
   .management-mobile-more nav a[aria-current="page"] { background: #f2f2ff; border-color: #696cff; }
   .management-mobile-more nav a > .bx:first-child { color: #696cff; font-size: 1.5rem; }
   .management-mobile-more nav span { flex: 1; min-width: 0; }
   .management-mobile-more nav strong, .management-mobile-more nav small { display: block; }
   .management-mobile-more nav small { font-size: .75rem; margin-top: .25rem; }
-  .management-mobile-college { font-size: .75rem; color: #8592a3; margin: 1.25rem 0 0; overflow-wrap: anywhere; }
+  .management-mobile-college { font-size: .75rem; color: var(--dean-muted); margin: 1.25rem 0 0; overflow-wrap: anywhere; }
   .management-portal .btn, .management-portal .form-control, .management-portal .form-select { min-height: 44px; }
   .management-portal .btn-close { min-width: 44px; min-height: 44px; box-sizing: border-box; margin: 0; padding: 0; transform: none; flex-shrink: 0; }
   .management-portal .form-control, .management-portal .form-select { font-size: 16px; }
@@ -375,7 +396,7 @@
   .management-mobile-records tbody tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .9rem; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; box-shadow: none; }
   .management-mobile-records tbody td { display: block; min-width: 0; width: auto; padding: 0; border: 0; text-align: left !important; background: transparent; box-shadow: none; }
   .management-mobile-records tbody td.text-nowrap { white-space: normal !important; overflow-wrap: anywhere; }
-  .management-mobile-records td[data-label]::before { content: attr(data-label); display: block; color: #8592a3; font-size: .65rem; line-height: 1.5; margin-bottom: .35rem; }
+  .management-mobile-records td[data-label]::before { content: attr(data-label); display: block; color: var(--dean-muted); font-size: .65rem; line-height: 1.5; margin-bottom: .35rem; }
   .management-mobile-records .management-record-title, .management-mobile-records .management-record-actions, .management-mobile-records .management-record-empty { grid-column: 1/-1; min-width: 0; max-width: none; }
   .management-mobile-records .management-row-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
   .management-mobile-records .management-row-actions .btn { justify-content: center; white-space: normal; padding: .5rem; }
@@ -390,7 +411,7 @@
   .management-financial-table tbody td.text-end { white-space: normal; }
   .management-financial-table .management-financial-pending { max-width: 100%; white-space: normal; }
   .management-financial-table tbody td:first-child { grid-column: 1/-1; }
-  .management-financial-table td[data-label]::before { content: attr(data-label); display: block; font-size: .65rem; color: #8592a3; margin-bottom: .3rem; }
+  .management-financial-table td[data-label]::before { content: attr(data-label); display: block; font-size: .65rem; color: var(--dean-muted); margin-bottom: .3rem; }
   .management-financial-table tfoot { display: block; }
   .management-financial-table tfoot tr { display: flex; align-items: center; justify-content: space-between; }
   .management-financial-table tfoot th, .management-financial-table tfoot td { border: 0; padding: .75rem 1rem; }
@@ -398,6 +419,7 @@
   .management-financial-table tfoot td:last-child:empty { display: none; }
   .management-student-table th:last-child { width: 110px; }
   .management-student-table td { padding: .75rem; }
+  .management-student-table .management-student-photo { width: 64px; padding-left: .5rem; padding-right: .5rem; }
   .management-student-table .dean-student-full-name, .management-student-table .dean-student-contact { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
   .management-catalog-stats { grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; }
   .management-catalog-stats .management-stat:last-child { grid-column: auto; }
@@ -411,3 +433,22 @@
   #management-attendance .management-attendance-camera { max-height: 60dvh; }
   #management-attendance .management-attendance-camera video { max-height: 60dvh; }
 }
+
+/* Keep the stronger text contrast inside Management, including its dialogs. */
+.management-portal h1, .management-portal h2, .management-portal h3,
+.management-portal h4, .management-portal h5, .management-portal h6,
+.management-portal .form-label, .management-portal .col-form-label,
+.management-portal .dropdown-item { color: var(--dean-heading); }
+.management-portal .form-control, .management-portal .form-select,
+.management-portal .dean-view-label, .management-portal .dean-term-settings-copy {
+  color: var(--dean-text);
+}
+.management-portal .form-control::placeholder { color: var(--dean-muted); opacity: 1; }
+.management-portal .text-muted { color: var(--dean-muted) !important; }
+.management-portal .form-text, .management-portal .card-section-title,
+.management-portal .dean-term-default span, .management-portal .dean-term-settings-note {
+  color: var(--dean-muted);
+}
+.management-portal .dean-term-default strong,
+.management-portal #layout-menu .college-dean-menu-title { color: var(--dean-heading); }
+.management-portal #layout-menu .college-dean-menu-desc { color: var(--dean-muted); }

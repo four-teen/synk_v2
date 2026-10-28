@@ -8,7 +8,7 @@ function synk_management_payment_selection(array $input): array
     $json=$input['selected'] ?? '[]';
     $keys=is_string($json) && strlen($json)<20000 ? json_decode($json,true) : null;
     if (!is_array($keys) || array_values($keys)!==$keys || count($keys)>500) throw new DomainException('Choose valid payment items.');
-    foreach ($keys as $key) if (!is_string($key) || !preg_match('/^[CE]:[1-9][0-9]{0,9}$/D',$key)) throw new DomainException('Choose valid payment items.');
+    foreach ($keys as $key) if (!is_string($key) || !preg_match('/^[CEV]:[1-9][0-9]{0,9}$/D',$key)) throw new DomainException('Choose valid payment items.');
     if (count(array_unique($keys))!==count($keys)) throw new DomainException('Choose each payment item only once.');
     sort($keys,SORT_NATURAL);return $keys;
 }
@@ -63,13 +63,13 @@ function synk_management_payment_allocate(array $charges,string $mode,int $amoun
     return $items;
 }
 
-function synk_management_payment_context(mysqli $conn,array $scope,array $input,array $period): int
+function synk_management_payment_context(mysqli $conn,array $scope,array $input,array $period,string $operation='recording payments'): int
 {
     foreach (['college_id','campus_id','organization_id'] as $field) {
         if (isset($input[$field]) && (string)$input[$field]!== (string)$scope[$field]) throw new DomainException('Use your assigned organization and campus.');
     }
     if (($input['term'] ?? '')!==$period['key'] || ($input['exam_term'] ?? '')!==$period['exam_term']) {
-        throw new SynkManagementConflict('Switch to the current Management period before recording payments.');
+        throw new SynkManagementConflict('Switch to the current Management period before '.$operation.'.');
     }
     $studentId=synk_management_input_id($input['student_id'] ?? null);
     $source=synk_dean_students_source($scope,['ay_id'=>$period['ay_id'],'semester'=>$period['semester']],$conn);
@@ -131,7 +131,10 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
         $paymentId=(int)$conn->insert_id;
         foreach ($plan['items'] as $item) {
             $chargeId=(int)substr($item['key'],2);
-            synk_management_execute($conn,'INSERT INTO tbl_management_payment_items (payment_id,charge_key,contribution_id,event_id,title,charge_amount,paid_before,amount,balance_after) VALUES (?,?,?,?,?,?,?,?,?)','isiisssss',[$paymentId,$item['key'],$item['key'][0]==='C'?$chargeId:null,$item['key'][0]==='E'?$chargeId:null,$item['title'],$item['charge_amount'],$item['paid_before'],$item['amount'],$item['balance_after']]);
+            $columns=['payment_id','charge_key','contribution_id','event_id','title','charge_amount','paid_before','amount','balance_after'];
+            $values=[$paymentId,$item['key'],$item['key'][0]==='C'?$chargeId:null,$item['key'][0]==='E'?$chargeId:null,$item['title'],$item['charge_amount'],$item['paid_before'],$item['amount'],$item['balance_after']];
+            if(synk_management_student_violations_ready($conn)){$columns[]='student_violation_id';$values[]=$item['key'][0]==='V'?$chargeId:null;}
+            synk_management_execute($conn,'INSERT INTO tbl_management_payment_items ('.implode(',',$columns).') VALUES ('.implode(',',array_fill(0,count($columns),'?')).')',str_repeat('s',count($columns)),$values);
         }
         synk_management_audit_officer_operation($conn,$scope,'PAYMENT',['payment_id'=>$paymentId,'student_id'=>$id,'amount'=>$plan['amount'],'receipt'=>$number]);
         $conn->commit();

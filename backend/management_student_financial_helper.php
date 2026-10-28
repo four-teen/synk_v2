@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/management_portal_helper.php';
 require_once __DIR__ . '/management_payment_read_helper.php';
+require_once __DIR__ . '/management_student_violations_helper.php';
 
 function synk_management_money_cents(string $amount): int
 {
@@ -13,8 +14,8 @@ function synk_management_money_text(int $cents): string
     return intdiv($cents,100).'.'.str_pad((string)($cents%100),2,'0',STR_PAD_LEFT);
 }
 
-// All active native catalog entries apply automatically. Only CLOSED attendance
-// creates absence fines, using its frozen roster and fine. No legacy history.
+// Active contributions apply automatically; student violations apply only when
+// explicitly recorded. CLOSED attendance uses its frozen roster and absence fine.
 function synk_management_student_financial_overview(mysqli $conn, array $scope, array $period,int $studentId): array
 {
     $values = [$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']];
@@ -28,7 +29,9 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
         WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=? AND e.status=\'ACTIVE\' ORDER BY e.event_id DESC',
         'iiiiis',array_merge([$studentId],$values));
-    $contributionCents=0;$fineCents=0;$absences=0;$pendingEvents=0;
+    $violationReady=synk_management_student_violations_ready($conn);
+    $violations=$violationReady?synk_management_query($conn,'SELECT student_violation_id,violation_id,violation_type AS title,occurred_on AS date,amount,notes,recorded_by_name,recorded_at FROM tbl_management_student_violations WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND student_id=? ORDER BY occurred_on DESC,student_violation_id DESC','iiiisi',array_merge($values,[$studentId])):[];
+    $contributionCents=0;$fineCents=0;$violationCents=0;$absences=0;$pendingEvents=0;
     $ready=synk_management_payments_ready($conn);
     $payments=synk_management_payment_history($conn,$studentId,$scope,$period);
     $paid=[];$paidCents=0;$charges=[];
@@ -65,9 +68,16 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         unset($event['roster_student'],$event['recorded_fine']);
     }
     unset($event);
+    foreach($violations as&$violation){
+        $amount=synk_management_money_cents($violation['amount']);$violationCents+=$amount;
+        $state=$charge('V:'.$violation['student_violation_id'],$violation['title'].' (violation)',$violation['date'],$amount);
+        foreach(['payment_status','amount_paid','amount_due']as$key)$violation[$key]=$state[$key];
+        $violation['status']=$state['payment_status'];
+    }
+    unset($violation);
     $contributionTotal=synk_management_money_text($contributionCents);
     $eventTotal=synk_management_money_text($fineCents);
-    $gross=$contributionCents+$fineCents;$balance=max(0,$gross-$paidCents);
+    $gross=$contributionCents+$fineCents+$violationCents;$balance=max(0,$gross-$paidCents);
     $total=synk_management_money_text($balance);
     usort($charges,static function(array $a,array $b):int {return strcmp($a['date'],$b['date']) ?: strnatcmp($a['key'],$b['key']);});
     $current=synk_management_fetch_current_period($conn,$scope);
@@ -75,12 +85,12 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         'period'=>['key'=>$period['period_key'],'text'=>$period['period_text']],
         'organization'=>['code'=>$scope['organization_code'] ?? '', 'name'=>$scope['organization_name'] ?? '',
             'college'=>$scope['college_name'] ?? '', 'campus'=>$scope['campus_name'] ?? ''],
-        'contributions'=>$contributions,'events'=>$events,'violations'=>[], 'payments'=>$payments,'charges'=>$charges,
-        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'payment_id')])),
+        'contributions'=>$contributions,'events'=>$events,'violations'=>$violations, 'payments'=>$payments,'charges'=>$charges,
+        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'payment_id'),array_column($violations,'student_violation_id')])),
         'can_pay'=>$ready && $balance>0 && $period['period_key']===$current['period_key'],
         'summary'=>['contribution_count'=>count($contributions),'contribution_catalog_total'=>$contributionTotal,
-            'event_count'=>count($events),'absence_count'=>$absences,'attendance_pending_count'=>$pendingEvents,'event_fine_total'=>$eventTotal,'violation_total'=>'0.00',
+            'event_count'=>count($events),'absence_count'=>$absences,'attendance_pending_count'=>$pendingEvents,'event_fine_total'=>$eventTotal,'violation_total'=>synk_management_money_text($violationCents),
             'amount_paid'=>synk_management_money_text($paidCents),'deductions'=>'0.00','total_to_pay'=>$total,'payment_status'=>$gross===0?'NO_CHARGES':($balance===0?'PAID':($paidCents>0?'PARTIALLY_PAID':'UNPAID'))],
-        'availability'=>['student_charges'=>true,'payments'=>$ready,'attendance'=>true,'student_violations'=>false],
+        'availability'=>['student_charges'=>true,'payments'=>$ready,'attendance'=>true,'student_violations'=>$violationReady],
     ];
 }

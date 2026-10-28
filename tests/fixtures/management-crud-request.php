@@ -313,13 +313,29 @@ if(strpos($scenario,'officer_http_')===0 || strpos($scenario,'officer_catalog_')
         }
     }
 }
+if(strpos($scenario,'student_violation_http_')===0){
+    require_once $root.'/backend/management_payment_helper.php';
+    $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' LIMIT 1')->fetch_assoc()['program_id'];
+    $sid=$insert('tbl_student_management',['student_number'=>'VIOHTTP'.substr($tag,-10),'first_name'=>'Student','last_name'=>$tag,'email_address'=>'','source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+    $quote=synk_management_violation_get($conn,$scope,$violation);
+    $_POST=$post;$_POST['exam_term']=$term['exam_term'];$_POST['action']='student_violation_apply';$_POST['student_id']=$sid;$_POST['selected_violations']=json_encode([['violation_id'=>$violation,'version'=>$quote['version']]]);$_POST['occurred_on']=date('Y-m-d');$_POST['notes']='HTTP INCIDENT';$_POST['request_key']=bin2hex(random_bytes(32));$_POST['account_version']=synk_management_student_financial_overview($conn,$scope,$term,$sid)['account_version'];
+    $mode=substr($scenario,23);
+    if($mode==='csrf')$_POST['csrf_token']='bad';
+    if($mode==='role')$_SESSION['role']='admin';
+    if($mode==='stale')$_POST['account_version']=str_repeat('0',64);
+    if($mode==='period')$_POST['exam_term']=$term['exam_term']==='FINAL'?'MIDTERM':'FINAL';
+    if($mode==='foreign')$_POST['organization_id']=$foreignOrg;
+    if($mode==='catalog'){$_POST['selected_violations']=json_encode([['violation_id'=>$foreignViolation,'version'=>str_repeat('a',64)]]);}
+    if($mode==='array')$_POST['student_id']=[$sid];
+    if($mode==='duplicate')synk_management_student_violation_apply($conn,$scope,$_POST);
+}
 $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
     foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_payments','tbl_management_payment_items']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
-    foreach(['tbl_management_officers','tbl_management_officer_audit']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_officers','tbl_management_officer_audit','tbl_management_student_violations']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();
