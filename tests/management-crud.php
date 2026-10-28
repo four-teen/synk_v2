@@ -17,6 +17,12 @@ $request=static function(string $scenario)use($name,$token):array {
 };
 $find=static function(array $rows,int $id,string $key):?array {foreach($rows as $row)if((int)$row[$key]===$id)return $row;return null;};
 try {
+    foreach(['save'=>200,'duplicate'=>200,'csrf'=>403,'role'=>401,'stale'=>409,'period'=>409,'foreign'=>403,'catalog'=>404,'array'=>400]as$mode=>$code){
+        $r=$request('student_violation_http_'.$mode);$check($r['status']===$code,'Student violation '.$mode.': expected '.$code.', got '.$r['status'].' '.json_encode($r['response']));
+        if($mode==='save')$check(count($r['after']['tbl_management_student_violations'])===count($r['before']['tbl_management_student_violations'])+1,'HTTP application did not record the assessment.');
+        else $check($r['before']===$r['after'],'Denied or repeated student violation request changed data.');
+        if($mode==='duplicate')$check($r['response']['duplicate'],'HTTP retry did not return the saved assessment batch.');
+    }
     foreach(['contributions','events','violations']as$kind)foreach(['get'=>200,'add'=>200,'save'=>200,'delete'=>200,'denied'=>403,'stale'=>409,'foreign'=>404,'removed'=>403]as$mode=>$code){
         $r=$request('officer_catalog_'.$kind.'_'.$mode);$check($r['status']===$code,$kind.' officer '.$mode.': expected '.$code.', got '.$r['status'].' '.json_encode($r['response']));
         if($mode==='get' || $code!==200)$check($r['before']===$r['after'],'Officer read or denied mutation changed data.');

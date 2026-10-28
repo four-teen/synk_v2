@@ -17,7 +17,9 @@ function synk_management_operation_summary(array $permissions,string $prefix='')
 
 function synk_management_operation_allowed(array $permissions,string $operation): bool
 {
+    if($operation==='reports')return $permissions['view']||$permissions['payments']||$permissions['attendance']||$permissions['manage_events'];
     if($operation==='records')return $permissions['view']||$permissions['payments'];
+    if($operation==='student_records')return $permissions['view']||$permissions['payments']||$permissions['manage_violations'];
     if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation];
     if($operation==='events')return $permissions['view']||$permissions['attendance']||$permissions['manage_events'];
     return !empty($permissions[$operation]);

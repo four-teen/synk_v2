@@ -42,6 +42,7 @@ function synk_management_violation_write(mysqli $conn, array $scope, string $act
             if (!is_string($input['version'] ?? null) || !hash_equals($existing['version'],$input['version'])) throw new SynkManagementConflict('This violation changed after you opened it. Reload its details.');
         }
         if ($action === 'delete') {
+            if(synk_table_exists($conn,'tbl_management_student_violations') && synk_management_query($conn,'SELECT student_violation_id FROM tbl_management_student_violations WHERE violation_id=? LIMIT 1','i',[$id]))throw new SynkManagementConflict('This violation has been applied to a student. Keep its catalog entry to preserve recorded charges.');
             synk_management_execute($conn,'DELETE FROM tbl_management_violations WHERE college_id=? AND violation_id=?','ii',[$scope['college_id'],$id]);
             $message = 'Violation deleted.';
         } else {

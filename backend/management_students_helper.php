@@ -1,6 +1,17 @@
 <?php
 require_once __DIR__ . '/management_portal_helper.php';
 require_once __DIR__ . '/college_dean_students_helper.php';
+require_once __DIR__ . '/student_profile_image_helper.php';
+
+function synk_management_student_avatar_url(int $studentId): string
+{
+    // Directory rows need only file metadata, not a content hash or image decode.
+    $path=synk_student_profile_image_path($studentId);
+    $modified=@filemtime($path);
+    $size=$modified!==false ? @filesize($path) : false;
+    if($modified===false || !$size)return '../student/profile-placeholder.svg';
+    return '../uploads/student-profile/'.basename($path).'?v='.$modified.'-'.$size;
+}
 
 // Reuse the Dean's read-only directory queries, not its account or write routes.
 function synk_management_directory_filters(mysqli $conn, array $scope, array $input): array
@@ -38,7 +49,7 @@ function synk_management_directory(mysqli $conn, array $scope, array $input): ar
 
 function synk_management_students_detail(mysqli $conn, array $scope, array $input): array
 {
-    $permissions=synk_management_require_permission($conn,$scope,'records');
+    $permissions=synk_management_require_permission($conn,$scope,'student_records');
     $filters = synk_management_directory_filters($conn,$scope,$input);
     $id = synk_management_input_id($input['student_id'] ?? '');
     if (!synk_management_students_ready($conn)) throw new OutOfBoundsException('Student records are unavailable.');
@@ -55,5 +66,9 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
     $detail['student']['photo_url']=synk_student_profile_image_url($id);
     $financial=synk_management_student_financial_overview($conn,$scope,$period,$id);
     $financial['can_pay']=$financial['can_pay'] && $permissions['payments'] && (!$permissions['is_officer'] || $permissions['student_id']!==$id);
+    $current=synk_management_fetch_current_period($conn,$scope);
+    $financial['can_add_violations']=$permissions['manage_violations'] && $period['period_key']===$current['period_key'] && $financial['availability']['student_violations'];
+    $financial['violation_options']=$financial['can_add_violations']?synk_management_student_violation_options($conn,$scope,$period):[];
+    $financial['violation_date_today']=date('Y-m-d');
     return $detail + ['financial'=>$financial];
 }

@@ -3,6 +3,7 @@
 if (PHP_SAPI !== 'cli' && !defined('SYNK_MANAGEMENT_QA')) { http_response_code(404); exit; }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $root = dirname(__DIR__, 2);
+$reportInput=array_intersect_key($_GET,array_flip(['report_type','generate','institution','prepared_by','checked_by','approved_by','qa_event']));
 require_once $root . '/backend/db.php';
 require_once $root . '/backend/management_portal_helper.php';
 require_once $root . '/backend/auth_google.php';
@@ -200,6 +201,25 @@ if(strpos($scenario,'officers_')===0){
         if($scenario==='officers_payments'){$handler='management/students.php';$_GET['search']=$tag;}
         if(isset($managedKind))$handler='management/'.$managedKind.'.php';
     }
+}
+if($scenario==='reports'){
+    require_once $root.'/backend/management_reports_helper.php';
+    require_once $root.'/backend/management_payment_helper.php';
+    $reportPost=['term'=>$term['key'],'exam_term'=>$term['exam_term'],'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']];
+    $reportEvents=[];
+    foreach(['CLOSED','OPEN']as$state){
+        $id=synk_management_catalog_write($conn,$scope,'events','save',$reportPost+['title'=>'General Assembly '.$state,'event_date'=>date('Y-m-d'),'absence_fine'=>'25.50'])['record_id'];
+        $opened=synk_management_attendance_write($conn,$scope,'attendance_open',$reportPost+['event_id'=>$id]);
+        $conn->query('DELETE FROM tbl_management_attendance_roster WHERE event_id='.$id.' AND student_id NOT IN ('.implode(',',$students).')');
+        foreach(array_slice($students,-2)as$sid)synk_management_attendance_write($conn,$scope,'attendance_scan',$reportPost+['event_id'=>$id,'qr_code'=>synk_management_student_qr($conn,$sid)]);
+        if($state==='CLOSED')synk_management_attendance_write($conn,$scope,'attendance_close',$reportPost+['event_id'=>$id,'attendance_revision'=>$opened['attendance']['revision'],'confirm'=>'1']);
+        $reportEvents[$state]=$id;
+    }
+    $charge=synk_management_catalog_write($conn,$scope,'contributions','save',$reportPost+['title'=>'Organization Contribution','contribution_date'=>date('Y-m-d'),'amount'=>'100'])['record_id'];
+    foreach([0=>['125.50',['C:'.$charge,'E:'.$reportEvents['CLOSED']]],1=>['100.00',['C:'.$charge]]]as$i=>$values){$financial=synk_management_student_financial_overview($conn,$scope,$term,$students[$i]);synk_management_payment_post($conn,$scope,$reportPost+['student_id'=>$students[$i],'amount'=>$values[0],'allocation_mode'=>'SELECTED','selected'=>json_encode($values[1]),'account_version'=>$financial['account_version'],'request_key'=>bin2hex(random_bytes(32))]);}
+    $_GET=array_merge($_GET,array_diff_key($reportInput,['qa_event'=>true]));
+    if(in_array($_GET['report_type'] ?? '',['event_attendance','absence_fines'],true))$_GET['event_id']=$reportEvents[($reportInput['qa_event'] ?? '')==='open'?'OPEN':'CLOSED'];
+    $handler='management/reports.php';
 }
 $take=static function () use($conn,$tag):array {
     return ['accounts'=>$conn->query("SELECT user_id,email,role,college_id,management_college_id,management_organization_id,status,google_sub FROM tbl_useraccount WHERE username='".$tag."' ORDER BY user_id")->fetch_all(MYSQLI_ASSOC),

@@ -2,7 +2,7 @@
 // Delegation lifecycle and permissions on real native tables; roll back fixtures.
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 mysqli_report(MYSQLI_REPORT_ERROR|MYSQLI_REPORT_STRICT);
-require __DIR__.'/../backend/db.php';require __DIR__.'/../backend/management_officers_helper.php';require __DIR__.'/../backend/management_payment_helper.php';require __DIR__.'/../backend/management_attendance_helper.php';require __DIR__.'/../backend/management_violations_helper.php';require __DIR__.'/../backend/student_login_helper.php';
+require __DIR__.'/../backend/db.php';require __DIR__.'/../backend/management_officers_helper.php';require __DIR__.'/../backend/management_payment_helper.php';require __DIR__.'/../backend/management_attendance_helper.php';require_once __DIR__.'/../backend/management_violations_helper.php';require __DIR__.'/../backend/student_login_helper.php';
 session_save_path(__DIR__.'/../temp');session_id('officerqa'.bin2hex(random_bytes(12)));session_start();
 class OfficerQAConnection extends mysqli{
  public function start():void{parent::begin_transaction();}public function discard():void{parent::rollback();}

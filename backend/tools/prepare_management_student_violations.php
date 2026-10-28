@@ -1,0 +1,7 @@
+<?php
+if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
+mysqli_report(MYSQLI_REPORT_ERROR|MYSQLI_REPORT_STRICT);
+require __DIR__.'/../db.php';
+$conn->multi_query(file_get_contents(__DIR__.'/../sql/management_student_violations.sql'));
+do{if($result=$conn->store_result())$result->free();}while($conn->more_results()&&$conn->next_result());
+echo "Student violation recording and payment references prepared. Existing records and Management period settings retained.\n";

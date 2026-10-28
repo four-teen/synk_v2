@@ -15,8 +15,10 @@ faculty record. The account keeps its Administrator-assigned organization.
      event links in the assigned organization and current Management period.
    - **Manage events:** add, edit, and delete events, sessions and fines; open,
      close, and reopen attendance. QR scanning needs **Scan attendance** separately.
-   - **Manage violations:** add, edit, and delete the organization's violation
-     types and standard amounts using the existing semester-based listings.
+   - **Manage violations:** manage the organization's standard violation list
+     and apply its entries to individual students from Financial overview. This
+     also enables access to Students for that workflow, without granting payment
+     collection or financial-report permissions.
 3. Set an expiry date and save. The date is inclusive in Philippine time. Access
    also stops when the academic semester changes; the faculty manager must renew.
 4. The student signs in with their school Google account at

@@ -14,7 +14,7 @@ $execute=static function(mysqli $db,string $sql): void {
         if (!$db->more_results()) break;
     } while ($db->next_result());
 };
-$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit'];
+$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_student_violations','tbl_management_payments','tbl_management_payment_items','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit'];
 foreach (['fresh','legacy','varchar'] as $scenario) {
     $database='synk_management_sql_qa_'.bin2hex(random_bytes(8));
     if (!preg_match('/^synk_management_sql_qa_[a-f0-9]{16}$/D',$database)) throw new RuntimeException('Invalid scratch database name.');
@@ -53,6 +53,7 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
             $db->query('UPDATE tbl_useraccount SET management_college_id=1');
         }
         $execute($db,$migration);
+        $check($db->query("SHOW COLUMNS FROM tbl_management_payment_items LIKE 'student_violation_id'")->num_rows===1,$scenario.': missing applied-violation payment reference.');
         $settings=$db->query('SELECT * FROM tbl_academic_settings')->fetch_assoc();
         $check($settings===['setting_id'=>'1','current_ay_id'=>'2','current_semester'=>'1'] && $db->query('SHOW CREATE TABLE tbl_academic_settings')->fetch_assoc()['Create Table']===$academicSchema,$scenario.': Management migration changed shared Academic Settings schema or data.');
         foreach ($tables as $table) $check($db->query("SHOW TABLES LIKE '$table'")->num_rows===1,$scenario.': missing '.$table);
@@ -109,6 +110,8 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $db->query("UPDATE tbl_useraccount SET management_college_id=2,management_organization_id=$org,google_sub='EXISTING_GOOGLE_SUBJECT',google_email_verified=1 WHERE user_id=1");
         // Simulate the previous officer schema and verify an existing grant stays intact.
         $db->query('INSERT INTO tbl_student_management VALUES (1)');
+        $violation=(int)$db->query("SELECT violation_id FROM tbl_management_violations WHERE organization_id=$org AND college_id=2 LIMIT 1")->fetch_assoc()['violation_id'];
+        $db->query("INSERT INTO tbl_management_student_violations (college_id,organization_id,student_id,violation_id,ay_id,semester,exam_term,occurred_on,violation_type,amount,recorded_by,recorded_by_name,recorded_at,request_key,payload_hash) VALUES (2,$org,1,$violation,2,1,'FINAL','2026-10-29','PRESERVED INCIDENT',25.50,1,'EXISTING USER',UTC_TIMESTAMP(),REPEAT('a',64),REPEAT('b',64))");
         $db->query("INSERT INTO tbl_management_officers (user_id,student_id,supervisor_user_id,organization_id,college_id,ay_id,semester,can_view,can_payments,expires_on) VALUES (1,1,1,$org,2,2,1,1,1,'2027-01-01')");
         $db->query('ALTER TABLE tbl_management_officers DROP COLUMN can_manage_contributions,DROP COLUMN can_manage_events,DROP COLUMN can_manage_violations');
         $oldGrant=$db->query('SELECT * FROM tbl_management_officers')->fetch_assoc();
@@ -124,6 +127,7 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
             return $state;
         };
         $before=$snapshot(); $execute($db,$migration);
+        $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_student_violations.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_periods.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_status.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_event_periods.sql'));

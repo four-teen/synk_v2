@@ -33,10 +33,47 @@ Management term apply automatically to each student in that college/semester.
 Amounts use integer centavos for exact arithmetic. No date-based term inference
 or shared profile updates occur.
 
-Total to pay is contributions plus finalized event absence fines, less posted
-payments. Deductions and assigned violations remain separate future work. The
-violation catalog is never treated as a student's committed violations. No
-legacy financial history is used.
+Total to pay is contributions plus finalized event absence fines and explicitly
+applied student violations, less posted payments. Deductions remain future work.
+The violation catalog is never automatically charged to students. No legacy
+financial history is used.
+
+## Apply student violations
+
+The **Violations** page remains the standard types-and-amounts catalog. In a
+student's Financial overview, select **Add violations**, check one or more
+catalog entries, set the incident date and optional notes, and choose **Apply to
+this student**. The additional amount is previewed before applying. The list,
+payable balance, and payment choices refresh after saving.
+
+This requires the existing **Manage violations** permission and the current
+Management period. A violation manager can open Students and Financial overview
+for this workflow; collecting payments and financial reports retain their
+separate permissions. Historical periods are read only.
+
+Each application copies the catalog type and standard amount into a fresh,
+student-specific Management record with academic year, semester, Midterm/Final,
+incident date, notes, actor, and timestamp. Catalog edits affect future
+applications only. Applied catalog entries cannot be deleted. An identical
+network retry does not create another charge; a new incident can use the same
+catalog type again. Multi-entry application is atomic.
+
+Prepare `backend/sql/management_student_violations.sql` once in the live database,
+or run `php backend/tools/prepare_management_student_violations.php`. It creates
+`tbl_management_student_violations` and adds the nullable `student_violation_id`
+reference/index/foreign key to `tbl_management_payment_items`. The SQL is safe to
+rerun. It does not populate student charges, alter shared profiles/settings, or
+import old history. The combined installer contains the same upgrade.
+
+Applied violations participate in both Selected and Distribute payments and have
+their own receipt allocations and Reports category. The student's own My
+Finances page shows the recorded violations and remaining balances as well.
+
+Validation: `php tests/management-student-violations.php` checks applications,
+atomic writes, retry handling, catalog snapshots, amounts, permissions, receipts,
+reports, and period isolation. `node tests/management-student-violations-browser.cjs`
+checks catalog selection, balance refresh, request retries, the orange directory
+name styling, and desktop/mobile layouts. All native fixtures roll back.
 
 ## Payments and receipts
 

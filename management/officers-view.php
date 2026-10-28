@@ -5,6 +5,7 @@ $auditSummary=static function(array $row):string{
     $data=json_decode($row['details'],true) ?: [];
     if($row['action']==='PAYMENT')return 'Payment received: ₱'.number_format((float)($data['amount'] ?? 0),2).' · Receipt '.($data['receipt'] ?? '');
     if($row['action']==='ATTENDANCE_SCAN')return 'Student attendance recorded.';
+    if($row['action']==='VIOLATION_ADD')return 'Applied '.count($data['student_violation_ids'] ?? []).' violation(s) to student #'.($data['student_id'] ?? '').' · '.($data['period'] ?? '');
     if(strpos($row['action'],'CATALOG_')===0)return ucfirst((string)($data['kind'] ?? 'Record')).': '.($data['title'] ?? '').' (record '.($data['record_id'] ?? '').')';
     if(strpos($row['action'],'ATTENDANCE_')===0)return 'Event: '.($data['title'] ?? '').' ('.($data['present'] ?? 0).' present / '.($data['eligible'] ?? 0).' eligible)';
     if($row['action']==='REVOKE')return 'Management access revoked.';
@@ -27,7 +28,7 @@ $auditSummary=static function(array $row):string{
 <label><input type="checkbox" name="can_payments" value="1"><span><strong>Collect payments</strong><small>Record payments and issue receipts for other students. Cannot collect for their own account.</small></span></label>
 <label><input type="checkbox" name="can_manage_contributions" value="1"><span><strong>Manage contributions</strong><small>Add, edit, and delete contributions, including amounts and event links, within your organization.</small></span></label>
 <label><input type="checkbox" name="can_manage_events" value="1"><span><strong>Manage events</strong><small>Add, edit, and delete events and fines; open, close, and reopen attendance. Enable Scan attendance separately to record QR attendance.</small></span></label>
-<label><input type="checkbox" name="can_manage_violations" value="1"><span><strong>Manage violations</strong><small>Add, edit, and delete violation types and standard amounts within your organization.</small></span></label>
+<label><input type="checkbox" name="can_manage_violations" value="1"><span><strong>Manage violations</strong><small>Manage the standard violation list and apply its violations to individual students within your organization.</small></span></label>
 </fieldset><label class="form-label mt-3" for="officer-expiry">Access expires on</label><input type="date" class="form-control" id="officer-expiry" name="expires_on" min="<?= date('Y-m-d') ?>" max="<?= (new DateTimeImmutable('today'))->modify('+1 year')->format('Y-m-d') ?>" required>
 <p class="small text-muted mt-2">These operations apply to your assigned organization. Students receive only the permissions you enable. Officers cannot delegate access or change Management settings. Existing payment and attendance protections still apply.</p>
 <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">Save student access</button><button class="btn btn-outline-secondary" type="button" id="officer-cancel">Cancel</button></div>

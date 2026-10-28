@@ -30,9 +30,14 @@ try {
     elseif($action==='attendance_scan')$permission='attendance';
     elseif($action==='attendance_get')$permission='events';
     elseif(in_array($action,['attendance_open','attendance_close','attendance_reopen'],true))$permission='manage_events';
-    elseif($action==='student_detail')$permission='records';
+    elseif($action==='student_detail')$permission='student_records';
+    elseif($action==='student_violation_apply')$permission='manage_violations';
     elseif(in_array($kind,['contributions','events','violations'],true) && in_array($action,['get','save','delete'],true))$permission=$action==='get'?$kind:'manage_'.$kind;
     synk_management_require_permission($conn,$scope,$permission,isset($_POST['student_id'])?(int)$_POST['student_id']:null);
+    if($action==='student_violation_apply'){
+        require_once __DIR__.'/management_student_violations_helper.php';
+        synk_management_response(['status'=>'ok']+synk_management_student_violation_apply($conn,$scope,$_POST));
+    }
     if (in_array($action,['payment_preview','payment_post'],true)) {
         require_once __DIR__.'/management_payment_helper.php';
         $result=$action==='payment_preview' ? synk_management_payment_preview($conn,$scope,$_POST) : synk_management_payment_post($conn,$scope,$_POST);
