@@ -30,7 +30,7 @@ $studentAvatarUrl = $studentUploadedPhotoUrl ?: $studentAvatarFallback;
     <div class="d-flex align-items-center gap-2 student-header-cluster<?php echo $studentPreviewMode ? ' flex-wrap' : ''; ?>">
       <span class="badge bg-label-primary text-uppercase student-header-badge"><?php echo htmlspecialchars($studentPortalBadge, ENT_QUOTES, 'UTF-8'); ?></span>
       <span class="student-header-term"><?php echo htmlspecialchars($studentTermText, ENT_QUOTES, 'UTF-8'); ?></span>
-      <?php if (!empty($terms)): ?><button class="student-term-toggle" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal" aria-label="Choose academic year and semester" title="Choose academic year and semester"><i class="bx bx-cog" aria-hidden="true"></i></button><?php endif; ?>
+      <?php if ($studentPreviewMode && !empty($terms)): ?><button class="student-term-toggle" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal" aria-label="Choose academic year and semester" title="Choose academic year and semester"><i class="bx bx-cog" aria-hidden="true"></i></button><?php endif; ?>
       <?php if ($studentPreviewMode && $studentBackUrl !== ''): ?>
         <a href="<?php echo htmlspecialchars($studentBackUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-primary">
           <i class="bx bx-arrow-back me-1"></i> Back to Directory
@@ -89,3 +89,4 @@ $studentAvatarUrl = $studentUploadedPhotoUrl ?: $studentAvatarFallback;
 <script id="studentPresenceConfig" type="application/json"><?= json_encode(['csrf_token'=>$_SESSION['student_presence_csrf'],'idle_seconds'=>900], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script src="presence.js?v=<?= (int)filemtime(__DIR__.'/presence.js') ?>" defer></script>
 <?php endif; ?>
+<?php if (!$studentPreviewMode && ($_SESSION['role'] ?? '')==='student' && $studentUploadedPhotoUrl!=='') require __DIR__.'/evaluation-prompt.php'; ?>

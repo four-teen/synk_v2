@@ -21,12 +21,13 @@ $navigation = [
     'students'=>['Students','students.php','bx-user-pin','Unique students and imported subject lists','secondary'],
     'reports'=>['Reports','reports.php','bx-printer','Period collections, fines, and event attendance','info'],
     'officers'=>['Student Officers','officers.php','bx-user-check','Authorize students and choose their operations','primary'],
+    'exemptions'=>['Exemptions','exemptions.php','bx-shield-quarter','Reusable lists and saved event or contribution exemptions','warning'],
 ];
 if (!isset($navigation[$page])) { http_response_code(404); exit('Page not found.'); }
 try{
     if($page==='officers')synk_management_require_permission($conn,$scope,'officers');
     elseif(in_array($page,['students','financial'],true))synk_management_require_permission($conn,$scope,$page==='students'?'student_records':'records');
-    elseif(in_array($page,['contributions','events','violations','reports'],true))synk_management_require_permission($conn,$scope,$page);
+    elseif(in_array($page,['contributions','events','violations','reports','exemptions'],true))synk_management_require_permission($conn,$scope,$page);
 }catch(SynkManagementPermissionDenied $error){http_response_code(403);exit(synk_management_h($error->getMessage()));}
 try {
     $term = synk_management_view_term($conn, $_GET, $scope);
@@ -98,9 +99,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php require __DIR__ . '/navbar.php'; ?>
   <div class="content-wrapper">
   <main id="main-content" class="container-xxl flex-grow-1 container-p-y management-main">
-    <?php if($permissions['is_officer']): ?><div class="alert alert-info" role="status"><strong>Student officer access</strong> · <?= synk_management_h(synk_management_operation_summary($permissions)) ?>. Your faculty manager controls these operations.</div><?php endif; ?>
-
-    <?php if(!in_array($page,['students','contributions','events'],true)): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title mb-1"><?= synk_management_h($organizationLabel) ?> WORKSPACE</p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1><p class="dean-page-copy mb-0"><?= synk_management_h($scope['organization_name'].' · '.$scope['college_name']) ?></p></div></section><?php endif; ?>
+    <?php if(!in_array($page,['students','contributions','events'],true)): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title management-heading-context mb-1"><span><?= synk_management_h($organizationLabel) ?> WORKSPACE</span><span aria-hidden="true">·</span><span><?= synk_management_h($scope['college_name']) ?></span></p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1></div></section><?php endif; ?>
     <?php if ($page === 'dashboard'): ?>
       <section class="management-stats" aria-label="College overview">
         <?php foreach ([['students','Students','bx-group','primary'],['programs','Programs represented','bx-book-open','success'],['sections','Class sections','bx-buildings','info'],['enrollments','Subject registrations','bx-list-check','warning']] as $stat): ?>
@@ -122,6 +121,8 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
       </div>
     <?php elseif ($page === 'officers'): ?>
       <?php require __DIR__.'/officers-view.php'; ?>
+    <?php elseif ($page === 'exemptions'): ?>
+      <?php require __DIR__.'/exemptions-view.php'; ?>
     <?php elseif ($page === 'reports'): ?>
       <?php require __DIR__.'/reports-view.php'; ?>
     <?php elseif ($page === 'financial'): ?>
@@ -141,6 +142,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 <button type="button" class="layout-overlay layout-menu-toggle" id="management-menu-backdrop" aria-label="Close navigation" hidden></button>
 </div>
 <?php require __DIR__.'/mobile-navigation.php'; ?>
+<?php if (in_array($page,['exemptions','events','contributions','students'],true)) require __DIR__.'/exemptions-modal.php'; ?>
 <script type="application/json" id="management-config"><?= json_encode(['permissions'=>$permissions,'csrf_token'=>$_SESSION['management_csrf_token'],'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],'organization_id'=>$scope['organization_id'],'current_term'=>$currentTerm['key'],'current_exam_term'=>$currentTerm['exam_term'],'current_period_version'=>$currentTerm['period_version'],'current_period'=>$currentTerm['period_key'],'current_term_text'=>$currentTerm['term_text'],'term'=>$term['key'],'exam_term'=>$term['exam_term'],'directory_term'=>$directory['filters']['term'] ?? $term['key'],'term_labels'=>array_reduce($years,static function($labels,$year){ for($sem=1;$sem<=3;$sem++) $labels[$year['ay_id'].':'.$sem]=$year['ay'].' · '.synk_semester_label($sem); return $labels; },[]),'page'=>$page,'today'=>date('Y-m-d'),'endpoint'=>'../backend/query_management.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script src="../assets/vendor/js/bootstrap.js"></script>
 <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
@@ -150,4 +152,5 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 <?php if ($page === 'reports'): ?><script src="reports.js?v=<?= (int)filemtime(__DIR__.'/reports.js') ?>" defer></script><?php endif; ?>
 <?php if ($page === 'events'): ?><script src="../assets/vendor/libs/management-qr/jsQR.js" defer></script><script src="attendance.js?v=<?= (int)filemtime(__DIR__.'/attendance.js') ?>" defer></script><?php endif; ?>
 <script src="workspace.js?v=<?= (int)filemtime(__DIR__.'/workspace.js') ?>" defer></script>
+<?php if (in_array($page,['exemptions','events','contributions','students'],true)): ?><script src="exemptions.js?v=<?= (int)filemtime(__DIR__.'/exemptions.js') ?>" defer></script><?php endif; ?>
 </body></html>

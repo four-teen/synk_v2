@@ -59,6 +59,10 @@ if ($requestedSubjectAyId > 0 && in_array($requestedSubjectAyId, $availableSubje
     $selectedSubjectAyId = (int)($subjectYearOptions[0]['ay_id'] ?? 0);
 }
 
+if (!$isAdminPreview) {
+    $selectedSubjectAyId=(int)$currentTerm['ay_id'];
+    $requestedSubjectSemester=(int)$currentTerm['semester'];
+}
 $subjectRows = $selectedSubjectAyId > 0
     ? synk_student_fetch_subject_rows_by_academic_year($conn, $studentId, $selectedSubjectAyId, $requestedSubjectSemester)
     : [];
@@ -159,10 +163,10 @@ $studentPortalBackUrl = $isAdminPreview
                 <div class="student-subject-toolbar">
                   <div>
                     <h2 id="profileSubjectsTitle">Enrolled subjects <span class="badge bg-label-primary"><?= count($subjectRows) ?></span></h2>
-                    <p>Your professors, schedules and rooms, grouped by semester.</p>
+                    <p><?= $isAdminPreview?'Your professors, schedules and rooms, grouped by semester.':'Your professors, schedules and rooms for the current Administrator academic period.' ?></p>
                   </div>
 
-                  <form method="get" class="student-subject-filter">
+                  <?php if ($isAdminPreview): ?><form method="get" class="student-subject-filter">
                     <?php if ($isAdminPreview): ?>
                       <input type="hidden" name="preview_student_id" value="<?php echo (int)$previewStudentId; ?>" />
                       <input type="hidden" name="return_to" value="<?php echo synk_student_h($studentPortalBackUrl); ?>" />
@@ -195,7 +199,7 @@ $studentPortalBackUrl = $isAdminPreview
                         <?php endforeach; ?>
                       <?php endif; ?>
                     </select>
-                  </form>
+                  </form><?php else: ?><span class="badge bg-label-primary"><?= synk_student_h($currentTerm['term_text']) ?></span><?php endif; ?>
                 </div>
 
                 <?php if (empty($subjectRows)): ?>

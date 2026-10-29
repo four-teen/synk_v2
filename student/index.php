@@ -63,7 +63,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
           <div class="student-subject-toolbar"><div><h2 id="subjects-title">My subjects <span class="badge bg-label-primary"><?= count($subjects) ?></span></h2><p><?= synk_student_h($viewTerm['term_text']) ?></p></div>
             <?php if ($subjects): ?><div class="student-search"><i class="bx bx-search" aria-hidden="true"></i><label class="visually-hidden" for="subject-search">Search your subjects</label><input id="subject-search" class="form-control" type="search" placeholder="Search subject or instructor" autocomplete="off"></div><?php endif; ?>
           </div>
-          <?php if (!$subjects): ?><div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-book-open" aria-hidden="true"></i></span><h3>No subjects for this term yet</h3><p>Your subjects will appear here when your college updates its student lists.</p><?php if (count($terms) > 1): ?><button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal"><i class="bx bx-calendar me-1" aria-hidden="true"></i>Review another term</button><?php endif; ?></div>
+          <?php if (!$subjects): ?><div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-book-open" aria-hidden="true"></i></span><h3>No subjects for this term yet</h3><p>Your subjects will appear here when your college updates its student lists.</p><?php if ($isPreview && count($terms) > 1): ?><button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal"><i class="bx bx-calendar me-1" aria-hidden="true"></i>Review another term</button><?php endif; ?></div>
           <?php else: ?>
           <div class="student-subject-grid" id="student-subject-grid">
             <?php foreach ($subjects as $index=>$subject):
@@ -81,13 +81,13 @@ $firstName = trim($student['first_name']) ?: 'Student';
     </main>
   </div>
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
-<div class="modal fade student-term-modal" id="studentTermModal" tabindex="-1" aria-labelledby="studentTermTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+<?php if ($isPreview): ?><div class="modal fade student-term-modal" id="studentTermModal" tabindex="-1" aria-labelledby="studentTermTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
   <form action="index.php" method="get" id="student-term-form">
     <div class="modal-header"><h2 class="modal-title fs-5" id="studentTermTitle">View an academic term</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body"><p class="text-muted">Review your imported subjects for another term.</p><label class="form-label" for="student-term">Academic year and semester</label><select class="form-select" name="student_term" id="student-term"><?php foreach ($terms as $term): ?><option value="<?= synk_student_h($term['key']) ?>"<?= $term['key']===$viewTerm['key'] ? ' selected' : '' ?>><?= synk_student_h($term['term_text']) ?><?= $term['is_current'] ? ' (Current)' : '' ?></option><?php endforeach; ?></select><?php if ($isPreview): ?><input type="hidden" name="preview_student_id" value="<?= $studentId ?>"><input type="hidden" name="return_to" value="<?= synk_student_h($studentPortalBackUrl) ?>"><?php endif; ?></div>
     <div class="modal-footer"><button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit"<?= !$terms ? ' disabled' : '' ?>>Apply</button></div>
   </form>
-</div></div></div>
+</div></div></div><?php endif; ?>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
 <script src="dashboard.js?v=<?= (int)filemtime(__DIR__.'/dashboard.js') ?>" defer></script>
 </body></html>

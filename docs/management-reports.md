@@ -18,11 +18,13 @@ Available reports:
 - **Event Absence Fines:** finalized absences with positive assessed fines,
   collections against those fines, and outstanding balances, grouped by event.
   Select one event or all events in the period. Assessed fines come from the
-  attendance snapshot, not a subsequently edited catalog rate.
-- **Event Attendance:** one event's saved roster, absent first and present second,
+  attendance snapshot, not a subsequently edited catalog rate. Saved event
+  exemptions are excluded from assessed fines.
+- **Event Attendance:** one event's saved roster, absent, present, then exempted,
   with one continuous number sequence. Open attendance is explicitly provisional:
   the first category is **Not yet recorded**, not finalized absences. Unstarted
   attendance does not fabricate a roster or fine assessments.
+  Exempted students who actually scan remain Present, with their exemption reason.
 
 **Event absence fine** is the report label for money assessed due to absence from
 an event. It is distinct from an event-linked contribution. Contributions remain

@@ -34,13 +34,16 @@ function synk_student_dashboard_view_term(int $studentId, array $terms, bool $pr
 {
     if (!$terms) return ['ay_id'=>0,'semester'=>0,'term_text'=>'No academic term available','key'=>'','is_current'=>true,'subject_count'=>0];
     $byKey = array_column($terms, null, 'key');
+    if (!$preview) {
+        // Student browsing follows Administrator settings, regardless of old URLs or sessions.
+        unset($_SESSION['student_view_term']);
+        foreach ($terms as $term) if (!empty($term['is_current'])) return $term;
+        return ['ay_id'=>0,'semester'=>0,'term_text'=>'No current academic term available','key'=>'','is_current'=>true,'subject_count'=>0];
+    }
     $requested = is_string($_GET['student_term'] ?? null) ? $_GET['student_term'] : '';
     if ($requested !== '' && isset($byKey[$requested])) {
-        if (!$preview) $_SESSION['student_view_term'] = ['student_id'=>$studentId,'key'=>$requested];
         return $byKey[$requested];
     }
-    $saved = $_SESSION['student_view_term'] ?? [];
-    if (!$preview && (int)($saved['student_id'] ?? 0) === $studentId && isset($byKey[$saved['key'] ?? ''])) return $byKey[$saved['key']];
     foreach ($terms as $term) if ($term['is_current'] && (int)$term['subject_count'] > 0) return $term;
     foreach ($terms as $term) if ((int)$term['subject_count'] > 0) return $term;
     return $terms[0];

@@ -13,19 +13,31 @@ footer, core controls, and the same list typography and colors. Sidebar rules li
 in `assets/css/college-portal-sidebar.css`, imported by the existing Dean theme;
 the Dean and Chair continue to use the same rules. Management also loads
 `college-dean/custom_css.css` and `college-dean/students.css` directly. Its local
-`portal.css` contains layout extensions rather than a separate color/font theme.
+`portal.css` contains layout extensions and Management-specific menu colors.
 Student identity cells follow the Dean's ID, name, and italic email format.
 
 Management navigation groups pages by usage: **Overview** contains Dashboard;
-**Daily Operations** contains Financial and Students; **Setup** contains
-Contributions, Events, and Violations. Every page retains its existing route,
+**Daily Operations** contains Financial, Students, Exemptions, and Reports; **Setup** contains
+Contributions, Events, Violations, and Student Officers. Every page retains its existing route,
 organization access checks, active-page indicator, and selected viewing period.
 
 Below 1200px, Management replaces the sidebar with a fixed bottom navigation bar:
-Home, Students, Events, Financial, and More. More opens a dismissible bottom sheet
-for Contributions and Violations. All links retain the viewing period. The page
+Home, Students, Events, Financial, and More. More opens a dismissible, full-width
+grid with multiple rows for every permitted page. Menu icons use deep teal
+(`#0F766E`) within Management, with transparent icon backgrounds and pale teal
+(`#CCFBF1`) active menu items. The sidebar uses a left selection indicator and
+the footer uses a short top indicator. Content and status icons retain their existing colors.
+All links retain the viewing period. The page
 reserves space for the bar and the phone's safe area; dialogs hide the bar and
 prevent it from receiving focus. Desktop navigation continues to use the sidebar.
+
+Page headings put the organization workspace and assigned college together above
+the page title, with no repeated subtitle. The student officer access notice is
+omitted; permission checks and the permitted menu destinations remain unchanged.
+
+Reusable exemption lists and individual event/contribution exemptions are described
+in [Management exemptions](management-exemptions.md). Granted students are saved
+independently, so later list edits never rewrite earlier event exemptions.
 
 Below 576px, event, contribution, and violation tables become labeled cards with
 full-width attendance actions. Student financial tables also use labeled records

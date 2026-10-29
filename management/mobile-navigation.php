@@ -12,8 +12,8 @@ $moreActive = !isset($mobilePages[$page]);
 <div class="offcanvas offcanvas-bottom management-mobile-more" tabindex="-1" id="management-mobile-more" aria-labelledby="management-mobile-more-title">
   <div class="offcanvas-header"><div><h2 class="offcanvas-title fs-5" id="management-mobile-more-title">More options</h2><p><?= synk_management_h($scope['organization_name']) ?></p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close more options"></button></div>
   <div class="offcanvas-body"><nav aria-label="More Management pages">
-    <?php foreach (['contributions','violations','reports','officers'] as $key): if(!synk_management_operation_allowed($permissions,$key))continue;$item=$navigation[$key]; ?>
-      <a href="<?= synk_management_h($pageUrl($item[1])) ?>"<?= $key===$page ? ' aria-current="page"' : '' ?>><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><span><strong><?= synk_management_h($item[0]) ?></strong><small><?= synk_management_h($item[3]) ?></small></span><i class="bx bx-chevron-right" aria-hidden="true"></i></a>
+    <?php foreach ($navigation as $key=>$item): if($key!=='dashboard' && !synk_management_operation_allowed($permissions,$key==='students'?'student_records':($key==='financial'?'records':$key)))continue; ?>
+      <a href="<?= synk_management_h($pageUrl($item[1])) ?>"<?= $key===$page ? ' aria-current="page"' : '' ?>><i class="bx <?= $item[2] ?>" aria-hidden="true"></i><span><?= synk_management_h($key==='dashboard'?'Home':$item[0]) ?></span></a>
     <?php endforeach; ?>
   </nav><p class="management-mobile-college"><?= synk_management_h($scope['college_name']) ?></p></div>
 </div>

@@ -135,7 +135,7 @@ if(strpos($scenario,'violation_')===0) {
     if($scenario==='violation_duplicate_legacy'){$_POST['record_id']='';$_POST['violation_type']=strtolower($tag.' VIOLATION');mysqli_report(MYSQLI_REPORT_OFF);}
 }
 $handler='backend/query_management.php'; $fixtureResult=null;
-if (in_array($scenario,['page_contributions','page_events','page_violations'],true)) {
+if (in_array($scenario,['page_contributions','page_events','page_violations','page_exemptions'],true)) {
     $handler='management/'.substr($scenario,5).'.php'; $_POST=[]; $_SERVER['REQUEST_METHOD']='GET'; $_GET['search']=$tag;
 }
 if ($scenario==='catalog_lists') {
@@ -251,6 +251,23 @@ if (strpos($scenario,'attendance_http_')===0) {
     if ($scenario==='attendance_http_stale') $_POST['current_period_version']='999';
     if ($scenario==='attendance_http_array') $_POST['qr_code']=['unexpected'];
 }
+if (strpos($scenario,'exemption_http_')===0) {
+    require_once $root.'/backend/management_exemptions_helper.php';
+    $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
+    $testStudent=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'EXEMPTION','last_name'=>'TEST','source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+    $_POST=array_merge($post,['action'=>'exemption_apply','student_ids'=>json_encode([$testStudent]),'event_ids'=>json_encode([$event]),'contribution_ids'=>'[]','reason'=>'OFFICIAL DUTY','exam_term'=>$term['exam_term']]);
+    $mode=substr($scenario,15);
+    if ($mode==='data') $_POST['action']='exemption_data';
+    if ($mode==='search') { $_POST['action']='exemption_search';$_POST['search']=$tag; }
+    if ($mode==='list') { $_POST['action']='exemption_list_save';$_POST['title']='DUTY GROUP'; }
+    if ($mode==='csrf') $_POST['csrf_token']='bad';
+    if ($mode==='foreign') $_POST['event_ids']=json_encode([$siblingEvent]);
+    if ($mode==='stale') $_POST['current_period_version']='999';
+    if ($mode==='role') $_SESSION['role']='admin';
+    if ($mode==='array') $_POST['student_ids']=[$testStudent];
+    if ($mode==='ids') $_POST['student_ids']='[true]';
+    if ($mode==='period') $_POST['exam_term']=$term['exam_term']==='FINAL'?'MIDTERM':'FINAL';
+}
 if (strpos($scenario,'collect_')===0) {
     require_once $root.'/backend/management_payment_helper.php';
     $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
@@ -336,6 +353,7 @@ $take=static function()use($conn,$scope,$foreign):array {
     foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_payments','tbl_management_payment_items']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_officers','tbl_management_officer_audit','tbl_management_student_violations']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_exemption_lists','tbl_management_exemption_list_members','tbl_management_exemptions','tbl_management_exemption_audit']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return $data;
 };
 $before=$take();

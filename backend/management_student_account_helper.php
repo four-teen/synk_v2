@@ -3,8 +3,29 @@
 require_once __DIR__.'/management_student_financial_helper.php';
 require_once __DIR__.'/college_dean_students_helper.php';
 
-function synk_management_student_account(mysqli $conn,int $studentId): array
+function synk_management_student_financial_view_term(mysqli $conn,int $studentId,array $input): string
 {
+    $academic=synk_fetch_current_academic_term($conn);$key=$academic['ay_id'].':'.$academic['semester'];
+    $saved=$_SESSION['management_student_financial_view'] ?? [];
+    if (array_key_exists('exam_term',$input)) $selected=synk_management_exam_term($input['exam_term']);
+    elseif ((int)($saved['student_id'] ?? 0)===$studentId && ($saved['academic_key'] ?? '')===$key) $selected=synk_management_exam_term($saved['exam_term']);
+    else {
+        $selected='FINAL';
+        $organizations=synk_management_query($conn,"SELECT o.organization_id,o.college_id,c.campus_id FROM tbl_management_organizations o JOIN tbl_college c ON c.college_id=o.college_id JOIN tbl_campus cp ON cp.campus_id=c.campus_id WHERE o.status='ACTIVE' AND c.status='active' AND cp.status='active' ORDER BY c.college_name,o.organization_code,o.organization_id");
+        foreach ($organizations as $scope) {
+            foreach (['organization_id','college_id','campus_id'] as $field) $scope[$field]=(int)$scope[$field];
+            $source=synk_dean_students_source($scope,['ay_id'=>$academic['ay_id'],'semester'=>$academic['semester']],$conn);
+            if (!synk_management_query($conn,'SELECT s.student_id '.$source['sql'].' AND s.student_id=? LIMIT 1',$source['types'].'i',array_merge($source['params'],[$studentId]))) continue;
+            $selected=synk_management_fetch_current_period($conn,$scope)['exam_term'];break;
+        }
+    }
+    $_SESSION['management_student_financial_view']=['student_id'=>$studentId,'academic_key'=>$key,'exam_term'=>$selected];
+    return $selected;
+}
+
+function synk_management_student_account(mysqli $conn,int $studentId,?string $viewExamTerm=null): array
+{
+    if ($viewExamTerm!==null) $viewExamTerm=synk_management_exam_term($viewExamTerm);
     if ($studentId<1) throw new OutOfBoundsException('Student record unavailable.');
     foreach (['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_period_settings',
         'tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs'] as $table) {
@@ -17,7 +38,7 @@ function synk_management_student_account(mysqli $conn,int $studentId): array
         WHERE o.status='ACTIVE' AND c.status='active' AND cp.status='active' ORDER BY c.college_name,o.organization_code,o.organization_id");
     $accounts=[];$contributions=[];$events=[];$violations=[];$payments=[];
     $totals=['contributions'=>0,'event_fines'=>0,'violations'=>0,'paid'=>0,'deductions'=>0,'due'=>0];
-    $attendance=['events'=>0,'present'=>0,'absent'=>0,'pending'=>0,'not_in_roster'=>0];
+    $attendance=['events'=>0,'present'=>0,'absent'=>0,'pending'=>0,'not_in_roster'=>0,'exempted'=>0];
     foreach ($organizations as $scope) {
         foreach (['college_id','campus_id','organization_id'] as $key) $scope[$key]=(int)$scope[$key];
         // Reuse Management membership, including retained directory connections.
@@ -25,6 +46,11 @@ function synk_management_student_account(mysqli $conn,int $studentId): array
         $source=synk_dean_students_source($scope,['ay_id'=>$academic['ay_id'],'semester'=>$academic['semester']],$conn);
         if (!synk_management_query($conn,'SELECT s.student_id '.$source['sql'].' AND s.student_id=? LIMIT 1',$source['types'].'i',array_merge($source['params'],[$studentId]))) continue;
         $period=synk_management_fetch_current_period($conn,$scope);
+        if ($viewExamTerm!==null) {
+            $period['exam_term']=$viewExamTerm;$period['exam_term_label']=synk_management_exam_term_options()[$viewExamTerm];
+            $period['period_key']=$period['key'].':'.$viewExamTerm;
+            $period['period_text']=$period['term_text'].' - '.$period['exam_term_label'];
+        }
         $account=synk_management_student_financial_overview($conn,$scope,$period,$studentId);
         if (!$account['contributions'] && !$account['events'] && !$account['violations'] && !$account['payments']) continue;
         $accounts[]=['organization'=>$account['organization'],'period'=>$account['period']];
@@ -32,7 +58,7 @@ function synk_management_student_account(mysqli $conn,int $studentId): array
         foreach ($account['contributions'] as $row) $contributions[]=$row+$context;
         foreach ($account['events'] as $row) {
             $events[]=$row+$context;$attendance['events']++;
-            $status=['PRESENT'=>'present','ABSENT'=>'absent','PENDING'=>'pending','NOT_IN_ROSTER'=>'not_in_roster'][$row['student_attendance']];
+            $status=['PRESENT'=>'present','ABSENT'=>'absent','PENDING'=>'pending','NOT_IN_ROSTER'=>'not_in_roster','EXEMPTED'=>'exempted'][$row['student_attendance']];
             $attendance[$status]++;
         }
         foreach ($account['violations'] as $row) $violations[]=$row+$context;
@@ -45,12 +71,13 @@ function synk_management_student_account(mysqli $conn,int $studentId): array
     usort($events,static function($a,$b){return (int)$b['event_id']<=>(int)$a['event_id'];});
     // Receipt history stays accessible after a Management term changes, using
     // only this signed-in student's native payment records.
-    $payments=synk_management_payment_history($conn,$studentId);
+    $allPayments=synk_management_payment_history($conn,$studentId);
+    if ($viewExamTerm===null) $payments=$allPayments;
     $historyTotal=0;foreach($payments as$row)$historyTotal+=synk_management_money_cents($row['amount']);
     foreach ($totals as &$value) $value=synk_management_money_text($value);
     unset($value);
-    return ['academic_period'=>$academic['term_text'],'accounts'=>$accounts,'contributions'=>$contributions,'events'=>$events,
-        'violations'=>$violations,'payments'=>$payments,'payment_history_total'=>synk_management_money_text($historyTotal),'totals'=>$totals,'attendance'=>$attendance];
+    return ['academic_period'=>$academic['term_text'],'selected_exam_term'=>$viewExamTerm,'selected_exam_term_label'=>$viewExamTerm?synk_management_exam_term_options()[$viewExamTerm]:null,'accounts'=>$accounts,'contributions'=>$contributions,'events'=>$events,
+        'violations'=>$violations,'payments'=>$payments,'all_payments'=>$allPayments,'payment_history_total'=>synk_management_money_text($historyTotal),'totals'=>$totals,'attendance'=>$attendance];
 }
 
 function synk_management_account_money(string $amount): string

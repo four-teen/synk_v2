@@ -12,9 +12,13 @@ $financialAccount=null;$financialError='';$reading=false;
 try {
     require_once __DIR__.'/../backend/management_student_account_helper.php';
     $conn->begin_transaction(MYSQLI_TRANS_START_READ_ONLY);$reading=true;
-    // Identity and period selection come from the session and saved settings.
-    $financialAccount=synk_management_student_account($conn,(int)$_SESSION['student_id']);
+    // Only the Management financial term is selectable. Academic scope is server-owned.
+    $financialViewTerm=synk_management_student_financial_view_term($conn,(int)$_SESSION['student_id'],$_GET);
+    $financialAccount=synk_management_student_account($conn,(int)$_SESSION['student_id'],$financialViewTerm);
     $conn->commit();$reading=false;
+} catch (DomainException $error) {
+    if ($reading) $conn->rollback();
+    http_response_code(400);$financialError=$error->getMessage();
 } catch (Throwable $error) {
     if ($reading) $conn->rollback();
     error_log('Student finances: '.$error->getMessage());http_response_code(503);

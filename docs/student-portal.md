@@ -46,11 +46,11 @@ linked professor account or faculty-record profile storage; missing photos use
 a neutral person icon. Missing details are labeled "To be posted". It does not change schedules,
 faculty workloads, enrollment lists or Administrator academic settings.
 
-The current academic term is selected when it has imported subjects. Otherwise,
-the latest imported term is shown with a clear notice of the current term.
-The cog opens a term-selection modal for reviewing the student's own imported
-terms. Apply saves that student's viewing preference; Cancel preserves the
-displayed term. Search filters the displayed cards on the client.
+Real Student dashboards and profile subject lists follow the Administrator's
+current academic year and semester. Old URLs and saved viewing preferences cannot
+override that scope. A missing current roster shows an empty state, without falling
+back to another semester. Staff previews retain their historical term controls.
+Search filters the displayed cards on the client.
 
 Student name, ID, email, and program come from the imported directory. The old
 First-Time Student Setup form is removed. **Manage Profile** lets the signed-in
@@ -73,8 +73,9 @@ directory listing and serves only the generated JPEG filenames.
 Manage Profile starts with a compact photo and imported identity card, followed by the academic
 year subject listing. The separate Student details card is removed. Its subject
 rows use the same shared `student/subject-card.php` view as My Subjects, including
-professor photos, orange names and compact schedules. The academic-year filter,
-semester groups remain available. The profile form only accepts a photo.
+professor photos, orange names and compact schedules. The student's subject list
+uses the current semester; academic-year browsing remains available to staff
+previews. The profile form only accepts a photo.
 
 Photo checks: `php tests/student-profile-photo.php` covers real multipart uploads,
 required-photo redirects, replacement, invalid files, CSRF, ownership, and unchanged
@@ -82,10 +83,14 @@ academic/student data. `node tests/student-portal-browser.cjs` checks the requir
 dialog, preview, validation, and mobile layouts. Fixtures clean up their photos.
 
 On screens below 1,200px, the student sidebar becomes a fixed bottom navigation
-bar on the student portal pages. It contains the same available Subjects, Profile,
-Prospectus, Faculty Evaluation, Finances, and QR destinations, including preview parameters and
-evaluation availability rules. Content has space below it for the bar and device
-safe area. Desktop keeps the sidebar. Mobile pages allow pinch zoom.
+bar on the student portal pages: Home, Finances, QR, Evaluation (when available),
+and More. More opens a full-width grid with multiple rows containing every permitted
+destination, including Profile and Prospectus. The grid uses three columns on
+phones and four on wider mobile screens, following Management navigation. Orange
+menu icons and light active highlights apply only to navigation. Preview links keep
+their identity and return parameters. The sidebar is inert on small screens, and
+the footer is hidden/inert while a dialog is open. Content reserves the device's
+safe area and footer height. Desktop keeps the sidebar. Mobile pages allow pinch zoom.
 
 ## My Finances
 
@@ -96,7 +101,12 @@ attendance, absence fines, recorded violations, payment history, deductions, and
 the total to pay. Student photo completion is required before opening the page.
 
 The page reads the existing Management calculations and saved organization
-periods. It does not accept a student ID, organization, or period from URL inputs.
+periods. It accepts only a Management financial **Midterm / Final** selection, scoped
+to the Administrator's current academic year and semester. Student IDs, organizations,
+academic-year and semester parameters cannot widen access. The term preference is
+saved per student and academic period in the session; it never changes Management's
+recording setting. Charges, exemptions, attendance, violation assessments, payment
+totals and balances use that one selected financial term for all eligible organizations.
 Current college membership determines the eligible organizations, including
 students whose original master profile differs from their current class lists.
 Organizations are labeled separately so charges from different organizations are
@@ -106,13 +116,16 @@ totals. Student identities, academic settings, schedules, and workloads are unch
 Only finalized attendance adds an absence fine. A missing scan while attendance
 is pending does not create a charge. A student outside a frozen event roster is
 shown as not in that roster. Violation definitions do not become personal student
-violations. Student violation recording and payment collection are still deferred;
-the corresponding sections currently show recorded-data empty states.
+violations. Exempted events and contributions show zero payable balance with the
+saved reason. Actual payments and applied student violations use Management's
+existing records. Receipt history from other terms is separately expandable and
+is excluded from the selected financial term's totals.
 
 Implementation: `backend/management_student_account_helper.php` resolves and
 combines Management accounts. `management/student-financial-page.php` owns the
 financial period presentation. The Student page supplies only the authenticated
-student identity and portal layout. No new financial tables or migration are needed.
+student identity, financial viewing selection and portal layout. No new financial
+tables or migration are needed.
 Checks: `php tests/student-finances.php` and `node tests/student-portal-browser.cjs`.
 
 ## Faculty Evaluation
@@ -127,6 +140,25 @@ Saved drafts, submitted evaluations, archived terms and staff previews retain
 their existing view/edit restrictions. Draft forms carry term, college and faculty
 identifiers in hidden fields. The server checks enrollment and collection access
 for draft saves and final submissions, and finalizes the complete faculty list.
+
+When a Dean opens the current semester's evaluations, a required guidance modal
+appears on authenticated Student pages after the required profile photo is complete.
+It explains faculty selection, all 15 ratings, saving each draft, and final review
+and submission. Start/Continue opens the relevant college's faculty list. A single
+navigation ticket avoids showing the same dialog twice on that immediate destination;
+it does not record completion. On later page loads the reminder returns until the
+actual required responses are submitted. Drafts and incomplete or outdated answers
+remain pending. Background checks every 45 seconds detect Dean access changes and
+completion without extending the idle timeout. A visible question or photo dialog
+is allowed to finish before the reminder opens. Closed, inactive, unrelated, and
+unlinked college enrollments do not create reminders; staff previews never receive one.
+
+If a new required faculty member appears after an earlier submission, only the
+remaining complete drafts are finalized. Submitted answers and their verification
+codes remain unchanged. Each college is still finalized separately. No scheduling,
+workload, scoring, or Dean access-control logic is changed by the reminder.
+Checks: `php tests/student-evaluation-prompt.php`, `node tests/student-evaluation-prompt.cjs`,
+and the existing Student/evaluation-access suites.
 
 On screens below 992px, the SET form opens as a full-screen modal. Its header and
 Close/Save Draft actions stay visible while the questions and comments scroll

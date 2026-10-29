@@ -7,6 +7,11 @@
   --dean-heading: #1f2937;
   --dean-text: #334155;
   --dean-muted: #526175;
+  --management-menu-color: #0f766e;
+  --management-menu-active: #ccfbf1;
+  --management-menu-label: #115e59;
+  --management-menu-muted: #64748b;
+  --management-menu-border: #e5e7eb;
   color: var(--dean-text);
 }
 .management-portal [hidden] { display: none !important; }
@@ -17,6 +22,26 @@
 .management-menu-close { padding: .5rem; }
 .management-avatar-button { padding: 0; }
 .management-mobile-nav, .management-mobile-brand { display: none; }
+/* Menu icons only: keep status, attendance and financial icons in their own colors. */
+.management-portal .management-nav .college-dean-menu-icon,
+.management-portal .management-mobile-nav .bx,
+.management-portal .management-mobile-more nav .bx,
+.management-portal .dropdown-menu .dropdown-item .bx,
+.management-portal .management-menu-close .bx { color: var(--management-menu-color) !important; }
+.management-portal .management-nav .college-dean-menu-icon { background: transparent; }
+.management-portal #layout-menu .management-nav .college-dean-menu-card { border-color: var(--management-menu-border); }
+.management-portal #layout-menu .management-nav .college-dean-menu-card::before,
+.management-portal #layout-menu .management-nav > .menu-item.active::before { display: none; }
+.management-portal #layout-menu .management-nav .college-dean-menu-card:hover { background: #f0fdfa; border-color: #99f6e4; box-shadow: none; transform: none; }
+.management-portal #layout-menu .management-nav .college-dean-menu-card.active { background: var(--management-menu-active); border-color: #99f6e4; box-shadow: none; }
+.management-portal #layout-menu .management-nav .college-dean-menu-card.active::after { content: ""; position: absolute; left: 0; top: .6rem; bottom: .6rem; width: 3px; border-radius: 3px; background: var(--management-menu-color); }
+.management-portal #layout-menu .management-nav .college-dean-menu-desc { color: var(--management-menu-muted); }
+.management-portal #layout-menu .management-nav .active .college-dean-menu-title,
+.management-portal #layout-menu .management-nav .active .college-dean-menu-desc { color: var(--management-menu-label); }
+.management-portal .management-nav a:focus-visible,
+.management-portal .management-mobile-nav > :focus-visible,
+.management-portal .management-mobile-more nav a:focus-visible,
+.management-portal .dropdown-menu .dropdown-item:focus-visible { outline-color: var(--management-menu-color); }
 .management-portal .dropdown-item-text { max-width: 20rem; overflow-wrap: anywhere; }
 .management-portal .layout-overlay { border: 0; padding: 0; }
 #layout-menu .management-nav-section { margin: .8rem 0 .15rem; padding: .25rem 1.1rem; font-size: .65rem; font-weight: 600; line-height: 1rem; letter-spacing: .06em; color: var(--dean-muted); }
@@ -25,7 +50,9 @@
 .management-sidebar-college > span { display: block; margin-bottom: .4rem; font-size: .65rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dean-muted); }
 .management-sidebar-college > strong { display: block; font-size: .8rem; font-weight: 600; line-height: 1.5; color: var(--dean-heading); overflow-wrap: anywhere; }
 .management-heading { padding: 1.5rem; margin-bottom: 1.5rem; }
-.management-heading h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: .5rem; }
+.management-heading h1 { font-size: 1.5rem; font-weight: 500; margin-bottom: 0; }
+.management-heading-context { display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .5rem; overflow-wrap: anywhere; }
+.management-heading-context > span:first-child { white-space: nowrap; }
 .management-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 1.5rem; }
 .management-catalog-stats { grid-template-columns: repeat(3,minmax(0,1fr)); margin-bottom: 1.5rem; }
 .management-stat { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1.5rem; border: 0; border-radius: var(--dean-card-radius); box-shadow: var(--dean-shadow); min-width: 0; }
@@ -80,7 +107,6 @@
 .management-event-attendance-count{display:flex;align-items:center;gap:.5rem;font-size:1rem}
 .management-attendance-present{color:#28794c}
 .management-attendance-remaining{color:#b44545}
-.management-event-count-label{display:block;color:var(--dean-muted);font-size:.65rem;margin-top:.25rem;white-space:nowrap}
 .management-table .management-event-attendance-state[data-event-attendance-status]{display:inline-flex;align-items:center;gap:.35rem;border-radius:.35rem;padding:.4rem .6rem;background:#f1f3f8;color:var(--dean-muted);font-size:.75rem;white-space:nowrap}
 .management-table .management-event-attendance-state[data-event-attendance-status="OPEN"]{color:#28794c;background:#e8f7ee}
 .management-table .management-event-attendance-state[data-event-attendance-status="CLOSED"]{color:#b44545;background:#ffeded}
@@ -113,7 +139,14 @@
 .management-row-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .management-row-actions .btn { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
 .management-row-actions .bx { font-size: 1rem; }
-#management-catalog[data-kind="events"] .management-row-actions { flex-wrap: wrap; }
+#management-catalog[data-kind="events"] .management-record-actions { text-align: right; }
+#management-catalog[data-kind="events"] .management-event-actions { display: inline-grid; grid-template-columns: repeat(2,minmax(max-content,1fr)) max-content; gap: .4rem; vertical-align: middle; }
+#management-catalog[data-kind="events"] .management-event-actions .management-exemption-row-actions,
+#management-catalog[data-kind="events"] .management-event-actions .management-row-actions { display: contents; }
+#management-catalog[data-kind="events"] .management-event-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: .25rem; width: 100%; }
+#management-catalog[data-kind="events"] .management-event-actions [data-attendance] { grid-column: 3; grid-row: 1 / span 2; align-self: stretch; }
+#management-catalog[data-kind="events"] .management-event-actions > .text-muted { grid-column: 1 / -1; }
+#management-catalog[data-kind="events"] .management-event-actions:not(:has(.management-exemption-row-actions,.management-row-actions)) { display: inline-flex; }
 .management-attendance-summary { display: flex; gap: 1rem; flex-wrap: wrap; padding: .8rem; background: #f7f8fc; border-radius: .4rem; margin-bottom: 1rem; }
 .management-attendance-summary span { display: flex; flex-direction: column; min-width: 75px; font-size: .75rem; color: var(--dean-muted); }
 .management-attendance-summary strong { font-size: 1rem; color: var(--dean-heading); }
@@ -292,22 +325,24 @@
   .management-portal .layout-page .content-wrapper { padding-bottom: calc(80px + env(safe-area-inset-bottom,0px)) !important; }
   .management-main { scroll-margin-bottom: 90px; }
   .management-mobile-brand { display: flex; flex: 0 0 32px; align-items: center; margin-right: .75rem; min-height: 44px; }
-  .management-mobile-nav { position: fixed; z-index: 1030; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: #fff; border-top: 1px solid #e4e8f0; box-shadow: 0 -3px 16px #4359710a; padding: .35rem max(.35rem,env(safe-area-inset-right,0px)) calc(.35rem + env(safe-area-inset-bottom,0px)) max(.35rem,env(safe-area-inset-left,0px)); }
-  .management-mobile-nav > a, .management-mobile-nav > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; min-width: 0; min-height: 56px; padding: .4rem .1rem; margin: 0 .1rem; border: 0; border-radius: .65rem; background: transparent; color: var(--dean-text); font-size: .7rem; line-height: 1.25; font-weight: 500; touch-action: manipulation; }
+  .management-mobile-nav { position: fixed; z-index: 1030; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); background: #fff; border-top: 1px solid var(--management-menu-border); box-shadow: 0 -3px 16px #4359710a; padding: .35rem max(.35rem,env(safe-area-inset-right,0px)) calc(.35rem + env(safe-area-inset-bottom,0px)) max(.35rem,env(safe-area-inset-left,0px)); }
+  .management-mobile-nav > a, .management-mobile-nav > button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; min-width: 0; min-height: 56px; padding: .4rem .1rem; margin: 0 .1rem; border: 0; border-radius: .65rem; background: transparent; color: var(--management-menu-muted); font-size: .7rem; line-height: 1.25; font-weight: 500; touch-action: manipulation; }
   .management-mobile-nav .bx { font-size: 1.4rem; }
-  .management-mobile-nav [aria-current="page"], .management-mobile-nav .is-current, .management-mobile-nav [aria-expanded="true"] { color: #696cff; background: #f2f2ff; }
+  .management-mobile-nav [aria-current="page"], .management-mobile-nav .is-current, .management-mobile-nav [aria-expanded="true"] { color: var(--management-menu-label); background: var(--management-menu-active); font-weight: 600; }
+  .management-mobile-nav [aria-current="page"]::before, .management-mobile-nav .is-current::before, .management-mobile-nav [aria-expanded="true"]::before { content: ""; position: absolute; top: 0; left: 50%; width: 24px; height: 3px; border-radius: 0 0 3px 3px; background: var(--management-menu-color); transform: translateX(-50%); }
   .management-portal.modal-open .management-mobile-nav { visibility: hidden; }
-  .management-mobile-more { height: auto; max-height: min(80vh,600px); max-height: min(80dvh,600px); border-radius: 1rem 1rem 0 0; padding-bottom: env(safe-area-inset-bottom,0px); }
+  .management-mobile-more { height: auto; max-height: min(80vh,600px); max-height: min(80dvh,600px); border-radius: 1rem 1rem 0 0; background: #fff; padding-bottom: env(safe-area-inset-bottom,0px); }
   .management-mobile-more .offcanvas-header { gap: 1rem; padding: 1.25rem 1.25rem .5rem; }
   .management-mobile-more .offcanvas-header > div { min-width: 0; }
   .management-mobile-more .offcanvas-header p { margin: .4rem 0 0; font-size: .8rem; overflow-wrap: anywhere; }
   .management-mobile-more .btn-close { width: 44px; height: 44px; box-sizing: border-box; margin: 0; padding: 0; flex-shrink: 0; }
   .management-mobile-more .offcanvas-body { padding: .75rem 1.25rem 1.25rem; }
-  .management-mobile-more nav { display: grid; gap: .75rem; }
-  .management-mobile-more nav a { display: flex; gap: 1rem; align-items: center; min-height: 64px; padding: 1rem; border: 1px solid #e4e8f0; border-radius: .75rem; color: var(--dean-heading); }
-  .management-mobile-more nav a[aria-current="page"] { background: #f2f2ff; border-color: #696cff; }
-  .management-mobile-more nav a > .bx:first-child { color: #696cff; font-size: 1.5rem; }
-  .management-mobile-more nav span { flex: 1; min-width: 0; }
+  .management-mobile-more nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .65rem; }
+  .management-mobile-more nav a { display: flex; flex-direction: column; justify-content: center; gap: .6rem; align-items: center; min-width: 0; min-height: 90px; padding: .8rem .35rem; border: 1px solid var(--management-menu-border); border-radius: .75rem; color: var(--management-menu-muted); text-align: center; font-size: .78rem; line-height: 1.4; }
+  .management-mobile-more nav a:hover { background: #f0fdfa; border-color: #99f6e4; }
+  .management-mobile-more nav a[aria-current="page"] { color: var(--management-menu-label); background: var(--management-menu-active); border-color: var(--management-menu-color); font-weight: 600; }
+  .management-mobile-more nav a > .bx:first-child { color: var(--management-menu-color); font-size: 1.5rem; }
+  .management-mobile-more nav span { min-width: 0; overflow-wrap: anywhere; }
   .management-mobile-more nav strong, .management-mobile-more nav small { display: block; }
   .management-mobile-more nav small { font-size: .75rem; margin-top: .25rem; }
   .management-mobile-college { font-size: .75rem; color: var(--dean-muted); margin: 1.25rem 0 0; overflow-wrap: anywhere; }
@@ -318,7 +353,65 @@
   .management-portal .dropdown-menu { max-width: calc(100vw - 1.5rem); }
   .management-portal .dropdown-item { min-height: 44px; white-space: normal; }
 }
+@media (min-width:576px) and (max-width:1199.98px) { .management-mobile-more nav { grid-template-columns: repeat(4,minmax(0,1fr)); } }
 @media (min-width:1200px) { .management-mobile-more { display: none; } }
+
+.management-exemptions-page > .management-panel-heading{padding-bottom:1rem}
+.management-exemption-notes{display:flex;align-items:baseline;gap:.75rem;margin:0 1.5rem 1.25rem;padding:.75rem .875rem;border:1px solid #e4e8f0;border-left:3px solid #99f6e4;border-radius:.5rem;background:#f8fafb;font-size:.8rem;line-height:1.5;color:var(--dean-muted)}
+.management-exemption-notes>strong{flex-shrink:0;font-size:.75rem;color:var(--dean-heading)}
+.management-exemption-notes>div{min-width:0;display:grid;gap:.2rem;overflow-wrap:anywhere}
+.management-exemption-notes p{margin:0}
+.management-exemption-readonly{font-style:italic}
+.management-exemption-section-title{margin:0;padding:0 1.5rem .65rem;font-size:.95rem;font-weight:600}
+.management-exemption-lists,.management-exemption-grants{padding:0 1.5rem;display:grid;gap:10px;margin-bottom:20px}
+.management-exemption-lists{grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))}
+.management-exemption-lists article,.management-exemption-grants article{border:1px solid #e4e8f0;border-radius:10px;padding:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0;background:#fff}
+.management-exemption-lists article>div,.management-exemption-grants article>div{flex:1;min-width:0;display:grid;gap:3px;overflow-wrap:anywhere}
+.management-exemption-lists article>.btn,.management-exemption-grants article>.btn{flex-shrink:0}
+.management-exemption-lists p,.management-exemption-grants p{margin:0;font-size:.8125rem;line-height:1.45}
+.management-exemption-card-title{margin:0;font-size:.875rem;font-weight:600;line-height:1.45}
+.management-exemption-description{font-size:.8rem;font-style:italic;text-transform:lowercase;white-space:pre-line;color:var(--dean-muted)}
+.management-exemption-lists small,.management-exemption-grants small{color:var(--dean-muted)}
+.management-exemption-member-count{justify-self:start;margin-top:3px;padding:.15rem .45rem;border-radius:.3rem;background:#f1f5f9;color:#475569;font-size:.72rem;line-height:1.4}
+.management-exemption-identity{display:flex;align-items:baseline;flex-wrap:wrap;gap:.15rem .65rem}
+.management-exemption-identity small{font-size:.75rem}
+.management-exemption-target{display:flex;align-items:baseline;flex-wrap:wrap;gap:.15rem .4rem}
+.management-exemption-kind{font-size:.72rem;font-weight:600;color:var(--dean-muted)}
+.management-exemption-kind::after{content:":"}
+.management-exemption-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.25rem .65rem;margin-top:4px;font-size:.75rem;line-height:1.4}
+.management-exemption-meta small{font-size:inherit}
+.management-exemption-status{display:inline-flex;padding:.15rem .45rem;border-radius:.3rem;font-size:.7rem;font-weight:600}
+.management-exemption-status.is-active{color:#115e59;background:#ccfbf1}
+.management-exemption-status.is-revoked{color:#9f3030;background:#ffeded}
+.management-exemption-members{list-style:none;margin:.5rem 0 0;padding:0;border-top:1px solid #e4e8f0;max-height:240px;overflow:auto}
+.management-exemption-members li{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:.15rem .65rem;padding:.35rem 0;font-size:.8rem;line-height:1.4}
+.management-exemption-members li+li{border-top:1px solid #f1f5f9}
+.management-exemption-members small{font-size:.72rem}
+.management-exemption-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.management-exemption-filters>div{flex:1;min-width:min(100%,200px)}
+.management-exemption-choices{display:grid;gap:8px;max-height:240px;overflow:auto;padding:4px}
+.management-exemption-choices label{display:flex;align-items:center;gap:10px;padding:12px;background:#f7f8fc;border-radius:8px;cursor:pointer;overflow-wrap:anywhere}
+.management-exemption-choices label span{flex:1;min-width:0}
+.management-exemption-choices label small{max-width:45%;color:var(--dean-muted);text-align:right}
+.management-exemption-choices input{width:18px;height:18px;flex-shrink:0}
+.management-exemption-selection{margin:16px 0}
+#exemption-selected-students{max-height:220px;overflow:auto;margin-top:8px}
+.management-exemption-selection div>div,.management-exemption-results>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #edf0f5}
+.management-exemption-selection span,.management-exemption-results span{min-width:0;overflow-wrap:anywhere}
+.management-exemption-results{max-height:240px;overflow:auto;margin-top:8px}
+.management-exemption-audit{list-style:none;padding:0;margin:.5rem 0 0}
+.management-exemption-audit li{display:grid;gap:3px;padding:.65rem 0;border-top:1px solid #e4e8f0;font-size:.8125rem;line-height:1.45;overflow-wrap:anywhere}
+.management-exemption-audit small{font-size:.75rem;color:var(--dean-muted)}
+.management-exemption-audit small,.management-exemption-audit span{display:block}
+.management-exemption-row-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin-bottom:8px}
+.management-event-exemption-count{display:block;font-size:.75rem;color:#526175;margin-top:4px}
+.management-financial-exempted,.student-finance-exempted{color:#246b83;background:#eaf7fc}
+@media(max-width:575.98px){.management-exemption-grants article,.management-exemption-lists article{flex-direction:column;gap:12px}.management-exemption-grants article>button,.management-exemption-lists article>button{width:100%}.management-exemption-choices label{flex-wrap:wrap}.management-exemption-choices label small{max-width:100%;text-align:left;padding-left:28px;width:100%}.management-exemption-row-actions>*{flex:1}.management-exemption-filters>button{width:100%}.management-exemption-modal .modal-dialog{margin:.5rem}.management-exemption-modal .modal-content{max-height:calc(var(--management-viewport-height,100dvh) - 1rem)}}
+@media(max-width:575.98px){
+  .management-exemption-notes{flex-direction:column;gap:.25rem;margin-left:1rem;margin-right:1rem}
+  .management-exemption-section-title,.management-exemption-lists,.management-exemption-grants{padding-left:1rem;padding-right:1rem}
+  .management-exemption-lists article>div,.management-exemption-grants article>div{width:100%}
+}
 
 @media (max-width:767.98px), (max-width:1199.98px) and (max-height:500px) {
   .management-portal .management-main { padding: 1rem; }
@@ -362,7 +455,7 @@
   #management-attendance .modal-body { padding: .75rem 1rem 1rem; overscroll-behavior-y: contain; }
   #management-attendance .modal-footer { padding-bottom: max(.75rem,env(safe-area-inset-bottom,0px)); }
   #management-attendance .modal-header, #management-attendance .modal-body, #management-attendance .modal-footer { padding-left: max(1rem,env(safe-area-inset-left,0px)); padding-right: max(1rem,env(safe-area-inset-right,0px)); }
-  .management-attendance-summary { grid-template-columns: repeat(4,minmax(0,1fr)); gap: .35rem; padding: .65rem; margin-bottom: .5rem; }
+  .management-attendance-summary { grid-template-columns: repeat(3,minmax(0,1fr)); gap: .35rem; padding: .65rem; margin-bottom: .5rem; }
   .management-attendance-summary span { font-size: .65rem; }
   .management-attendance-summary strong { font-size: .85rem; overflow-wrap: anywhere; }
   #attendance-event-context { font-size: .7rem; margin-bottom: .5rem !important; }
@@ -401,6 +494,8 @@
   .management-mobile-records .management-row-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
   .management-mobile-records .management-row-actions .btn { justify-content: center; white-space: normal; padding: .5rem; }
   .management-mobile-records .management-row-actions [data-attendance] { grid-column: 1/-1; }
+  #management-catalog[data-kind="events"] .management-event-actions { width: 100%; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; }
+  #management-catalog[data-kind="events"] .management-event-actions .btn { min-width: 0; min-height: 44px; padding: .5rem .35rem; white-space: normal; overflow-wrap: anywhere; }
   .management-mobile-records .management-event-attendance-state { min-height: 44px; }
   .management-mobile-records .management-record-actions > .text-muted { float: none !important; }
   .management-financial-table { display: block; width: 100%; min-width: 0; }

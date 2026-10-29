@@ -169,7 +169,10 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 
 /* The same authorized menu becomes a bottom bar on phones and tablets. */
 .student-bottom-nav{display:none}
-@media screen and (max-width:359.98px){.student-bottom-nav .student-bottom-link{font-size:9px}}
+.student-portal .student-nav .student-menu-icon,
+.student-portal .student-bottom-icon .bx,
+.student-portal .student-mobile-more nav .bx{color:#ff6a00!important}
+.student-portal .student-nav .student-menu-icon{background:#fff0e4!important}
 @media screen and (max-width:1199.98px){
   .student-portal #layout-menu,
   .student-portal .layout-navbar>.layout-menu-toggle,
@@ -177,22 +180,45 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
   .layout-menu-expanded body.student-portal:not(.modal-open){overflow:auto!important}
   .student-portal .layout-page .content-wrapper{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
   .student-bottom-nav{
-    position:fixed;inset:auto 0 0;z-index:1030;display:flex;align-items:stretch;
+    position:fixed;inset:auto 0 0;z-index:1030;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);align-items:stretch;
     padding:7px max(10px,env(safe-area-inset-right,0px)) calc(7px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));
     border-top:1px solid #e3e7ef;background:#fff;box-shadow:0 -4px 20px #4359710a;
   }
   .student-bottom-link{
     display:flex;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;
     min-width:0;min-height:57px;gap:3px;border-radius:10px;padding:4px 2px;
-    color:#718096;font-size:10.5px;font-weight:500;line-height:1.3;text-decoration:none;
+    color:#526175;font-size:10.5px;font-weight:500;line-height:1.3;text-decoration:none;border:0;background:transparent;
   }
   .student-bottom-icon{display:grid;place-items:center;width:44px;height:29px;border-radius:10px;font-size:23px}
-  .student-bottom-link.active{color:#585be0;font-weight:600}
-  .student-bottom-link.active .student-bottom-icon{background:#eeedff}
+  .student-bottom-link.active,.student-bottom-link[aria-expanded="true"]{color:#585be0;font-weight:600;background:#f2f2ff}
+  .student-bottom-link.active .student-bottom-icon{background:transparent}
   .student-bottom-link:hover{color:#585be0;background:#f8f8ff}
   .student-bottom-link:focus-visible{outline:2px solid #696cff;outline-offset:-2px}
+  .student-portal.modal-open .student-bottom-nav{visibility:hidden}
+  .student-mobile-more{height:auto;max-height:min(80dvh,600px);border-radius:1rem 1rem 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .student-mobile-more .offcanvas-header{padding:1.25rem 1.25rem .5rem;gap:1rem}
+  .student-mobile-more .offcanvas-header p{font-size:.8rem;margin:.4rem 0 0;color:#526175}
+  .student-mobile-more .btn-close{width:44px;height:44px;flex-shrink:0;box-sizing:border-box;margin:0;padding:0}
+  .student-mobile-more .offcanvas-body{padding:.75rem 1.25rem 1.25rem;overscroll-behavior:contain}
+  .student-mobile-more nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem}
+  .student-mobile-more nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;min-width:0;min-height:90px;padding:.8rem .35rem;border:1px solid #e4e8f0;border-radius:.75rem;color:var(--student-heading);text-align:center;font-size:.78rem;line-height:1.4;overflow-wrap:anywhere}
+  .student-mobile-more nav .bx{font-size:1.5rem}
+  .student-mobile-more nav [aria-current="page"]{background:#f2f2ff;border-color:#696cff}
 }
-@media print{.student-bottom-nav{display:none!important}}
+@media screen and (min-width:576px) and (max-width:1199.98px){.student-mobile-more nav{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media screen and (min-width:1200px){.student-mobile-more{display:none}}
+@media print{.student-bottom-nav,.student-mobile-more,.student-evaluation-prompt{display:none!important}}
+.student-evaluation-prompt .modal-header{padding:24px 24px 16px}
+.student-evaluation-prompt .modal-body{padding:0 24px 24px;font-size:14px;line-height:1.7}
+.student-evaluation-prompt .modal-title{color:var(--student-heading)}
+.student-evaluation-prompt .modal-footer{padding:16px 24px;gap:8px}
+.student-evaluation-prompt-period{color:#526175;font-size:12px}
+.student-evaluation-prompt-progress{background:#f2f2ff;color:#4446a5;padding:12px;border-radius:8px;margin-bottom:16px}
+.student-evaluation-prompt ol{padding-left:22px}
+.student-evaluation-prompt li{padding:4px 0 8px}
+.student-evaluation-prompt-colleges{margin-top:16px;border-top:1px solid #e4e8f0;padding-top:12px}
+.student-evaluation-prompt-colleges p{margin:4px 0;font-size:12px;color:#526175;overflow-wrap:anywhere}
+@media(max-width:575.98px){.student-evaluation-prompt .modal-dialog{margin:.5rem}.student-evaluation-prompt .modal-content{max-height:calc(100dvh - 1rem)}.student-evaluation-prompt .modal-header{padding:20px 16px 12px}.student-evaluation-prompt .modal-body{padding:0 16px 20px}.student-evaluation-prompt .modal-footer{padding:12px 16px}.student-evaluation-prompt .btn{min-height:44px}}
 
 /* SET uses the whole viewport on phones and tablets, with only the form body scrolling. */
 @media(max-width:991.98px){

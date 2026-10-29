@@ -14,7 +14,7 @@ $execute=static function(mysqli $db,string $sql): void {
         if (!$db->more_results()) break;
     } while ($db->next_result());
 };
-$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_student_violations','tbl_management_payments','tbl_management_payment_items','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit'];
+$tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_student_violations','tbl_management_payments','tbl_management_payment_items','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit','tbl_management_exemption_lists','tbl_management_exemption_list_members','tbl_management_exemptions','tbl_management_exemption_audit'];
 foreach (['fresh','legacy','varchar'] as $scenario) {
     $database='synk_management_sql_qa_'.bin2hex(random_bytes(8));
     if (!preg_match('/^synk_management_sql_qa_[a-f0-9]{16}$/D',$database)) throw new RuntimeException('Invalid scratch database name.');
@@ -113,11 +113,11 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $violation=(int)$db->query("SELECT violation_id FROM tbl_management_violations WHERE organization_id=$org AND college_id=2 LIMIT 1")->fetch_assoc()['violation_id'];
         $db->query("INSERT INTO tbl_management_student_violations (college_id,organization_id,student_id,violation_id,ay_id,semester,exam_term,occurred_on,violation_type,amount,recorded_by,recorded_by_name,recorded_at,request_key,payload_hash) VALUES (2,$org,1,$violation,2,1,'FINAL','2026-10-29','PRESERVED INCIDENT',25.50,1,'EXISTING USER',UTC_TIMESTAMP(),REPEAT('a',64),REPEAT('b',64))");
         $db->query("INSERT INTO tbl_management_officers (user_id,student_id,supervisor_user_id,organization_id,college_id,ay_id,semester,can_view,can_payments,expires_on) VALUES (1,1,1,$org,2,2,1,1,1,'2027-01-01')");
-        $db->query('ALTER TABLE tbl_management_officers DROP COLUMN can_manage_contributions,DROP COLUMN can_manage_events,DROP COLUMN can_manage_violations');
+        $db->query('ALTER TABLE tbl_management_officers DROP COLUMN can_manage_contributions,DROP COLUMN can_manage_events,DROP COLUMN can_manage_violations,DROP COLUMN can_manage_exemptions');
         $oldGrant=$db->query('SELECT * FROM tbl_management_officers')->fetch_assoc();
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_officers.sql'));
         $upgradedGrant=$db->query('SELECT * FROM tbl_management_officers')->fetch_assoc();
-        foreach(['contributions','events','violations']as$kind){$check($upgradedGrant['can_manage_'.$kind]==='0','Upgrade automatically enabled officer management permissions.');unset($upgradedGrant['can_manage_'.$kind]);}
+        foreach(['contributions','events','violations','exemptions']as$kind){$check($upgradedGrant['can_manage_'.$kind]==='0','Upgrade automatically enabled officer management permissions.');unset($upgradedGrant['can_manage_'.$kind]);}
         $check($upgradedGrant===$oldGrant,'Officer schema upgrade modified an existing grant.');
         $snapshot=static function()use($db,$tables):array {
             $state=[];
@@ -127,6 +127,7 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
             return $state;
         };
         $before=$snapshot(); $execute($db,$migration);
+        $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_exemptions.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_student_violations.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_periods.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_status.sql'));

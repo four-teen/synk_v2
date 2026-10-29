@@ -12,6 +12,14 @@ Previous terms are read only. Responses and original instruments are preserved;
 new terms create separate responses and default to closed with faculty results
 hidden. See `docs/evaluation-access.md` for the complete workflow.
 
+Students receive required guidance when an enrolled current-semester college opens
+evaluation. It returns on later page loads until all required faculty evaluations
+are submitted; saving drafts does not dismiss it permanently. Start opens that
+college's faculty list. Complete remaining drafts can be submitted after a new
+faculty is added, while earlier submitted responses and verification codes stay
+locked. Missing answers or old drafts cannot unlock final review or finalization.
+The prompt is read only and does not extend idle sessions or change Dean controls.
+
 New student evaluations use SKSU-INS-EFP-01 Revision 01, effective January 14,
 2026. The questionnaire contains 15 statements, in this order:
 

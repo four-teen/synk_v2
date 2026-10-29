@@ -189,7 +189,7 @@ foreach ($studentSidebarItems as $sidebarItem) {
 
   <div class="menu-inner-shadow"></div>
 
-  <ul class="menu-inner py-1">
+  <ul class="menu-inner py-1 student-nav">
     <li class="menu-header small text-uppercase mt-1">
       <span class="menu-header-text">Student Portal</span>
     </li>
@@ -213,11 +213,5 @@ foreach ($studentSidebarItems as $sidebarItem) {
     <?php endforeach; ?>
   </ul>
 </aside>
-<nav class="student-bottom-nav" aria-label="Student navigation">
-  <?php foreach ($studentSidebarItems as $sidebarItem): ?>
-    <a href="<?= htmlspecialchars(synk_student_build_portal_url($sidebarItem['href'], $sidebarItem['query'] ?? []), ENT_QUOTES, 'UTF-8') ?>" class="student-bottom-link<?= $studentSidebarActiveKey === $sidebarItem['key'] ? ' active' : '' ?>"<?= $studentSidebarActiveKey === $sidebarItem['key'] ? ' aria-current="page"' : '' ?>>
-      <span class="student-bottom-icon"><i class="bx <?= htmlspecialchars($sidebarItem['icon'], ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i></span>
-      <span><?= htmlspecialchars($sidebarItem['mobile_title'], ENT_QUOTES, 'UTF-8') ?></span>
-    </a>
-  <?php endforeach; ?>
-</nav>
+<?php require __DIR__.'/mobile-navigation.php'; ?>
+<script src="navigation.js?v=<?= (int)filemtime(__DIR__.'/navigation.js') ?>" defer></script>

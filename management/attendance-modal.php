@@ -2,7 +2,7 @@
 <div class="modal fade" id="management-attendance" tabindex="-1" aria-labelledby="attendance-title" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
 <div class="modal-header"><div><span class="management-financial-kicker">EVENT ATTENDANCE</span><h2 class="modal-title fs-5" id="attendance-title">Take attendance</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
 <div class="modal-body"><div id="attendance-error" class="alert alert-danger" role="alert" hidden></div>
-<div class="management-attendance-summary"><span>Status <strong id="attendance-status">Loading…</strong></span><span>Roster <strong id="attendance-eligible">—</strong></span><span>Present <strong id="attendance-present">—</strong></span><span>Absent <strong id="attendance-absent">—</strong></span></div>
+<div class="management-attendance-summary"><span>Status <strong id="attendance-status">Loading…</strong></span><span>Roster <strong id="attendance-eligible">—</strong></span><span>Present <strong id="attendance-present">—</strong></span><span>Exempted <strong id="attendance-exempted">0</strong></span><span>Absent <strong id="attendance-absent">—</strong></span></div>
 <p class="small text-muted mt-2 mb-3" id="attendance-event-context"></p>
 <div class="management-attendance-reader-grid"><div class="management-attendance-camera-column">
 <div class="management-attendance-camera"><video id="attendance-video" autoplay playsinline muted hidden></video><div id="attendance-camera-placeholder"><i class="bx bx-qr-scan" aria-hidden="true"></i><p>Point your camera at the student's attendance QR.</p></div></div>
