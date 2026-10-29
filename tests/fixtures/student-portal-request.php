@@ -72,6 +72,7 @@ if (strpos($scenario,'attendance_qr_')===0) {
     if ($scenario==='attendance_qr_anonymous') $_SESSION=[];
 }
 if ($scenario==='profile_page') $handler='student/profile.php';
+if ($scenario==='profile_term_tamper') { $handler='student/profile.php';$_GET['subject_ay_id']=$oldTerm['ay_id'];$_GET['subject_semester']=$oldTerm['semester']; }
 if ($scenario==='profile_complete_page') {
     synk_student_save_first_portal_profile_setup($conn,$email,(int)$program['program_id'],(string)(100000000+$students['first']));
     $handler='student/profile.php';

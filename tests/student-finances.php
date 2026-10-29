@@ -25,6 +25,10 @@ try {
         $check(strpos($r['headers'],'X-QA-Protected-Unchanged: yes')!==false,'Reading student finances changed student or academic data.');
     }
     $r=$request('finances_empty');$check($r['status']===200&&strpos($r['body'],'No financial records are available for your current enrollment')!==false,'An empty student account did not render safely.');
+    $r=$request('finances_midterm');$check($r['status']===200 && strpos($r['body'],'WRONG MANAGEMENT TERM')!==false && strpos($r['body'],'OWN CONTRIBUTION &lt;img')===false && strpos($r['body'],'SECOND ORGANIZATION CONTRIBUTION')===false,'Financial terms were mixed or Midterm could not be selected.');
+    foreach(['due','contributions','event_fines']as$key){$node=$r['xpath']->query('//*[@data-finance-total="'.$key.'"]')->item(0);$check($node&&trim($node->textContent)===synk_management_account_money($r['expected'][$key]),'Selected Midterm total differs: '.$key);}
+    $check($r['xpath']->query('//select[@name="exam_term"]/option[@selected and @value="MIDTERM"]')->length===1 && $r['xpath']->query('//select[@name="view_semester" or @name="view_ay_id" or @name="student_term"]')->length===0,'Financial view exposes academic year/semester changes or hides the selected financial term.');
+    foreach(['finances_invalid_term','finances_array_term'] as $scenario){$r=$request($scenario);$check($r['status']===400 && strpos($r['body'],'Choose Midterm or Final.')!==false,'Invalid financial term was accepted: '.$scenario);}
     foreach(['finances_anonymous'=>302,'finances_staff'=>302,'finances_photo_required'=>302,'finances_post'=>405]as$scenario=>$status){$r=$request($scenario);$check($r['status']===$status,'Student finance access or request-method check failed: '.$scenario);}
     $check(synk_management_account_money('1234567890.01')==='₱1,234,567,890.01','Money formatting lost centavos.');
 } finally {if(is_file($route))unlink($route);}

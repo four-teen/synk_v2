@@ -153,8 +153,13 @@ foreach ($cards as $index => $card) {
     $cards[$index]['has_saved_evaluation'] = is_array($evaluation);
     $cards[$index]['requires_revised_evaluation'] = is_array($evaluation) && $submissionStatus === 'draft'
         && !synk_student_faculty_evaluation_is_current($evaluation);
+    $completeAnswers=false;
+    if (is_array($evaluation) && $submissionStatus==='draft') {
+        try { synk_student_faculty_evaluation_normalize_answers($evaluation['answers'] ?? []);$completeAnswers=true; }
+        catch (RuntimeException $error) { /* Incomplete drafts remain editable. */ }
+    }
     $cards[$index]['is_draft_saved'] = is_array($evaluation) && $submissionStatus === 'draft'
-        && ($studentPortalPreviewMode || empty($cards[$index]['requires_revised_evaluation']));
+        && ($studentPortalPreviewMode || (empty($cards[$index]['requires_revised_evaluation']) && $completeAnswers));
     $cards[$index]['is_final_submitted'] = is_array($evaluation) && $submissionStatus === 'submitted';
 }
 
@@ -302,7 +307,7 @@ foreach ($cards as $card) {
 $missingCount = max(0, $evaluableCount - $savedCount);
 $termLocked = $finalCount > 0;
 $allFacultyFinalized = $evaluableCount > 0 && $finalCount === $evaluableCount;
-$canOpenFinalReview = $studentEvaluationWritable && !$termLocked && $evaluableCount > 0 && $savedCount === $evaluableCount;
+$canOpenFinalReview = $studentEvaluationWritable && !$allFacultyFinalized && $evaluableCount > 0 && $savedCount === $evaluableCount;
 
 $termFinalSubmission = null;
 if ($allFacultyFinalized && count($finalTokens) === 1) {
@@ -570,7 +575,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
     </div>
   <?php elseif ($termLocked && $allFacultyFinalized): ?>
     <div class="alert alert-info mb-4">
-      The faculty evaluations for this academic term are already locked. A combined final QR is not available for this older submission batch.
+      All listed faculty evaluations are submitted and locked. Submissions from separate batches retain their original verification codes, shown on the faculty cards below.
     </div>
   <?php endif; ?>
 
@@ -664,6 +669,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                   <div class="d-flex flex-wrap gap-2 mb-2">
                     <?php if (!empty($card['is_final_submitted'])): ?>
                       <span class="badge bg-label-success">Included in final submission</span>
+                      <?php if (trim((string)($cardEval['final_submission_token'] ?? ''))!==''): ?><span class="badge bg-label-secondary">Verification: <?= synk_student_h($cardEval['final_submission_token']) ?></span><?php endif; ?>
                       <?php if (trim((string)($cardEval['final_submitted_at'] ?? '')) !== ''): ?>
                         <span class="badge bg-label-primary"><?php echo synk_student_h((string)($cardEval['final_submitted_at'] ?? '')); ?></span>
                       <?php endif; ?>

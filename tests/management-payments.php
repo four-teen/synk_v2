@@ -86,6 +86,12 @@ try{
     $reject(static function()use($db,$scope,$input,$event){synk_management_attendance_write($db,$scope,'attendance_reopen',$input(['event_id'=>$event,'attendance_revision'=>'2','confirm'=>'1']));},'Attendance reopened after its fine was paid.');
     $db->query("UPDATE tbl_management_period_settings SET current_exam_term='MIDTERM' WHERE organization_id=".$org);
     $later=synk_management_student_account($db,$student);$check(count($later['payments'])===3 && $later['totals']['paid']==='0.00','A period change lost historical receipts or mixed their amounts into the new period.');
+    $finalView=synk_management_student_account($db,$student,'FINAL');$midtermView=synk_management_student_account($db,$student,'MIDTERM');
+    $check(count($finalView['payments'])===3 && $finalView['totals']['paid']==='1030.00' && count($midtermView['payments'])===0 && $midtermView['totals']['paid']==='0.00','Student financial selection mixed payments across terms.');
+    $check(count($midtermView['all_payments'])===3 && $midtermView['payment_history_total']==='0.00','Other-term receipts were lost or added to selected-term totals.');
+    $check($db->query('SELECT current_exam_term FROM tbl_management_period_settings WHERE organization_id='.$org)->fetch_assoc()['current_exam_term']==='MIDTERM','Reading Final financial details changed Management recording settings.');
+    $_SESSION['management_student_financial_view']=['student_id'=>$student,'academic_key'=>$period['key'],'exam_term'=>'FINAL'];
+    $check(synk_management_student_financial_view_term($db,$student,['exam_term'=>'MIDTERM','term'=>'999:3'])==='MIDTERM' && synk_management_student_financial_view_term($db,$student,[])==='MIDTERM','Financial viewing preference did not persist independently of academic input.');
 }finally{$db->discard();$db->close();}
 $check($snapshot()===$before,'Payment tests changed real records, shared profiles or academic settings.');
 echo 'Management payments: ',$checks,' checks passed; all payment fixtures rolled back.',PHP_EOL;

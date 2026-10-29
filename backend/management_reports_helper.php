@@ -11,7 +11,7 @@ function synk_management_report_types(array $permissions): array
         $types['collection_register']=['label'=>'Detailed Collections','description'=>'Receipt allocations grouped into contributions and event absence fines, with student and cashier details.'];
         $types['absence_fines']=['label'=>'Event Absence Fines','description'=>'Assessed, collected, and outstanding event absence fines for students on finalized attendance rosters.'];
     }
-    if(synk_management_operation_allowed($permissions,'events'))$types['event_attendance']=['label'=>'Event Attendance','description'=>'One event, with absent students first and present students second. Numbering continues across both categories. Open attendance is provisional.'];
+    if(synk_management_operation_allowed($permissions,'events'))$types['event_attendance']=['label'=>'Event Attendance','description'=>'One event, grouped into absent, present, and exempted students. Numbering continues across categories. Open attendance is provisional.'];
     return $types;
 }
 
@@ -63,16 +63,18 @@ function synk_management_report_attendance(mysqli $conn,array $scope,array $peri
     if(!synk_management_catalog_in_period($event,$period))throw new OutOfBoundsException('Choose an event in the selected Management period.');
     $settings=synk_management_query($conn,'SELECT attendance_status,absence_fine,opened_at,closed_at FROM tbl_management_attendance_events WHERE event_id=? AND college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=?','iiiiis',array_merge([$eventId],synk_management_report_period_values($scope,$period)));
     $status=$settings[0]['attendance_status'] ?? 'NOT_STARTED';
-    $rows=synk_management_query($conn,"SELECT s.student_id,s.student_number,CONCAT_WS(' ',s.last_name,s.first_name,NULLIF(s.middle_name,''),NULLIF(s.suffix_name,'')) AS student_name,l.recorded_at
+    $exemptionReady=synk_management_exemptions_ready($conn);
+    $rows=synk_management_query($conn,"SELECT s.student_id,s.student_number,CONCAT_WS(' ',s.last_name,s.first_name,NULLIF(s.middle_name,''),NULLIF(s.suffix_name,'')) AS student_name,l.recorded_at".($exemptionReady?',x.reason AS exemption_reason':',NULL AS exemption_reason')."
         FROM tbl_management_attendance_roster r JOIN tbl_student_management s ON s.student_id=r.student_id
         LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
+        ".($exemptionReady?"LEFT JOIN tbl_management_exemptions x ON x.event_id=r.event_id AND x.student_id=r.student_id AND x.status='ACTIVE'":'')."
         WHERE r.event_id=? ORDER BY (l.student_id IS NOT NULL),s.last_name,s.first_name,s.student_id",'i',[$eventId]);
-    $groups=['absent'=>[],'present'=>[]];$number=0;
+    $groups=['absent'=>[],'present'=>[],'exempted'=>[]];$number=0;
     foreach($rows as$row){
-        $row['number']=++$number;
         if($row['recorded_at']!==null)$row['recorded_at']=(new DateTimeImmutable($row['recorded_at'],new DateTimeZone('Asia/Manila')))->format('M j, Y g:i A');
-        $groups[$row['recorded_at']===null?'absent':'present'][]=$row;
+        $groups[$row['recorded_at']!==null?'present':($row['exemption_reason']!==null?'exempted':'absent')][]=$row;
     }
+    foreach ($groups as &$group) { foreach ($group as &$row) $row['number']=++$number;unset($row); } unset($group);
     return ['event'=>$event,'status'=>$status,'groups'=>$groups,'total'=>$number,'finalized'=>$status==='CLOSED'];
 }
 
@@ -83,7 +85,8 @@ function synk_management_report_absence_fines(mysqli $conn,array $scope,array $p
     $where=' WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=?';
     if($eventId){$where.=' AND a.event_id=?';$values[]=$eventId;}
     $types='iiiis'.($eventId?'i':'');
-    $states=synk_management_query($conn,'SELECT a.attendance_status,COUNT(*) AS events FROM tbl_management_attendance_events a'.$where.' GROUP BY a.attendance_status',$types,$values);
+    if (synk_management_exemptions_ready($conn)) $where.=" AND NOT EXISTS (SELECT 1 FROM tbl_management_exemptions x WHERE x.event_id=a.event_id AND x.student_id=r.student_id AND x.status='ACTIVE')";
+    $states=synk_management_query($conn,'SELECT a.attendance_status,COUNT(*) AS events FROM tbl_management_attendance_events a WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=?'.($eventId?' AND a.event_id=?':'').' GROUP BY a.attendance_status',$types,$values);
     $rows=synk_management_query($conn,"SELECT a.event_id,e.title,e.event_date,s.student_id,s.student_number,CONCAT_WS(' ',s.last_name,s.first_name,NULLIF(s.middle_name,''),NULLIF(s.suffix_name,'')) AS student_name,a.absence_fine AS assessed,COALESCE(paid.amount,0) AS collected
         FROM tbl_management_attendance_events a JOIN tbl_management_events e ON e.event_id=a.event_id
         JOIN tbl_management_attendance_roster r ON r.event_id=a.event_id JOIN tbl_student_management s ON s.student_id=r.student_id

@@ -33,7 +33,7 @@ try {
     $r=$request('login');$html=$r['response'];
     $check($r['status']===200 && strpos($html,'CCS Management.')!==false && strpos($html,'One Place.')!==false,'Management login branding is missing.');
     $check(strpos($html,'managementGoogleLogin')!==false && !preg_match('/<input[^>]+type=["\'](?:email|password)["\']/i',$html),'Management login is not Google-only.');
-    foreach(['dashboard','financial','students','students_page','contributions','events','violations']as$scenario){
+    foreach(['dashboard','financial','students','students_page','contributions','events','violations','exemptions']as$scenario){
         $r=$request($scenario);$html=$r['response'];
         $check($r['status']===200 && is_string($html) && !preg_match('/Fatal error|Parse error|xdebug-error|<b>Warning/i',$html),$scenario.': page failed to render: '.json_encode(['status'=>$r['status'],'response'=>is_string($html)?substr($html,0,500):$html]));
         $check((int)$r['session']['college_id']===$r['scope']['college_id'],'Management trusted a stale session college.');

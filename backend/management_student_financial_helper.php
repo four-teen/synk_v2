@@ -2,6 +2,7 @@
 require_once __DIR__ . '/management_portal_helper.php';
 require_once __DIR__ . '/management_payment_read_helper.php';
 require_once __DIR__ . '/management_student_violations_helper.php';
+require_once __DIR__ . '/management_exemptions_helper.php';
 
 function synk_management_money_cents(string $amount): int
 {
@@ -32,6 +33,10 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
     $violationReady=synk_management_student_violations_ready($conn);
     $violations=$violationReady?synk_management_query($conn,'SELECT student_violation_id,violation_id,violation_type AS title,occurred_on AS date,amount,notes,recorded_by_name,recorded_at FROM tbl_management_student_violations WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND student_id=? ORDER BY occurred_on DESC,student_violation_id DESC','iiiisi',array_merge($values,[$studentId])):[];
     $contributionCents=0;$fineCents=0;$violationCents=0;$absences=0;$pendingEvents=0;
+    $exemptions=[];$exemptedEvents=0;$exemptedContributions=0;
+    if (synk_management_exemptions_ready($conn)) foreach (synk_management_query($conn,"SELECT exemption_id,event_id,contribution_id,reason,revision FROM tbl_management_exemptions WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND student_id=? AND status='ACTIVE'",'iiiisi',array_merge($values,[$studentId])) as $row) {
+        $exemptions[($row['event_id']?'E:':'C:').($row['event_id'] ?? $row['contribution_id'])]=$row;
+    }
     $ready=synk_management_payments_ready($conn);
     $payments=synk_management_payment_history($conn,$studentId,$scope,$period);
     $paid=[];$paidCents=0;$charges=[];
@@ -49,14 +54,22 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         return $row;
     };
     foreach ($contributions as &$contribution) {
-        $amount=synk_management_money_cents($contribution['amount']);$contributionCents+=$amount;
+        $exemption=$exemptions['C:'.$contribution['contribution_id']] ?? null;
+        $contribution['is_exempt']=(bool)$exemption;$contribution['exemption_reason']=$exemption['reason'] ?? '';
+        $amount=$exemption?0:synk_management_money_cents($contribution['amount']);$contributionCents+=$amount;
+        if ($exemption) $exemptedContributions++;
         $state=$charge('C:'.$contribution['contribution_id'],$contribution['title'],$contribution['contribution_date'],$amount);
         foreach (['payment_status','amount_paid','amount_due'] as $key) $contribution[$key]=$state[$key];
+        if ($exemption) $contribution['payment_status']='EXEMPTED';
     }
     unset($contribution);
     foreach ($events as &$event) {
         $event['amount_due']='0.00';
+        $exemption=$exemptions['E:'.$event['event_id']] ?? null;
+        $event['is_exempt']=(bool)$exemption;$event['exemption_reason']=$exemption['reason'] ?? '';
+        if ($exemption) $exemptedEvents++;
         if ($event['recorded_at']!==null) $event['student_attendance']='PRESENT';
+        elseif ($exemption) $event['student_attendance']='EXEMPTED';
         elseif ($event['attendance_status']==='CLOSED' && $event['roster_student']!==null) {
             $event['student_attendance']='ABSENT';$absences++;
             $event['amount_due']=$event['recorded_fine'];$fineCents+=synk_management_money_cents($event['recorded_fine']);
@@ -65,6 +78,7 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         $event['assessed_amount']=$event['amount_due'];
         $state=$charge('E:'.$event['event_id'],$event['title'].' (absence fine)',$event['event_date'],synk_management_money_cents($event['amount_due']));
         foreach (['payment_status','amount_paid','amount_due'] as $key) $event[$key]=$state[$key];
+        if ($exemption) $event['payment_status']='EXEMPTED';
         unset($event['roster_student'],$event['recorded_fine']);
     }
     unset($event);
@@ -86,10 +100,10 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         'organization'=>['code'=>$scope['organization_code'] ?? '', 'name'=>$scope['organization_name'] ?? '',
             'college'=>$scope['college_name'] ?? '', 'campus'=>$scope['campus_name'] ?? ''],
         'contributions'=>$contributions,'events'=>$events,'violations'=>$violations, 'payments'=>$payments,'charges'=>$charges,
-        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'payment_id'),array_column($violations,'student_violation_id')])),
+        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'payment_id'),array_column($violations,'student_violation_id'),$exemptions])),
         'can_pay'=>$ready && $balance>0 && $period['period_key']===$current['period_key'],
         'summary'=>['contribution_count'=>count($contributions),'contribution_catalog_total'=>$contributionTotal,
-            'event_count'=>count($events),'absence_count'=>$absences,'attendance_pending_count'=>$pendingEvents,'event_fine_total'=>$eventTotal,'violation_total'=>synk_management_money_text($violationCents),
+            'event_count'=>count($events),'absence_count'=>$absences,'attendance_pending_count'=>$pendingEvents,'exempted_event_count'=>$exemptedEvents,'exempted_contribution_count'=>$exemptedContributions,'event_fine_total'=>$eventTotal,'violation_total'=>synk_management_money_text($violationCents),
             'amount_paid'=>synk_management_money_text($paidCents),'deductions'=>'0.00','total_to_pay'=>$total,'payment_status'=>$gross===0?'NO_CHARGES':($balance===0?'PAID':($paidCents>0?'PARTIALLY_PAID':'UNPAID'))],
         'availability'=>['student_charges'=>true,'payments'=>$ready,'attendance'=>true,'student_violations'=>$violationReady],
     ];

@@ -5,7 +5,7 @@ class SynkManagementPermissionDenied extends DomainException {}
 function synk_management_operation_labels(): array
 {
     return ['view'=>'View records','attendance'=>'Scan attendance','payments'=>'Collect payments',
-        'manage_contributions'=>'Manage contributions','manage_events'=>'Manage events','manage_violations'=>'Manage violations'];
+        'manage_contributions'=>'Manage contributions','manage_events'=>'Manage events','manage_violations'=>'Manage violations','manage_exemptions'=>'Manage exemptions'];
 }
 
 function synk_management_operation_summary(array $permissions,string $prefix=''): string
@@ -17,11 +17,12 @@ function synk_management_operation_summary(array $permissions,string $prefix='')
 
 function synk_management_operation_allowed(array $permissions,string $operation): bool
 {
-    if($operation==='reports')return $permissions['view']||$permissions['payments']||$permissions['attendance']||$permissions['manage_events'];
-    if($operation==='records')return $permissions['view']||$permissions['payments'];
-    if($operation==='student_records')return $permissions['view']||$permissions['payments']||$permissions['manage_violations'];
-    if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation];
-    if($operation==='events')return $permissions['view']||$permissions['attendance']||$permissions['manage_events'];
+    if($operation==='reports')return $permissions['view']||$permissions['payments']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
+    if($operation==='records')return $permissions['view']||$permissions['payments']||!empty($permissions['manage_exemptions']);
+    if($operation==='student_records')return $permissions['view']||$permissions['payments']||$permissions['manage_violations']||!empty($permissions['manage_exemptions']);
+    if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation]||($operation==='contributions' && !empty($permissions['manage_exemptions']));
+    if($operation==='events')return $permissions['view']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
+    if($operation==='exemptions')return $permissions['view']||!empty($permissions['manage_exemptions']);
     return !empty($permissions[$operation]);
 }
 

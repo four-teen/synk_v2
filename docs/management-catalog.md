@@ -84,11 +84,15 @@ remain outside this upgrade.
 Relevant verification:
 
 The Events table displays the lowercase italic event date under its title, with
-Present / Remaining counts in green and red. Unopened events use the current
+Present / Remaining counts in green and red, without the visible count caption. Unopened events use the current
 eligible directory count; opened/closed events use their saved attendance roster.
 The attendance status column opens the attendance dialog for Open/Close controls
 without starting the camera. The separate Take attendance action starts scanning;
 closed events display View attendance instead.
+The Events action cell places View exemptions, Exempt students, Edit, and Delete
+in a two-by-two grid with equal widths sized to its widest button. The attendance
+button sits on the right and spans both rows, including on phone cards where the
+labels may wrap to fit. Only permitted actions are rendered.
 Closing attendance finalizes unscanned roster students as absent; financial views
 show Absent in red and Present in green. The table updates its counts and status
 after each attendance response without a page reload. The separate event status

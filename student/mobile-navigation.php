@@ -1,0 +1,12 @@
+<?php
+if (!isset($studentSidebarItems,$studentSidebarActiveKey)) { http_response_code(404);exit; }
+$studentMobileKeys=synk_student_is_staff_preview_mode()?['dashboard','profile','class_program']:['dashboard','finances','attendance_qr','class_program'];
+$studentMobileItems=[];$studentMobileByKey=array_column($studentSidebarItems,null,'key');
+foreach ($studentMobileKeys as $key) if (isset($studentMobileByKey[$key])) $studentMobileItems[]=$studentMobileByKey[$key];
+$studentMoreActive=!in_array($studentSidebarActiveKey,array_column($studentMobileItems,'key'),true);
+?>
+<nav class="student-bottom-nav" id="student-bottom-nav" aria-label="Student navigation">
+  <?php foreach($studentMobileItems as $sidebarItem): ?><a href="<?= synk_student_h(synk_student_build_portal_url($sidebarItem['href'],$sidebarItem['query'] ?? [])) ?>" class="student-bottom-link<?= $studentSidebarActiveKey===$sidebarItem['key']?' active':'' ?>"<?= $studentSidebarActiveKey===$sidebarItem['key']?' aria-current="page"':'' ?>><span class="student-bottom-icon"><i class="bx <?= synk_student_h($sidebarItem['icon']) ?>" aria-hidden="true"></i></span><span><?= $sidebarItem['key']==='dashboard'?'Home':synk_student_h($sidebarItem['mobile_title']) ?></span></a><?php endforeach; ?>
+  <button type="button" class="student-bottom-link<?= $studentMoreActive?' active':'' ?>" id="student-more-toggle" data-bs-toggle="offcanvas" data-bs-target="#student-mobile-more" aria-controls="student-mobile-more" aria-expanded="false"><span class="student-bottom-icon"><i class="bx bx-grid-alt" aria-hidden="true"></i></span><span>More</span></button>
+</nav>
+<div class="offcanvas offcanvas-bottom student-mobile-more" id="student-mobile-more" tabindex="-1" aria-labelledby="student-mobile-more-title"><div class="offcanvas-header"><div><h2 class="offcanvas-title fs-5" id="student-mobile-more-title">More options</h2><p>Student workspace</p></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close more options"></button></div><div class="offcanvas-body"><nav aria-label="All Student pages"><?php foreach($studentSidebarItems as $sidebarItem): ?><a href="<?= synk_student_h(synk_student_build_portal_url($sidebarItem['href'],$sidebarItem['query'] ?? [])) ?>"<?= $studentSidebarActiveKey===$sidebarItem['key']?' aria-current="page"':'' ?>><i class="bx <?= synk_student_h($sidebarItem['icon']) ?>" aria-hidden="true"></i><span><?= synk_student_h($sidebarItem['key']==='dashboard'?'Home':$sidebarItem['title']) ?></span></a><?php endforeach; ?></nav></div></div>

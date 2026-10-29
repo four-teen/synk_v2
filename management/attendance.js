@@ -26,13 +26,14 @@
     state=next;$('attendance-title').textContent=next.title;$('attendance-status').textContent=next.attendance_status==='OPEN'?'Open':next.attendance_status==='CLOSED'?'Closed':'Not started';
     const eventRow=document.querySelector(`[data-event-row="${Number(next.event_id)}"]`);
     if(eventRow){
+      const exempted=eventRow.querySelector('[data-event-exempted]');if(exempted)exempted.textContent=String(next.exempted||0)+' exempted';
       eventRow.querySelector('[data-event-present]').textContent=Number(next.present).toLocaleString();
-      eventRow.querySelector('[data-event-remaining]').textContent=Math.max(0,Number(next.eligible)-Number(next.present)).toLocaleString();
+      eventRow.querySelector('[data-event-remaining]').textContent=Math.max(0,Number(next.eligible)-Number(next.present)-Number(next.exempted||0)).toLocaleString();
       const status=eventRow.querySelector('[data-event-attendance-status]');status.dataset.eventAttendanceStatus=next.attendance_status;
       const label=eventRow.querySelector('[data-event-attendance-label]');if(label)label.textContent=next.attendance_status==='CLOSED'?'Closed':next.attendance_status==='OPEN'?'Open':'Not started';
       const actionLabel=eventRow.querySelector('[data-event-attendance-action-label]');if(actionLabel)actionLabel.textContent=next.attendance_status==='CLOSED'?'View attendance':'Take attendance';
     }
-    ['eligible','present','absent'].forEach(key=>$(('attendance-'+key)).textContent=next.attendance_status==='OPEN' && key==='absent'?'Pending':next[key]);
+    ['eligible','present','absent','exempted'].forEach(key=>$(('attendance-'+key)).textContent=next.attendance_status==='OPEN' && key==='absent'?'Pending':next[key]??0);
     $('attendance-absent').dataset.finalized=next.attendance_status==='CLOSED'?'true':'false';
     const closed=next.attendance_status==='CLOSED',scanDisabled=next.attendance_status!=='OPEN'||!config.permissions?.attendance;$('attendance-camera-start').disabled=scanDisabled;$('attendance-upload').disabled=scanDisabled;$('attendance-camera-device').disabled=scanDisabled;
     $('attendance-upload-label').setAttribute('aria-disabled',String(scanDisabled));$('attendance-upload-label').tabIndex=scanDisabled?-1:0;
@@ -40,8 +41,8 @@
     $('attendance-event-context').textContent=`${next.event_date} · ${config.current_term_text} · ${config.current_exam_term==='FINAL'?'Final':'Midterm'}`;
     $('attendance-confirm').checked=false;$('attendance-state-change').disabled=true;$('attendance-state-change').textContent=closed?'Reopen attendance':'Close attendance';
     const amount=new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(next.absence_fine));
-    $('attendance-close-description').textContent=closed?'Reopening pauses absence fines until attendance is closed again. The roster and existing scans are preserved.':`Closing attendance applies a ${amount} absence fine to each roster student without a scan. Future scans will be blocked until attendance is reopened.`;
-    $('attendance-confirm-label').textContent=closed?'Reopen this event for attendance corrections.':'Attendance is complete; apply absence fines to missing students.';
+    $('attendance-close-description').textContent=closed?'Reopening pauses absence fines until attendance is closed again. The roster and existing scans are preserved.':`Closing attendance applies a ${amount} absence fine to each roster student without a scan or an exemption. Future scans will be blocked until attendance is reopened.`;
+    $('attendance-confirm-label').textContent=closed?'Reopen this event for attendance corrections.':'Attendance is complete; apply absence fines to students without attendance or an exemption.';
     const list=$('attendance-recent');list.replaceChildren();
     if(!next.recent.length){const li=document.createElement('li');li.className='list-group-item small text-muted';li.textContent='No scans recorded yet.';list.append(li);}
     for(const row of next.recent){const li=document.createElement('li');li.className='list-group-item';const name=document.createElement('strong');name.textContent=row.student_name;const details=document.createElement('small');details.className='d-block text-muted';details.textContent=`${row.student_number} · ${row.recorded_at}`;li.append(name,details);list.append(li);}
@@ -98,7 +99,7 @@
   document.addEventListener('click',async event=>{
     const button=event.target.closest('[data-attendance]');if(!button || button.disabled)return;
     opener=button;stopCamera();const run=++generation;eventId=Number(button.dataset.attendance);state=null;busy=false;lastCode='';error('');$('attendance-result').hidden=true;$('attendance-ready-note').hidden=false;$('attendance-ready-note').textContent='The scanned student’s photo and details will appear here after attendance is saved.';$('attendance-event-context').textContent='';$('attendance-title').textContent='Loading attendance…';$('attendance-recent').replaceChildren();
-    $('attendance-status').textContent='Loading…';['eligible','present','absent'].forEach(key=>$('attendance-'+key).textContent='—');
+    $('attendance-status').textContent='Loading…';['eligible','present','absent','exempted'].forEach(key=>$('attendance-'+key).textContent='—');
     $('attendance-confirm').checked=false;$('attendance-state-change').disabled=true;$('attendance-camera-start').disabled=true;$('attendance-upload').disabled=true;$('attendance-code').disabled=true;$('attendance-code-submit').disabled=true;modal.show();
     element.querySelector('.management-attendance-close').open=button.dataset.attendanceMode==='manage';
     try{element.querySelector('.management-attendance-close').hidden=!config.permissions?.manage_events;let data=await request('attendance_get');if(run!==generation)return;if(data.attendance.attendance_status==='NOT_STARTED'){if(!config.permissions?.manage_events)throw Error('Your faculty manager or an authorized event manager must open attendance before you can scan.');data=await request('attendance_open');}if(run!==generation)return;render(data.attendance);if(config.permissions?.attendance && state.attendance_status==='OPEN' && button.dataset.attendanceMode!=='manage')startCamera();}

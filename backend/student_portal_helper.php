@@ -1309,6 +1309,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
 
         $selectStmt->close();
 
+        $pendingFacultyIds=[];
         foreach ($expectedFacultyIds as $facultyId) {
             if (!isset($draftRows[$facultyId])) {
                 throw new RuntimeException('Please save draft evaluations for all linked faculty before the final submission.');
@@ -1316,13 +1317,17 @@ function synk_student_finalize_faculty_evaluations_for_term(
 
             $rowStatus = strtolower(trim((string)($draftRows[$facultyId]['submission_status'] ?? 'draft')));
             $rowFinalToken = trim((string)($draftRows[$facultyId]['final_submission_token'] ?? ''));
-            if ($rowStatus === 'submitted' || $rowFinalToken !== '') {
-                throw new RuntimeException('The final faculty evaluation has already been submitted for this academic term.');
-            }
+            if ($rowStatus === 'submitted') continue; // Preserve already submitted responses and their proof.
+            if ($rowFinalToken !== '') throw new RuntimeException('This response is locked. Ask your college office to review its status.');
             if (!synk_student_faculty_evaluation_is_current($draftRows[$facultyId])) {
                 throw new RuntimeException('Please answer and save all 15 questions in the revised SET instrument for every faculty before final submission.');
             }
+            $answerRows=synk_evaluation_query($conn,'SELECT question_key,rating FROM tbl_student_faculty_evaluation_answers WHERE evaluation_id=? LOCK IN SHARE MODE','i',[(int)$draftRows[$facultyId]['evaluation_id']]);
+            synk_student_faculty_evaluation_normalize_answers(array_column($answerRows,'rating','question_key'));
+            $pendingFacultyIds[]=$facultyId;
         }
+        if (!$pendingFacultyIds) throw new RuntimeException('The final faculty evaluation has already been submitted for this academic term.');
+        $placeholders=implode(', ',array_fill(0,count($pendingFacultyIds),'?'));
 
         $updateSql = "
             UPDATE `{$headerTable}`
@@ -1345,10 +1350,10 @@ function synk_student_finalize_faculty_evaluations_for_term(
             throw new RuntimeException('Unable to finalize the saved faculty evaluations.');
         }
 
-        $updateTypes = 'sssiii' . str_repeat('i', count($expectedFacultyIds));
+        $updateTypes = 'sssiii' . str_repeat('i', count($pendingFacultyIds));
         $updateParams = array_merge(
             [$finalSubmissionToken, $finalSubmittedAt, $finalSubmittedAt, $studentId, $ayId, $semester],
-            $expectedFacultyIds
+            $pendingFacultyIds
         );
         synk_bind_dynamic_params($updateStmt, $updateTypes, $updateParams);
 

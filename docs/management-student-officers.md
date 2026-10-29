@@ -24,6 +24,11 @@ faculty record. The account keeps its Administrator-assigned organization.
 4. The student signs in with their school Google account at
    `/management/login.php`. Their ordinary `/student/login.php` remains separate.
 
+**Manage exemptions** is a separate operation for maintaining reusable lists and
+granting or revoking event and contribution exemptions for other students. It is
+disabled for existing officers until explicitly enabled. An officer cannot grant
+or revoke exemptions on their own account. See [Management exemptions](management-exemptions.md).
+
 The page lists the faculty manager's own student officers. **Edit permissions /
 Renew** changes permissions or extends access. **Revoke access** stops Management
 access on the next request, including an already signed-in session.

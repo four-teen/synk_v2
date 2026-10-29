@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS tbl_management_officers (
     can_manage_contributions TINYINT(1) NOT NULL DEFAULT 0,
     can_manage_events TINYINT(1) NOT NULL DEFAULT 0,
     can_manage_violations TINYINT(1) NOT NULL DEFAULT 0,
+    can_manage_exemptions TINYINT(1) NOT NULL DEFAULT 0,
     expires_on DATE NOT NULL,
     status ENUM('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
     revision INT UNSIGNED NOT NULL DEFAULT 1,
@@ -63,6 +64,14 @@ SET @synk_officer_ddl = IF(
   NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
     AND TABLE_NAME='tbl_management_officers' AND COLUMN_NAME='can_manage_violations'),
   'ALTER TABLE tbl_management_officers ADD COLUMN can_manage_violations TINYINT(1) NOT NULL DEFAULT 0 AFTER can_manage_events',
+  'DO 0');
+PREPARE synk_officer_stmt FROM @synk_officer_ddl;
+EXECUTE synk_officer_stmt;
+DEALLOCATE PREPARE synk_officer_stmt;
+SET @synk_officer_ddl = IF(
+  NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE()
+    AND TABLE_NAME='tbl_management_officers' AND COLUMN_NAME='can_manage_exemptions'),
+  'ALTER TABLE tbl_management_officers ADD COLUMN can_manage_exemptions TINYINT(1) NOT NULL DEFAULT 0 AFTER can_manage_violations',
   'DO 0');
 PREPARE synk_officer_stmt FROM @synk_officer_ddl;
 EXECUTE synk_officer_stmt;

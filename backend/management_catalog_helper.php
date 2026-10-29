@@ -154,17 +154,20 @@ function synk_management_catalog_list(mysqli $conn, array $scope, array $term, s
     $order = 'c.' . $meta['key'] . ' DESC';
     $rows = synk_management_query($conn, 'SELECT c.*,o.organization_code,ay.ay' . $extras . $sql . ' ORDER BY ' . $order . ' LIMIT ? OFFSET ?', $types . 'ii', array_merge($values, [$filters['page_size'],($page-1)*$filters['page_size']]));
     if ($kind==='events' && $rows) {
+        require_once __DIR__.'/management_exemptions_helper.php';
+        $exemptionReady=synk_management_exemptions_ready($conn);
         $attendance=[];
         if (synk_table_exists($conn,'tbl_management_attendance_events') && synk_table_exists($conn,'tbl_management_attendance_roster') && synk_table_exists($conn,'tbl_management_attendance_logs')) {
             $ids=array_map('intval',array_column($rows,'event_id'));
-            $counts=synk_management_query($conn,'SELECT a.event_id,a.attendance_status,COUNT(r.student_id) AS eligible,COUNT(l.student_id) AS present
+            $counts=synk_management_query($conn,'SELECT a.event_id,a.attendance_status,COUNT(r.student_id) AS eligible,COUNT(l.student_id) AS present'.($exemptionReady?",SUM(CASE WHEN l.student_id IS NULL AND x.exemption_id IS NOT NULL THEN 1 ELSE 0 END) AS exempted":',0 AS exempted').'
                 FROM tbl_management_attendance_events a LEFT JOIN tbl_management_attendance_roster r ON r.event_id=a.event_id
                 LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
+                '.($exemptionReady?"LEFT JOIN tbl_management_exemptions x ON x.event_id=r.event_id AND x.student_id=r.student_id AND x.status='ACTIVE'":'').'
                 WHERE a.college_id=? AND a.organization_id=? AND a.event_id IN ('.implode(',',array_fill(0,count($ids),'?')).')
                 GROUP BY a.event_id,a.attendance_status','ii'.str_repeat('i',count($ids)),array_merge([$scope['college_id'],$scope['organization_id']],$ids));
             foreach ($counts as $count) $attendance[(int)$count['event_id']]=$count;
         }
-        $eligible=null;
+        $eligible=null;$unopenedExemptions=[];
         foreach ($rows as &$row) {
             $count=$attendance[(int)$row['event_id']] ?? null;
             if (!$count && $eligible===null) {
@@ -173,10 +176,17 @@ function synk_management_catalog_list(mysqli $conn, array $scope, array $term, s
                 if (empty($rosterScope['campus_id'])) $rosterScope['campus_id']=(int)synk_management_query($conn,'SELECT campus_id FROM tbl_college WHERE college_id=?','i',[$scope['college_id']])[0]['campus_id'];
                 $source=synk_dean_students_source($rosterScope,['ay_id'=>$term['ay_id'],'semester'=>$term['semester']],$conn);
                 $eligible=(int)synk_management_query($conn,'SELECT COUNT(DISTINCT s.student_id) AS n '.$source['sql'],$source['types'],$source['params'])[0]['n'];
+                if ($exemptionReady) {
+                    $eventIds=array_map('intval',array_column($rows,'event_id'));
+                    $exemptCounts=synk_management_query($conn,"SELECT x.event_id,COUNT(*) AS n FROM tbl_management_exemptions x JOIN (SELECT DISTINCT s.student_id ".$source['sql'].") members ON members.student_id=x.student_id WHERE x.status='ACTIVE' AND x.event_id IN (".implode(',',array_fill(0,count($eventIds),'?')).') GROUP BY x.event_id',$source['types'].str_repeat('i',count($eventIds)),array_merge($source['params'],$eventIds));
+                    foreach ($exemptCounts as $exemptCount) $unopenedExemptions[(int)$exemptCount['event_id']]=(int)$exemptCount['n'];
+                }
             }
             $row['attendance_status']=$count['attendance_status'] ?? 'NOT_STARTED';
             $row['attendance_present']=(int)($count['present'] ?? 0);
-            $row['attendance_remaining']=max(0,(int)($count['eligible'] ?? $eligible)-$row['attendance_present']);
+            $unopenedExempted=$unopenedExemptions[(int)$row['event_id']] ?? 0;
+            $row['attendance_exempted']=(int)($count['exempted'] ?? $unopenedExempted);
+            $row['attendance_remaining']=max(0,(int)($count['eligible'] ?? $eligible)-$row['attendance_present']-$row['attendance_exempted']);
         }
         unset($row);
     }
@@ -281,6 +291,9 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
         if ($existing && !synk_management_catalog_in_period($existing,$currentTerm)) {
             throw new SynkManagementConflict('Only records in the current Management period can be changed.');
         }
+        require_once __DIR__.'/management_exemptions_helper.php';
+        $hasExemptions=$existing && synk_management_exemptions_ready($conn) && synk_management_query($conn,'SELECT exemption_id FROM tbl_management_exemptions WHERE '.($kind==='events'?'event_id':'contribution_id').'=? LIMIT 1','i',[$id]);
+        if ($hasExemptions && $action==='delete') throw new SynkManagementConflict('This record has exemption history. Keep it or mark it inactive instead of deleting it.');
         $attendance=null;
         if ($kind==='events' && $existing && synk_table_exists($conn,'tbl_management_attendance_events')) {
             $attendance=synk_management_query($conn,'SELECT event_id FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE','i',[$id]);
@@ -296,6 +309,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
             $conn->commit(); return ['message'=>$meta['label'] . ' deleted.','record_id'=>$id];
         }
         $record = synk_management_catalog_payload($conn,$scope,$kind,$input,$currentTerm,$existing);
+        if ($hasExemptions && $kind==='contributions' && (string)$record['event_id']!==(string)$existing['event_id']) throw new SynkManagementConflict('This contribution has saved exemptions. Its event link must be preserved.');
         if ($attendance && ($record['event_date']!==$existing['event_date'] || $record['absence_fine']!==$existing['absence_fine'] || $record['status']!==$existing['status'])) {
             throw new SynkManagementConflict('The date, absence fine and active status are locked once attendance starts.');
         }
@@ -315,6 +329,7 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
             synk_management_execute($conn,'INSERT INTO ' . $meta['table'] . ' (`' . implode('`,`',$keys) . '`) VALUES (' . implode(',',array_fill(0,count($keys),'?')) . ')',str_repeat('s',count($values)),$values);
             $id = (int)$conn->insert_id;
         }
+        if ($kind==='contributions' && $record['status']==='ACTIVE') synk_management_exemption_inherit_contribution($conn,$scope,$currentTerm,$id,$record['event_id']);
         if ($writeSessions) {
             $retained = [];
             foreach ($sessions as $session) {

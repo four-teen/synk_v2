@@ -2,6 +2,7 @@
 require_once __DIR__.'/management_catalog_helper.php';
 require_once __DIR__.'/college_dean_students_helper.php';
 require_once __DIR__.'/student_profile_image_helper.php';
+require_once __DIR__.'/management_exemptions_helper.php';
 
 function synk_management_attendance_ready(mysqli $conn): bool
 {
@@ -25,11 +26,12 @@ function synk_management_attendance_summary(mysqli $conn,array $scope,int $event
     $event=synk_management_catalog_get($conn,$scope,'events',$eventId);
     $settings=synk_management_query($conn,'SELECT attendance_status,absence_fine,revision,opened_at,closed_at FROM tbl_management_attendance_events WHERE event_id=? AND college_id=? AND organization_id=?','iii',[$eventId,$scope['college_id'],$scope['organization_id']]);
     $counts=synk_management_query($conn,'SELECT COUNT(*) AS eligible,COUNT(l.student_id) AS present FROM tbl_management_attendance_roster r LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id WHERE r.event_id=?','i',[$eventId])[0];
+    $exempted=synk_management_exemptions_ready($conn)?(int)synk_management_query($conn,"SELECT COUNT(*) AS n FROM tbl_management_attendance_roster r JOIN tbl_management_exemptions x ON x.event_id=r.event_id AND x.student_id=r.student_id AND x.status='ACTIVE' LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id WHERE r.event_id=? AND l.student_id IS NULL",'i',[$eventId])[0]['n']:0;
     $recent=synk_management_query($conn,'SELECT s.student_number,CONCAT_WS(\' \',s.first_name,s.middle_name,s.last_name,s.suffix_name) AS student_name,l.recorded_at FROM tbl_management_attendance_logs l JOIN tbl_student_management s ON s.student_id=l.student_id WHERE l.event_id=? ORDER BY l.recorded_at DESC,s.student_id DESC LIMIT 10','i',[$eventId]);
     return ['event_id'=>$eventId,'title'=>$event['title'],'event_date'=>$event['event_date'],
         'attendance_status'=>$settings[0]['attendance_status'] ?? 'NOT_STARTED','absence_fine'=>$settings[0]['absence_fine'] ?? ($event['absence_fine'] ?? '0.00'),
         'revision'=>(string)($settings[0]['revision'] ?? '0'),'eligible'=>(int)$counts['eligible'],'present'=>(int)$counts['present'],
-        'absent'=>($settings[0]['attendance_status'] ?? '')==='CLOSED' ? (int)$counts['eligible']-(int)$counts['present'] : 0,'recent'=>$recent];
+        'exempted'=>$exempted,'absent'=>($settings[0]['attendance_status'] ?? '')==='CLOSED' ? (int)$counts['eligible']-(int)$counts['present']-$exempted : 0,'recent'=>$recent];
 }
 
 function synk_management_attendance_write(mysqli $conn,array $scope,string $action,array $input): array

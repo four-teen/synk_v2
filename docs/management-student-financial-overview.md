@@ -112,7 +112,10 @@ active events in the current Management period, on or after the event date.
 Opening attendance freezes the eligible college/semester roster and absence fine.
 An open or unopened event shows **Attendance pending** and adds no absence fine.
 Students with a valid scan show **Present**. Closing attendance marks roster
-students without a scan **Absent**, adding the frozen fine to their overview.
+students without a scan or an exemption **Absent**, adding the frozen fine to their overview.
+Saved exemptions show **Exempted** with zero payable balance; actual scans remain
+Present. Contribution exemptions also have zero payable balance and retain the
+original catalog rate. See [Management exemptions](management-exemptions.md).
 Students added after the roster snapshot are not retroactively fined.
 
 Repeated scans are idempotent. Closing and scanning lock the same event, so a scan
@@ -125,8 +128,14 @@ attendance is closed again. Every open, close, and reopen is audited.
 
 Students can also open **My Finances** from their portal (**Finances** on phones).
 The read-only page uses the same automatic totals and finalized attendance rules
-as Management. It includes all active organizations in the student's current
-college/semester directory memberships, each using its own saved Management term.
+as Management. Students choose Midterm or Final while the Administrator's academic
+year and semester remain fixed. It includes all active organizations in the student's
+current college/semester directory memberships using that selected financial term.
+Changing the view never changes Management's current recording period. Other-term
+receipts are preserved separately from selected-term payments and totals.
+On wider screens, the term picker places academic context on the left and term
+controls on the right. The repeated selected-period card is omitted; individual
+records retain their organization and period labels.
 The Student academic viewing preference does not change these financial periods.
 Present, absent, pending, and not-in-roster events are listed with their payable
 amounts. The authenticated session determines the student; URL IDs and period

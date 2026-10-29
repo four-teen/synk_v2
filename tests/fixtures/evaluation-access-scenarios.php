@@ -21,6 +21,43 @@ $seedAccess=static function(int $college,int $faculty,array $period,string $stat
 $_SESSION['student_evaluation_csrf']=$csrf;
 $handler='student/class-program.php';
 $_GET['evaluation_college_id']=(string)$collegeA;
+if (strpos($case,'prompt_')===0) {
+    require_once $root.'/backend/student_evaluation_prompt_helper.php';
+    $handler='student/index.php';
+    if (!in_array($case,['prompt_closed','prompt_other_college'],true)) $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeA} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+    if ($case==='prompt_other_college') $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeB} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+    if (in_array($case,['prompt_drafts','prompt_complete','prompt_partial','prompt_partial_submit','prompt_incomplete_answers','prompt_incomplete_submit','prompt_revised'],true)) {
+        foreach ($teachers as $i=>$teacher) {
+            $status=$case==='prompt_complete'||(in_array($case,['prompt_partial','prompt_partial_submit'],true)&&$i===0)?'submitted':'draft';
+            $seedAccess($collegeA,$teacher,$term,$status,4,'PROMPT TEST '.($status==='submitted'?'PRESERVE SUBMITTED':'DRAFT'),$case==='prompt_revised'?'legacy-20':null);
+        }
+    }
+    if (in_array($case,['prompt_incomplete_answers','prompt_incomplete_submit'],true)) $conn->query('DELETE a FROM tbl_student_faculty_evaluation_answers a JOIN tbl_student_faculty_evaluations e ON e.evaluation_id=a.evaluation_id WHERE e.student_id='.(int)$students['first'].' AND e.faculty_id='.(int)$teachers[0]." AND a.question_key='MTL1'");
+    if ($case==='prompt_inactive') $conn->query('UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id='.(int)$students['first']);
+    if ($case==='prompt_unlinked') $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id=0 WHERE student_id='.(int)$students['first']);
+    if (in_array($case,['prompt_partial','prompt_partial_submit','prompt_faculty_page','prompt_incomplete_submit'],true)) $handler='student/class-program.php';
+    if ($case==='prompt_incomplete_submit') $_POST=['submit_final_faculty_evaluation'=>'1','csrf_token'=>$csrf,'evaluation_college_id'=>(string)$collegeA,'term_key'=>$term['ay_id'].'-'.$term['semester']];
+    if ($case==='prompt_partial_submit') {
+        $submittedBefore=$conn->query('SELECT * FROM tbl_student_faculty_evaluations WHERE student_id='.(int)$students['first']." AND submission_status='submitted'")->fetch_all(MYSQLI_ASSOC);
+        register_shutdown_function(static function()use($conn,$students,$submittedBefore):void {
+            $rows=$conn->query('SELECT * FROM tbl_student_faculty_evaluations WHERE evaluation_id='.(int)$submittedBefore[0]['evaluation_id'])->fetch_all(MYSQLI_ASSOC);
+            header('X-QA-Submitted-Preserved: '.($rows===$submittedBefore?'yes':'no'));
+        });
+        $_POST=['submit_final_faculty_evaluation'=>'1','csrf_token'=>$csrf,'evaluation_college_id'=>(string)$collegeA,'term_key'=>$term['ay_id'].'-'.$term['semester']];
+    }
+    if (strpos($case,'prompt_endpoint')===0) {
+        $handler='backend/query_student_evaluation_prompt.php';
+        $_SESSION['student_evaluation_prompt_csrf']=$csrf;
+        synk_student_presence_start($conn);
+        $_POST=['csrf_token'=>$csrf,'student_id'=>$students['other']];
+        if ($case==='prompt_endpoint_csrf') $_POST['csrf_token']='bad';
+        if ($case==='prompt_endpoint_get') $_POST=[];
+        if ($case==='prompt_endpoint_staff') $_SESSION['role']='admin';
+        if ($case==='prompt_endpoint_anonymous') $_SESSION=[];
+        if ($case==='prompt_endpoint_identity') $_SESSION['student_id']=$students['other'];
+        if ($case==='prompt_endpoint_idle') $conn->query("UPDATE tbl_student_portal_sessions SET last_activity_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 16 MINUTE) WHERE presence_key='".$conn->real_escape_string($_SESSION['student_presence_key'])."'");
+    }
+}
 if (in_array($case,['student_open','student_open_post','student_bad_csrf','student_shared_final','student_partial_final','student_multiple_subjects','student_stale_filter'],true)) $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeA} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
 if ($case==='student_multiple_subjects') $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id='.(int)$teachers[0].' WHERE student_id='.(int)$students['first'].' AND ay_id='.(int)$term['ay_id'].' AND semester='.(int)$term['semester']);
 if ($case==='student_stale_filter') $_GET['faculty_key']='faculty-'.$teachers[0];

@@ -18,6 +18,15 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if (strpos($action,'exemption_')===0) {
+        require_once __DIR__.'/management_exemptions_helper.php';
+        synk_management_require_permission($conn,$scope,in_array($action,['exemption_data','exemption_list_get'],true)?'exemptions':'manage_exemptions');
+        $period=synk_management_view_term($conn,$_POST,$scope);
+        if ($action==='exemption_data') synk_management_response(['status'=>'ok']+synk_management_exemption_data($conn,$scope,$period,$_POST));
+        if ($action==='exemption_search') synk_management_response(['status'=>'ok','students'=>synk_management_exemption_search($conn,$scope,$period,(string)($_POST['search'] ?? ''))]);
+        if ($action==='exemption_list_get') synk_management_response(['status'=>'ok','list'=>synk_management_exemption_list_get($conn,$scope,$period,synk_management_input_id($_POST['list_id'] ?? ''))]);
+        synk_management_response(['status'=>'ok']+synk_management_exemption_write($conn,$scope,$action,$_POST));
+    }
     if(strpos($action,'officer_')===0){
         require_once __DIR__.'/management_officers_helper.php';
         synk_management_require_permission($conn,$scope,'officers');

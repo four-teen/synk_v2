@@ -157,6 +157,7 @@ if (strpos($scenario,'account_')===0) {
     if($scenario==='forged_college')$_GET['college_id']=$otherScope['college_id'];
     if($scenario==='forged_campus')$_GET['campus_id']=999999;
     if($scenario==='financial')$handler='management/financial.php';
+    if($scenario==='exemptions')$handler='management/exemptions.php';
     if($scenario==='bad_term')$_GET['term']='1:9';
     if($scenario==='bad_exam_term')$_GET['exam_term']='PRELIM';
     if($scenario==='array_exam_term')$_GET['exam_term']=['MIDTERM'];
