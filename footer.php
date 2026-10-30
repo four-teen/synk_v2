@@ -1,7 +1,7 @@
             <footer class="content-footer footer bg-footer-theme">
               <div class="container-xxl d-flex flex-wrap justify-content-between py-2 flex-md-row flex-column">
                 <div class="mb-2 mb-md-0">
-                  synQ - One Institution. One Connected Ecosystem.
+                  <span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> - One Institution. One Connected Ecosystem.
                 </div>
               </div>
             </footer>

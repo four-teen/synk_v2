@@ -37,7 +37,7 @@ require_once __DIR__ . '/account_switch_helper.php';
           <div class="app-brand demo">
             <a href="index.php" class="app-brand-link">
               <span class="app-brand-logo demo"><i class="bx <?= synk_leadership_h($moduleIcon) ?> text-primary module-icon"></i></span>
-              <span class="app-brand-text demo menu-text fw-bolder ms-2">synQ</span>
+              <span class="app-brand-text demo menu-text fw-bolder ms-2"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span></span>
             </a>
             <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none" aria-label="Close menu"><i class="bx bx-chevron-left bx-sm"></i></a>
           </div>

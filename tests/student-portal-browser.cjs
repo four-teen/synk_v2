@@ -4,6 +4,8 @@ const root=path.resolve(__dirname,'..'),nonce=crypto.randomBytes(8).toString('he
 const route=path.join(root,'tmp',`student-portal-browser-${nonce}.php`),profile=path.join(root,'.tmp',`student-portal-browser-${nonce}`);
 const photoFixture=path.join(root,'.tmp',`student-photo-browser-${nonce}.png`);
 let browser,ws,call,checks=0;const errors=[],requests=[],delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let pendingFinalSubmission=null,finalSubmittingState=null;
+const evaluationOnly=process.argv.includes('--evaluation-only');
 const check=(ok,message)=>{if(!ok)throw Error(message);checks++;};
 async function main(){
  fs.writeFileSync(route,`<?php define('SYNK_STUDENT_PORTAL_QA','${token}');require '${path.join(root,'tests/fixtures/student-portal-request.php').replaceAll('\\','/')}';`);
@@ -13,17 +15,42 @@ async function main(){
  ws=new WebSocket(socket);await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true});});
  let sequence=0;const pending=new Map();
  ws.addEventListener('message',event=>{const m=JSON.parse(event.data);if(m.id&&pending.has(m.id)){const item=pending.get(m.id);pending.delete(m.id);clearTimeout(item.timeout);m.error?item.reject(Error(m.error.message)):item.resolve(m.result);}if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);
-  if(m.method==='Fetch.requestPaused'){requests.push(m.params.request);const presence=m.params.request.url.includes('/student_presence.php'),reminder=m.params.request.url.includes('/query_student_evaluation_prompt.php');call('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:reminder?503:200,responseHeaders:[{name:'Content-Type',value:presence||reminder?'application/json':'text/html'}],body:Buffer.from(reminder?JSON.stringify({status:'error'}):presence?JSON.stringify({status:'ok',seconds_remaining:900,idle_seconds:900}):'<p id="qa-google-redirect">Opening Google</p>').toString('base64')},m.sessionId).catch(error=>errors.push(error.message));}
+  if(m.method==='Runtime.consoleAPICalled'&&m.params.args[0]?.value==='QA_FINAL_SUBMIT_STATE')finalSubmittingState=JSON.parse(m.params.args[1].value);
+  if(m.method==='Fetch.requestPaused'){
+   requests.push(m.params.request);
+   if(m.params.request.method==='POST'&&m.params.request.url.includes('/student/class-program.php')){
+    // Hold the real browser POST before it reaches PHP; no student response is submitted.
+    pendingFinalSubmission={requestId:m.params.requestId,sessionId:m.sessionId};return;
+   }
+   const presence=m.params.request.url.includes('/student_presence.php'),reminder=m.params.request.url.includes('/query_student_evaluation_prompt.php');call('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:reminder?503:200,responseHeaders:[{name:'Content-Type',value:presence||reminder?'application/json':'text/html'}],body:Buffer.from(reminder?JSON.stringify({status:'error'}):presence?JSON.stringify({status:'ok',seconds_remaining:900,idle_seconds:900}):'<p id="qa-google-redirect">Opening Google</p>').toString('base64')},m.sessionId).catch(error=>errors.push(error.message));
+  }
  });
  call=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++sequence,timeout=setTimeout(()=>{pending.delete(id);reject(Error(method+' timeout.'));},15000);pending.set(id,{resolve,reject,timeout});ws.send(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})}));});
  const target=await call('Target.createTarget',{url:'about:blank'}),session=(await call('Target.attachToTarget',{targetId:target.targetId,flatten:true})).sessionId;
- await call('Page.enable',{},session);await call('Runtime.enable',{},session);await call('Fetch.enable',{patterns:[{urlPattern:'*backend/auth_google_student_start.php*',requestStage:'Request'},{urlPattern:'*backend/student_presence.php*',requestStage:'Request'},{urlPattern:'*backend/query_student_evaluation_prompt.php*',requestStage:'Request'}]},session);
- const evaluate=async expression=>{const r=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true},session);if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
+ await call('Page.enable',{},session);await call('Runtime.enable',{},session);await call('Fetch.enable',{patterns:[{urlPattern:'*backend/auth_google_student_start.php*',requestStage:'Request'},{urlPattern:'*backend/student_presence.php*',requestStage:'Request'},{urlPattern:'*backend/query_student_evaluation_prompt.php*',requestStage:'Request'},{urlPattern:'*student/class-program.php*',requestStage:'Request'}]},session);
+ const evaluate=async expression=>{let r;try{r=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true},session);}catch(error){throw Error(error.message+' while evaluating '+expression.slice(0,180));}if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value;};
  const until=async expression=>{for(let i=0;i<120;i++){if(await evaluate('Boolean('+expression+')'))return;await delay(100);}throw Error('Condition timed out: '+expression+'; '+errors.join('; '));};
  const fixtureUrl=scenario=>`http://localhost/synk/tmp/${path.basename(route)}?qa=${token}&scenario=${scenario}`;
- const navigate=async scenario=>{await call('Page.navigate',{url:fixtureUrl(scenario)},session);await until('document.readyState==="complete"');await delay(200);if(scenario==='student_evaluation'||scenario.startsWith('evaluation_access_student_')||scenario==='student_legacy_draft'){await until('document.getElementById("studentEvaluationPromptConfig")');await evaluate(`(()=>{const c=JSON.parse(document.getElementById('studentEvaluationPromptConfig').textContent);if(!c.initial?.required)return;const u=new URL(document.getElementById('studentEvaluationPromptStart').href);history.replaceState(null,'',u);document.getElementById('studentEvaluationPromptStart').click()})()`);await until('!document.getElementById("studentEvaluationPrompt").classList.contains("show")');}};
+ const navigate=async scenario=>{
+  await call('Page.navigate',{url:fixtureUrl(scenario)},session);await until('document.readyState==="complete"');await delay(200);
+  if(scenario==='student_evaluation'||scenario.startsWith('evaluation_access_student_')||scenario.startsWith('evaluation_access_prompt_')||scenario==='student_legacy_draft'){
+   await until('document.getElementById("studentEvaluationPromptConfig")');
+   // Finish Bootstrap's entry transition before pressing Start in the fixture.
+   await delay(350);
+   await evaluate(`(()=>{const c=JSON.parse(document.getElementById('studentEvaluationPromptConfig').textContent);if(!c.initial?.required)return;const u=new URL(document.getElementById('studentEvaluationPromptStart').href);history.replaceState(null,'',u);document.getElementById('studentEvaluationPromptStart').click()})()`);
+   await until('!document.getElementById("studentEvaluationPrompt").classList.contains("show")&&!document.body.classList.contains("modal-open")');
+  }
+ };
  const resize=async (width,height=1000,mobile=false)=>{await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile},session);await delay(120);};
  const screenshot=async name=>fs.writeFileSync(path.join(root,'.tmp',name),Buffer.from((await call('Page.captureScreenshot',{format:'png'},session)).data,'base64'));
+ const clickAt=async(x,y)=>{await call('Input.dispatchMouseEvent',{type:'mouseMoved',x,y},session);await call('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',clickCount:1},session);await call('Input.dispatchMouseEvent',{type:'mouseReleased',x,y,button:'left',clickCount:1},session);};
+ const clickElement=async expression=>{
+  const point=await evaluate(`(()=>{const element=${expression},r=element.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return{x,y,clickable:(hit===element||element.contains(hit))&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight};})()`);
+  if(!point.clickable)throw Error('A screen click cannot reach '+expression);
+  await clickAt(point.x,point.y);
+ };
+ const key=async(key,code,number)=>{await call('Input.dispatchKeyEvent',{type:'keyDown',key,code,windowsVirtualKeyCode:number},session);await call('Input.dispatchKeyEvent',{type:'keyUp',key,code,windowsVirtualKeyCode:number},session);};
+ if(!evaluationOnly){
  await resize(1440);await navigate('login_page');
  check(await evaluate('document.querySelector("#studentLoginForm")?.method==="post" && !document.querySelector("input[type=password]")'),'Student login uses its own Google-only form.');
  check(await evaluate('document.getElementById("student-email").required && document.querySelector("input[name=csrf_token]").value.length===64'),'Student login requires an email and a CSRF token.');
@@ -110,6 +137,7 @@ async function main(){
  await navigate('dean_evaluation_historical');
  await until('document.querySelector(".content-wrapper")?.textContent.includes("Prior Term Subject")');
  check(await evaluate('document.querySelector(".content-wrapper").textContent.includes("Dean preview") && document.querySelectorAll(".faculty-eval-modal").length===1 && document.querySelector("#layout-menu a[href*=index]").href.includes("student_term=")'),'A historical review link keeps the Dean preview and its college faculty list without a term dropdown.');
+ }
  await navigate('student_evaluation');await until('document.querySelectorAll(".faculty-eval-modal").length===2');
  await resize(390);
  check(await evaluate(`(()=>{const n=document.querySelector('.student-bottom-nav');return n.querySelector('[aria-current=page]').textContent.includes('Evaluation')&&n.querySelectorAll('a').length===4&&document.getElementById('student-more-toggle')&&[...n.querySelectorAll('a')].some(a=>a.textContent.trim()==='QR')&&[...n.querySelectorAll('a')].some(a=>a.textContent.trim()==='Finances')&&Math.abs(n.getBoundingClientRect().bottom-innerHeight)<1;})()`),'Faculty Evaluation is active and Finances/QR remain available in the mobile menu.');
@@ -139,6 +167,75 @@ async function main(){
  await resize(390,844,true);
  check(await evaluate(`(()=>{const r=document.querySelector('.faculty-eval-modal.show .modal-content').getBoundingClientRect();return Math.abs(r.width-innerWidth)<1&&Math.abs(r.height-innerHeight)<1;})()`),'A mobile device returning to portrait still uses the full available viewport.');
  await resize(320);
+
+ check(await evaluate(`(()=>{const field=document.querySelector('.faculty-eval-modal.show textarea[name="comment_text"]');field.value=String.fromCharCode(32,10,8203);field.dispatchEvent(new Event('input'));return field.required&&!field.checkValidity()&&field.validationMessage.includes('comment');})()`),'A blank or invisible-only comment passes the faculty form validation.');
+ check(await evaluate(`(()=>{const field=document.querySelector('.faculty-eval-modal.show textarea[name="comment_text"]');field.value='Clear lessons and helpful explanations.';field.dispatchEvent(new Event('input'));return field.checkValidity();})()`),'A visible faculty comment remains invalid after correcting it.');
+ await navigate('evaluation_access_prompt_review');await until('document.querySelectorAll(".faculty-review-item").length===2');
+ check(await evaluate(`(()=>{const button=document.querySelector('.faculty-final-review-button');return !button.disabled&&button.classList.contains('is-ready')&&getComputedStyle(button).backgroundColor==='rgb(201, 82, 0)'&&getComputedStyle(button).animationName==='faculty-review-pulse'&&document.getElementById('faculty-final-review-note').textContent.includes('finalize and submit');})()`),'The final review button lacks its ready color, heartbeat emphasis or submission instruction.');
+ await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},session);
+ check(await evaluate(`getComputedStyle(document.querySelector('.faculty-final-review-button')).animationName==='none'&&getComputedStyle(document.querySelector('.faculty-final-review-button .bx')).animationName==='none'`),'Reduced-motion preferences do not stop the final review heartbeat.');
+ await call('Emulation.setEmulatedMedia',{features:[]},session);
+ await resize(390,844,true);await evaluate(`document.getElementById('facultyEvaluationOverview').scrollIntoView({block:'start',behavior:'instant'})`);await screenshot('student-final-review-button-mobile.png');
+ await evaluate(`new Promise(resolve=>{document.getElementById('finalEvaluationReviewModal').addEventListener('shown.bs.modal',()=>resolve(true),{once:true});document.querySelector('.faculty-final-review-button').click();})`);
+ check(await evaluate(`document.querySelectorAll('#finalEvaluationReviewModal .faculty-review-name').length===2&&document.querySelectorAll('#finalEvaluationReviewModal .faculty-review-comment p').length===2&&!document.querySelector('#finalEvaluationReviewModal .faculty-review-subjects')&&document.querySelectorAll('#finalEvaluationReviewModal .faculty-review-item .badge').length===2`),'Final review retains subject details or omits names, averages or comments.');
+ for(const [width,height] of [[1440,1000],[1024,800],[768,900],[390,844],[320,568],[844,390]]){
+  await resize(width,height,width<992);
+  const finalFits=await evaluate(`(()=>{const modal=document.getElementById('finalEvaluationReviewModal'),content=modal.querySelector('.modal-content').getBoundingClientRect(),body=modal.querySelector('.modal-body').getBoundingClientRect(),footer=modal.querySelector('.modal-footer').getBoundingClientRect(),buttons=[...modal.querySelectorAll('.modal-footer>.btn')].map(b=>b.getBoundingClientRect());return content.left>=-1&&content.right<=innerWidth+1&&content.top>=-1&&content.bottom<=innerHeight+1&&body.height>0&&body.bottom<=footer.top+1&&buttons.length===2&&buttons.every(b=>b.height>=48&&b.top>=0&&b.bottom<=innerHeight+1&&b.left>=0&&b.right<=innerWidth+1)&&modal.querySelector('.modal-content').scrollWidth<=modal.querySelector('.modal-content').clientWidth+1;})()`);
+  if(!finalFits){await screenshot('student-final-review-overflow.png');console.log(await evaluate(`JSON.stringify({width:innerWidth,height:innerHeight,items:[...document.querySelectorAll('#finalEvaluationReviewModal .modal-dialog,#finalEvaluationReviewModal .modal-content,#finalEvaluationReviewModal form,#finalEvaluationReviewModal .modal-body,#finalEvaluationReviewModal .modal-footer')].map(el=>({class:el.className,rect:el.getBoundingClientRect().toJSON(),display:getComputedStyle(el).display,height:getComputedStyle(el).height}))})`));}
+  check(finalFits,'Final review clips its Close or Submit Final Evaluation button at '+width+'x'+height+'.');
+  if(width===390)await screenshot('student-final-review-390.png');
+  if(width===320)await screenshot('student-final-review-320.png');
+ }
+ await evaluate(`(()=>{const body=document.querySelector('#finalEvaluationReviewModal .modal-body');body.scrollTop=body.scrollHeight;})()`);
+ check(await evaluate(`(()=>{const modal=document.getElementById('finalEvaluationReviewModal'),body=modal.querySelector('.modal-body'),footer=modal.querySelector('.modal-footer').getBoundingClientRect();return body.scrollTop>0&&footer.bottom<=innerHeight+1&&body.getBoundingClientRect().bottom<=footer.top+1&&[...modal.querySelectorAll('.modal-footer>.btn')].every(b=>b.getBoundingClientRect().bottom<=innerHeight+1);})()`),'Scrolling final review hides its action buttons in landscape.');
+ await screenshot('student-final-review-landscape.png');
+ for(const [width,height] of [[1440,1000],[390,844],[320,568],[844,390]]){
+  await resize(width,height,width<992);
+  await clickElement(`document.querySelector('#finalEvaluationReviewModal button[type="submit"]')`);
+  await until('Swal.isVisible()&&Swal.getPopup().getAnimations().every(animation=>animation.playState!=="running")');
+  check(await evaluate(`Swal.getTitle().textContent==='Submit Final Evaluation?'&&document.querySelector('#finalFacultyEvaluationForm').dataset.confirmed!=='1'&&Swal.getContainer().parentElement.id==='finalEvaluationReviewModal'`),'The final confirmation is missing or outside the review focus boundary.');
+  await screenshot('student-final-confirmation-current.png');
+  const confirmationGeometry=await evaluate(`({viewport:[innerWidth,innerHeight],container:{z:getComputedStyle(Swal.getContainer()).zIndex,rect:Swal.getContainer().getBoundingClientRect().toJSON()},popup:Swal.getPopup().getBoundingClientRect().toJSON(),buttons:[Swal.getConfirmButton(),Swal.getCancelButton()].map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return{rect:r.toJSON(),hit:hit?.outerHTML.slice(0,220),self:hit===button,height:getComputedStyle(button).minHeight};})})`);
+  if(!confirmationGeometry.buttons.every(button=>button.self&&button.rect.height>=48&&button.rect.top>=0&&button.rect.bottom<=height))console.log(JSON.stringify(confirmationGeometry));
+  check(await evaluate(`[Swal.getConfirmButton(),Swal.getCancelButton()].every(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return r.height>=48&&r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth&&(hit===button||button.contains(hit));})`),'The confirmation is covered or its buttons are clipped at '+width+'x'+height+'.');
+  check(await evaluate(`document.activeElement===Swal.getCancelButton()&&document.querySelector('#finalEvaluationReviewModal .modal-dialog').inert`),'Bootstrap steals focus from the alert or leaves the review interactive.');
+  await key('Tab','Tab',9);
+  check(await evaluate('Swal.getPopup().contains(document.activeElement)'),'Tab leaves the visible confirmation.');
+  await evaluate(`document.getElementById('finalFacultyEvaluationForm').requestSubmit();document.getElementById('finalFacultyEvaluationForm').requestSubmit()`);
+  check(await evaluate('document.querySelectorAll(".student-final-confirmation").length===1'),'Repeated Submit clicks create multiple confirmations.');
+  await clickAt(3,3);
+  check(await evaluate('Swal.isVisible()&&document.getElementById("finalEvaluationReviewModal").classList.contains("show")'),'A background tap dismisses or submits the final confirmation.');
+  await screenshot('student-final-confirmation-'+width+'.png');
+  if(width===390||width===844)await key('Escape','Escape',27);else await clickElement('Swal.getCancelButton()');
+  await until(`!Swal.getContainer()&&!document.querySelector('#finalEvaluationReviewModal .modal-dialog').inert&&document.activeElement===document.querySelector('#finalEvaluationReviewModal button[type="submit"]')`);
+  check(await evaluate('document.getElementById("finalEvaluationReviewModal").classList.contains("show")&&!document.querySelector("#finalFacultyEvaluationForm button[type=submit]").disabled'),'Cancel or Escape does not restore a usable review modal.');
+ }
+ check(requests.filter(request=>request.method==='POST'&&request.url.includes('/student/class-program.php')).length===0,'Cancelling confirmation sent a final evaluation.');
+ await evaluate(`new Promise(resolve=>{const modal=document.getElementById('finalEvaluationReviewModal');modal.addEventListener('hidden.bs.modal',()=>resolve(true),{once:true});modal.querySelector('.modal-footer [data-bs-dismiss]').click();})`);
+ check(await evaluate(`!document.body.classList.contains('modal-open')&&getComputedStyle(document.getElementById('student-bottom-nav')).visibility==='visible'`),'The review Close button does not restore mobile navigation.');
+
+ // Confirm with a real screen click, intercepting the POST before it can save anything.
+ await resize(390,844,true);
+ await evaluate(`new Promise(resolve=>{document.getElementById('finalEvaluationReviewModal').addEventListener('shown.bs.modal',()=>resolve(true),{once:true});document.querySelector('.faculty-final-review-button').click();})`);
+ const finalScope=await evaluate(`Object.fromEntries(new FormData(document.getElementById('finalFacultyEvaluationForm')))`);
+ await evaluate(`(()=>{const original=HTMLFormElement.prototype.submit;let calls=0;HTMLFormElement.prototype.submit=function(){if(++calls>1)throw Error('Repeated final form navigation');this.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));this.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));const button=this.querySelector('button[type="submit"]');console.log('QA_FINAL_SUBMIT_STATE',JSON.stringify({disabled:button.disabled,label:button.textContent,busy:this.getAttribute('aria-busy'),confirmed:this.dataset.confirmed,calls}));return original.call(this);};})()`);
+ await clickElement(`document.querySelector('#finalEvaluationReviewModal button[type="submit"]')`);
+ await until('Swal.isVisible()&&Swal.getPopup().getAnimations().every(animation=>animation.playState!=="running")');
+ await clickElement('Swal.getConfirmButton()');
+ for(let i=0;i<100&&(!pendingFinalSubmission||!finalSubmittingState);i++)await delay(50);
+ check(Boolean(pendingFinalSubmission),'Confirm did not send the final evaluation request.');
+ check(finalSubmittingState?.disabled&&finalSubmittingState.label.includes('Submitting')&&finalSubmittingState.busy==='true'&&finalSubmittingState.confirmed==='1'&&finalSubmittingState.calls===1,'Confirm leaves no visible submitting state or allows another submission.');
+ const finalRequests=requests.filter(request=>request.method==='POST'&&request.url.includes('/student/class-program.php'));
+ check(finalRequests.length===1,'Confirm sends more than one final evaluation request.');
+ const finalPost=new URLSearchParams(finalRequests[0].postData);
+ check(['submit_final_faculty_evaluation','csrf_token','term_key','evaluation_college_id'].every(field=>finalPost.get(field)===finalScope[field])&&Boolean(finalPost.get('csrf_token')),'The confirmed request loses its CSRF token or college/term scope.');
+ await call('Fetch.fulfillRequest',{requestId:pendingFinalSubmission.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/html'}],body:Buffer.from('<main id="qa-final-evaluation-submitted">Final evaluation request received by the QA interceptor.</main>').toString('base64')},pendingFinalSubmission.sessionId);
+ await until('document.getElementById("qa-final-evaluation-submitted")');
+ check(await evaluate('document.getElementById("qa-final-evaluation-submitted").textContent.includes("request received")'),'The confirmed submission leaves the student on a blocked review screen.');
+ pendingFinalSubmission=null;
+ await navigate('evaluation_access_prompt_no_comment_page');await until('document.querySelectorAll(".faculty-eval-modal").length===2');
+ check(await evaluate(`document.querySelector('.faculty-final-review-button').disabled&&document.querySelector('.faculty-evaluation-state').textContent.includes('required comment')`),'A previously saved draft without a comment unlocks final review.');
+ if(evaluationOnly){check(errors.length===0,'No evaluation browser runtime errors: '+errors.join('; '));console.log(`Student evaluation mobile review: ${checks} browser checks passed.`);return;}
 
  await navigate('evaluation_access_student_multiple_subjects');await until(`document.querySelectorAll('[data-faculty-evaluation-card]').length===1`);
  check(await evaluate(`document.querySelectorAll('[data-faculty-evaluation-card] [data-subject-card]').length===2&&document.querySelectorAll('.faculty-evaluate-button').length===1&&document.querySelector('.faculty-evaluation-action').textContent.includes('covers all 2 subjects')`),'A professor teaching multiple subjects has one clearly explained evaluation action.');

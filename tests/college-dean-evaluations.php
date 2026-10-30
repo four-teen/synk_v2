@@ -6,7 +6,7 @@ $checks=0;
 $check=static function(bool $ok,string $message)use(&$checks):void{if(!$ok)throw new RuntimeException($message);$checks++;};
 $snapshot=static function()use($conn):string{
     $rows=[];
-    foreach(['tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_faculty','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_useraccount','tbl_useraccount_roles']as$table)$rows[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_faculty','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_useraccount','tbl_useraccount_roles','tbl_college','tbl_program','tbl_college_faculty_evaluation_clear_history']as$table)$rows[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return hash('sha256',json_encode($rows));
 };
 $before=$snapshot();$token=bin2hex(random_bytes(24));$route=__DIR__.'/../tmp/dean-evaluation-qa-'.bin2hex(random_bytes(8)).'.php';
@@ -22,7 +22,7 @@ $request=static function(string $scenario)use($route,$token,$check):array{
 };
 try{
     $r=$request('empty');
-    $check($r['status']===200&&strpos($r['body'],'id="deanEvaluationEmptyNotice"')!==false,'An empty evaluation database displays a clear initial state.');
+    $check($r['status']===200&&strpos($r['body'],'id="deanEvaluationEmptyNotice"')!==false,'An empty evaluation database displays a clear initial state. HTTP '.$r['status'].': '.substr(strip_tags($r['body']),-900));
     $check(strpos($r['body'],'data-show-evaluation')!==false&&strpos($r['body'],'name="dean_ay_id"')!==false&&strpos($r['body'],'name="dean_semester"')!==false,'Assigned/imported faculty remain available with year and semester controls when no responses exist.');
     $r=$request('detail');
     $check($r['status']===200&&substr_count($r['body'],'data-evaluation-instrument=')===2,'Current and previous instruments appear as separate reports for the same faculty.');
@@ -31,6 +31,9 @@ try{
     $check(strpos($r['body'],'PRIVATE_DRAFT_FEEDBACK')===false&&strpos($r['body'],'FOREIGN_SUBMITTED_FEEDBACK')===false&&strpos($r['body'],'FOREIGN_EVALUATION_FACULTY')===false,'Draft comments and other college evaluations cannot leak.');
     $check(preg_match('/data-evaluation-summary="submitted_count">2<\/h4>/',$r['body'])===1&&preg_match('/data-evaluation-summary="draft_count">1<\/h4>/',$r['body'])===1,'The selected-term totals include only this college and separate submitted responses from drafts.');
     $check(strpos($r['body'],'View by instrument')!==false&&strpos($r['body'],'80.00% normalized score')!==false&&strpos($r['body'],'60.00% normalized score')!==false,'Scores from different instruments remain separate rather than being averaged together.');
+    $check(strpos($r['body'],'>Submitted Count</th>')!==false && strpos($r['body'],'>Action</th>')!==false && strpos($r['body'],'>Subjects</th>')!==false,'Faculty list includes Subjects, Submitted Count and Action columns.');
+    $check(substr_count($r['body'],'data-clear-evaluation data-bs-toggle=')===2 && strpos($r['body'],'clear_all')===false,'Clearing is offered individually for each faculty with no bulk action.');
+    $check(preg_match('/data-label="Subjects"><span class="dean-evaluation-subject-count">2<\/span>/',$r['body'])===1 && strpos($r['body'],'aria-label="2 submitted, 0 not submitted"')!==false && strpos($r['body'],'aria-label="0 submitted, 1 not submitted"')!==false,'Distinct subject and student submission counts match scoped enrollments and drafts.');
     $r=$request('legacy');
     $check($r['status']===200&&substr_count($r['body'],'data-evaluation-instrument=')===1&&strpos($r['body'],'data-evaluation-instrument="legacy-20"')!==false,'The previous-instrument filter selects only historical questionnaire responses.');
     $r=$request('historical');

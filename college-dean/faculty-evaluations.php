@@ -3,6 +3,7 @@ session_start();
 ob_start();
 require_once '../backend/db.php';
 require_once '../backend/college_dean_evaluations_helper.php';
+require_once '../backend/college_dean_evaluation_clear_helper.php';
 header('Cache-Control: no-store');
 if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET','POST'],true)
     || (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST' && !isset($_POST['save_evaluation_control']))) {
@@ -11,6 +12,14 @@ if (!in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET','POST'],true)
 synk_college_dean_require_login($conn);
 $deanEvaluationScope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $deanEvaluationTerm = synk_dean_view_term($conn);
+$deanEvaluationClearReady=synk_dean_evaluation_clear_ready($conn) && ($_SESSION['role'] ?? '')==='college_dean';
+$deanEvaluationClearNotice='';
+$clearNotice=$_SESSION['dean_faculty_evaluation_clear_notice'] ?? null;
+if (is_array($clearNotice) && (int)$clearNotice['college_id']===$deanEvaluationScope['college_id']
+    && (int)$clearNotice['ay_id']===(int)$deanEvaluationTerm['ay_id'] && (int)$clearNotice['semester']===(int)$deanEvaluationTerm['semester']) {
+    $deanEvaluationClearNotice=(string)$clearNotice['message'];
+    unset($_SESSION['dean_faculty_evaluation_clear_notice']);
+}
 $deanEvaluationError = '';
 $deanEvaluationControlError = '';
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET')==='POST') {
@@ -72,8 +81,8 @@ function synk_dean_evaluation_url(array $term, array $filters, int $facultyId = 
   <link rel="stylesheet" href="../assets/css/demo.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
   <link rel="stylesheet" href="custom_css.css?v=<?php echo (int)filemtime(__DIR__ . '/custom_css.css'); ?>" />
+  <link rel="stylesheet" href="faculty-evaluations.css?v=<?= (int)filemtime(__DIR__.'/faculty-evaluations.css') ?>" />
   <style>
-    .dean-evaluation-table { min-width: 630px; }
     .dean-evaluation-table td, .dean-evaluation-table th { white-space: normal; }
     .dean-evaluation-benchmark { min-width: 540px; }
     .dean-evaluation-benchmark td:first-child { width: 62%; }
@@ -110,17 +119,20 @@ function synk_dean_evaluation_url(array $term, array $filters, int $facultyId = 
           <p class="small text-muted mt-3 mb-0">Selected term: <strong><?php echo synk_dean_evaluation_h($deanEvaluationTerm['term_text'] ?? 'No academic term configured'); ?></strong>. This selection follows the Dean portal's viewing term.</p>
         </div></div>
         <?php include __DIR__ . '/evaluation-access-controls.php'; ?>
+        <?php if ($deanEvaluationClearNotice!==''): ?><div class="alert alert-success" role="status"><?= synk_dean_evaluation_h($deanEvaluationClearNotice) ?></div><?php endif; ?>
         <?php if ($deanEvaluationError !== ''): ?><div class="alert alert-danger" role="alert"><?php echo synk_dean_evaluation_h($deanEvaluationError); ?></div><?php else: ?>
           <div class="dean-evaluation-summary mb-4">
             <?php foreach (['faculty_count' => 'Faculty', 'submitted_count' => 'Submitted Evaluations', 'student_count' => 'Student Evaluators', 'draft_count' => 'Unsubmitted Drafts'] as $key => $label): ?><div class="card"><div class="card-body"><span class="small text-muted"><?php echo $label; ?></span><h4 class="mt-2 mb-0" data-evaluation-summary="<?php echo $key; ?>"><?php echo number_format($deanEvaluationData['summary'][$key]); ?></h4></div></div><?php endforeach; ?>
           </div>
           <?php if ($deanEvaluationData['summary']['submitted_count'] === 0): ?><p class="text-muted" id="deanEvaluationEmptyNotice">No submitted evaluations are recorded for the selected term and instrument. Results will appear here after students complete their final submission.</p><?php endif; ?>
-          <details class="card mb-4" id="deanEvaluationFacultyList"<?php echo $deanEvaluationData['detail'] ? '' : ' open'; ?>><summary class="card-body"><span class="h5 d-block mb-1">Faculty in the Selected Term</span><span class="small text-muted">Expand this list to choose a faculty member. Submitted results include students enrolled with the faculty in your college.</span></summary>
-            <div class="table-responsive"><table class="table dean-evaluation-table mb-0"><thead><tr><th>Faculty</th><th>Submitted</th><th>Drafts</th><th>Normalized Score</th><th>Evaluation</th></tr></thead><tbody>
-              <?php foreach ($deanEvaluationData['rows'] as $faculty): ?><tr data-evaluation-faculty="<?php echo $faculty['faculty_id']; ?>"><td><?php echo synk_dean_evaluation_h($faculty['faculty_name']); ?></td><td><?php echo $faculty['submitted_count']; ?></td><td><?php echo $faculty['draft_count']; ?></td><td>
+          <details class="card mb-4" id="deanEvaluationFacultyList"<?php echo $deanEvaluationData['detail'] ? '' : ' open'; ?>><summary class="card-body"><span class="h5 d-block mb-1">Faculty in the Selected Term</span><span class="small text-muted">Choose a faculty member to show results or clear that faculty's evaluations in the selected term and instrument.</span></summary>
+            <p class="dean-evaluation-count-help">Submission counts show <span class="dean-evaluation-submitted">submitted</span> / <span class="dean-evaluation-pending">not submitted</span>, with each student counted once per faculty. Subjects count distinct subjects; repeated sections count once. Counts follow the selected college, term and instrument.</p>
+            <?php if (!$deanEvaluationClearReady && ($_SESSION['role'] ?? '')==='college_dean'): ?><p class="dean-evaluation-count-help">Clearing requires the faculty evaluation clearing history update.</p><?php endif; ?>
+            <div class="table-responsive dean-evaluation-list-wrap"><table class="table dean-evaluation-table mb-0"><thead><tr><th scope="col">Faculty</th><th scope="col">Subjects</th><th scope="col">Submitted Count</th><th scope="col">Drafts</th><th scope="col">Normalized Score</th><th scope="col">Action</th></tr></thead><tbody>
+              <?php foreach ($deanEvaluationData['rows'] as $faculty): ?><tr data-evaluation-faculty="<?= (int)$faculty['faculty_id'] ?>"><td data-label="Faculty"><?php echo synk_dean_evaluation_h($faculty['faculty_name']); ?></td><td data-label="Subjects"><span class="dean-evaluation-subject-count"><?= (int)$faculty['subject_count'] ?></span></td><td data-label="Submitted Count"><span class="dean-evaluation-submission-count" aria-label="<?= (int)$faculty['submitted_student_count'] ?> submitted, <?= (int)$faculty['not_submitted_count'] ?> not submitted"><span class="dean-evaluation-submitted"><?= (int)$faculty['submitted_student_count'] ?></span><span aria-hidden="true">/</span><span class="dean-evaluation-pending"><?= (int)$faculty['not_submitted_count'] ?></span></span></td><td data-label="Drafts"><?php echo $faculty['draft_count']; ?></td><td data-label="Normalized Score">
                 <?php if ($faculty['score']): ?><?php echo number_format($faculty['score']['percentage'],2); ?>%<small class="d-block text-muted"><?php echo number_format($faculty['score']['mean'],2); ?> / 5.00</small><?php elseif ($faculty['instrument_count'] > 1): ?><span class="text-muted">View by instrument</span><?php else: ?><span class="text-muted">No results yet</span><?php endif; ?>
-              </td><td><a class="btn btn-sm btn-outline-primary" data-show-evaluation href="<?php echo synk_dean_evaluation_h(synk_dean_evaluation_url($deanEvaluationTerm,$deanEvaluationFilters,$faculty['faculty_id'])); ?>#deanEvaluationDetail">Show Evaluation</a></td></tr><?php endforeach; ?>
-              <?php if (!$deanEvaluationData['rows']): ?><tr><td colspan="5" class="text-center text-muted py-4">No faculty match this college, term, and name filter.</td></tr><?php endif; ?>
+              </td><td data-label="Action"><div class="dean-evaluation-actions"><a class="btn btn-sm btn-outline-primary" data-show-evaluation href="<?php echo synk_dean_evaluation_h(synk_dean_evaluation_url($deanEvaluationTerm,$deanEvaluationFilters,$faculty['faculty_id'])); ?>#deanEvaluationDetail">Show Evaluation</a><?php if (($_SESSION['role'] ?? '')==='college_dean'): ?><button type="button" class="btn btn-sm btn-outline-danger" data-clear-evaluation data-bs-toggle="modal" data-bs-target="#deanClearEvaluationModal" data-faculty-id="<?= (int)$faculty['faculty_id'] ?>" data-faculty-name="<?= synk_dean_evaluation_h($faculty['faculty_name']) ?>"<?= (!$deanEvaluationClearReady || (!$faculty['submitted_count'] && !$faculty['draft_count']))?' disabled':'' ?>><i class="bx bx-eraser" aria-hidden="true"></i>Clear Evaluation</button><?php endif; ?></div></td></tr><?php endforeach; ?>
+              <?php if (!$deanEvaluationData['rows']): ?><tr><td colspan="6" class="text-center text-muted py-4">No faculty match this college, term, and name filter.</td></tr><?php endif; ?>
             </tbody></table></div>
           </details>
           <?php $detail = $deanEvaluationData['detail']; if ($detail): ?>
@@ -148,11 +160,23 @@ function synk_dean_evaluation_url(array $term, array $filters, int $facultyId = 
     </div>
   </div>
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
+<?php if (($_SESSION['role'] ?? '')==='college_dean'): ?>
+<div class="modal fade dean-clear-evaluation-modal" id="deanClearEvaluationModal" tabindex="-1" aria-labelledby="deanClearEvaluationTitle" aria-describedby="deanClearEvaluationHelp" data-endpoint="evaluation-clear.php" data-csrf="<?= synk_dean_evaluation_h($_SESSION['csrf_token']) ?>" data-ay-id="<?= (int)$deanEvaluationTerm['ay_id'] ?>" data-semester="<?= (int)$deanEvaluationTerm['semester'] ?>" data-instrument="<?= synk_dean_evaluation_h($deanEvaluationFilters['instrument_version']) ?>">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title fs-5" id="deanClearEvaluationTitle">Clear Faculty Evaluation</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close clearing review"></button></div>
+    <div class="modal-body"><p id="deanClearEvaluationHelp">This clears submitted evaluations and saved drafts for <strong id="deanClearEvaluationFaculty"></strong> in the scope below.</p><div id="deanClearEvaluationStatus" role="status" aria-live="polite"></div>
+      <div id="deanClearEvaluationPreview" hidden><dl class="dean-clear-evaluation-scope"><div><dt>College</dt><dd id="deanClearEvaluationCollege"></dd></div><div><dt>Term</dt><dd id="deanClearEvaluationTerm"></dd></div><div><dt>Instrument</dt><dd id="deanClearEvaluationInstrument"></dd></div></dl><div class="dean-clear-evaluation-counts"><div><strong id="deanClearEvaluationSubmitted"></strong><span>Submitted evaluations</span></div><div><strong id="deanClearEvaluationDrafts"></strong><span>Saved drafts</span></div></div><p class="alert alert-warning mb-0">Ratings, comments and submission records shown above will be removed from active results. A copy is retained in clearing history. Other faculty are unaffected.</p></div>
+      <button type="button" class="btn btn-outline-primary mt-3" id="deanClearEvaluationRetry" hidden>Review latest records</button>
+    </div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-danger" id="deanClearEvaluationConfirm" disabled>Clear Evaluation</button></div>
+  </div></div>
+</div>
+<?php endif; ?>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script>
 <script src="../assets/vendor/libs/popper/popper.js"></script>
 <script src="../assets/vendor/js/bootstrap.js"></script>
 <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
 <script src="../assets/vendor/js/menu.js"></script>
 <script src="../assets/js/main.js"></script>
+<script src="faculty-evaluations.js?v=<?= (int)filemtime(__DIR__.'/faculty-evaluations.js') ?>"></script>
 </body>
 </html>

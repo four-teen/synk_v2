@@ -89,6 +89,19 @@ try {
     $first = synk_student_save_faculty_evaluation($conn, $payload, $answers);
     $check($first['question_count'] === 15 && $first['total_score'] === 61 && $first['instrument_version'] === synk_student_faculty_evaluation_current_version(), 'Saving persists the revised instrument and all 15 answers.');
     $check(count(synk_student_fetch_faculty_evaluation_individual_report_rows($conn, $ayId, 1)) === 0, 'Drafts do not enter faculty reports.');
+    foreach (['', " \t\r\n", "\u{00a0}\u{200b}"] as $emptyComment) {
+        $badComment = $payload; $badComment['comment_text'] = $emptyComment;
+        $savedBefore = $snapshot($conn); $rejected = false;
+        try { synk_student_save_faculty_evaluation($conn,$badComment,$answers); }
+        catch (RuntimeException $error) { $rejected = strpos($error->getMessage(),'comment') !== false; }
+        $check($rejected && $snapshot($conn)===$savedBefore,'Blank and invisible-only comments cannot save or replace a faculty evaluation draft.');
+    }
+    $conn->query('UPDATE tbl_student_faculty_evaluations SET comment_text=\'\' WHERE evaluation_id='.(int)$first['evaluation_id']);
+    $blankBefore = $snapshot($conn); $rejected = false;
+    try { synk_student_finalize_faculty_evaluations_for_term($conn,$studentId,$ayId,1,[$facultyId],['college_id'=>$collegeId]); }
+    catch (RuntimeException $error) { $rejected = strpos($error->getMessage(),'comment') !== false; }
+    $check($rejected && $snapshot($conn)===$blankBefore,'Final submission refuses an older draft with no comment and preserves all answers and submission state.');
+    $conn->query('UPDATE tbl_student_faculty_evaluations SET comment_text=\'Preserved draft comment\' WHERE evaluation_id='.(int)$first['evaluation_id']);
     synk_student_finalize_faculty_evaluations_for_term($conn, $studentId, $ayId, 1, [$facultyId],['college_id'=>$collegeId]);
     $payload['student_id'] = $fixtureStudents[1];
     synk_student_save_faculty_evaluation($conn, $payload, array_fill_keys(array_keys($questions), 3));

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>synQ Systems — Under Construction </title>
   <meta name="description" content="synQ Systems is currently under construction." />
+  <link rel="stylesheet" href="assets/css/brand.css?v=<?= (int)filemtime(__DIR__.'/assets/css/brand.css') ?>" />
   <style>
     :root { color-scheme: light dark; }
     body {
@@ -60,9 +61,9 @@
 <body>
   <main class="card" role="main" aria-label="synQ Systems Under Construction">
     <div class="badge">🚧 Under Construction</div>
-    <h1>synQ Systems</h1>
+    <h1><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> Systems</h1>
     <p>We’re currently building something awesome. Please check back soon.</p>
-    <div class="small">synQ - One Institution. One Connected Ecosystem.</div>
+    <div class="small"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> - One Institution. One Connected Ecosystem.</div>
   </main>
 
 </body>
