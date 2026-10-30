@@ -87,6 +87,7 @@ try {
     $firstHash = hash_file('sha256', $first);
     $replacement = synk_faculty_profile_publish_image($first, $userId);
     image_check(hash_file('sha256', $path) === $firstHash && !file_exists($first), 'Publish exactly one fixed image file.');
+    image_check((fileperms($path) & 0044) === 0044, 'The first saved photo is readable by the static web server.');
     $_SERVER['SCRIPT_FILENAME'] = dirname(__DIR__) . '/professor/manage-profile.php';
     $_SERVER['SCRIPT_NAME'] = '/synk/professor/manage-profile.php';
     $urlBefore = synk_faculty_profile_image_url($userId);
@@ -101,10 +102,12 @@ try {
     $secondHash = hash_file('sha256', $next);
     $second = synk_faculty_profile_publish_image($next, $userId);
     image_check($firstHash !== $secondHash && hash_file('sha256', $path) === $secondHash, 'A second upload overwrites the previous file.');
+    image_check((fileperms($path) & 0044) === 0044, 'A replacement photo remains readable by the static web server.');
     image_check(count(glob(dirname($path) . '/profile_' . $userId . '.*')) === 1, 'Replacement leaves one image for the account.');
     image_check(synk_faculty_profile_image_url($userId) !== $urlBefore, 'Replacement changes the cache version even within the same second.');
     synk_faculty_profile_restore_image($second);
     image_check(hash_file('sha256', $path) === $firstHash, 'Failed save restores the exact previous image bytes.');
+    image_check((fileperms($path) & 0044) === 0044, 'A rolled-back photo remains readable by the static web server.');
     $_SERVER['SCRIPT_FILENAME'] = dirname(__DIR__) . '/administrator/students/index.php';
     $_SERVER['SCRIPT_NAME'] = '/synk/administrator/students/index.php';
     image_check(synk_faculty_profile_image_url($userId) === $urlBefore, 'Nested portals resolve the same image URL.');

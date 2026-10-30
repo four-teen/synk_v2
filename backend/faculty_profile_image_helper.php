@@ -146,7 +146,16 @@ function synk_faculty_profile_publish_image(string $staged, int $userId, int $fa
 {
     $path = $userId > 0 ? synk_faculty_profile_image_path($userId) : synk_faculty_record_image_path($facultyId);
     $previous = is_file($path) ? file_get_contents($path) : null;
-    if ($previous === false || !rename($staged, $path)) {
+    if ($previous === false) {
+        throw new RuntimeException('Profile image could not be replaced.');
+    }
+    // Both upload and crop staging use tempnam(), which creates 0600 files.
+    // Make the validated JPEG readable by the static web server before replacing
+    // the old photo, so a permission failure leaves that photo untouched.
+    if (!chmod($staged, 0644)) {
+        throw new RuntimeException('Profile image permissions could not be prepared.');
+    }
+    if (!rename($staged, $path)) {
         throw new RuntimeException('Profile image could not be replaced.');
     }
     clearstatcache(true, $path);
@@ -163,7 +172,8 @@ function synk_faculty_profile_restore_image(array $replacement): void
     }
     $temporary = tempnam(dirname($replacement['path']), '.profile-upload-');
     try {
-        if ($temporary === false || file_put_contents($temporary, $replacement['previous']) === false || !rename($temporary, $replacement['path'])) {
+        if ($temporary === false || file_put_contents($temporary, $replacement['previous']) === false
+            || !chmod($temporary, 0644) || !rename($temporary, $replacement['path'])) {
             throw new RuntimeException('Previous profile image could not be restored.');
         }
     } finally {
