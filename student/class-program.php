@@ -153,13 +153,15 @@ foreach ($cards as $index => $card) {
     $cards[$index]['has_saved_evaluation'] = is_array($evaluation);
     $cards[$index]['requires_revised_evaluation'] = is_array($evaluation) && $submissionStatus === 'draft'
         && !synk_student_faculty_evaluation_is_current($evaluation);
+    $cards[$index]['requires_comment'] = is_array($evaluation) && $submissionStatus === 'draft'
+        && !synk_student_faculty_evaluation_has_comment($evaluation['comment_text'] ?? '');
     $completeAnswers=false;
     if (is_array($evaluation) && $submissionStatus==='draft') {
         try { synk_student_faculty_evaluation_normalize_answers($evaluation['answers'] ?? []);$completeAnswers=true; }
         catch (RuntimeException $error) { /* Incomplete drafts remain editable. */ }
     }
     $cards[$index]['is_draft_saved'] = is_array($evaluation) && $submissionStatus === 'draft'
-        && ($studentPortalPreviewMode || (empty($cards[$index]['requires_revised_evaluation']) && $completeAnswers));
+        && ($studentPortalPreviewMode || (empty($cards[$index]['requires_revised_evaluation']) && $completeAnswers && empty($cards[$index]['requires_comment'])));
     $cards[$index]['is_final_submitted'] = is_array($evaluation) && $submissionStatus === 'submitted';
 }
 
@@ -240,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_final_faculty_
         }
 
         if ($savedFacultyCount !== count($evaluableFacultyIds)) {
-            throw new RuntimeException('Please save draft evaluations for all linked faculty before the final submission.');
+            throw new RuntimeException('Please complete all ratings and required comments, then save draft evaluations for all linked faculty before the final submission.');
         }
 
         synk_student_finalize_faculty_evaluations_for_term(
@@ -424,19 +426,6 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
       gap: 0.75rem;
     }
 
-    .faculty-review-subjects {
-      display: grid;
-      gap: 0.55rem;
-      margin-top: 0.9rem;
-    }
-
-    .faculty-review-subject {
-      border: 1px solid #e5ebf4;
-      border-radius: 14px;
-      background: #fff;
-      padding: 0.8rem 0.9rem;
-    }
-
     .faculty-eval-modal .modal-dialog,
     .faculty-final-review-modal .modal-dialog {
       max-width: 1140px;
@@ -591,7 +580,10 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
           </div>
         </div>
         <?php if ($evaluableCount > 0): ?>
-          <button type="button" class="btn btn-outline-primary faculty-final-review-button" data-bs-toggle="modal" data-bs-target="#finalEvaluationReviewModal"<?= (!$canOpenFinalReview && !$allFacultyFinalized) ? ' disabled' : '' ?>><i class="bx bx-check-double" aria-hidden="true"></i>Review Final Evaluation</button>
+          <div class="faculty-final-review-action">
+            <button type="button" class="btn faculty-final-review-button<?= $canOpenFinalReview ? ' is-ready' : '' ?>" data-bs-toggle="modal" data-bs-target="#finalEvaluationReviewModal" aria-describedby="faculty-final-review-note"<?= (!$canOpenFinalReview && !$allFacultyFinalized) ? ' disabled' : '' ?>><i class="bx bx-check-double" aria-hidden="true"></i>Review Final Evaluation</button>
+            <p id="faculty-final-review-note"><?php if ($allFacultyFinalized): ?>Your faculty evaluations have been submitted.<?php elseif ($canOpenFinalReview): ?>Click this button to review your drafts, then choose <strong>Submit Final Evaluation</strong> to finalize and submit your evaluation.<?php else: ?>Complete all ratings and add a comment for each faculty to unlock final submission.<?php endif; ?></p>
+          </div>
         <?php endif; ?>
       </div>
       <div class="faculty-evaluation-progress" aria-label="Evaluation progress">
@@ -607,7 +599,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
         <?php elseif ($studentPortalPreviewMode): ?>
           Open a faculty card to review the evaluation form and any saved responses.
         <?php elseif ($missingCount > 0): ?>
-          Save draft evaluations for <?= (int)$missingCount ?> more faculty member<?= $missingCount === 1 ? '' : 's' ?> to unlock the final submission review.
+          Complete the ratings and required comment, then save draft evaluations for <?= (int)$missingCount ?> more faculty member<?= $missingCount === 1 ? '' : 's' ?> to unlock the final submission review.
         <?php else: ?>
           All linked faculty now have saved drafts. Review the summary first, then send the final submission once.
         <?php endif; ?>
@@ -656,7 +648,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                   <span class="badge bg-label-secondary"><?= $evaluationCurrent ? 'Evaluations closed' : 'Archived term' ?></span>
                   <?php if ($cardEval): ?><button type="button" class="btn btn-outline-secondary faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-show-alt" aria-hidden="true"></i>View saved evaluation</button><?php endif; ?>
                 <?php else: ?>
-                  <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : 'Draft saved') : 'Ready to evaluate' ?></span>
+                  <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : (!empty($card['requires_comment']) ? 'Add your required comment' : 'Draft saved')) : 'Ready to evaluate' ?></span>
                   <button type="button" class="btn btn-primary faculty-evaluation-button faculty-evaluate-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Draft' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
                 <?php endif; ?>
                 <?php if ((int)$card['faculty_id'] > 0 && (int)$card['subject_count'] > 1): ?><p>One evaluation covers all <?= (int)$card['subject_count'] ?> subjects with this professor.</p><?php endif; ?>
@@ -799,7 +791,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             </div>
 
             <div class="alert alert-warning">
-              <strong>Instruction:</strong> Read the benchmark statements carefully. Please rate the faculty on each of the following statements using the rating scale above. Select the appropriate rating. Enter any additional feedback in the Comments field.
+              <strong>Instruction:</strong> Read the benchmark statements carefully. Please rate the faculty on each of the following statements using the rating scale above. Select the appropriate rating and enter a comment for this faculty before saving.
             </div>
 
             <?php foreach ($questionBank as $group): ?>
@@ -833,8 +825,9 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <?php endforeach; ?>
 
             <div>
-              <label for="<?php echo synk_student_h($cardModalId); ?>_comment_text" class="form-label fw-semibold">Comments</label>
-              <textarea id="<?php echo synk_student_h($cardModalId); ?>_comment_text" name="comment_text" class="form-control" rows="4" placeholder="Optional comments about the faculty performance..."<?php echo $cardReadOnly ? ' readonly' : ''; ?>><?php echo synk_student_h($usePostedValues ? $submittedComment : (string)($cardEval['comment_text'] ?? '')); ?></textarea>
+              <label for="<?php echo synk_student_h($cardModalId); ?>_comment_text" class="form-label fw-semibold">Comments<?php if (!$cardReadOnly): ?> <span class="text-danger">*</span><?php endif; ?></label>
+              <textarea id="<?php echo synk_student_h($cardModalId); ?>_comment_text" name="comment_text" class="form-control" rows="4" placeholder="Share your feedback about this faculty's performance..." aria-describedby="<?php echo synk_student_h($cardModalId); ?>_comment_help"<?php echo $cardReadOnly ? ' readonly' : ' required'; ?>><?php echo synk_student_h($usePostedValues ? $submittedComment : (string)($cardEval['comment_text'] ?? '')); ?></textarea>
+              <div class="form-text" id="<?php echo synk_student_h($cardModalId); ?>_comment_help"><?= $cardReadOnly ? 'Saved faculty feedback.' : 'A comment is required for each faculty you evaluate.' ?></div>
             </div>
             <p class="text-muted small mt-3 mb-0">Your feedback is important in enhancing the educational programs of State Universities and Colleges (SUCs). Please be informed that any information provided in this instrument will be treated as strictly confidential.</p>
           </div>
@@ -854,13 +847,13 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 
 <?php if ($evaluableCount > 0): ?>
   <div class="modal fade faculty-final-review-modal" id="finalEvaluationReviewModal" tabindex="-1" aria-labelledby="finalEvaluationReviewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
       <div class="modal-content">
         <form method="post" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>" id="finalFacultyEvaluationForm">
           <div class="modal-header">
             <div>
               <h5 class="modal-title" id="finalEvaluationReviewModalLabel">Final Evaluation Review</h5>
-              <small class="text-muted">Review all saved faculty evaluations for <?php echo synk_student_h($selectedTermLabel !== '' ? $selectedTermLabel : 'the selected term'); ?> before the final one-time submission.</small>
+              <small class="text-muted">Check each faculty's average and comment before submitting.</small>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
@@ -871,16 +864,13 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <input type="hidden" name="term_key" value="<?php echo synk_student_h($selectedTermKey); ?>">
 
             <div class="alert alert-primary">
-              <strong>Review first before final submission.</strong><br>
-              Once submitted, the evaluation for this college and term is locked and can no longer be edited. The QR proof will only appear after this final submission is completed.
+              <strong>Review before submitting.</strong><br>
+              Final submission locks these evaluations and generates your QR proof.
             </div>
 
             <div class="d-flex flex-wrap gap-2 mb-4">
               <?php if ($evaluationCollege): ?><span class="badge bg-label-secondary"><?php echo synk_student_h($evaluationCollege['college_name']); ?></span><?php endif; ?>
               <?php if ($selectedTermLabel !== ''): ?><span class="badge bg-label-primary"><?php echo synk_student_h($selectedTermLabel); ?></span><?php endif; ?>
-              <span class="badge bg-label-info"><?php echo (int)$evaluableCount; ?> faculty</span>
-              <span class="badge bg-label-success"><?php echo (int)$totalSubjectCount; ?> subjects</span>
-              <span class="badge bg-label-warning"><?php echo (int)$savedCount; ?> / <?php echo (int)$evaluableCount; ?> drafts saved</span>
             </div>
 
             <div class="faculty-review-list">
@@ -894,47 +884,18 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                 <div class="faculty-review-item">
                   <div class="faculty-review-item-head">
                     <div>
-                      <div class="fw-semibold"><?php echo synk_student_h((string)($card['faculty_name'] ?? 'Faculty')); ?></div>
-                      <div class="text-muted"><?php echo (int)($card['subject_count'] ?? 0); ?> subject<?php echo (int)($card['subject_count'] ?? 0) === 1 ? '' : 's'; ?></div>
+                      <h3 class="faculty-review-name"><?php echo synk_student_h((string)($card['faculty_name'] ?? 'Faculty')); ?></h3>
                     </div>
                     <div class="d-flex flex-wrap gap-2">
-                      <?php if (!empty($card['is_final_submitted'])): ?>
-                        <span class="badge bg-label-success">Final submitted</span>
-                      <?php elseif (!empty($card['requires_revised_evaluation'])): ?>
-                        <span class="badge bg-label-warning">Revised SET required</span>
-                      <?php elseif (!empty($card['is_draft_saved'])): ?>
-                        <span class="badge bg-label-warning">Draft saved</span>
-                      <?php else: ?>
-                        <span class="badge bg-label-danger">Pending</span>
-                      <?php endif; ?>
                       <?php if ($cardEval): ?>
                         <span class="badge bg-label-info">Average <?php echo number_format((float)($cardEval['average_rating'] ?? 0), 2); ?></span>
                       <?php endif; ?>
                     </div>
                   </div>
 
-                  <?php if ($cardEval && trim((string)($cardEval['comment_text'] ?? '')) !== ''): ?>
-                    <p class="text-muted mt-3 mb-0"><i class="bx bx-message-square-detail me-1"></i><?php echo synk_student_h((string)($cardEval['comment_text'] ?? '')); ?></p>
-                  <?php endif; ?>
-
-                  <div class="faculty-review-subjects">
-                    <?php foreach ((array)($card['subjects'] ?? []) as $subject): ?>
-                      <div class="faculty-review-subject">
-                        <div class="fw-semibold"><?php echo synk_student_h((string)($subject['subject_code'] ?? 'NO CODE')); ?></div>
-                        <div class="text-muted"><?php echo synk_student_h((string)($subject['descriptive_title'] ?? 'Untitled subject')); ?></div>
-                        <div class="d-flex flex-wrap gap-2 mt-2">
-                          <?php if (trim((string)($subject['section_display'] ?? '')) !== ''): ?>
-                            <span class="badge bg-label-primary"><?php echo synk_student_h((string)($subject['section_display'] ?? '')); ?></span>
-                          <?php endif; ?>
-                          <?php if (trim((string)($subject['room_name'] ?? '')) !== ''): ?>
-                            <span class="badge bg-label-success"><?php echo synk_student_h((string)($subject['room_name'] ?? '')); ?></span>
-                          <?php endif; ?>
-                        </div>
-                        <?php if (trim((string)($subject['schedule_text'] ?? '')) !== ''): ?>
-                          <div class="text-muted mt-2"><i class="bx bx-time-five me-1"></i><?php echo synk_student_h((string)($subject['schedule_text'] ?? '')); ?></div>
-                        <?php endif; ?>
-                      </div>
-                    <?php endforeach; ?>
+                  <div class="faculty-review-comment">
+                    <span>Your comment</span>
+                    <p><?= synk_student_h(synk_student_faculty_evaluation_has_comment($cardEval['comment_text'] ?? '') ? $cardEval['comment_text'] : 'No comment recorded.') ?></p>
                   </div>
                 </div>
               <?php endforeach; ?>
@@ -967,31 +928,96 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
 <script src="../assets/js/sweetalert2.all.min.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll('.faculty-eval-modal textarea[name="comment_text"]:not([readonly])').forEach(function (field) {
+    function validateComment() {
+      var visibleText = field.value.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, '');
+      field.setCustomValidity(visibleText ? '' : 'Please enter a comment for this faculty.');
+    }
+    field.addEventListener('input', validateComment);
+    validateComment();
+  });
   var finalForm = document.getElementById("finalFacultyEvaluationForm");
-  if (finalForm && typeof Swal !== "undefined") {
+  if (finalForm) {
+    var finalReview = document.getElementById("finalEvaluationReviewModal");
+    var reviewDialog = finalReview.querySelector('.modal-dialog');
+    var finalSubmitButton = finalForm.querySelector('button[type="submit"]');
+    var finalSubmitLabel = finalSubmitButton ? finalSubmitButton.textContent : '';
+    var confirmingFinal = false;
+    var submittingFinal = false;
+
+    function restoreFinalReview() {
+      confirmingFinal = false;
+      reviewDialog.inert = false;
+      if (!submittingFinal && finalSubmitButton && finalReview.classList.contains('show')) {
+        finalSubmitButton.focus({preventScroll: true});
+      }
+    }
+
+    function sendFinalEvaluation() {
+      if (submittingFinal) return;
+      submittingFinal = true;
+      finalForm.dataset.confirmed = "1";
+      finalForm.setAttribute('aria-busy', 'true');
+      if (finalSubmitButton) {
+        finalSubmitButton.disabled = true;
+        finalSubmitButton.textContent = 'Submitting evaluation…';
+      }
+      HTMLFormElement.prototype.submit.call(finalForm);
+    }
+
+    finalReview.addEventListener('hide.bs.modal', function (event) {
+      if (confirmingFinal || submittingFinal) event.preventDefault();
+    });
+
     finalForm.addEventListener("submit", function (event) {
-      if (finalForm.dataset.confirmed === "1") {
+      event.preventDefault();
+      if (confirmingFinal || submittingFinal || !finalSubmitButton || finalSubmitButton.disabled) return;
+      confirmingFinal = true;
+      if (typeof Swal === 'undefined') {
+        // Keep explicit confirmation available if the local alert library fails to load.
+        if (window.confirm('Submit your final evaluation? This locks the saved faculty evaluations and generates your QR proof.')) sendFinalEvaluation();
+        restoreFinalReview();
         return;
       }
 
-      event.preventDefault();
-
+      reviewDialog.inert = true;
       Swal.fire({
+        // Keep the confirmation inside Bootstrap's focus boundary and above its dialog.
+        target: finalReview,
+        customClass: {container: 'student-final-confirmation'},
+        heightAuto: false,
+        returnFocus: false,
+        keydownListenerCapture: true,
+        allowOutsideClick: false,
+        focusCancel: true,
+        showClass: {popup: '', icon: ''},
+        hideClass: {popup: '', icon: ''},
         icon: "warning",
         title: "Submit Final Evaluation?",
         text: "This will lock all saved faculty drafts for the selected term and generate the final QR proof. You will no longer be able to edit the evaluations after this step.",
         showCancelButton: true,
         confirmButtonText: "Yes, submit final evaluation",
         cancelButtonText: "Review Again",
-        confirmButtonColor: "#696cff"
+        confirmButtonColor: "#696cff",
+        didClose: restoreFinalReview
       }).then(function (result) {
-        if (!result.isConfirmed) {
-          return;
-        }
-
-        finalForm.dataset.confirmed = "1";
-        finalForm.submit();
+        if (result.isConfirmed) sendFinalEvaluation();
+      }).catch(function () {
+        restoreFinalReview();
+        window.alert('The confirmation could not be completed. Please try again.');
       });
+    });
+
+    window.addEventListener('pageshow', function () {
+      confirmingFinal = false;
+      submittingFinal = false;
+      reviewDialog.inert = false;
+      delete finalForm.dataset.confirmed;
+      finalForm.removeAttribute('aria-busy');
+      if (finalSubmitButton) {
+        finalSubmitButton.disabled = false;
+        finalSubmitButton.textContent = finalSubmitLabel;
+      }
     });
   }
 

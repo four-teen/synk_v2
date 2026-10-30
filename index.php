@@ -224,7 +224,7 @@ if (isset($_POST['login'])) {
     <link rel="stylesheet" href="assets/css/demo.css" />
     <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
     <link rel="stylesheet" href="assets/vendor/css/pages/page-auth.css" />
-    <link rel="preload" href="assets/vendor/fonts/space-grotesk-700.ttf" as="font" type="font/ttf" crossorigin />
+    <link rel="preload" href="assets/fonts/paola/paola.ttf" as="font" type="font/ttf" crossorigin />
     <link rel="stylesheet" href="assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/assets/css/login-intro.css') ?>" />
 
     <style>
@@ -363,26 +363,6 @@ if (isset($_POST['login'])) {
         line-height: 1.1;
         text-transform: none;
         color: var(--login-title);
-      }
-
-      .login-brand span:nth-child(1) {
-        color: #007bff;
-        text-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
-      }
-
-      .login-brand span:nth-child(2) {
-        color: #ff8a00;
-        text-shadow: 0 0 8px rgba(255, 138, 0, 0.3);
-      }
-
-      .login-brand span:nth-child(3) {
-        color: #e000d5;
-        text-shadow: 0 0 8px rgba(224, 0, 213, 0.3);
-      }
-
-      .login-brand span:nth-child(4) {
-        color: #00b85a;
-        text-shadow: 0 0 8px rgba(0, 184, 90, 0.3);
       }
 
       .login-title {
@@ -843,7 +823,7 @@ if (isset($_POST['login'])) {
           <i class="synk-login-logo-piece synk-login-logo-piece-left"></i>
           <i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
         </div>
-        <span>synQ</span>
+        <span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span>
       </div>
     </div>
     <div class="login-shell">
@@ -864,7 +844,7 @@ if (isset($_POST['login'])) {
 
           <div class="card login-card">
             <div class="card-body">
-              <div class="login-brand"><span>s</span><span>y</span><span>n</span><span>Q</span></div>
+              <div class="login-brand synk-wordmark">syn<span class="synk-wordmark-q">Q</span></div>
 
               <?php if ($isAccountSwitch): ?>
                 <h1 class="login-title">Switch Account</h1>
@@ -967,7 +947,7 @@ if (isset($_POST['login'])) {
                   Access is limited to approved synQ administrator, scheduler, professor, program chair, college dean, registrar, VPAA, and DI accounts.
                 </div>
 
-                <div class="login-project-note">synQ 2026</div>
+                <div class="login-project-note"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> 2026</div>
               </div>
               <?php endif; ?>
             </div>

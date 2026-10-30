@@ -28,6 +28,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
   <link rel="stylesheet" href="../assets/vendor/css/theme-default.css">
+  <link rel="stylesheet" href="../assets/css/brand.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/brand.css') ?>">
   <link rel="preload" href="../assets/vendor/fonts/space-grotesk-700.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="../assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/login-intro.css') ?>">
   <link rel="stylesheet" href="../student/login.css?v=<?= (int)filemtime(__DIR__.'/../student/login.css') ?>">
@@ -36,9 +37,9 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <div class="synk-login-splash" aria-hidden="true"><div class="synk-login-splash-brand"><div class="synk-login-logo">
     <img class="synk-login-logo-complete" src="../assets/img/favicon/synk-icon.png" alt="" width="144" height="144" fetchpriority="high">
     <i class="synk-login-logo-piece synk-login-logo-piece-cap"></i><i class="synk-login-logo-piece synk-login-logo-piece-tassel"></i><i class="synk-login-logo-piece synk-login-logo-piece-upper"></i><i class="synk-login-logo-piece synk-login-logo-piece-ribbon"></i><i class="synk-login-logo-piece synk-login-logo-piece-left"></i><i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
-  </div><span>synQ</span></div></div>
+  </div><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span></div></div>
   <main class="student-login-shell"><div class="student-login-wrap" data-synk-login-content>
-    <a class="student-login-brand" href="login.php" aria-label="synQ Management Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>synQ</span><span class="badge bg-label-primary">Management</span></a>
+    <a class="student-login-brand" href="login.php" aria-label="synQ Management Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span><span class="badge bg-label-primary">Management</span></a>
     <section class="card student-login-card" aria-labelledby="login-title"><div class="card-body">
       <h1 id="login-title"><span class="student-login-title-lead"><?= $h($settings['management_login_title']) ?></span><span class="student-login-title-accent">One Place.</span></h1>
       <p class="student-login-intro">Your college community, contributions, and events in one workspace.</p>
@@ -54,7 +55,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
       <div class="student-login-support"><i class="bx bx-check-shield" aria-hidden="true"></i><div><strong>Access assigned by your Administrator</strong><p>Choose the Google account registered for Management. Your assigned college opens automatically.</p></div></div>
     </div></section>
     <nav class="student-login-footer" aria-label="Other sign-in portals"><a href="../index.php">Staff sign-in</a> <span aria-hidden="true">&middot;</span> <a href="../student/login.php">Student sign-in</a></nav>
-    <p class="student-login-footer">synQ - One Institution. One Connected Ecosystem.</p>
+    <p class="student-login-footer"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> - One Institution. One Connected Ecosystem.</p>
   </div></main>
   <script src="login.js?v=<?= (int)filemtime(__DIR__.'/login.js') ?>" defer></script>
 </body></html>

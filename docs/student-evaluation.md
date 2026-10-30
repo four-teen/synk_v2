@@ -17,8 +17,22 @@ evaluation. It returns on later page loads until all required faculty evaluation
 are submitted; saving drafts does not dismiss it permanently. Start opens that
 college's faculty list. Complete remaining drafts can be submitted after a new
 faculty is added, while earlier submitted responses and verification codes stay
-locked. Missing answers or old drafts cannot unlock final review or finalization.
+locked. Missing answers, missing comments or old drafts cannot unlock final review or finalization.
 The prompt is read only and does not extend idle sessions or change Dean controls.
+
+Each new or editable faculty evaluation requires a comment with visible text,
+validated in the form and on the server for both draft saving and final submission.
+Earlier unsubmitted drafts without comments must be completed before submission;
+previously finalized responses remain unchanged. Final review displays only each
+faculty's name, average and comment. On phones and tablets it fills the available
+viewport, with a fixed header and footer and a scrolling review area. The ready
+Review Final Evaluation button is orange with a gentle heartbeat effect and a
+clear final-submission note; reduced-motion preferences disable the animation.
+
+Final submission confirmation is rendered inside the review modal, above its
+content, so Bootstrap's focus trap and overlay do not cover or disable it. Review
+Again and Escape return focus to Submit Final Evaluation; background clicks do
+not submit. Confirming sends one request and shows a disabled submitting button.
 
 New student evaluations use SKSU-INS-EFP-01 Revision 01, effective January 14,
 2026. The questionnaire contains 15 statements, in this order:

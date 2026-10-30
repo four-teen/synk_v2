@@ -124,6 +124,12 @@ function synk_student_faculty_evaluation_flat_questions(string $version = ''): a
     return $questions;
 }
 
+function synk_student_faculty_evaluation_has_comment($comment): bool
+{
+    // A required comment must contain visible text, including Unicode input.
+    return is_string($comment) && preg_match('/[^\s\p{Z}\p{C}]/u', $comment) === 1;
+}
+
 function synk_student_faculty_evaluation_normalize_answers(array $answers): array
 {
     $normalized = [];

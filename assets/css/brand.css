@@ -1,0 +1,42 @@
+@font-face {
+  font-family: 'Paola';
+  src: url('../fonts/paola/paola.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Qefila';
+  src: url('../fonts/qefila/Qefila.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* Brand labels only: login wordmarks, sidebar headers and footer signatures.
+   Plain product-name mentions in paragraphs keep the surrounding text style. */
+.synk-wordmark {
+  font-family: 'Paola', sans-serif !important;
+  font-style: normal;
+  font-weight: 400 !important;
+  font-synthesis: none;
+  letter-spacing: normal;
+  text-transform: none !important;
+}
+
+.synk-wordmark > .synk-wordmark-q {
+  font-family: 'Qefila', serif !important;
+  font-style: normal;
+  font-weight: 400 !important;
+  text-transform: uppercase !important;
+  color: #f05a00 !important;
+  -webkit-text-stroke: .25px currentColor;
+  text-shadow: none;
+}
+
+.synk-wordmark-role {
+  font-size: .65em;
+  letter-spacing: normal;
+  vertical-align: middle;
+}

@@ -19,13 +19,13 @@ function synk_student_evaluation_prompt_state(mysqli $conn,int $studentId): arra
             $owner=synk_evaluation_owner_sql($conn,'e',$collegeId);
             $questionKeys=array_keys(synk_student_faculty_evaluation_flat_questions());
             $questionSlots=implode(',',array_fill(0,count($questionKeys),'?'));
-            foreach (synk_evaluation_query($conn,"SELECT e.faculty_id,e.submission_status,e.final_submission_token,e.question_count,{$version},(SELECT COUNT(DISTINCT a.question_key) FROM tbl_student_faculty_evaluation_answers a WHERE a.evaluation_id=e.evaluation_id AND a.rating BETWEEN 1 AND 5 AND a.question_key IN ({$questionSlots})) AS answer_count FROM tbl_student_faculty_evaluations e WHERE e.student_id=? AND e.ay_id=? AND e.semester=? AND {$owner}",str_repeat('s',count($questionKeys)).'iii',array_merge($questionKeys,[$studentId,(int)$current['ay_id'],(int)$current['semester']])) as $row) $saved[(int)$row['faculty_id']]=$row;
+            foreach (synk_evaluation_query($conn,"SELECT e.faculty_id,e.submission_status,e.final_submission_token,e.question_count,e.comment_text,{$version},(SELECT COUNT(DISTINCT a.question_key) FROM tbl_student_faculty_evaluation_answers a WHERE a.evaluation_id=e.evaluation_id AND a.rating BETWEEN 1 AND 5 AND a.question_key IN ({$questionSlots})) AS answer_count FROM tbl_student_faculty_evaluations e WHERE e.student_id=? AND e.ay_id=? AND e.semester=? AND {$owner}",str_repeat('s',count($questionKeys)).'iii',array_merge($questionKeys,[$studentId,(int)$current['ay_id'],(int)$current['semester']])) as $row) $saved[(int)$row['faculty_id']]=$row;
         }
         $submitted=0;$drafts=0;$missing=0;
         foreach ($faculty as $person) {
             $row=$saved[(int)$person['faculty_id']] ?? null;
             if ($row && $row['submission_status']==='submitted') $submitted++;
-            elseif ($row && $row['submission_status']==='draft' && synk_student_faculty_evaluation_is_current($row) && (int)$row['answer_count']===15) $drafts++;
+            elseif ($row && $row['submission_status']==='draft' && synk_student_faculty_evaluation_is_current($row) && (int)$row['answer_count']===15 && synk_student_faculty_evaluation_has_comment($row['comment_text'] ?? '')) $drafts++;
             else $missing++;
         }
         $remaining=count($faculty)-$submitted;

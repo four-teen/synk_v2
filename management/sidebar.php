@@ -7,7 +7,7 @@ $menuGroups = [
 ];
 ?>
 <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme" aria-label="Management navigation">
-  <div class="app-brand demo"><a href="<?= synk_management_h($pageUrl('index.php')) ?>" class="app-brand-link"><span class="app-brand-logo demo"><img src="../assets/img/favicon/synk-icon.png" width="40" height="40" alt=""></span><span class="app-brand-text demo menu-text fw-bolder ms-2">synQ</span></a><button type="button" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none management-menu-close" aria-label="Close navigation"><i class="bx bx-chevron-left bx-sm align-middle" aria-hidden="true"></i></button></div>
+  <div class="app-brand demo"><a href="<?= synk_management_h($pageUrl('index.php')) ?>" class="app-brand-link"><span class="app-brand-logo demo"><img src="../assets/img/favicon/synk-icon.png" width="40" height="40" alt=""></span><span class="app-brand-text demo menu-text fw-bolder ms-2"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span></span></a><button type="button" class="layout-menu-toggle menu-link text-large ms-auto d-block d-xl-none management-menu-close" aria-label="Close navigation"><i class="bx bx-chevron-left bx-sm align-middle" aria-hidden="true"></i></button></div>
   <div class="menu-inner-shadow"></div>
   <ul class="menu-inner py-1 management-nav">
     <?php foreach($menuGroups as $groupLabel=>$keys): ?>

@@ -43,6 +43,7 @@ function synk_dean_evaluations_source(mysqli $conn, array $scope, array $term, s
 
 function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, array $filters): array
 {
+    $rosterStudents = []; $subjectIds = [];
     $faculties = [];
     foreach (synk_dean_workload_faculties($conn, $scope, $term) as $faculty) {
         $faculties[$faculty['faculty_id']] = ['faculty_id' => $faculty['faculty_id'], 'faculty_name' => $faculty['faculty_name']];
@@ -57,6 +58,23 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
             $faculty['faculty_id'] = (int)$faculty['faculty_id'];
             $faculties[$faculty['faculty_id']] = $faculty;
         }
+        $activeOnly = synk_evaluation_is_current($term, synk_fetch_current_academic_term($conn)) ? ' AND es.is_active=1' : '';
+        $members = synk_dean_evaluations_query($conn, "SELECT DISTINCT es.faculty_id,es.student_id,es.subject_id,es.subject_code
+            FROM tbl_student_management_enrolled_subjects es JOIN tbl_student_management s ON s.student_id=es.student_id
+            WHERE es.college_id=? AND es.campus_id=? AND es.ay_id=? AND es.semester=? AND es.faculty_id>0{$activeOnly}",
+            'iiii', [$scope['college_id'],$scope['campus_id'],$term['ay_id'],$term['semester']]);
+        foreach ($members as $member) {
+            $id=(int)$member['faculty_id'];
+            $rosterStudents[$id][(int)$member['student_id']]=true;
+            $subjectKey=(int)$member['subject_id']>0 ? 'id:'.(int)$member['subject_id'] : 'code:'.strtoupper(trim((string)$member['subject_code']));
+            if ($subjectKey!=='code:') $subjectIds[$id][$subjectKey]=true;
+        }
+    }
+    $assignmentSource=synk_professor_workload_assignment_source_sql();
+    foreach (synk_dean_evaluations_query($conn,"SELECT DISTINCT fw.faculty_id,sm.sub_id AS subject_id {$assignmentSource}
+        JOIN tbl_program p ON p.program_id=po.program_id WHERE p.college_id=? AND fw.ay_id=? AND fw.semester=?",
+        'iii',[$scope['college_id'],$term['ay_id'],$term['semester']]) as $subject) {
+        $subjectIds[(int)$subject['faculty_id']]['id:'.(int)$subject['subject_id']]=true;
     }
     $headers = []; $answerRows = [];
     $ready = synk_table_exists($conn, 'tbl_student_faculty_evaluations')
@@ -76,13 +94,15 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
             . str_replace('WHERE e.ay_id', 'JOIN tbl_student_faculty_evaluation_answers a ON a.evaluation_id=e.evaluation_id WHERE e.ay_id', $source['sql'])
             . " AND e.submission_status='submitted' AND e.faculty_id=? ORDER BY a.question_order,a.answer_id", $source['types'] . 'i', array_merge($source['params'], [$filters['faculty_id']]));
     }
-    $groups = []; $drafts = []; $submitted = []; $students = [];
+    $groups = []; $drafts = []; $submitted = []; $students = []; $submittedStudents = [];
     foreach ($headers as $header) {
         $id = (int)$header['faculty_id'];
         $faculties[$id] = ['faculty_id' => $id, 'faculty_name' => $header['faculty_name']];
+        if ((int)$header['student_id']>0) $rosterStudents[$id][(int)$header['student_id']]=true;
         if ($header['submission_status'] !== 'submitted') { $drafts[$id] = ($drafts[$id] ?? 0) + 1; continue; }
         $submitted[$id] = ($submitted[$id] ?? 0) + 1;
         $students[(int)$header['student_id']] = true;
+        $submittedStudents[$id][(int)$header['student_id']] = true;
         $version = $header['instrument_version'];
         if (!isset($groups[$id][$version])) $groups[$id][$version] = ['instrument_version' => $version,
             'instrument' => synk_student_faculty_evaluation_instrument($version), 'evaluation_count' => 0,
@@ -144,6 +164,9 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
         if (!$matches) continue;
         $facultyGroups = array_values($groups[$id] ?? []);
         $rows[] = $faculty + ['submitted_count' => $submitted[$id] ?? 0, 'draft_count' => $drafts[$id] ?? 0,
+            'subject_count'=>count($subjectIds[$id] ?? []), 'submitted_student_count'=>count($submittedStudents[$id] ?? []),
+            'not_submitted_count'=>count(array_diff_key($rosterStudents[$id] ?? [],$submittedStudents[$id] ?? [])),
+            'student_count'=>count($rosterStudents[$id] ?? []),
             'instrument_count' => count($facultyGroups), 'score' => count($facultyGroups) === 1 ? $facultyGroups[0]['score'] : null];
     }
     return ['rows' => $rows, 'detail' => $detail, 'summary' => ['faculty_count' => count($faculties),

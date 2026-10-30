@@ -10,9 +10,12 @@ require_once $root.'/backend/auth_config.php';
 class StudentPortalQAConnection extends mysqli {
     public $requestMode=false;
     public $failActivityWrite=false;
+    public $failEvaluationClear='';
     #[\ReturnTypeWillChange]
     public function prepare($sql){
         if($this->failActivityWrite && preg_match('/^\s*INSERT INTO tbl_student_login_activity\b/i',$sql)) throw new RuntimeException('Deliberate activity storage failure.');
+        if(($this->failEvaluationClear==='history' && preg_match('/^\s*INSERT INTO tbl_college_faculty_evaluation_clear_history\b/i',$sql))
+            || ($this->failEvaluationClear==='headers' && preg_match('/^\s*DELETE FROM tbl_student_faculty_evaluations\b/i',$sql))) throw new RuntimeException('Deliberate clearing storage failure.');
         return parent::prepare($sql);
     }
     #[\ReturnTypeWillChange]
@@ -39,6 +42,13 @@ $term=synk_fetch_current_academic_term($conn);
 $oldTerm=['ay_id'=>$term['ay_id'],'semester'=>max(1,$term['semester']-1)];
 if($term['semester']===1){$prior=$conn->query("SELECT ay_id FROM tbl_academic_years WHERE ay<'".$conn->real_escape_string($term['ay_label'])."' ORDER BY ay DESC LIMIT 1")->fetch_assoc();if(!$prior)throw new RuntimeException('A previous academic year is needed.');$oldTerm=['ay_id'=>(int)$prior['ay_id'],'semester'=>3];}
 $program=$conn->query("SELECT p.program_id,c.college_id,c.campus_id FROM tbl_program p JOIN tbl_college c ON c.college_id=p.college_id WHERE p.status='active' AND c.status='active' ORDER BY p.program_id LIMIT 1")->fetch_assoc();
+if (strpos($scenario,'dean_faculty_evaluations_')===0) {
+    $campusId=(int)$program['campus_id'];
+    $conn->query("INSERT INTO tbl_college (campus_id,college_code,college_name,status) VALUES ({$campusId},'QAEV','Evaluation QA College {$tag}','active')");
+    $collegeId=(int)$conn->insert_id;
+    $conn->query("INSERT INTO tbl_program (college_id,program_code,program_name,status) VALUES ({$collegeId},'QAEV','Evaluation QA Program','active')");
+    $program=['program_id'=>(int)$conn->insert_id,'college_id'=>$collegeId,'campus_id'=>$campusId];
+}
 $students=[];
 foreach(['first','other'] as $i=>$key){$studentEmail=$key==='first'?$email:'other-'.$email;$number=$tag.'-'.$i;$first=$key==='first'?'Alex':'Other';
     $stmt=$conn->prepare('INSERT INTO tbl_student_management (student_number,email_address,first_name,last_name,ay_id,semester,program_id,year_level) VALUES (?,?,?,?,?,?,?,2)');
@@ -119,6 +129,7 @@ if (strpos($scenario,'dean_faculty_evaluations_')===0) {
     if($scenario==='dean_faculty_evaluations_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$deanId} AND role='college_dean'");
     if($scenario==='dean_faculty_evaluations_post')$_POST=['clear'=>'1'];
     if($scenario==='dean_faculty_evaluations_bad_filter')$_GET['instrument_version']=['legacy-20'];
+    if(strpos($scenario,'dean_faculty_evaluations_clear_')===0) require __DIR__.'/dean-evaluation-clear-scenarios.php';
 }
 if ($scenario==='student_evaluation') $handler='student/class-program.php';
 if (in_array($scenario, ['dean_evaluation', 'dean_evaluation_historical', 'student_legacy_draft'], true)) {

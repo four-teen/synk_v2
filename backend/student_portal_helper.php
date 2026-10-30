@@ -979,6 +979,9 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
     if ($facultyName === '') {
         throw new RuntimeException('The selected faculty does not have a valid name to evaluate.');
     }
+    if (!synk_student_faculty_evaluation_has_comment($commentText)) {
+        throw new RuntimeException('Please enter a comment for this faculty before saving the evaluation draft.');
+    }
 
     $questionMap = synk_student_faculty_evaluation_flat_questions();
     if (empty($questionMap)) {
@@ -1276,6 +1279,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
                 faculty_name,
                 instrument_version,
                 question_count,
+                comment_text,
                 submission_status,
                 final_submission_token
             FROM `{$headerTable}`
@@ -1324,6 +1328,9 @@ function synk_student_finalize_faculty_evaluations_for_term(
             }
             $answerRows=synk_evaluation_query($conn,'SELECT question_key,rating FROM tbl_student_faculty_evaluation_answers WHERE evaluation_id=? LOCK IN SHARE MODE','i',[(int)$draftRows[$facultyId]['evaluation_id']]);
             synk_student_faculty_evaluation_normalize_answers(array_column($answerRows,'rating','question_key'));
+            if (!synk_student_faculty_evaluation_has_comment($draftRows[$facultyId]['comment_text'] ?? '')) {
+                throw new RuntimeException('Please add a comment for every faculty before final submission.');
+            }
             $pendingFacultyIds[]=$facultyId;
         }
         if (!$pendingFacultyIds) throw new RuntimeException('The final faculty evaluation has already been submitted for this academic term.');

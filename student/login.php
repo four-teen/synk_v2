@@ -37,6 +37,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
   <link rel="stylesheet" href="../assets/vendor/css/theme-default.css">
+  <link rel="stylesheet" href="../assets/css/brand.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/brand.css') ?>">
   <link rel="preload" href="../assets/vendor/fonts/space-grotesk-700.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="../assets/css/login-intro.css?v=<?= (int)filemtime(__DIR__.'/../assets/css/login-intro.css') ?>">
   <link rel="stylesheet" href="login.css?v=<?= (int)filemtime(__DIR__.'/login.css') ?>">
@@ -53,12 +54,12 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
         <i class="synk-login-logo-piece synk-login-logo-piece-left"></i>
         <i class="synk-login-logo-piece synk-login-logo-piece-lower"></i>
       </div>
-      <span>synQ</span>
+      <span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span>
     </div>
   </div>
   <main class="student-login-shell">
     <div class="student-login-wrap" data-synk-login-content>
-      <a class="student-login-brand" href="login.php" aria-label="synQ Student Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span>synQ</span><span class="badge bg-label-primary">Student Portal</span></a>
+      <a class="student-login-brand" href="login.php" aria-label="synQ Student Portal"><img src="../assets/img/favicon/synk-icon.png" alt="" width="44" height="44"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span><span class="badge bg-label-primary">Student Portal</span></a>
       <section class="card student-login-card" aria-labelledby="login-title">
         <div class="card-body">
           <h1 id="login-title"><span class="student-login-title-lead">Your subjects.</span> <span class="student-login-title-accent">One place.</span></h1>
@@ -75,7 +76,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
           <div class="student-login-support"><i class="bx bx-help-circle" aria-hidden="true"></i><div><strong>Having trouble signing in?</strong><p>Ask your college office to check your school email in the Student Directory.</p></div></div>
         </div>
       </section>
-      <p class="student-login-footer">synQ - One Institution. One Connected Ecosystem.</p>
+      <p class="student-login-footer"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> - One Institution. One Connected Ecosystem.</p>
     </div>
   </main>
   <script src="login.js?v=<?= (int)filemtime(__DIR__.'/login.js') ?>" defer></script>

@@ -23,8 +23,8 @@
   filter: drop-shadow(0 12px 22px #b94d141a);
 }
 
-.synk-login-splash-brand span {
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+.synk-login-splash-brand > span {
+  font-family: 'Paola', sans-serif;
   font-size: 32px;
   font-weight: 700;
   letter-spacing: -1.5px;
@@ -168,7 +168,7 @@
     animation: synk-login-logo-in 700ms cubic-bezier(.22, 1, .36, 1) both;
   }
 
-  .synk-login-splash-brand span {
+  .synk-login-splash-brand > span {
     animation: synk-login-wordmark-in 500ms ease 180ms both;
   }
 

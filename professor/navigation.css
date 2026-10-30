@@ -1,0 +1,25 @@
+.professor-bottom-nav{display:none}
+@media screen and (max-width:1199.98px){
+ #layout-menu,#layout-navbar>.layout-menu-toggle,.layout-overlay{display:none!important}
+ .layout-menu-expanded body:not(.modal-open){overflow:auto!important}
+ .layout-page .content-wrapper{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
+ .professor-navbar{height:auto;min-height:62px;padding-block:.65rem}
+ .professor-navbar .navbar-nav-right{min-width:0}.professor-navbar .navbar-nav-right>.d-flex{min-width:0;flex:1}.professor-navbar .navbar-nav-right>.navbar-nav{flex-shrink:0}
+ .professor-navbar .badge{max-width:100%;white-space:normal;text-align:left;line-height:1.4}
+ .professor-bottom-nav{position:fixed;inset:auto 0 0;z-index:1030;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border-top:1px solid #e3e7ef;box-shadow:0 -4px 20px #4359710a;padding:7px max(6px,env(safe-area-inset-right,0px)) calc(7px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+ .professor-bottom-nav>a,.professor-bottom-nav>button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;min-height:57px;padding:4px 2px;border:0;border-radius:10px;background:transparent;color:#526175;font-size:.66rem;line-height:1.3;text-align:center}
+ .professor-bottom-nav .bx{font-size:1.4rem;color:#ed7b27}
+ .professor-bottom-nav [aria-current="page"],.professor-bottom-nav .is-current,.professor-bottom-nav [aria-expanded="true"]{background:#f2f2ff;color:#585be0;font-weight:600}
+ .professor-bottom-nav :focus-visible{outline:2px solid #696cff;outline-offset:-2px}
+ body.modal-open .professor-bottom-nav{visibility:hidden}
+ .professor-mobile-more{height:auto;max-height:min(80dvh,600px);border-radius:1rem 1rem 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+ .professor-mobile-more .offcanvas-header{padding:1.25rem 1.25rem .5rem;gap:1rem}.professor-mobile-more .offcanvas-header p{font-size:.8rem;color:#68798e;margin:.4rem 0 0}
+ .professor-mobile-more .btn-close{width:44px;height:44px;flex-shrink:0;box-sizing:border-box;margin:0;padding:0}
+ .professor-mobile-more .offcanvas-body{padding:.75rem 1.25rem 1.25rem;overscroll-behavior:contain}
+ .professor-mobile-more nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.65rem}
+ .professor-mobile-more nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;min-width:0;min-height:90px;padding:.8rem .35rem;border:1px solid #e4e8f0;border-radius:.75rem;color:#42566f;text-align:center;font-size:.76rem;line-height:1.4;overflow-wrap:anywhere}
+ .professor-mobile-more nav .bx{font-size:1.5rem;color:#ed7b27}.professor-mobile-more nav [aria-current="page"]{background:#f2f2ff;border-color:#696cff}
+}
+@media screen and (min-width:576px) and (max-width:1199.98px){.professor-mobile-more nav{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media screen and (min-width:1200px){.professor-mobile-more{display:none}}
+@media print{.professor-bottom-nav,.professor-mobile-more{display:none!important}}

@@ -1,115 +1,83 @@
-.workload-page { max-width: 1440px; }
-.workload-page [hidden] { display: none !important; }
-.workload-page .card { border: 1px solid #dfe7f2; border-radius: 16px; box-shadow: 0 5px 18px rgba(42, 62, 91, .035); }
-.workload-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin: .5rem 0 1.4rem; }
-.workload-eyebrow { color: #71839b; font-size: .66rem; font-weight: 700; letter-spacing: .1em; }
-.workload-heading h1 { font-size: 1.8rem; margin: .5rem 0 .4rem; letter-spacing: -.035em; }
-.workload-heading p { font-size: .87rem; color: #63748b; margin: 0; line-height: 1.6; }
-.workload-heading .btn { display: inline-flex; align-items: center; gap: .45rem; min-height: 44px; flex-shrink: 0; font-size: .8rem; }
-.workload-controls { padding: 1.25rem 1.5rem; }
-.workload-controls-top { display: grid; grid-template-columns: minmax(250px, 1fr) minmax(260px, 1fr); gap: 2rem; align-items: center; }
-.workload-year-label { display: flex; align-items: center; gap: .65rem; margin-bottom: .55rem; }
-.workload-year-label label { font-size: .83rem; font-weight: 600; }
-.workload-latest { font-size: .66rem; font-weight: 600; color: #256c52; background: #e8f6ee; border-radius: 5px; padding: .23rem .4rem; }
-.workload-year-form { display: flex; gap: .55rem; max-width: 520px; }
-.workload-year-form .form-select { min-width: 0; min-height: 44px; border-color: #dce3ed; border-radius: 8px; font-size: .95rem; }
-.workload-year-form .btn { min-height: 44px; flex-shrink: 0; font-size: .8rem; }
-.workload-help { font-size: .73rem; color: #67778c; line-height: 1.6; margin: .5rem 0 0; }
-.workload-help a { display: inline-block; margin-left: .3rem; color: #5d58c7; text-decoration: underline; }
-.workload-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; gap: .75rem; }
-.workload-totals > div { display: flex; flex-direction: column-reverse; padding: .8rem 1.1rem; background: #f6f8fc; border-radius: 10px; }
-.workload-totals dt { font-size: .75rem; font-weight: 400; color: #697b93; margin-top: .3rem; }
-.workload-totals dd { font-size: 1.7rem; color: #334968; line-height: 1.1; font-weight: 700; margin: 0; }
-.workload-semesters { display: flex; flex-wrap: wrap; gap: .5rem; border-top: 1px solid #edf0f5; margin-top: 1.1rem; padding: .75rem 0; }
-.workload-semesters a { min-height: 44px; display: inline-flex; justify-content: center; align-items: center; gap: .6rem; padding: .5rem .8rem; font-size: .8rem; color: #5f6f86; border-radius: 8px; border: 1px solid transparent; }
-.workload-semesters a span { font-size: .68rem; background: #e9eef6; color: #65758c; border-radius: 4px; min-width: 20px; text-align: center; padding: .1rem .3rem; }
-.workload-semesters a[aria-current] { color: #5354c5; background: #efefff; border-color: #dddcff; font-weight: 600; }
-.workload-semesters a[aria-current] span { color: #5354c5; background: #e1dfff; }
-.workload-semesters a:hover, .workload-semesters a:focus-visible { border-color: #696cff; }
-.workload-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.5rem 0 1rem; }
-.workload-list-heading h2 { margin: 0 0 .3rem; font-size: 1.06rem; line-height: 1.5; }
-.workload-list-heading p { margin: 0; font-size: .76rem; color: #718198; }
-.workload-search { position: relative; width: 320px; max-width: 100%; flex-shrink: 0; }
-.workload-search > i { position: absolute; top: 14px; left: 12px; font-size: 1.1rem; color: #8693a9; }
-.workload-search .form-control { min-height: 44px; font-size: .85rem; padding-left: 2.2rem; border-color: #dce3ed; border-radius: 9px; }
-.workload-semester-group + .workload-semester-group { margin-top: 1.6rem; }
-.workload-group-heading { margin: 0 0 .85rem; font-size: .9rem; }
-.workload-class-grid { display: none; }
-.workload-table-wrap { border: 1px solid #dfe7f2; border-radius: 14px; background: #fff; overflow: hidden; box-shadow: 0 5px 18px rgba(42, 62, 91, .035); }
-.workload-table { width: 100%; table-layout: fixed; border-collapse: collapse; color: #42566f; font-size: .82rem; }
-.workload-col-subject { width: 25%; }
-.workload-col-section { width: 13%; }
-.workload-col-type { width: 10%; }
-.workload-col-schedule { width: 24%; }
-.workload-col-room { width: 20%; }
-.workload-col-enrolled { width: 8%; }
-.workload-table thead th { padding: .9rem .85rem; background: #f4f7fc; color: #65758c; font-size: .7rem; font-weight: 600; text-align: left; border-bottom: 1px solid #dfe7f2; }
-.workload-table tbody th, .workload-table tbody td { padding: 1rem .85rem; vertical-align: top; overflow-wrap: anywhere; line-height: 1.65; border-bottom: 1px solid #edf0f5; }
-.workload-table tbody:nth-of-type(even) { background: #fbfcff; }
-.workload-table tbody + tbody { border-top: 1px solid #dce4ef; }
-.workload-table tbody:last-child tr:last-child > * { border-bottom: 0; }
-.workload-table tbody:hover { background: #f7f8ff; }
-.workload-table-code { display: block; color: #263c57; font-size: .92rem; font-weight: 700; }
-.workload-table-title { display: block; margin-top: .3rem; color: #5c6f89; font-weight: 400; line-height: 1.6; }
-.workload-table .workload-section { display: inline-block; }
-.workload-table-year { display: block; color: #74859c; font-size: .74rem; margin-top: .6rem; }
-.workload-table-days { display: block; font-weight: 600; color: #415672; }
-.workload-table-time { display: block; color: #5c6f89; font-size: .8rem; margin-top: .3rem; }
-.workload-table-room { color: #5c6f89; }
-.workload-table .workload-enrolled-cell { text-align: center; }
-.workload-table .workload-class-details { margin-top: .45rem; border-top: 0; }
-.workload-table .workload-class-details summary { min-height: 32px; justify-content: flex-start; gap: .5rem; font-size: .72rem; }
-.workload-table .workload-class-details dd { font-weight: 400; }
-.workload-class { padding: 1.25rem; min-width: 0; overflow-wrap: anywhere; }
-.workload-class-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .6rem; }
-.workload-class-head h3 { font-size: 1.12rem; margin: 0; letter-spacing: -.02em; line-height: 1.45; }
-.workload-section { font-size: .74rem; color: #5357be; background: #efeffe; border-radius: 6px; padding: .3rem .5rem; line-height: 1.4; }
-.workload-course-title { font-size: .88rem; color: #566a84; line-height: 1.6; margin: .45rem 0 .8rem; }
-.workload-class-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; font-size: .75rem; color: #637890; margin-bottom: 1rem; }
-.workload-class-meta span { display: flex; align-items: center; gap: .35rem; }
-.workload-class-meta i { font-size: 1rem; color: #8295b2; }
-.workload-meetings { display: grid; gap: .65rem; }
-.workload-meeting { background: #f8fafd; border: 1px solid #e7edf6; border-radius: 10px; padding: .85rem; }
-.workload-meeting-top { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; margin-bottom: .65rem; }
-.workload-type { font-size: .66rem; font-weight: 600; background: #ebeafd; color: #6255b7; border-radius: 5px; padding: .2rem .4rem; }
-.workload-type.is-lab { background: #e1f4f1; color: #247767; }
-.workload-meeting-top strong { color: #3d506b; font-size: .83rem; font-weight: 600; }
-.workload-meeting-time, .workload-meeting-room { display: flex; align-items: flex-start; gap: .5rem; line-height: 1.6; }
-.workload-meeting-time { color: #314862; font-weight: 600; font-size: .91rem; }
-.workload-meeting-room { color: #65758c; font-size: .79rem; margin-top: .4rem; }
-.workload-meeting-time i, .workload-meeting-room i { font-size: 1rem; margin-top: .2rem; flex-shrink: 0; color: #8092b0; }
-.workload-class-details { margin-top: .85rem; border-top: 1px solid #edf0f5; }
-.workload-class-details summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: #5f5bbc; font-size: .78rem; font-weight: 600; min-height: 44px; list-style: none; }
-.workload-class-details summary::-webkit-details-marker { display: none; }
-.workload-class-details[open] summary i { transform: rotate(180deg); }
-.workload-class-details dl { margin: .2rem 0 0; }
-.workload-class-details dl > div { margin-top: .7rem; }
-.workload-class-details dt { font-size: .68rem; color: #75849a; font-weight: 500; margin-bottom: .2rem; }
-.workload-class-details dd { margin: 0; color: #42566f; font-size: .8rem; line-height: 1.6; }
-.workload-empty { padding: 2rem 1.25rem; text-align: center; align-items: center; }
-.workload-empty > i { color: #7e81d9; font-size: 2rem; margin-bottom: .9rem; }
-.workload-empty h2 { font-size: 1.05rem; }
-.workload-empty p { color: #6e7f96; font-size: .86rem; max-width: 520px; line-height: 1.7; margin: 0 0 1rem; }
-.workload-enrollment-note { color: #718198; font-size: .73rem; line-height: 1.6; margin: 1rem 0; }
-@media (max-width: 991.98px) {
-  .workload-table-wrap { display: none; }
-  .workload-class-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; align-items: start; }
+.workload-page{max-width:1440px}
+.workload-page [hidden],.workload-students-modal [hidden]{display:none!important}
+.workload-page .card{border:1px solid #e1e6ee;border-radius:14px;box-shadow:0 4px 16px #2a3e5b05}
+.workload-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:.5rem 0 1.4rem}
+.workload-eyebrow{color:#71839b;font-size:.66rem;font-weight:700;letter-spacing:.1em}
+.workload-heading h1{font-size:1.8rem;margin:.5rem 0 .4rem;letter-spacing:-.035em}
+.workload-heading p{font-size:.87rem;color:#63748b;margin:0;line-height:1.6}
+.workload-heading .btn{display:inline-flex;align-items:center;gap:.45rem;min-height:44px;flex-shrink:0;font-size:.8rem}
+.workload-controls{padding:1.25rem 1.5rem}
+.workload-controls-top{display:grid;grid-template-columns:minmax(260px,.9fr) minmax(360px,1.2fr);gap:1.5rem;align-items:center}
+.workload-year-label{display:flex;align-items:center;flex-wrap:wrap;gap:.65rem;margin-bottom:.55rem}
+.workload-year-label label{font-size:.83rem;font-weight:600}
+.workload-latest{font-size:.66rem;font-weight:600;color:#256c52;background:#e8f6ee;border-radius:5px;padding:.23rem .4rem}
+.workload-year-form{display:flex;gap:.55rem;max-width:520px}
+.workload-year-form .form-select{min-width:0;min-height:44px;border-color:#dce3ed;border-radius:8px;font-size:.9rem}
+.workload-year-form .btn{min-height:44px;flex-shrink:0;font-size:.78rem;padding-inline:.8rem}
+.workload-help,.workload-activity-note,.workload-enrollment-note{font-size:.73rem;color:#67778c;line-height:1.65;margin:.65rem 0 0}
+.workload-help a{display:inline-block;margin-left:.3rem;color:#5d58c7;text-decoration:underline}
+.workload-activity-note{max-width:950px;margin:.8rem .2rem 0}
+.workload-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;gap:.55rem}
+.workload-totals>div{display:flex;flex-direction:column;padding:.85rem .75rem;background:#f6f8fc;border-radius:10px}
+.workload-totals dt{order:2;font-size:.68rem;font-weight:400;color:#697b93;margin-top:.4rem;line-height:1.5}
+.workload-totals dd{order:1;font-size:1.6rem;color:#334968;line-height:1.1;font-weight:700;margin:0}
+.workload-totals .workload-total-active{background:#edf7f2}.workload-totals .workload-total-active dd{color:#267655}
+.workload-totals .workload-total-inactive{background:#fff7ec}.workload-totals .workload-total-inactive dd{color:#996322}
+.workload-list-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1.5rem 0 1rem}
+.workload-list-heading h2{margin:0 0 .3rem;font-size:1.06rem;line-height:1.5}.workload-list-heading p{margin:0;font-size:.76rem;color:#718198}
+.workload-search{position:relative;width:300px;max-width:100%;flex-shrink:0}
+.workload-search>i{position:absolute;top:14px;left:12px;font-size:1.1rem;color:#8693a9}
+.workload-search .form-control{min-height:44px;font-size:.85rem;padding-left:2.2rem;border-color:#dce3ed;border-radius:9px}
+.workload-semester-group+.workload-semester-group{margin-top:1.6rem}.workload-class-grid{display:none}
+.workload-table-wrap{border:1px solid #e1e6ee;border-radius:14px;background:#fff;overflow:hidden}
+.workload-table{width:100%;table-layout:fixed;border-collapse:collapse;color:#42566f;font-size:.82rem}
+.workload-col-subject{width:56%}.workload-col-enrolled{width:10%}.workload-col-activity{width:16%}.workload-col-action{width:18%}
+.workload-table thead th{padding:.95rem 1rem;background:#f7f9fc;color:#65758c;font-size:.69rem;font-weight:600;text-align:left;border-bottom:1px solid #e1e6ee}
+.workload-table tbody th,.workload-table tbody td{padding:1.2rem 1rem;vertical-align:middle;overflow-wrap:anywhere;line-height:1.65;border-bottom:1px solid #edf0f5}
+.workload-table tbody:last-child tr>*{border-bottom:0}.workload-table tbody:hover{background:#fcfcff}
+.workload-table .workload-enrolled-cell,.workload-table .workload-activity-cell,.workload-table .workload-action-cell{text-align:center}
+.workload-enrolled-cell strong{color:#334968;font-size:1rem;font-weight:600}
+.workload-activity-cell small{display:block;color:#7a879a;font-size:.68rem;margin-top:.2rem;font-weight:400}
+.workload-activity-ratio{font-weight:600;color:#42566f;white-space:nowrap}
+.workload-subject-heading{display:grid;grid-template-columns:fit-content(40%) minmax(0,1fr);align-items:start;gap:.65rem}
+.workload-subject-title{display:block;min-width:0;font-size:1.125rem;line-height:24px;color:#e65c00;font-weight:700;text-transform:uppercase;overflow-wrap:anywhere}
+.workload-subject-code{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:24px;max-width:100%;padding:2px 6px;border:1px solid #ffdec4;border-radius:5px;background:#fff2e8;color:#b94b00;font-size:.75rem;font-weight:700;line-height:18px;letter-spacing:.025em;text-transform:uppercase;overflow-wrap:anywhere}
+.workload-summary-schedule{display:flex;align-items:flex-start;gap:.4rem;color:#6d7f9b;margin-top:.4rem;font-size:.73rem;line-height:1.8;font-weight:400}
+.workload-summary-schedule>i{margin-top:.15rem;font-size:1rem;flex-shrink:0}.workload-summary-schedule>div>span{display:block}
+.workload-summary-schedule b{font-weight:500;font-size:.68rem;margin-right:.2rem}.workload-summary-time{white-space:nowrap}
+.workload-summary-meta{display:flex;flex-wrap:wrap;gap:.3rem .8rem;align-items:flex-start;color:#6d7f9b;margin-top:.4rem;font-size:.7rem;font-weight:400;line-height:1.7}
+.workload-summary-meta>span{display:inline-flex;align-items:flex-start;gap:.3rem;max-width:100%}.workload-summary-meta i{font-size:.95rem;margin-top:.1rem;flex-shrink:0}
+.workload-show-students{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;border:1px solid #dcdff6;background:#f4f4ff;color:#5458b7;font-size:.75rem;font-weight:500;white-space:nowrap;padding:.55rem .7rem}
+.workload-show-students i{font-size:1rem}.workload-show-students:hover,.workload-show-students:focus-visible{color:#4145a2;border-color:#696cff;background:#eaeaff}
+.workload-class{padding:1.1rem;min-width:0;overflow-wrap:anywhere}
+.workload-card-counts{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0;padding:.85rem 0;border-block:1px solid #edf0f5;color:#6a7890;font-size:.7rem}
+.workload-card-counts strong{display:block;font-size:1rem;color:#334968;margin-bottom:.2rem}.workload-class>.workload-show-students{width:100%}
+.workload-empty{padding:2rem 1.25rem;text-align:center;align-items:center}.workload-empty>i{color:#7e81d9;font-size:2rem;margin-bottom:.9rem}.workload-empty h2{font-size:1.05rem}
+.workload-empty p{color:#6e7f96;font-size:.86rem;max-width:520px;line-height:1.7;margin:0 0 1rem}.workload-enrollment-note{margin:1rem .2rem}
+.workload-students-modal .modal-dialog{max-width:1200px}
+.workload-students-modal .modal-header{padding:1.5rem 1.75rem;align-items:flex-start;gap:1rem;border-bottom:1px solid #e9edf3}.workload-students-modal .modal-header>div{min-width:0}
+.workload-students-modal .modal-title{font-size:1.25rem;margin-top:.35rem;overflow-wrap:anywhere}.workload-students-modal .modal-header p{font-size:.8rem;color:#6d7f94;margin:.35rem 0 0;overflow-wrap:anywhere}
+.workload-students-modal .btn-close{width:44px;height:44px;padding:0;margin:0;flex-shrink:0;box-sizing:border-box}
+.workload-students-modal .modal-body{padding:1.25rem 1.75rem 1.75rem;overscroll-behavior:contain}
+#workload-students-help{font-size:.8rem;color:#68798e;line-height:1.7;margin:0 0 1rem}#workload-students-status{font-size:.85rem;color:#5c6f87;line-height:1.65}
+#workload-students-status.is-error{padding:1rem;border:1px solid #f0d5c2;background:#fff7f0;border-radius:10px;color:#8a512d;margin-bottom:.8rem}
+.workload-roster-toolbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1rem 0}.workload-roster-toolbar p{color:#697b91;font-size:.8rem;margin:0;line-height:1.6}
+.workload-roster-groups{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start}
+.workload-roster-group{min-width:0;border:1px solid #e4e9ef;border-radius:12px;padding:1rem}.workload-roster-group h3{display:flex;justify-content:space-between;align-items:center;gap:.5rem;font-size:.95rem;margin:0}
+.workload-roster-group h3>span:first-child{display:flex;align-items:center;gap:.45rem}.workload-roster-group h3>span:last-child{background:#fff0d8;color:#926022;font-size:.75rem;border-radius:6px;padding:.3rem .55rem}.workload-roster-group.is-active h3>span:last-child{color:#277255;background:#e8f5ee}
+.workload-roster-group>p{font-size:.73rem;color:#728197;margin:.5rem 0 1rem;line-height:1.6}.workload-roster-group ul{list-style:none;display:grid;gap:.65rem;padding:0;margin:0}
+.workload-student{display:flex;align-items:center;gap:.8rem;padding:.75rem;background:#fafbfd;border:1px solid #eef1f5;border-radius:9px;min-width:0}
+.workload-student img{width:48px;height:48px;object-fit:cover;border-radius:50%;flex-shrink:0;background:#edf0f5}.workload-student>div{min-width:0}
+.workload-student strong{display:block;font-size:.83rem;font-weight:600;color:#3e4e65;line-height:1.5;overflow-wrap:anywhere}.workload-student small{display:block;color:#718197;font-size:.72rem;margin-top:.2rem;overflow-wrap:anywhere}
+.workload-roster-empty{padding:1rem;background:#fafbfd;border-radius:8px}.workload-students-modal .modal-footer{padding:1rem 1.75rem;border-top:1px solid #e9edf3}.workload-students-modal .modal-footer .btn{min-height:44px}
+@media(max-width:1399.98px){.workload-controls-top{grid-template-columns:1fr;gap:1rem}.workload-year-form{max-width:620px}.workload-totals dt{font-size:.73rem}}
+@media(min-width:768px) and (max-width:991.98px){.workload-col-subject{width:50%}.workload-col-enrolled{width:10%}.workload-col-activity{width:18%}.workload-col-action{width:22%}.workload-table thead th,.workload-table tbody th,.workload-table tbody td{padding:1rem .7rem}}
+@media(max-width:767.98px){
+ .workload-heading{align-items:flex-start}.workload-heading h1{font-size:1.55rem}.workload-heading .btn{padding:.5rem .6rem;font-size:.75rem}.workload-controls{padding:1rem}
+ .workload-year-form{max-width:none;flex-wrap:wrap}.workload-year-form .form-select{flex:1 1 240px}.workload-year-form .btn{flex:1 1 auto}.workload-year-form .form-select,.workload-search .form-control{font-size:1rem}
+ .workload-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.workload-totals>div{padding:.8rem}.workload-totals dd{font-size:1.4rem}.workload-list-heading{flex-direction:column;align-items:stretch;gap:.8rem;margin-top:1.15rem}.workload-search{width:100%}
+ .workload-table-wrap{display:none}.workload-class-grid{display:grid;grid-template-columns:1fr;gap:1rem}.workload-roster-groups{grid-template-columns:1fr}.workload-roster-toolbar{flex-direction:column;align-items:stretch}
+ .workload-students-modal .modal-header{padding:1.25rem 1rem}.workload-students-modal .modal-title{font-size:1.05rem}.workload-students-modal .modal-body{padding:1rem}.workload-students-modal .modal-footer{padding:.75rem 1rem}
 }
-@media (max-width: 767.98px) {
-  .workload-heading { align-items: flex-start; }
-  .workload-heading h1 { font-size: 1.55rem; }
-  .workload-heading .btn { padding: .5rem .6rem; font-size: .75rem; }
-  .workload-controls { padding: 1rem; }
-  .workload-controls-top { grid-template-columns: 1fr; gap: .85rem; }
-  .workload-year-form { max-width: none; }
-  .workload-year-form .form-select, .workload-search .form-control { font-size: 1rem; }
-  .workload-totals > div { padding: .7rem .85rem; }
-  .workload-totals dd { font-size: 1.4rem; }
-  .workload-semesters { margin-top: .85rem; gap: .35rem; }
-  .workload-semesters a { padding: .5rem .6rem; font-size: .76rem; }
-  .workload-list-heading { flex-direction: column; align-items: stretch; gap: .8rem; margin-top: 1.15rem; }
-  .workload-search { width: 100%; }
-  .workload-class-grid { grid-template-columns: 1fr; }
-  .workload-class { padding: 1rem; }
-  .workload-meeting-time { font-size: .96rem; }
-}
+@media(max-width:575.98px){.workload-students-modal .modal-dialog{max-width:none;margin:0;width:100%;height:100%;min-height:100%}.workload-students-modal .modal-content{height:100%;border:0;border-radius:0}.workload-students-modal .modal-footer{padding-bottom:calc(.75rem + env(safe-area-inset-bottom,0px))}}
+@media(max-width:575.98px){.workload-heading>.btn{display:none}}

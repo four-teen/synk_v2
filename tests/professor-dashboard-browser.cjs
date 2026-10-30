@@ -27,7 +27,7 @@ async function main() {
     }
     let file;
     if (url.pathname === '/synk/professor/index.php') file = preview;
-    else if (['dashboard.css', 'dashboard.js', 'dashboard-charts.js', 'custom_css.css'].includes(path.basename(url.pathname))) file = path.join(root, 'professor', path.basename(url.pathname));
+    else if (['dashboard.css', 'dashboard.js', 'dashboard-charts.js', 'custom_css.css', 'navigation.css', 'navigation.js'].includes(path.basename(url.pathname))) file = path.join(root, 'professor', path.basename(url.pathname));
     else if (url.pathname.startsWith('/synk/assets/')) {
       const candidate = path.resolve(root, url.pathname.slice('/synk/'.length));
       if (candidate.startsWith(path.join(root, 'assets') + path.sep)) file = candidate;
@@ -98,10 +98,10 @@ async function main() {
     check(await evaluate('document.querySelectorAll("#dashboardResearchChart .apexcharts-area-series .apexcharts-series").length === 1 && document.querySelector("#dashboardResearchLegend").textContent === "BSIT" && JSON.stringify(Array.from(document.querySelectorAll("#dashboardResearchChartTable td")).map(cell=>cell.textContent))===JSON.stringify(["1","1","1"])'), label + ': selecting a program updates the chart and exact counts.');
     if (width < 500) {
       await evaluate('window.scrollTo({top:0,behavior:"instant"})');
-      await evaluate('document.querySelector(".layout-navbar .layout-menu-toggle a").click()'); await delay(350);
-      check(await evaluate('document.documentElement.classList.contains("layout-menu-expanded")'), 'Mobile professor menu can be opened.');
+      await evaluate('document.getElementById("professor-more-toggle").click()'); await delay(350);
+      check(await evaluate('document.getElementById("professor-mobile-more").classList.contains("show") && getComputedStyle(document.getElementById("layout-menu")).display==="none"'), 'Mobile Professor pages use the footer and expandable More menu.');
       const menuScreenshot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
-      fs.writeFileSync(path.join(root, '.tmp', 'professor-dashboard-mobile-sidebar.png'), Buffer.from(menuScreenshot.data, 'base64'));
+      fs.writeFileSync(path.join(root, '.tmp', 'professor-dashboard-mobile-menu.png'), Buffer.from(menuScreenshot.data, 'base64'));
     }
   }
   mode = 'error'; await call('Page.navigate', { url }, sessionId);
@@ -130,7 +130,7 @@ async function main() {
   check(await evaluate('document.getElementById("dashboardResearchChartTable").closest("details").open && document.getElementById("dashboardWorkloadData").open && document.querySelectorAll("#dashboardResearchChartTable tbody tr").length === 3'), 'When ApexCharts is unavailable, both charts reveal the exact tabular data.');
   await call('Page.removeScriptToEvaluateOnNewDocument', { identifier: unavailableLibrary.identifier }, sessionId);
   check(errors.length === 0 && requests.every(value => !value.includes('synk-research-api') && !value.includes('email=')), 'The browser makes no direct Oracle requests, sends no email override, and has no JavaScript errors.');
-  console.log(`Professor dashboard browser: ${checks} checks passed. Desktop, tablet, mobile, and sidebar screenshots saved in .tmp.`);
+  console.log(`Professor dashboard browser: ${checks} checks passed. Desktop, tablet, mobile, and menu screenshots saved in .tmp.`);
 }
 main().catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(async () => {
   if (call) try { await call('Browser.close'); } catch (_) {}
