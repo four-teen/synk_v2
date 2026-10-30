@@ -90,9 +90,11 @@ try {
     $post=$valid;$post['profile_image']=new CURLFile($temporaryImage,'image/png','faculty.png');
     $photo=$request('photo',$post);
     dean_profile_check($photo['status']===303 && strpos($photo['headers'],'X-QA-Photo: yes')!==false,'Real multipart photo upload is accepted and saved.');
+    dean_profile_check(strpos($photo['headers'],'X-QA-Photo-Readable: yes')!==false,'The Dean photo upload is readable by the static web server.');
     $cropPost=$post;$cropPost['dean_photo_crop']=json_encode(['x'=>1/6,'y'=>0,'width'=>2/3,'height'=>1]);
     $cropPhoto=$request('photo',$cropPost);
     dean_profile_check($cropPhoto['status']===303 && strpos($cropPhoto['headers'],'X-QA-Photo-Size: 60x60')!==false,'The real Dean upload saves the selected square crop.');
+    dean_profile_check(strpos($cropPhoto['headers'],'X-QA-Photo-Readable: yes')!==false,'The Dean crop does not retain owner-only temporary-file permissions.');
     $professorCrop=$valid;$professorCrop['revision']='1';$professorCrop['profile_image']=new CURLFile($temporaryImage,'image/png','faculty.png');
     $professorCrop['profile_photo_crop']=json_encode(['x'=>1/6,'y'=>0,'width'=>2/3,'height'=>1]);
     $professorCropSave=$request('professor_save',$professorCrop);
