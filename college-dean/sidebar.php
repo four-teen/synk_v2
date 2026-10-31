@@ -54,7 +54,7 @@ $collegeDeanSidebarItems = [
         'icon' => 'bx-check-square',
         'title' => 'Faculty Evaluation',
         'description' => 'Current and previous student evaluation results',
-        'pages' => ['faculty-evaluations.php'],
+        'pages' => ['faculty-evaluations.php', 'evaluation-subject-exclusions.php'],
     ],
     [
         'key' => 'reports',
@@ -181,3 +181,4 @@ foreach ($collegeDeanSidebarItems as $sidebarItem) {
     <?php endforeach; ?>
   </ul>
 </aside>
+<?php if (($_SESSION['role'] ?? '')==='college_dean'): require __DIR__.'/mobile-navigation.php'; endif; ?>

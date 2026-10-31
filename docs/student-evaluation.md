@@ -74,6 +74,13 @@ Only the final displayed mean, percentage, and component are rounded to two
 decimal places. Drafts are excluded from administrator reports. No responses
 produce zero summary values and no faculty report rows.
 
+College Dean subject exclusions affect aggregate scoring only. Students still
+evaluate every linked teacher and finalize normally, with a separate record for
+each teacher in each college and term. Submitted responses and comments remain.
+Original rating-sheet rows show their eligibility; aggregate reports use eligible
+responses. All-excluded results show no eligible evaluations instead of a 0% score.
+See `docs/dean-faculty-evaluations.md` for mixed-subject and historical review rules.
+
 The frequency bands are response-selection guidance. The normalized percentage
 is not a measured percentage of observed behavior. Ratings are not converted to
 band midpoints, and no unsupported qualitative cutoffs are applied to aggregate

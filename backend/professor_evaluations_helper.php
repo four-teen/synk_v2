@@ -2,6 +2,7 @@
 require_once __DIR__ . '/professor_portal_helper.php';
 require_once __DIR__ . '/evaluation_access_helper.php';
 require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
+require_once __DIR__ . '/evaluation_subject_exclusion_helper.php';
 
 function synk_professor_evaluation_identity(mysqli $conn): array
 {
@@ -45,15 +46,19 @@ function synk_professor_evaluation_results(mysqli $conn, array $term): array
         JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
         WHERE e.faculty_id=? AND e.ay_id=? AND e.semester=? AND e.submission_status='submitted' AND {$owner}";
     $params=[$facultyId,(int)$term['ay_id'],(int)$term['semester']];
-    $headers=synk_evaluation_query($conn,"SELECT e.instrument_version,COUNT(*) AS response_count,SUM(e.total_score) AS points,SUM(e.question_count) AS answers {$source} GROUP BY e.instrument_version",'iii',$params);
-    $answerSource=str_replace('WHERE e.faculty_id','JOIN tbl_student_faculty_evaluation_answers a ON a.evaluation_id=e.evaluation_id WHERE e.faculty_id',$source);
+    $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,(int)$term['ay_id'],(int)$term['semester']));
+    $headers=synk_evaluation_query($conn,"SELECT e.instrument_version,COUNT(*) AS submitted_count,
+        SUM(CASE WHEN {$eligibleSql} THEN 1 ELSE 0 END) AS response_count,
+        SUM(CASE WHEN {$eligibleSql} THEN e.total_score ELSE 0 END) AS points,
+        SUM(CASE WHEN {$eligibleSql} THEN e.question_count ELSE 0 END) AS answers {$source} GROUP BY e.instrument_version",'iii',$params);
+    $answerSource=str_replace('WHERE e.faculty_id','JOIN tbl_student_faculty_evaluation_answers a ON a.evaluation_id=e.evaluation_id WHERE e.faculty_id',$source).' AND '.$eligibleSql;
     $questions=synk_evaluation_query($conn,"SELECT e.instrument_version,a.category_key,a.category_title,a.question_key,a.question_order,a.question_text,SUM(a.rating) AS points,COUNT(*) AS answers {$answerSource} GROUP BY e.instrument_version,a.category_key,a.category_title,a.question_key,a.question_order,a.question_text ORDER BY a.question_order",'iii',$params);
     $comments=synk_evaluation_query($conn,"SELECT e.instrument_version,e.comment_text {$source} AND TRIM(COALESCE(e.comment_text,''))<>'' ORDER BY e.comment_text",'iii',$params);
     $groups=[];
     foreach ($headers as $header) {
         $version=$header['instrument_version'];
         $groups[$version]=['instrument_version'=>$version,'instrument'=>synk_student_faculty_evaluation_instrument($version),
-            'response_count'=>(int)$header['response_count'],'score'=>synk_student_faculty_evaluation_score((float)$header['points'],(int)$header['answers']),
+            'submitted_count'=>(int)$header['submitted_count'],'response_count'=>(int)$header['response_count'],'score'=>(int)$header['answers']>0 ? synk_student_faculty_evaluation_score((float)$header['points'],(int)$header['answers']) : null,
             'categories'=>[],'comments'=>[]];
     }
     foreach ($questions as $question) {

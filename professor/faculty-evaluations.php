@@ -50,11 +50,11 @@ function synk_professor_evaluation_h($value): string { return htmlspecialchars((
       <a class="btn btn-sm <?php echo $active?'btn-primary':'btn-outline-secondary'; ?>"<?php echo $active?' aria-current="page"':''; ?> href="faculty-evaluations.php?<?php echo synk_professor_evaluation_h(http_build_query(['college_id'=>$option['college_id'],'ay_id'=>$option['ay_id'],'semester'=>$option['semester']])); ?>"><?php echo synk_professor_evaluation_h($option['college_name'].' · '.$option['ay_label'].' · '.synk_semester_label((int)$option['semester'])); ?></a>
       <?php endforeach; ?>
     </nav></div></div>
-    <?php if (!$evaluationGroups): ?><div class="alert alert-info" role="status">These results are currently unavailable. Reload to check the college's latest release status.</div><?php endif; ?>
+    <?php if (!$evaluationGroups): ?><div class="alert alert-info" role="status">No eligible evaluation results are currently available. Reload to check the college's latest release status.</div><?php endif; ?>
     <?php foreach ($evaluationGroups as $group): ?>
     <article class="card mb-4" data-professor-evaluation-instrument="<?php echo synk_professor_evaluation_h($group['instrument_version']); ?>"><div class="card-body p-4">
       <h5><?php echo synk_professor_evaluation_h($group['instrument']['label']); ?></h5>
-      <div class="d-flex flex-wrap gap-2 mb-3"><span class="badge bg-label-primary"><?php echo $group['response_count']; ?> submitted evaluations</span><span class="badge bg-label-success"><?php echo number_format($group['score']['percentage'],2); ?>% normalized score</span><span class="badge bg-label-info">Mean <?php echo number_format($group['score']['mean'],2); ?> / 5.00</span></div>
+      <div class="d-flex flex-wrap gap-2 mb-3"><span class="badge bg-label-primary"><?php echo $group['response_count']; ?> evaluations included in score</span><?php if ($group['score']): ?><span class="badge bg-label-success"><?php echo number_format($group['score']['percentage'],2); ?>% normalized score</span><span class="badge bg-label-info">Mean <?php echo number_format($group['score']['mean'],2); ?> / 5.00</span><?php else: ?><span class="text-muted">No eligible evaluations</span><?php endif; ?></div>
       <p class="small text-muted">Normalized score = total rating points ÷ maximum possible points × 100. Questions have equal weight. Only final results are rounded.</p>
       <details class="mb-4"><summary class="text-primary">Rating scale</summary><ul class="mt-2 mb-0"><?php foreach (synk_student_faculty_evaluation_scale($group['instrument_version']) as $rating=>$definition): ?><li><strong><?php echo $rating; ?> · <?php echo synk_professor_evaluation_h($definition['label']); ?></strong>: <?php echo synk_professor_evaluation_h($definition['description']); ?></li><?php endforeach; ?></ul></details>
       <?php foreach ($group['categories'] as $category): ?>
@@ -64,6 +64,7 @@ function synk_professor_evaluation_h($value): string { return htmlspecialchars((
         </tbody></table></div>
       </section><?php endforeach; ?>
       <h6>Student comments</h6>
+      <?php if ($group['submitted_count']>$group['response_count']): ?><p class="small text-muted">Submitted comments are retained independently of score eligibility.</p><?php endif; ?>
       <?php foreach ($group['comments'] as $comment): ?><p class="border-top pt-3"><?php echo nl2br(synk_professor_evaluation_h($comment)); ?></p><?php endforeach; ?>
       <?php if (!$group['comments']): ?><p class="text-muted mb-0">No comments were submitted.</p><?php endif; ?>
     </div></article><?php endforeach; ?>

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/college_dean_workload_helper.php';
 require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
 require_once __DIR__ . '/evaluation_access_helper.php';
+require_once __DIR__ . '/evaluation_subject_exclusion_helper.php';
 
 function synk_dean_evaluations_query(mysqli $conn, string $sql, string $types, array $params): array
 {
@@ -43,6 +44,7 @@ function synk_dean_evaluations_source(mysqli $conn, array $scope, array $term, s
 
 function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, array $filters): array
 {
+    $scoreStates=synk_evaluation_score_states($conn,(int)$term['ay_id'],(int)$term['semester']);
     $rosterStudents = []; $subjectIds = [];
     $faculties = [];
     foreach (synk_dean_workload_faculties($conn, $scope, $term) as $faculty) {
@@ -92,9 +94,9 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
         if ($filters['faculty_id'] > 0) $answerRows = synk_dean_evaluations_query($conn, "SELECT e.faculty_id,{$source['version_expr']} AS instrument_version,
             a.category_key,a.category_title,a.question_key,a.question_order,a.question_text,a.rating "
             . str_replace('WHERE e.ay_id', 'JOIN tbl_student_faculty_evaluation_answers a ON a.evaluation_id=e.evaluation_id WHERE e.ay_id', $source['sql'])
-            . " AND e.submission_status='submitted' AND e.faculty_id=? ORDER BY a.question_order,a.answer_id", $source['types'] . 'i', array_merge($source['params'], [$filters['faculty_id']]));
+            . " AND e.submission_status='submitted' AND ".synk_evaluation_score_predicate($scoreStates)." AND e.faculty_id=? ORDER BY a.question_order,a.answer_id", $source['types'] . 'i', array_merge($source['params'], [$filters['faculty_id']]));
     }
-    $groups = []; $drafts = []; $submitted = []; $students = []; $submittedStudents = [];
+    $groups = []; $drafts = []; $submitted = []; $students = []; $submittedStudents = []; $excluded=[]; $review=[];
     foreach ($headers as $header) {
         $id = (int)$header['faculty_id'];
         $faculties[$id] = ['faculty_id' => $id, 'faculty_name' => $header['faculty_name']];
@@ -103,14 +105,19 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
         $submitted[$id] = ($submitted[$id] ?? 0) + 1;
         $students[(int)$header['student_id']] = true;
         $submittedStudents[$id][(int)$header['student_id']] = true;
+        $state=$scoreStates[(int)$header['evaluation_id']]['state'] ?? 'included';
+        if ($state==='review') $review[$id]=($review[$id] ?? 0)+1;
+        if ($state==='excluded') $excluded[$id]=($excluded[$id] ?? 0)+1;
         $version = $header['instrument_version'];
         if (!isset($groups[$id][$version])) $groups[$id][$version] = ['instrument_version' => $version,
             'instrument' => synk_student_faculty_evaluation_instrument($version), 'evaluation_count' => 0,
             'latest_submitted_at' => '', 'comments' => [], 'categories' => [], '_points' => 0, '_answers' => 0];
         $group = &$groups[$id][$version];
-        $group['evaluation_count']++;
-        $group['_points'] += (int)$header['total_score'];
-        $group['_answers'] += (int)$header['question_count'];
+        if ($state!=='excluded') {
+            $group['evaluation_count']++;
+            $group['_points'] += (int)$header['total_score'];
+            $group['_answers'] += (int)$header['question_count'];
+        }
         $group['latest_submitted_at'] = max($group['latest_submitted_at'], (string)$header['submitted_at']);
         if (trim((string)$header['comment_text']) !== '') $group['comments'][] = (string)$header['comment_text'];
         unset($group);
@@ -133,7 +140,7 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
     }
     foreach ($groups as &$facultyGroups) {
         foreach ($facultyGroups as &$group) {
-            $group['score'] = synk_student_faculty_evaluation_score($group['_points'], $group['_answers']);
+            $group['score'] = $group['_answers']>0 ? synk_student_faculty_evaluation_score($group['_points'], $group['_answers']) : null;
             foreach ($group['categories'] as &$category) {
                 $category['score'] = synk_student_faculty_evaluation_score($category['_points'], $category['_answers']);
                 foreach ($category['questions'] as &$question) {
@@ -153,6 +160,7 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
     if ($filters['faculty_id']) {
         if (!isset($faculties[$filters['faculty_id']])) throw new OutOfBoundsException('This faculty member is outside your college and selected term.');
         $detail = ['faculty' => $faculties[$filters['faculty_id']], 'groups' => array_values($groups[$filters['faculty_id']] ?? []),
+            'excluded_count'=>$excluded[$filters['faculty_id']] ?? 0,'review_count'=>$review[$filters['faculty_id']] ?? 0,
             'draft_count' => $drafts[$filters['faculty_id']] ?? 0];
     }
     $rows = [];
@@ -162,8 +170,9 @@ function synk_dean_evaluations_data(mysqli $conn, array $scope, array $term, arr
             if ((function_exists('mb_stripos') ? mb_stripos($faculty['faculty_name'], $word, 0, 'UTF-8') : stripos($faculty['faculty_name'], $word)) === false) $matches = false;
         }
         if (!$matches) continue;
-        $facultyGroups = array_values($groups[$id] ?? []);
+        $facultyGroups = array_values(array_filter($groups[$id] ?? [],static function(array $group):bool { return $group['score']!==null; }));
         $rows[] = $faculty + ['submitted_count' => $submitted[$id] ?? 0, 'draft_count' => $drafts[$id] ?? 0,
+            'excluded_count'=>$excluded[$id] ?? 0,'included_count'=>($submitted[$id] ?? 0)-($excluded[$id] ?? 0),'review_count'=>$review[$id] ?? 0,
             'subject_count'=>count($subjectIds[$id] ?? []), 'submitted_student_count'=>count($submittedStudents[$id] ?? []),
             'not_submitted_count'=>count(array_diff_key($rosterStudents[$id] ?? [],$submittedStudents[$id] ?? [])),
             'student_count'=>count($rosterStudents[$id] ?? []),
