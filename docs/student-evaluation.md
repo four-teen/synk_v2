@@ -85,7 +85,9 @@ The frequency bands are response-selection guidance. The normalized percentage
 is not a measured percentage of observed behavior. Ratings are not converted to
 band midpoints, and no unsupported qualitative cutoffs are applied to aggregate
 means. The existing 60% student component remains separate from the student
-score; supervisor contributions and combined totals remain pending manual input.
+score. The Dean and Program Chair **Combined Faculty Results** page now combines
+it with finalized supervisor evaluations; see `docs/supervisor-evaluations.md`.
+The administrator's existing student-only report remains separate.
 
 ## Saved responses
 

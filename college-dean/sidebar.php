@@ -49,12 +49,17 @@ $collegeDeanSidebarItems = [
     ],
     [
         'key' => 'faculty-evaluations',
-        'href' => 'faculty-evaluations.php',
+        'href' => 'faculty-performance.php',
         'icon_bg' => 'bg-label-info',
         'icon' => 'bx-check-square',
         'title' => 'Faculty Evaluation',
-        'description' => 'Current and previous student evaluation results',
-        'pages' => ['faculty-evaluations.php', 'evaluation-subject-exclusions.php'],
+        'description' => 'Student and supervisor faculty results',
+        'pages' => ['faculty-evaluations.php', 'evaluation-subject-exclusions.php', 'faculty-performance.php', 'faculty-performance-report.php', 'supervisor-evaluations.php'],
+        'children' => [
+            ['href'=>'faculty-performance.php','title'=>'Combined Faculty Results','icon'=>'bx-bar-chart-alt-2'],
+            ['href'=>'supervisor-evaluations.php','title'=>'Supervisor Evaluations','icon'=>'bx-edit-alt'],
+            ['href'=>'faculty-evaluations.php','title'=>'Student Results','icon'=>'bx-group'],
+        ],
     ],
     [
         'key' => 'reports',

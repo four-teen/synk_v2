@@ -102,6 +102,7 @@ function synk_dean_evaluation_url(array $term, array $filters, int $facultyId = 
       <main class="container-xxl flex-grow-1 container-p-y" id="deanFacultyEvaluations">
         <div class="card mb-4"><div class="card-body p-4">
           <h4 class="mb-2">Faculty Evaluation</h4>
+          <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-sm btn-outline-primary" href="faculty-performance.php?<?= synk_dean_evaluation_h(http_build_query(['dean_ay_id'=>$deanEvaluationTerm['ay_id'],'dean_semester'=>$deanEvaluationTerm['semester']])) ?>">Combined Faculty Results</a><a class="btn btn-sm btn-outline-primary" href="supervisor-evaluations.php?<?= synk_dean_evaluation_h(http_build_query(['dean_ay_id'=>$deanEvaluationTerm['ay_id'],'dean_semester'=>$deanEvaluationTerm['semester']])) ?>">Supervisor Evaluations</a></div>
           <p class="text-muted mb-3">Review student evaluations for <?php echo synk_dean_evaluation_h($deanEvaluationScope['college_name']); ?>. Choose an academic year and semester, then show a faculty member's results.</p>
           <form method="get" action="faculty-evaluations.php" id="deanEvaluationFilters" class="row g-3 align-items-end">
             <div class="col-6 col-lg-3"><label for="deanEvaluationYear" class="form-label">Academic Year</label><select id="deanEvaluationYear" name="dean_ay_id" class="form-select" required>
