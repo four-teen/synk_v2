@@ -47,12 +47,13 @@ try {
     foreach(['apply_room_conflict','normal_apply_conflict','apply_duplicate','apply_bad_csrf','apply_foreign_faculty'] as $scenario){$r=$request($scenario);$check($r['response']['status']!=='success',$scenario . ' was accepted.');$check($r['before']===$r['after'],$scenario . ' changed data.');}
     foreach(['merge_pending','clear_need','clear_all_need'] as $scenario){$r=$request($scenario);$check($r['response']['status']==='error',$scenario . ' was accepted.');$check($r['before']===$r['after'],$scenario . ' changed data.');}
     $r=$request('merge_normal');$check($r['response']['status']==='ok','Confirmed merge behavior changed: ' . json_encode($r['response']));
-    $r=$request('save_set');$check($r['response']['status']==='ok','Saving a TBA set failed: ' . json_encode($r['response']));
-    $saved=array_values(array_filter($r['after']['saved_rows'],static function(array $row) use($r):bool{return (int)$row['offering_id']===$r['target']['offering_id'];}));
-    $check(count($saved)===2 && $saved[0]['schedule_status']==='tba' && $saved[0]['time_start']===null && $saved[1]['schedule_status']==='room_tba' && $saved[1]['room_id']===null,'Saved set lost TBA status/absent values.');
-    $r=$request('restore_set');$check($r['response']['status']==='ok','Restoring a TBA set failed: ' . json_encode($r['response']));
-    $check(count($r['after']['workload'])===2 && count($r['after']['classes'])===2,'TBA restore lost assignments or meetings.');
-    $check($r['after']['classes'][0]['schedule_status']==='tba' && $r['after']['classes'][0]['time_start']===null && $r['after']['classes'][1]['schedule_status']==='room_tba','Restored TBA became a confirmed schedule.');
+    // File-set round trips are covered by schedule-set-files.php. Stale pages
+    // must no longer save or restore database snapshots.
+    foreach(['save_set','restore_set'] as $scenario) {
+        $r=$request($scenario);
+        $check($r['response']['status']==='error' && strpos($r['response']['message'],'retired')!==false,'A retired database set action was accepted.');
+        $check($r['before']===$r['after'],'A retired database set action changed data.');
+    }
     $check($snapshot()===$before,'Fixture data was not rolled back.');
     echo 'Scheduler TBA: ' . $checks . ' checks passed on PHP ' . $r['php_version'] . ". All temporary records rolled back.\n";
 } finally {if(is_file($route))unlink($route);}
