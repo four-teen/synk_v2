@@ -4,7 +4,8 @@
 function synk_program_chair_render_portal(string $page): void
 {
     $pages = ['index', 'programs', 'students', 'reports', 'faculty-workload', 'faculty-profile',
-        'manage-faculty-profile', 'faculty-evaluations', 'student-statistics', 'faculty-statistics', 'education-options'];
+        'manage-faculty-profile', 'faculty-evaluations', 'student-statistics', 'faculty-statistics', 'education-options',
+        'supervisor-evaluations', 'faculty-performance', 'faculty-performance-report'];
     if (!in_array($page, $pages, true)) { http_response_code(404); exit; }
     define('SYNK_PROGRAM_CHAIR_VIEW', true);
     $GLOBALS['synk_program_chair_view_buffer_level'] = ob_get_level();

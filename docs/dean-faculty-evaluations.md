@@ -1,5 +1,11 @@
 # Dean faculty evaluation results
 
+The **Faculty Evaluation** menu now includes **Combined Faculty Results** and
+**Supervisor Evaluations** in both Dean and Program Chair modules. The existing
+student overview described below is available under **Student Results**. See
+`docs/supervisor-evaluations.md` for evaluator routing, private drafts, finalization,
+the separate collection window and combined 60/40 individual reports.
+
 The College Dean sidebar includes **Faculty Evaluation**, at
 `college-dean/faculty-evaluations.php`. The page follows the Dean portal's selected
 academic year and semester. Its year and semester controls also update that
