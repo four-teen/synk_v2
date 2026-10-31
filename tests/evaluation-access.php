@@ -82,6 +82,7 @@ try {
         $check(count(array_filter($r['state']['controls'],static function($row){return !empty($row['student_open']) || !empty($row['faculty_released']);}))===0,'Rejected controls cannot change any college settings: '.$case);
     }
     $r=$request('chair_get');
+    $check(strpos($r['body'],'id="dean-mobile-nav"')===false,'Dean mobile navigation is not exposed on the shared Program Chair page.');
     $check($r['status']===200 && strpos($r['body'],'id="evaluationAccessControls"')===false,'The shared Program Chair page does not expose Dean controls.');
     $r=$request('professor_hidden');
     $check($r['status']===200 && strpos($r['body'],'No released results yet')!==false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'Faculty results are hidden by default.');

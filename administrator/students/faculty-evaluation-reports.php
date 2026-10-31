@@ -320,6 +320,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                   </form>
                   <p class="text-muted mt-3 mb-1"><?php echo htmlspecialchars($selectedInstrument['label'], ENT_QUOTES, 'UTF-8'); ?> · <?php echo (int)$selectedInstrument['question_count']; ?> questions per evaluation</p>
                   <p class="text-muted small mb-1">Normalized score = total rating points ÷ (answered questions × 5) × 100. Each question has equal weight; calculations use unrounded totals. This percentage measures points earned out of the maximum possible points.</p>
+                  <?php if (($summary['excluded_count'] ?? 0)>0): ?><p class="small text-muted mb-1"><?= (int)$summary['included_count'] ?> submitted evaluation(s) included in scores; <?= (int)$summary['excluded_count'] ?> excluded by college subject rules. Original rating-sheet records remain available below.</p><?php endif; ?>
                   <?php if ($selectedInstrumentVersion !== 'legacy-20'): ?><p class="text-muted small mb-1">The instrument's frequency ranges describe the individual 1–5 choices. They are not exact observed percentages and are not converted into percentage midpoints.</p><?php endif; ?>
                   <p class="text-muted small mb-0">The separate student component retains the existing 60% weighting. The SET attachment does not specify that weighting or an aggregate percentage formula.</p>
                 </div>
@@ -356,8 +357,8 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                   <div class="col-sm-6 col-xl-3">
                     <div class="summary-card">
                       <div class="label">Overall Normalized Score</div>
-                      <div class="value text-warning"><?php echo number_format((float)$summary['overall_percentage'], 2); ?>%</div>
-                      <div class="text-muted small mt-1">Mean <?php echo number_format((float)$summary['overall_mean'], 2); ?> / 5.00</div>
+                      <?php if (($summary['included_count'] ?? $summary['evaluation_count'])>0): ?><div class="value text-warning"><?php echo number_format((float)$summary['overall_percentage'], 2); ?>%</div>
+                      <div class="text-muted small mt-1">Mean <?php echo number_format((float)$summary['overall_mean'], 2); ?> / 5.00</div><?php else: ?><div class="text-muted">No eligible evaluations</div><?php endif; ?>
                     </div>
                   </div>
                 </div>
@@ -446,6 +447,7 @@ function faculty_evaluation_reports_page_url(string $view, string $termKey = '')
                                 <td>
                                   <div class="fw-semibold"><?php echo number_format((float)$row['average_mean'], 2); ?> / 5.00</div>
                                   <div class="small text-success"><?php echo number_format((float)$row['average_percentage'], 2); ?>%</div>
+                                  <?php if (($row['score_state'] ?? 'included')==='excluded'): ?><small class="text-warning">Excluded from faculty scores</small><?php elseif (($row['score_state'] ?? '')==='review'): ?><small class="text-warning">Counted; subject association needs review</small><?php endif; ?>
                                 </td>
                                 <td><?php echo htmlspecialchars((string)($row['comment_text'] !== '' ? $row['comment_text'] : 'No comment provided.'), ENT_QUOTES, 'UTF-8'); ?></td>
                                 <td><?php echo htmlspecialchars(student_management_format_datetime((string)($row['final_submitted_at'] ?: $row['completed_at'])), ENT_QUOTES, 'UTF-8'); ?></td>

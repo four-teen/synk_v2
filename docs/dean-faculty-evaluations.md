@@ -66,6 +66,78 @@ This adds only `tbl_college_faculty_evaluation_clear_history`; it never clears o
 changes existing evaluations. Without this table, clearing stays disabled.
 Scheduling and workload storage and behavior are unchanged.
 
+## Subject exclusions from score computation
+
+The assigned Dean can open **Manage Subject Exclusions** from Faculty Evaluation.
+The list follows the selected college, academic year and semester. Select a subject,
+choose **Exclude from faculty scores**, and record a reason. The rule
+applies to that subject across its teachers and sections in this college and term;
+it does not exclude the teacher's other subjects or another college's responses.
+Use **Include / restore eligibility** to reverse it. Every change
+preserves the previous and new rule, reason, acting Dean and timestamp. Stale form
+versions and unauthorized colleges, subjects, roles and CSRF tokens are rejected.
+
+The subject list searches codes and titles within the selected college and term,
+with All, Included, Excluded and Needs review filters and a matching-subject count.
+**Manage** opens a dialog with that subject's rule and reason. Saving refreshes
+the list while preserving the search and position; validation errors stay inside
+the dialog. Cancel does not save. Existing subject-specific URLs open the matching
+dialog automatically. Phones use subject cards and a full-screen dialog with
+visible Cancel and Save controls. Unknown save status requires reloading the latest
+rule before retrying from the open dialog.
+
+The Dean's shared sidebar provides a small-screen footer with Home, Students,
+Evaluation, Reports and More. More lists the existing remaining destinations;
+their routes and permissions are unchanged. The desktop sidebar is preserved,
+and mobile navigation hides behind dialogs. This navigation is Dean-only and
+does not change Program Chair, Student or Management navigation. No scheduling,
+workload, scoring or access-control logic is changed by these interface features.
+
+Students continue evaluating all linked teachers through the normal dashboard and
+evaluation flow. Exclusions never hide a teacher, relax completion requirements,
+alter reminders or expose the private reason. The existing one-response-per-student,
+teacher, college and semester rule remains. Each new or re-saved draft records its
+subject associations in separate evaluation-only storage, inside the response
+transaction. Finalized response snapshots are never rewritten by roster changes.
+Older responses use only exact original subject labels matched against original
+college/term enrollment evidence. Missing or ambiguous associations are not guessed.
+
+A response covering only excluded subjects is omitted from overall, category,
+statement and student-component scores. A response covering both included and
+excluded subjects remains counted and appears for Dean review. There is no
+automatic whole-response exclusion for a mixed response. Unknown historical associations remain counted
+for review. Scores cannot be divided between subjects after a combined response
+has already been collected. The subject list's response counts can overlap when
+one teacher response covers more than one subject.
+
+Dean and Program Chair results, administrator aggregate reports and released faculty
+scores use the same eligibility rule. Questionnaire versions stay separate. Submitted
+and completion counts remain unchanged; the Dean sees included, excluded and review
+counts separately. No eligible evaluations displays an empty score rather than 0%.
+Comments remain available under existing access rules. The administrator's original
+rating sheet retains every submitted response with its eligibility label. Exclusion
+reasons and change history are available only on the Dean's management page.
+
+Before serving this feature, run the additive, repeatable setup:
+
+```text
+php backend/tools/prepare_evaluation_subject_exclusions.php
+```
+
+Alternatively apply `backend/sql/phase36_evaluation_subject_exclusions.sql` after
+the existing evaluation access schema. No subject is excluded by installation.
+There are no changes to scheduling, workload, student profiles or academic settings.
+Clearing keeps the separately captured subject associations as historical evidence;
+they cannot affect scores without their original response header.
+
+Additional regression checks (run database suites sequentially):
+
+```text
+php tests/evaluation-subject-exclusions.php
+php tests/evaluation-subject-exclusions-http.php
+node tests/evaluation-subject-exclusions-browser.cjs
+```
+
 Regression checks:
 
 - `php tests/college-dean-evaluations.php`

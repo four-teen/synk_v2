@@ -42,7 +42,7 @@ $term=synk_fetch_current_academic_term($conn);
 $oldTerm=['ay_id'=>$term['ay_id'],'semester'=>max(1,$term['semester']-1)];
 if($term['semester']===1){$prior=$conn->query("SELECT ay_id FROM tbl_academic_years WHERE ay<'".$conn->real_escape_string($term['ay_label'])."' ORDER BY ay DESC LIMIT 1")->fetch_assoc();if(!$prior)throw new RuntimeException('A previous academic year is needed.');$oldTerm=['ay_id'=>(int)$prior['ay_id'],'semester'=>3];}
 $program=$conn->query("SELECT p.program_id,c.college_id,c.campus_id FROM tbl_program p JOIN tbl_college c ON c.college_id=p.college_id WHERE p.status='active' AND c.status='active' ORDER BY p.program_id LIMIT 1")->fetch_assoc();
-if (strpos($scenario,'dean_faculty_evaluations_')===0) {
+if (strpos($scenario,'dean_faculty_evaluations_')===0 || strpos($scenario,'subject_exclusion_')===0) {
     $campusId=(int)$program['campus_id'];
     $conn->query("INSERT INTO tbl_college (campus_id,college_code,college_name,status) VALUES ({$campusId},'QAEV','Evaluation QA College {$tag}','active')");
     $collegeId=(int)$conn->insert_id;
@@ -176,6 +176,7 @@ if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.
     if($scenario==='admin_revoked')$conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$adminId} AND role='admin'");
     if($scenario==='admin_wrong_role')$_SESSION['role']='student';}
 if (strpos($scenario,'evaluation_access_')===0) require __DIR__.'/evaluation-access-scenarios.php';
+if (strpos($scenario,'subject_exclusion_')===0) require __DIR__.'/evaluation-subject-exclusion-scenarios.php';
 if (strpos($scenario,'login_activity_')===0) require __DIR__.'/student-login-activity-scenarios.php';
 if (strpos($scenario,'login_report_')===0) require __DIR__.'/dean-login-report-scenarios.php';
 if (strpos($scenario,'presence_')===0 || strpos($scenario,'activity_grid_')===0) require __DIR__.'/student-live-activity-scenarios.php';

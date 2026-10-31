@@ -1,0 +1,17 @@
+.dean-mobile-nav{display:none}.dean-mobile-more nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.dean-mobile-more nav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.65rem;min-height:96px;padding:.8rem .4rem;border:1px solid #dfe4ee;border-radius:.75rem;color:#697a8d;text-align:center;overflow-wrap:anywhere;font-size:.8rem;text-decoration:none}
+.dean-mobile-more nav a>.bx{font-size:1.5rem;color:#696cff}.dean-mobile-more nav a[aria-current="page"]{background:#f2f2ff;border-color:#696cff;color:#575ae5}
+.dean-mobile-more .offcanvas-header{gap:1rem}.dean-mobile-more .btn-close{width:44px;height:44px;margin:0;padding:12px;box-sizing:border-box;flex-shrink:0}
+.dean-mobile-nav>:focus-visible,.dean-mobile-more a:focus-visible{outline:2px solid #696cff;outline-offset:-2px}
+@media(max-width:1199.98px){
+ html.dean-mobile-shell #layout-menu,html.dean-mobile-shell .layout-overlay,html.dean-mobile-shell #layout-navbar>.layout-menu-toggle{display:none!important}
+ html.dean-mobile-shell .layout-page{padding-left:0!important;min-width:0}
+ html.dean-mobile-shell .content-wrapper{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important}
+ .dean-mobile-nav{position:fixed;z-index:1030;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:#fff;border-top:1px solid #dfe4ee;box-shadow:0 -3px 16px #4359710a;padding:.35rem max(.35rem,env(safe-area-inset-right,0px)) calc(.35rem + env(safe-area-inset-bottom,0px)) max(.35rem,env(safe-area-inset-left,0px))}
+ .dean-mobile-nav>a,.dean-mobile-nav>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;min-width:0;min-height:56px;margin:0 .1rem;padding:.4rem .1rem;border:0;border-radius:.65rem;background:transparent;color:#697a8d;font-size:.7rem;line-height:1.25;font-weight:500;touch-action:manipulation;text-decoration:none}
+ .dean-mobile-nav .bx{font-size:1.4rem}.dean-mobile-nav [aria-current="page"],.dean-mobile-nav .is-current,.dean-mobile-nav [aria-expanded="true"]{background:#f2f2ff;color:#575ae5;font-weight:600}
+ body.modal-open .dean-mobile-nav{visibility:hidden}
+ .dean-mobile-more{height:auto;max-height:80vh;max-height:min(80dvh,600px);border-radius:1rem 1rem 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+}
+@media(max-width:359.98px){.dean-mobile-more nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media print{.dean-mobile-nav,.dean-mobile-more{display:none!important}}

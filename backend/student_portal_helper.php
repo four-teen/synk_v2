@@ -9,6 +9,7 @@ require_once __DIR__ . '/schedule_merge_helper.php';
 require_once __DIR__ . '/schema_helper.php';
 require_once __DIR__ . '/student_faculty_evaluation_instrument.php';
 require_once __DIR__ . '/evaluation_access_helper.php';
+require_once __DIR__ . '/evaluation_subject_exclusion_helper.php';
 
 function synk_student_preview_student_id_from_request(): int
 {
@@ -1199,6 +1200,7 @@ function synk_student_save_faculty_evaluation(mysqli $conn, array $payload, arra
         }
 
         $insertAnswerStmt->close();
+        synk_evaluation_capture_subject_scope($conn,$evaluationId,$studentId,$facultyId,$collegeId,$ayId,$semester,$subjectSummary);
         $conn->commit();
 
         return [
@@ -1280,6 +1282,7 @@ function synk_student_finalize_faculty_evaluations_for_term(
                 instrument_version,
                 question_count,
                 comment_text,
+                subject_summary,
                 submission_status,
                 final_submission_token
             FROM `{$headerTable}`
@@ -1332,6 +1335,11 @@ function synk_student_finalize_faculty_evaluations_for_term(
                 throw new RuntimeException('Please add a comment for every faculty before final submission.');
             }
             $pendingFacultyIds[]=$facultyId;
+            // Existing drafts without a subject snapshot retain only associations
+            // proven by their original summary. Submitted records are never changed.
+            if (synk_evaluation_subject_exclusions_ready($conn) && !synk_evaluation_query($conn,'SELECT evaluation_id FROM tbl_student_faculty_evaluation_subject_scope WHERE evaluation_id=?','i',[(int)$draftRows[$facultyId]['evaluation_id']])) {
+                synk_evaluation_capture_subject_scope($conn,(int)$draftRows[$facultyId]['evaluation_id'],$studentId,$facultyId,$collegeId,$ayId,$semester,(string)$draftRows[$facultyId]['subject_summary']);
+            }
         }
         if (!$pendingFacultyIds) throw new RuntimeException('The final faculty evaluation has already been submitted for this academic term.');
         $placeholders=implode(', ',array_fill(0,count($pendingFacultyIds),'?'));
@@ -1517,14 +1525,16 @@ function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int 
 
     synk_student_faculty_evaluation_ensure_schema($conn);
     $headerTable = synk_student_faculty_evaluation_table_name();
+    $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,$ayId,$semester));
     $stmt = $conn->prepare("
         SELECT
             COUNT(*) AS evaluation_count,
             COUNT(DISTINCT e.student_id) AS student_count,
             COUNT(DISTINCT e.faculty_id) AS faculty_count,
             COUNT(DISTINCT NULLIF(TRIM(e.final_submission_token), '')) AS final_submission_count,
-            SUM(e.total_score) AS total_points,
-            SUM(e.question_count) AS answer_count,
+            SUM(CASE WHEN {$eligibleSql} THEN e.total_score ELSE 0 END) AS total_points,
+            SUM(CASE WHEN {$eligibleSql} THEN e.question_count ELSE 0 END) AS answer_count,
+            SUM(CASE WHEN {$eligibleSql} THEN 1 ELSE 0 END) AS included_count,
             MAX(COALESCE(e.final_submitted_at, e.completed_at)) AS latest_submitted_at
         FROM `{$headerTable}` e
         WHERE e.submission_status = 'submitted'
@@ -1551,6 +1561,8 @@ function synk_student_fetch_faculty_evaluation_report_summary(mysqli $conn, int 
     }
 
     $summary['evaluation_count'] = (int)($row['evaluation_count'] ?? 0);
+    $summary['included_count'] = (int)($row['included_count'] ?? 0);
+    $summary['excluded_count'] = $summary['evaluation_count']-$summary['included_count'];
     $summary['student_count'] = (int)($row['student_count'] ?? 0);
     $summary['faculty_count'] = (int)($row['faculty_count'] ?? 0);
     $summary['final_submission_count'] = (int)($row['final_submission_count'] ?? 0);
@@ -1571,6 +1583,7 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
 
     synk_student_faculty_evaluation_ensure_schema($conn);
     $headerTable = synk_student_faculty_evaluation_table_name();
+    $scoreStates=synk_evaluation_score_states($conn,$ayId,$semester);
     $stmt = $conn->prepare("
         SELECT
             e.evaluation_id,
@@ -1640,6 +1653,7 @@ function synk_student_fetch_faculty_evaluation_rating_sheet_rows(mysqli $conn, i
             $score = synk_student_faculty_evaluation_score((float)$row['total_score'], (int)$row['question_count']);
             $rows[] = [
                 'evaluation_id' => (int)($row['evaluation_id'] ?? 0),
+                'score_state' => $scoreStates[(int)$row['evaluation_id']]['state'] ?? 'included',
                 'student_id' => (int)($row['student_id'] ?? 0),
                 'faculty_id' => (int)($row['faculty_id'] ?? 0),
                 'student_number' => (string)($row['student_number'] ?? ''),
@@ -1680,6 +1694,7 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
     synk_student_faculty_evaluation_ensure_schema($conn);
     $headerTable = synk_student_faculty_evaluation_table_name();
     $answerTable = synk_student_faculty_evaluation_answer_table_name();
+    $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,$ayId,$semester));
     $stmt = $conn->prepare("
         SELECT
             e.evaluation_id,
@@ -1700,6 +1715,7 @@ function synk_student_fetch_faculty_evaluation_individual_report_rows(mysqli $co
           AND e.ay_id = ?
           AND e.semester = ?
           AND e.instrument_version = ?
+          AND {$eligibleSql}
         ORDER BY
             e.faculty_name ASC,
             e.evaluation_id ASC,

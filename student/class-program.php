@@ -660,7 +660,6 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                 <div class="card-body">
                   <div class="d-flex flex-wrap gap-2 mb-2">
                     <?php if (!empty($card['is_final_submitted'])): ?>
-                      <span class="badge bg-label-success">Included in final submission</span>
                       <?php if (trim((string)($cardEval['final_submission_token'] ?? ''))!==''): ?><span class="badge bg-label-secondary">Verification: <?= synk_student_h($cardEval['final_submission_token']) ?></span><?php endif; ?>
                       <?php if (trim((string)($cardEval['final_submitted_at'] ?? '')) !== ''): ?>
                         <span class="badge bg-label-primary"><?php echo synk_student_h((string)($cardEval['final_submitted_at'] ?? '')); ?></span>
