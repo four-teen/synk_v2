@@ -54,11 +54,29 @@ if ($programStmt instanceof mysqli_stmt) {
     $programRes = $programStmt->get_result();
 
     while ($programRes && ($row = $programRes->fetch_assoc())) {
+        $programCode = trim((string)($row['program_code'] ?? ''));
+        $major = trim((string)($row['major'] ?? ''));
+        $displayCode = function_exists('mb_strtoupper')
+            ? mb_strtoupper($programCode, 'UTF-8')
+            : strtoupper($programCode);
+        $displayMajor = function_exists('mb_convert_case')
+            ? mb_convert_case($major, MB_CASE_TITLE, 'UTF-8')
+            : ucwords(strtolower($major));
+        $displayMajor = preg_replace_callback('/(?<=\s)(And|Of|In|The|For|To|With)(?=\s)/u', static function ($match) {
+            return strtolower($match[0]);
+        }, $displayMajor);
+        $displayLabel = $displayCode !== '' ? $displayCode : trim((string)($row['program_name'] ?? ''));
+        if ($displayMajor !== '') {
+            $displayLabel .= ' (major in ' . $displayMajor . ')';
+        }
+
         $programOptions[] = [
             'program_id' => (int)($row['program_id'] ?? 0),
             'program_code' => (string)($row['program_code'] ?? ''),
             'program_name' => (string)($row['program_name'] ?? ''),
-            'major' => (string)($row['major'] ?? '')
+            'major' => (string)($row['major'] ?? ''),
+            'display_code' => $displayCode,
+            'display_label' => $displayLabel
         ];
     }
 
@@ -131,6 +149,7 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
     <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
     <link rel="stylesheet" href="../assets/css/demo.css" />
     <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
     <link rel="stylesheet" type="text/css" href="custom_css.css">
 
     <script src="../assets/vendor/js/helpers.js"></script>
@@ -306,6 +325,66 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
             box-shadow: 0 0 0 .2rem rgba(105, 108, 255, 0.14);
         }
 
+        #program_id,
+        #program_id option {
+            font-size: 1rem;
+            text-transform: none;
+        }
+
+        #program_id + .select2-container .select2-selection--single {
+            height: 3rem;
+            border: 1px solid #d7e0ec;
+            border-radius: .9rem;
+            background-color: #fbfcff;
+        }
+
+        #program_id + .select2-container .select2-selection__rendered {
+            padding-left: .875rem;
+            padding-right: 3rem;
+            color: #697a8d;
+            font-size: 1rem;
+            line-height: calc(3rem - 2px);
+        }
+
+        #program_id + .select2-container .select2-selection__arrow {
+            top: 0;
+            right: .75rem;
+            height: 100%;
+        }
+
+        #program_id + .select2-container .select2-selection__clear {
+            height: 100%;
+            margin-right: 2.5rem;
+        }
+
+        #program_id + .select2-container--focus .select2-selection--single,
+        #program_id + .select2-container--open .select2-selection--single {
+            border-color: #8ca0ff;
+            background-color: #ffffff;
+            box-shadow: 0 0 0 .2rem rgba(105, 108, 255, 0.14);
+        }
+
+        .section-program-dropdown {
+            border-color: #8ca0ff;
+            font-size: 1rem;
+        }
+
+        .section-program-dropdown .select2-search__field {
+            padding: .6rem .75rem;
+            border: 1px solid #d7e0ec;
+            border-radius: .55rem;
+            font-size: 1rem;
+        }
+
+        .section-program-dropdown .select2-results__option {
+            padding: .65rem .875rem;
+            font-size: 1rem;
+            line-height: 1.45;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            text-transform: none;
+        }
+
         .generator-actions {
             display: flex;
             align-items: center;
@@ -350,17 +429,17 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
 
         .program-card-header {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: space-between;
             gap: 1rem;
-            padding: 1.3rem 1.35rem 1.15rem;
+            padding: 1rem 1.1rem;
             border-bottom: 1px solid #ebf0f7;
             background: linear-gradient(135deg, #f8faff 0%, #eef4ff 100%);
         }
 
         .program-card-header-actions {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: .8rem;
             flex-wrap: wrap;
             justify-content: flex-end;
@@ -394,7 +473,7 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
             justify-content: center;
             background: linear-gradient(135deg, #696cff 0%, #8475ff 100%);
             color: #ffffff;
-            font-size: .95rem;
+            font-size: 1rem;
             font-weight: 800;
             letter-spacing: .03em;
             box-shadow: 0 14px 22px rgba(105, 108, 255, 0.24);
@@ -403,7 +482,7 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
         .program-card-title {
             margin: 0;
             color: #223053;
-            font-size: 1.16rem;
+            font-size: 1rem;
             font-weight: 800;
             line-height: 1.28;
         }
@@ -416,17 +495,19 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
         }
 
         .program-card-metric {
-            min-width: 8.3rem;
-            padding: .7rem .9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            min-height: 2.2rem;
+            padding: .4rem .7rem;
             border: 1px solid #dce5f4;
             border-radius: .95rem;
             background: rgba(255, 255, 255, 0.88);
-            text-align: right;
+            white-space: nowrap;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
         }
 
         .program-card-metric-label {
-            display: block;
             color: #7a8aa2;
             font-size: .7rem;
             font-weight: 700;
@@ -435,10 +516,8 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
         }
 
         .program-card-metric-value {
-            display: block;
-            margin-top: .15rem;
             color: #5667d6;
-            font-size: 1.4rem;
+            font-size: 1rem;
             font-weight: 800;
             letter-spacing: -.03em;
         }
@@ -527,17 +606,17 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
 
         .year-sections-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: .9rem;
-            padding: 1rem;
+            grid-template-columns: 1fr;
+            gap: .7rem;
+            padding: .85rem;
         }
 
         .section-tile {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: .9rem;
-            min-height: 7rem;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas: "main actions";
+            align-items: center;
+            gap: .4rem 1rem;
             padding: .95rem;
             border: 1px solid #e2e8f2;
             border-radius: 1rem;
@@ -546,56 +625,42 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
         }
 
         .section-tile-main {
-            display: flex;
-            align-items: flex-start;
-            gap: .75rem;
+            grid-area: main;
             min-width: 0;
-        }
-
-        .section-avatar {
-            width: 2.8rem;
-            height: 2.8rem;
-            border-radius: .95rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 2.8rem;
-            background: linear-gradient(135deg, #eef3ff 0%, #e2eaff 100%);
-            color: #475ad8;
-            font-size: .95rem;
-            font-weight: 800;
-            letter-spacing: .03em;
         }
 
         .section-code {
             color: #223053;
-            font-size: 1rem;
+            font-size: 1.3rem;
             font-weight: 800;
-            line-height: 1.2;
-        }
-
-        .section-fullcode {
-            margin-top: .25rem;
-            color: #6c7d95;
-            font-size: .82rem;
-            line-height: 1.45;
-            word-break: break-word;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
         }
 
         .section-meta {
-            margin-top: .38rem;
-            color: #8a97aa;
-            font-size: .73rem;
-            font-weight: 600;
-            letter-spacing: .02em;
+            margin-top: .1rem;
+            color: #111111;
+            font-size: .88rem;
+            font-style: italic;
+            font-weight: 500;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
         }
 
         .section-tile-actions {
+            grid-area: actions;
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: .6rem;
-            flex: 0 0 auto;
+            align-items: center;
+            gap: .5rem;
+            white-space: nowrap;
+        }
+
+        .section-tile-actions > * {
+            flex-shrink: 0;
+        }
+
+        .section-tile-actions .btnSectionCurriculum {
+            min-height: 2.25rem;
         }
 
         .section-status-badge {
@@ -741,6 +806,10 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
             .program-card-metric {
                 align-self: flex-start;
             }
+
+            .program-card-header-actions {
+                justify-content: flex-start;
+            }
         }
 
         @media (max-width: 767.98px) {
@@ -755,16 +824,19 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
                 padding: .9rem;
             }
 
-            .year-level-card .year-header,
-            .section-tile,
-            .section-tile-main {
+            .year-level-card .year-header {
                 flex-direction: column;
                 align-items: flex-start;
             }
 
-            .section-tile-actions {
-                flex-direction: row;
-                align-items: center;
+            .section-tile {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-areas: "main" "actions";
+                row-gap: .65rem;
+            }
+
+            .section-code {
+                font-size: 1.2rem;
             }
 
             .year-sections-grid {
@@ -874,34 +946,21 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
 
             <div class="row g-3">
 
-                <div class="col-md-4">
-                    <label class="form-label">Program</label>
+                <div class="col-12 col-lg-8">
+                    <label class="form-label" for="program_id">Program</label>
                     <select id="program_id" class="form-select">
                         <option value="">Select Program</option>
                         <?php
-                            $q = mysqli_query($conn, "
-                                SELECT program_id, program_code, program_name, COALESCE(major, '') AS major
-                                FROM tbl_program
-                                WHERE college_id='$college_id'
-                                ORDER BY program_code ASC, program_name ASC, major ASC
-                            ");
-                            while ($r = mysqli_fetch_assoc($q)) {
-                                $major = trim((string)($r['major'] ?? ''));
-                                if ($major !== '') {
-                                    $baseProgramName = trim((string)($r['program_name'] ?? ''));
-                                    $r['program_name'] = $baseProgramName !== ''
-                                        ? $baseProgramName . ' (Major in ' . $major . ')'
-                                        : 'Major in ' . $major;
-                                }
+                            foreach ($programOptions as $r) {
                                 echo "<option value='".(int)$r['program_id']."' data-code='".htmlspecialchars($r['program_code'], ENT_QUOTES)."'>
-                                        ".htmlspecialchars($r['program_code'])." — ".htmlspecialchars($r['program_name'])."
+                                        ".htmlspecialchars($r['display_label'])."
                                       </option>";
                             }
                         ?>
                     </select>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-6 col-lg-2">
                     <label class="form-label">Year Level</label>
                     <select id="year_level" class="form-select">
                         <option value="">Select Year Level</option>
@@ -914,7 +973,7 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
                     </select>
                 </div>
 
-                <div class="col-md-4">
+                <div class="col-6 col-lg-2">
                     <label class="form-label">Number of Sections</label>
                     <input type="number" id="section_count" class="form-control" value="1" min="1">
                 </div>
@@ -1018,6 +1077,7 @@ $prospectusVersionsJson = json_encode($prospectusVersionsByProgram, JSON_UNESCAP
 
 <script>
 const SECTION_CURRICULUM_ENABLED = <?= $sectionCurriculumEnabled ? 'true' : 'false' ?>;
+const SECTION_PROGRAM_OPTIONS = <?= $programOptionsJson ?: '[]' ?>;
 const PROSPECTUS_VERSIONS_BY_PROGRAM = <?= $prospectusVersionsJson ?: '{}' ?>;
 let sectionStartIndex = 0;
 let sectionCurriculumModalInstance = null;
@@ -1135,6 +1195,19 @@ parseProgramLabel = function(program) {
 
 $("#program_id option").each(function () {
     $(this).text(normalizeProgramText($(this).text()));
+});
+
+$("#program_id").select2({
+    placeholder: "Search or select a program",
+    width: "100%",
+    allowClear: true,
+    minimumResultsForSearch: 0,
+    dropdownCssClass: "section-program-dropdown"
+}).on("select2:open", function () {
+    $(".section-program-dropdown .select2-search__field")
+        .attr("placeholder", "Search programs...")
+        .attr("aria-label", "Search programs")
+        .trigger("focus");
 });
 
 function getProgramProspectusOptions(programId) {
@@ -1432,6 +1505,18 @@ function loadGroupedSections() {
     const ctx = getContextOrWarn();
     if (!ctx) return;
 
+    const selectedProgramId = Number($("#program_id").val() || 0);
+    if (!selectedProgramId) {
+        $("#groupedSections").show().html(`
+            <div class="sections-state">
+                <div class="sections-state-icon"><i class="bx bx-filter-alt"></i></div>
+                <div class="sections-state-title">Select a program</div>
+                <div class="sections-state-text">Choose a program above to view its sections for the selected academic year and semester.</div>
+            </div>
+        `);
+        return;
+    }
+
     $("#groupedSections").show().html(`
         <div class="sections-state">
             <div class="sections-state-icon">
@@ -1450,6 +1535,12 @@ function loadGroupedSections() {
         },
         function(res) {
 
+            if (Number($("#program_id").val() || 0) !== selectedProgramId ||
+                String($("#ay_id").val()) !== String(ctx.ay_id) ||
+                String($("#semester").val()) !== String(ctx.semester)) {
+                return;
+            }
+
             let data;
             try {
                 data = JSON.parse(res);
@@ -1460,7 +1551,9 @@ function loadGroupedSections() {
 
             let html = "";
 
-            const programs = Object.keys(data);
+            const programs = Object.keys(data).filter(program =>
+                data[program].some(section => Number(section.program_id) === selectedProgramId)
+            );
             if (programs.length === 0) {
                 $("#groupedSections").html(`
                     <div class="sections-state">
@@ -1469,7 +1562,7 @@ function loadGroupedSections() {
                         </div>
                         <div class="sections-state-title">No sections found</div>
                         <div class="sections-state-text">
-                            There are no saved sections for the selected Academic Year and Semester yet.
+                            There are no saved sections for this program in the selected academic year and semester yet.
                         </div>
                     </div>
                 `);
@@ -1478,14 +1571,15 @@ function loadGroupedSections() {
 
             html += `<div class="program-cards-grid">`;
 
-            for (let program in data) {
-                const programMeta = parseProgramLabel(program);
-                const programSubtitle = programMeta.title === programMeta.code
-                    ? "Program sections grouped by year level."
-                    : `${programMeta.code} program sections grouped by year level.`;
-                const programRows = data[program];
+            for (const program of programs) {
+                const programRows = data[program].filter(section => Number(section.program_id) === selectedProgramId);
                 const programId = programRows.length ? Number(programRows[0].program_id || 0) : 0;
-                const programScopeLabel = `${programMeta.code} - all sections in this term`;
+                const programOption = SECTION_PROGRAM_OPTIONS.find(option => Number(option.program_id) === programId);
+                const programMeta = parseProgramLabel(program);
+                const programCode = String(programOption?.display_code || programMeta.code).trim().toUpperCase();
+                const programTitle = String(programOption?.display_label || programCode);
+                const programSubtitle = "Program sections grouped by year level.";
+                const programScopeLabel = `${programTitle} - all sections in this term`;
                 const programSelectedProspectusId = resolveBulkSelectedProspectusId(programRows);
                 const byYear = {};
                 programRows.forEach((s) => {
@@ -1499,9 +1593,9 @@ function loadGroupedSections() {
                     <div class="program-card">
                         <div class="program-card-header">
                             <div class="program-card-identity">
-                                <div class="program-card-code">${escapeHtml(programMeta.code)}</div>
+                                <div class="program-card-code">${escapeHtml(programCode)}</div>
                                 <div class="min-w-0">
-                                    <h5 class="program-card-title">${escapeHtml(programMeta.title)}</h5>
+                                    <h5 class="program-card-title">${escapeHtml(programTitle)}</h5>
                                     <div class="program-card-subtitle">
                                         ${escapeHtml(programSubtitle)}
                                     </div>
@@ -1532,7 +1626,7 @@ function loadGroupedSections() {
                 yearKeys.forEach((year) => {
                     const rows = byYear[year];
                     const sectionCountLabel = `${rows.length} ${rows.length === 1 ? 'section' : 'sections'}`;
-                    const bulkScopeLabel = `${programMeta.code} ${yearLevelLabel(year)} - ${sectionCountLabel}`;
+                    const bulkScopeLabel = `${programTitle} ${yearLevelLabel(year)} - ${sectionCountLabel}`;
                     const bulkSelectedProspectusId = resolveBulkSelectedProspectusId(rows);
                     html += `
                         <div class="year-level-card">
@@ -1564,8 +1658,9 @@ function loadGroupedSections() {
                         const normalizedStatus = String(s.status || 'inactive').toLowerCase();
                         const statusClass = normalizedStatus === 'active' ? 'section-status-active' : 'section-status-inactive';
                         const sectionName = String(s.section_name || '');
-                        const shortCode = sectionName.replace(new RegExp(`^${String(year)}`), "") || sectionName;
-                        const fullSection = String(s.full_section || sectionName || '');
+                        const fullSection = programCode && sectionName
+                            ? `${programCode} - ${sectionName}`
+                            : String(s.full_section || sectionName || '');
                         const curriculumLabel = String(s.prospectus_label || '').trim();
                         const hasCurriculum = Boolean(s.has_curriculum);
                         const curriculumMeta = SECTION_CURRICULUM_ENABLED
@@ -1576,12 +1671,8 @@ function loadGroupedSections() {
                         html += `
                                 <div class="section-tile">
                                     <div class="section-tile-main">
-                                        <div class="section-avatar">${escapeHtml(shortCode || sectionName)}</div>
-                                        <div class="min-w-0">
-                                            <div class="section-code">${escapeHtml(sectionName || fullSection)}</div>
-                                            <div class="section-fullcode">${escapeHtml(fullSection)}</div>
-                                            <div class="section-meta">${escapeHtml(curriculumMeta)}</div>
-                                        </div>
+                                        <div class="section-code">${escapeHtml(fullSection)}</div>
+                                        <div class="section-meta">${escapeHtml(curriculumMeta)}</div>
                                     </div>
                                     <div class="section-tile-actions">
                                         <span class="section-status-badge ${statusClass}">${escapeHtml(normalizedStatus)}</span>
@@ -1597,7 +1688,7 @@ function loadGroupedSections() {
                                                 Curriculum
                                             </button>
                                         ` : ''}
-                                        <button class="section-delete-btn btnDeleteSection" data-id="${Number(s.section_id)}" title="Delete section" type="button">
+                                        <button class="section-delete-btn btnDeleteSection" data-id="${Number(s.section_id)}" title="Delete section" aria-label="Delete ${escapeHtml(fullSection)}" type="button">
                                             <i class="bx bx-trash"></i>
                                         </button>
                                     </div>
@@ -1763,6 +1854,12 @@ $("#ay_id, #semester").on("change", function () {
                 <div class="sections-state-text">Choose Academic Year and Semester to view section cards.</div>
             </div>
         `);
+    }
+});
+
+$("#program_id").on("change", function () {
+    if ($("#ay_id").val() && $("#semester").val()) {
+        loadGroupedSections();
     }
 });
 
