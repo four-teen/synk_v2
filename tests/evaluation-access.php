@@ -88,20 +88,20 @@ try {
     $check($r['status']===200 && strpos($r['body'],'No released results yet')!==false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'Faculty results are hidden by default.');
     foreach (['professor_released','professor_foreign_faculty'] as $case) {
         $r=$request($case);
-        $check($r['status']===200 && strpos($r['body'],'80.00% normalized score')!==false && strpos($r['body'],'RELEASED_A_FEEDBACK &lt;script&gt;bad()&lt;/script&gt;')!==false,'Only the linked faculty result is shown, with escaped comments: '.$case);
+        $check($r['status']===200 && strpos($r['body'],'id="faculty-evaluation-report"')===false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'The page loads subject panels on demand without embedding a faculty-wide report: '.$case);
         foreach (['HIDDEN_B_FEEDBACK','OTHER_FACULTY_FEEDBACK','PRIVATE_DRAFT_COMMENT'] as $secret) $check(strpos($r['body'],$secret)===false,'Unreleased colleges, other faculty and drafts cannot leak: '.$secret);
         $check(strpos($r['body'],'Student Number:')===false && strpos($r['body'],'student_id=')===false,'The faculty page exposes no student identities or individual response links.');
     }
-    foreach (['professor_hidden_direct','professor_rehidden'] as $case) {
-        $r=$request($case);
-        $check($r['status']===404 && strpos($r['body'],'data-professor-evaluation-instrument=')===false && strpos($r['body'],'HIDDEN_B_FEEDBACK')===false,'Direct links cannot bypass hidden or rehidden results: '.$case);
-    }
+    $r=$request('professor_hidden_direct');
+    $check($r['status']===200 && strpos($r['body'],'No released results yet')===false && strpos($r['body'],'HIDDEN_B_FEEDBACK')===false,'A stale college selector cannot override the account college.');
+    $r=$request('professor_rehidden');
+    $check($r['status']===200 && strpos($r['body'],'No released results yet')!==false && strpos($r['body'],'data-professor-evaluation-instrument=')===false,'Rehidden current-term results remain inaccessible.');
     $r=$request('professor_historical');
-    $check($r['status']===200 && strpos($r['body'],'ARCHIVED_RELEASED_FEEDBACK')!==false && strpos($r['body'],'100.00% normalized score')!==false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'Past releases remain available independently of the current term.');
+    $check($r['status']===200 && strpos($r['body'],'No released results yet')!==false && strpos($r['body'],'ARCHIVED_RELEASED_FEEDBACK')===false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'A historical release cannot replace the administrator current term.');
     $r=$request('professor_ambiguous_legacy');
-    $check($r['status']===200 && strpos($r['body'],'No released results yet')!==false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'An ambiguous historical response cannot be released through either college by inference.');
+    $check($r['status']===200 && strpos($r['body'],'data-professor-evaluation-instrument=')===false && strpos($r['body'],'RELEASED_A_FEEDBACK')===false,'An ambiguous historical response is never embedded in the page.');
     $r=$request('professor_mixed');
-    $check($r['status']===200 && substr_count($r['body'],'data-professor-evaluation-instrument=')===2 && strpos($r['body'],'80.00% normalized score')!==false && strpos($r['body'],'60.00% normalized score')!==false,'Faculty reports preserve the two original instruments and never combine their scores.');
+    $check($r['status']===200 && substr_count($r['body'],'data-professor-evaluation-instrument=')===0 && strpos($r['body'],'LEGACY_RELEASED_FEEDBACK')===false,'Both questionnaire reports stay out of the page until their subject panel is requested.');
     foreach (['professor_revoked','professor_inactive','professor_unlinked'] as $case) {
         $r=$request($case);
         $check($r['status']===403 && strpos($r['body'],'data-professor-evaluation-instrument=')===false,'Faculty identity is revalidated on every request: '.$case);

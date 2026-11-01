@@ -153,6 +153,9 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 .faculty-evaluate-button{background:#5f5bdf;border-color:#5f5bdf;color:#fff;box-shadow:0 3px 7px #5f5bdf24}
 .faculty-evaluate-button:hover,.faculty-evaluate-button:focus{background:#514dc5!important;border-color:#514dc5!important;color:#fff!important}
 .faculty-evaluation-button:focus-visible{outline:3px solid #b8b6ff;outline-offset:3px}
+.faculty-evaluate-button.is-draft-saved,.faculty-save-draft-button{background:#238451;border-color:#238451;color:#fff;box-shadow:0 3px 7px #23845124}
+.faculty-evaluate-button.is-draft-saved:hover,.faculty-evaluate-button.is-draft-saved:focus,.faculty-save-draft-button:hover,.faculty-save-draft-button:focus{background:#1b6c40!important;border-color:#1b6c40!important;color:#fff!important}
+.faculty-evaluate-button.is-draft-saved:focus-visible,.faculty-save-draft-button:focus-visible{outline:3px solid #94d5ae;outline-offset:3px}
 .faculty-evaluation-card .faculty-draft-summary,.faculty-evaluation-card .faculty-final-summary{box-shadow:none;border-radius:12px;font-size:12px}
 .faculty-evaluation-card .faculty-draft-summary>.card-body,.faculty-evaluation-card .faculty-final-summary>.card-body{padding:16px}
 [hidden]{display:none!important}
@@ -281,10 +284,12 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 #finalEvaluationReviewModal .modal-body{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior-y:contain;padding:20px 24px;-webkit-overflow-scrolling:touch}
 #finalEvaluationReviewModal .faculty-review-item{padding:16px;border-radius:12px}
 #finalEvaluationReviewModal .faculty-review-item-head{align-items:center}
-#finalEvaluationReviewModal .faculty-review-name{font-size:15px;line-height:1.5;margin:0;overflow-wrap:anywhere}
+#finalEvaluationReviewModal .faculty-review-name{font-size:22px;font-weight:700;line-height:1.4;color:#e65c00;margin:0;overflow-wrap:anywhere}
+#finalEvaluationReviewModal .faculty-review-average{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:9px 12px;background:#edf3ff;border:1px solid #c7d7ef;border-radius:10px;color:#405a7b;text-transform:none;font-size:12px;font-weight:500;line-height:1.4}
+#finalEvaluationReviewModal .faculty-review-average strong{font-size:24px;font-weight:700;line-height:1.1;color:#163e70;font-variant-numeric:tabular-nums}
 #finalEvaluationReviewModal .faculty-review-comment{margin-top:12px;padding-top:12px;border-top:1px solid #e5eaf2}
 #finalEvaluationReviewModal .faculty-review-comment>span{display:block;font-size:11px;color:#74849a;margin-bottom:5px}
-#finalEvaluationReviewModal .faculty-review-comment>p{font-size:13px;line-height:1.7;color:#45566f;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+#finalEvaluationReviewModal .faculty-review-comment>p{font-size:14px;font-style:italic;line-height:1.75;color:#151515;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 #finalEvaluationReviewModal .modal-footer{flex-shrink:0;flex-wrap:nowrap;gap:8px;padding:14px 24px;border-top:1px solid var(--student-border);background:#fff;box-shadow:0 -4px 14px #43597108}
 #finalEvaluationReviewModal .modal-footer>.btn{min-height:48px;min-width:0;margin:0;font-size:14px;line-height:1.4;font-weight:600;white-space:normal}
 #finalEvaluationReviewModal .modal-footer>.btn-outline-secondary{background:#fff;border-color:#7b899a;color:#42536b}
