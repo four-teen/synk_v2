@@ -41,10 +41,16 @@ if ($programStmt instanceof mysqli_stmt) {
         $programCode = strtoupper(trim((string)($row['program_code'] ?? '')));
         $programName = trim((string)($row['program_name'] ?? ''));
         $major = trim((string)($row['major'] ?? ''));
-        $label = trim($programCode . ($programName !== '' ? ' - ' . $programName : ''));
+        $displayMajor = function_exists('mb_convert_case')
+            ? mb_convert_case($major, MB_CASE_TITLE, 'UTF-8')
+            : ucwords(strtolower($major));
+        $displayMajor = preg_replace_callback('/(?<=\s)(And|Of|In|The|For|To|With)(?=\s)/u', static function ($match) {
+            return strtolower($match[0]);
+        }, $displayMajor);
+        $label = $programCode !== '' ? $programCode : $programName;
 
-        if ($major !== '') {
-            $label .= ' (Major in ' . $major . ')';
+        if ($displayMajor !== '') {
+            $label .= ' (major in ' . $displayMajor . ')';
         }
 
         $programOptions[] = [
@@ -93,6 +99,82 @@ $roomOptions = "";
 .schedule-hint {
     font-size: 0.85rem;
     color: #6c757d;
+}
+
+.schedule-program-filters .form-label {
+    color: #5c6d84;
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.schedule-program-filters .form-select {
+    min-height: 3rem;
+    border-color: #d7e0ec;
+    border-radius: .9rem;
+    background-color: #fbfcff;
+}
+
+#program_id,
+#program_id option {
+    font-size: 1rem;
+    text-transform: none;
+}
+
+#program_id + .select2-container .select2-selection--single {
+    height: 3rem;
+    border: 1px solid #d7e0ec;
+    border-radius: .9rem;
+    background-color: #fbfcff;
+}
+
+#program_id + .select2-container .select2-selection__rendered {
+    padding-left: .875rem;
+    padding-right: 3rem;
+    color: #697a8d;
+    font-size: 1rem;
+    line-height: calc(3rem - 2px);
+}
+
+#program_id + .select2-container .select2-selection__arrow {
+    top: 0;
+    right: .75rem;
+    height: 100%;
+}
+
+#program_id + .select2-container .select2-selection__clear {
+    height: 100%;
+    margin-right: 2.5rem;
+}
+
+.schedule-program-filters .form-select:focus,
+#program_id + .select2-container--focus .select2-selection--single,
+#program_id + .select2-container--open .select2-selection--single {
+    border-color: #8ca0ff;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 .2rem rgba(105, 108, 255, 0.14);
+}
+
+.schedule-program-dropdown {
+    border-color: #8ca0ff;
+    font-size: 1rem;
+}
+
+.schedule-program-dropdown .select2-search__field {
+    padding: .6rem .75rem;
+    border: 1px solid #d7e0ec;
+    border-radius: .55rem;
+    font-size: 1rem;
+}
+
+.schedule-program-dropdown .select2-results__option {
+    padding: .65rem .875rem;
+    font-size: 1rem;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-transform: none;
 }
 
 .schedule-page-header {
@@ -726,6 +808,68 @@ body.swal2-shown .modal {
 
 .schedule-merge-tab-pane .select2-container {
     width: 100% !important;
+}
+
+#scheduleMergeFullSelect + .select2-container {
+    margin-top: 1rem;
+}
+
+#scheduleMergeFullSelect + .select2-container .select2-selection--single {
+    min-height: 3rem;
+    height: auto;
+    border: 1px solid #d7e0ec;
+    border-radius: .75rem;
+    background-color: #fbfcff;
+}
+
+#scheduleMergeFullSelect + .select2-container .select2-selection__rendered {
+    padding: .7rem 2.75rem .7rem .875rem;
+    color: #27324f;
+    font-size: 1rem;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-transform: none;
+}
+
+#scheduleMergeFullSelect + .select2-container .select2-selection__arrow {
+    top: .65rem;
+    right: .75rem;
+}
+
+#scheduleMergeFullSelect + .select2-container--focus .select2-selection--single,
+#scheduleMergeFullSelect + .select2-container--open .select2-selection--single {
+    border-color: #8ca0ff;
+    box-shadow: 0 0 0 .2rem rgba(105, 108, 255, .14);
+}
+
+#scheduleMergeFullSelect + .select2-container--disabled .select2-selection--single {
+    background-color: #f1f3f6;
+}
+
+.schedule-merge-full-dropdown {
+    border-color: #8ca0ff;
+    font-size: 1rem;
+}
+
+.schedule-merge-full-dropdown .select2-search--dropdown {
+    padding: .65rem;
+}
+
+.schedule-merge-full-dropdown .select2-search__field {
+    padding: .6rem .75rem;
+    border: 1px solid #d7e0ec;
+    border-radius: .55rem;
+    font-size: 1rem;
+}
+
+.schedule-merge-full-dropdown .select2-results__option {
+    padding: .65rem .875rem;
+    font-size: 1rem;
+    line-height: 1.45;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-transform: none;
 }
 
 .schedule-merge-select-title {
@@ -3296,10 +3440,10 @@ body.swal2-shown .modal {
 <!-- FILTERS -->
 <div class="card mb-4">
 <div class="card-body">
-<div class="row g-3">
+<div class="row g-3 schedule-program-filters">
 
-<div class="col-md-4">
-<label class="form-label">Program</label>
+<div class="col-12 col-lg-8">
+<label class="form-label" for="program_id">Program</label>
 <select id="program_id" class="form-select">
 <option value="">Select...</option>
 <?php foreach ($programOptions as $programOption): ?>
@@ -3310,8 +3454,8 @@ body.swal2-shown .modal {
 </select>
 </div>
 
-<div class="col-md-4">
-<label class="form-label">Academic Year</label>
+<div class="col-6 col-lg-2">
+<label class="form-label" for="ay_id">Academic Year</label>
 <select id="ay_id" class="form-select">
 <option value="">Select...</option>
 <?php
@@ -3324,8 +3468,8 @@ while ($ay = $ayQ->fetch_assoc()) {
 </select>
 </div>
 
-<div class="col-md-4">
-<label class="form-label">Semester</label>
+<div class="col-6 col-lg-2">
+<label class="form-label" for="semester">Semester</label>
 <select id="semester" class="form-select">
 <option value="">Select...</option>
 <option value="1"<?= $default_semester === 1 ? ' selected' : '' ?>>First Semester</option>
@@ -4026,7 +4170,7 @@ CSV files are the only schedule-set storage. Importing a file does not create a 
           <div class="tab-content" id="scheduleMergeTabContent">
             <div class="tab-pane fade show active schedule-merge-tab-pane" id="scheduleMergeFullPane" role="tabpanel" aria-labelledby="scheduleMergeFullTab">
               <div class="schedule-merge-select-card" id="scheduleMergeFullCard">
-                <div class="schedule-merge-select-title">Whole Subject</div>
+                <label class="schedule-merge-select-title" for="scheduleMergeFullSelect">Whole Subject</label>
                 <div class="schedule-merge-select-note">Select a saved offering from any scheduled subject in this college. This applies the full inherited schedule to the current offering.</div>
                 <select class="form-select mt-3" id="scheduleMergeFullSelect" disabled>
                   <option value="">Keep this offering local</option>
@@ -8613,12 +8757,23 @@ CSV files are the only schedule-set storage. Importing a file does not create a 
                 return;
             }
 
+            const isWholeSubject = config.selector === "#scheduleMergeFullSelect";
             $select.select2({
                 dropdownParent: $("#scheduleMergeModal"),
                 width: "100%",
                 minimumResultsForSearch: 0,
-                placeholder: config.placeholder
+                placeholder: config.placeholder,
+                dropdownCssClass: isWholeSubject ? "schedule-merge-full-dropdown" : ""
             });
+
+            if (isWholeSubject) {
+                $select.on("select2:open", function () {
+                    $("#scheduleMergeModal .schedule-merge-full-dropdown .select2-search__field")
+                        .attr("placeholder", "Search program code, section, or subject...")
+                        .attr("aria-label", "Search whole-subject schedule sources")
+                        .trigger("focus");
+                });
+            }
         });
     }
 
@@ -10050,6 +10205,18 @@ CSV files are the only schedule-set storage. Importing a file does not create a 
 $(document).ready(function () {
 
 ensureDefaultProgram();
+$("#program_id").select2({
+    placeholder: "Search or select a program",
+    width: "100%",
+    allowClear: true,
+    minimumResultsForSearch: 0,
+    dropdownCssClass: "schedule-program-dropdown"
+}).on("select2:open", function () {
+    $(".schedule-program-dropdown .select2-search__field")
+        .attr("placeholder", "Search programs...")
+        .attr("aria-label", "Search programs")
+        .trigger("focus");
+});
 resetSingleSuggestionPanel();
 resetDualSuggestionPanels();
 

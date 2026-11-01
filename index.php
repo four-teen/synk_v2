@@ -365,6 +365,10 @@ if (isset($_POST['login'])) {
         color: var(--login-title);
       }
 
+      .synk-login-assemble .synk-wordmark > .synk-wordmark-q {
+        color: #db4437 !important;
+      }
+
       .login-title {
         max-width: 280px;
         margin: 0.85rem auto 0.45rem;

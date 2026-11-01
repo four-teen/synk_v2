@@ -3294,6 +3294,16 @@ function schedule_merge_offering_label(array $row): string
     return 'Offering ' . (int)($row['offering_id'] ?? 0);
 }
 
+function schedule_merge_source_display_label(array $row): string
+{
+    // Display only: codes come from Program Management, never from inferred major abbreviations.
+    $programCode = trim((string)($row['program_code'] ?? ''));
+    $sectionName = trim((string)($row['section_name'] ?? ''));
+    return $programCode !== '' && $sectionName !== ''
+        ? $programCode . ' ' . $sectionName
+        : schedule_merge_offering_label($row);
+}
+
 function schedule_merge_scope_rows(array $rows, string $scope): array
 {
     $normalizedScope = synk_schedule_merge_normalize_scope($scope);
@@ -5094,7 +5104,7 @@ if (isset($_POST['load_schedule_merge_candidates'])) {
 
         $options['FULL'][] = [
             'offering_id' => $candidateId,
-            'label' => $candidateLabel,
+            'label' => schedule_merge_source_display_label($candidate),
             'subject_label' => $candidateSubject,
             'schedule_summary' => schedule_merge_scope_summary($candidateEffectiveRows, 'FULL'),
             'is_selected' => (int)($currentScopes['FULL'] ?? 0) === $candidateId,
