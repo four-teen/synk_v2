@@ -649,7 +649,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                   <?php if ($cardEval): ?><button type="button" class="btn btn-outline-secondary faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-show-alt" aria-hidden="true"></i>View saved evaluation</button><?php endif; ?>
                 <?php else: ?>
                   <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : (!empty($card['requires_comment']) ? 'Add your required comment' : 'Draft saved')) : 'Ready to evaluate' ?></span>
-                  <button type="button" class="btn btn-primary faculty-evaluation-button faculty-evaluate-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Draft' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
+                  <button type="button" class="btn <?= !empty($card['is_draft_saved']) ? 'btn-success' : 'btn-primary' ?> faculty-evaluation-button faculty-evaluate-button<?= !empty($card['is_draft_saved']) ? ' is-draft-saved' : '' ?>" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Draft' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
                 <?php endif; ?>
                 <?php if ((int)$card['faculty_id'] > 0 && (int)$card['subject_count'] > 1): ?><p>One evaluation covers all <?= (int)$card['subject_count'] ?> subjects with this professor.</p><?php endif; ?>
               </div>
@@ -835,7 +835,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <?php if ($cardReadOnly || $allFacultyFinalized): ?>
               <button type="button" class="btn btn-primary" disabled><?php echo $studentPortalPreviewMode?'Preview Only':'Read only'; ?></button>
             <?php else: ?>
-              <button type="submit" class="btn btn-primary">Save Draft Evaluation</button>
+              <button type="submit" class="btn btn-success faculty-save-draft-button">Save Draft Evaluation</button>
             <?php endif; ?>
           </div>
         </form>
@@ -887,7 +887,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                     </div>
                     <div class="d-flex flex-wrap gap-2">
                       <?php if ($cardEval): ?>
-                        <span class="badge bg-label-info">Average <?php echo number_format((float)($cardEval['average_rating'] ?? 0), 2); ?></span>
+                        <span class="badge faculty-review-average" aria-label="Average rating <?= number_format((float)($cardEval['average_rating'] ?? 0), 2) ?> out of 5"><span>Average</span><strong><?= number_format((float)($cardEval['average_rating'] ?? 0), 2) ?></strong><span>/ 5.00</span></span>
                       <?php endif; ?>
                     </div>
                   </div>

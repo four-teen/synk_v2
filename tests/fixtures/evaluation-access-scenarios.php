@@ -107,7 +107,7 @@ if (strpos($case,'dean_')===0 || strpos($case,'chair_')===0) {
     }
 }
 if (strpos($case,'professor_')===0) {
-    $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status) VALUES ('Faculty Access QA','faculty-access-{$email}','unusable','professor','active')");
+    $conn->query("INSERT INTO tbl_useraccount (username,email,password,role,status,college_id) VALUES ('Faculty Access QA','faculty-access-{$email}','unusable','professor','active',{$collegeA})");
     $professorId=(int)$conn->insert_id; synk_persist_useraccount_roles($conn,$professorId,['professor'],'professor');
     synk_evaluation_query($conn,'INSERT INTO tbl_useraccount_faculty_links (user_id,faculty_id) VALUES (?,?)','ii',[$professorId,$teachers[0]]);
     $_SESSION=['user_id'=>$professorId,'role'=>'professor','email'=>'faculty-access-'.$email,'username'=>'Faculty Access QA'];
