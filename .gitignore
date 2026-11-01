@@ -56,6 +56,8 @@ gulpfile.tmp.*
 # Local configuration and credentials
 /backend/db_config.local.php
 /backend/auth_config.local.php
+# PULSE-only exports/configuration; source templates are tracked in pulse-api.
+/backend/pulse_*.php
 # Oracle integration files containing the shared secret
 synk-research-api.php
 /professor/oracle-research.php
