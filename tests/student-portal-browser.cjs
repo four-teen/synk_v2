@@ -193,7 +193,7 @@ async function main(){
   await resize(width,height,width<992);
   await clickElement(`document.querySelector('#finalEvaluationReviewModal button[type="submit"]')`);
   await until('Swal.isVisible()&&Swal.getPopup().getAnimations().every(animation=>animation.playState!=="running")');
-  check(await evaluate(`Swal.getTitle().textContent==='Submit Final Evaluation?'&&document.querySelector('#finalFacultyEvaluationForm').dataset.confirmed!=='1'&&Swal.getContainer().parentElement.id==='finalEvaluationReviewModal'`),'The final confirmation is missing or outside the review focus boundary.');
+  check(await evaluate(`Swal.getTitle().textContent==='Submit Evaluations?'&&document.querySelector('#finalFacultyEvaluationForm').dataset.confirmed!=='1'&&Swal.getContainer().parentElement.id==='finalEvaluationReviewModal'`),'The final confirmation is missing or outside the review focus boundary.');
   await screenshot('student-final-confirmation-current.png');
   const confirmationGeometry=await evaluate(`({viewport:[innerWidth,innerHeight],container:{z:getComputedStyle(Swal.getContainer()).zIndex,rect:Swal.getContainer().getBoundingClientRect().toJSON()},popup:Swal.getPopup().getBoundingClientRect().toJSON(),buttons:[Swal.getConfirmButton(),Swal.getCancelButton()].map(button=>{const r=button.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return{rect:r.toJSON(),hit:hit?.outerHTML.slice(0,220),self:hit===button,height:getComputedStyle(button).minHeight};})})`);
   if(!confirmationGeometry.buttons.every(button=>button.self&&button.rect.height>=48&&button.rect.top>=0&&button.rect.bottom<=height))console.log(JSON.stringify(confirmationGeometry));

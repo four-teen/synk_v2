@@ -26,7 +26,7 @@ $professorSidebarItems = [
         'icon' => 'bx-briefcase-alt',
         'title' => 'Workload',
         'description' => 'Faculty workload from enrolled subject records',
-        'pages' => ['workload.php'],
+        'pages' => ['workload.php', 'class_lms.php'],
     ],
     [
         'key' => 'researches',

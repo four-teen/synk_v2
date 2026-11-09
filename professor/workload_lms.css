@@ -1,0 +1,4 @@
+.workload-actions-lms{display:grid;gap:8px;max-width:180px;margin-inline:auto}
+.workload-actions-lms>.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:44px;font-size:.75rem;line-height:1.4;white-space:normal}
+.workload-actions-lms>.btn i{font-size:1rem;flex-shrink:0}
+@media(max-width:767.98px){.workload-class>.workload-actions-lms{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;margin-top:16px}}

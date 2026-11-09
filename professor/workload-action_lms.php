@@ -1,0 +1,2 @@
+<?php // Shared by the desktop subject row and its mobile card. ?>
+<a class="btn btn-primary workload-manage-class-lms" href="class_lms.php?<?= synk_professor_h(http_build_query(['offering_id'=>(int)$row['offering_id'],'ay_id'=>(int)$row['ay_id'],'semester'=>(int)$row['semester']])) ?>" aria-label="<?= synk_professor_h('Manage Class for '.$row['subject_code'].' '.$row['section_display']) ?>"><i class="bx bx-book-open" aria-hidden="true"></i>Manage Class</a>

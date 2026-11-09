@@ -17,6 +17,8 @@ Keep the repository's `backend/db.php` and `backend/auth_config.php` loaders. Re
 
 If you configure a workstation from scratch, copy `backend/db_config.local.example.php` to `backend/db_config.local.php` and fill in the database settings. Copy `backend/auth_config.local.example.php` to `backend/auth_config.local.php` and fill in Google OAuth settings when needed. Both examples have blank credentials.
 
+The professor LMS class workspace uses a separate `synk_lms_db` database. Copy `backend/db_config.local.example_lms.php` to the ignored `backend/db_config.local_lms.php` and supply the target server's LMS credentials. Create or restore `synk_lms_db` separately from the core database. The tracked `backend/db_lms.php` loader opens its own connection and rejects the core database as the LMS target. The initial class overview and roster read existing synQ assignments; opening them does not create LMS content or tables. LMS private configuration and future LMS uploads must be transferred separately when deploying or moving the learning module.
+
 Google login on a different application URL
 
 When the target application has a different URL, update `google_redirect_uri` in the local auth file and configure the same callback URL for that Google OAuth client. The configured URL must exactly match a registered redirect URI, as described in the [Google OAuth documentation](https://developers.google.com/identity/protocols/oauth2/web-server). The callback path is `/synk/backend/auth_google_callback.php` when the application is served under `/synk`. Preserve the existing redirect URL when the application URL stays the same. Google credentials should be transferred privately and never pasted into tracked files.
