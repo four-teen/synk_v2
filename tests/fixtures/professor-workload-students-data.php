@@ -1,6 +1,8 @@
 <?php
 // CLI fixtures only. The caller always rolls back the encompassing transaction.
-if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+if (PHP_SAPI !== 'cli' && (!defined('SYNK_PROFESSOR_LMS_QA')
+    || !in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1','::1'], true)
+    || !is_string($_GET['qa'] ?? null) || !hash_equals(SYNK_PROFESSOR_LMS_QA, $_GET['qa']))) { http_response_code(404); exit; }
 function professor_students_fixtures(mysqli $conn): array
 {
     $term = synk_fetch_current_academic_term($conn);

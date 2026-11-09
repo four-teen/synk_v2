@@ -4,7 +4,7 @@ These rules protect workstation credentials and application data while retaining
 
 | Category | `.gitignore` rules | Reason |
 | --- | --- | --- |
-| Local credentials | `/backend/db_config.local.php`, `/backend/auth_config.local.php` | Database connection and Google OAuth settings |
+| Local credentials | `/backend/db_config.local.php`, `/backend/db_config.local_lms.php`, `/backend/auth_config.local.php` | Core/LMS database connections and Google OAuth settings |
 | Environment files | `.env`, `.env.*`, with `!.env.example` | Keep real environment values private |
 | Private keys and credentials | `*.pem`, `*.key`, `*.p12`, `*.pfx`, `/.aws/`, `/.ssh/` | Prevent credential/key uploads |
 | Database dumps | `*.sql`, with exceptions for `/backend/sql/*.sql` and the two reviewed root schema scripts | Exclude full backups containing real records |

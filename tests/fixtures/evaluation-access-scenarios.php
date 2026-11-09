@@ -26,11 +26,17 @@ if (strpos($case,'prompt_')===0) {
     $handler='student/index.php';
     if (!in_array($case,['prompt_closed','prompt_other_college'],true)) $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeA} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
     if ($case==='prompt_other_college') $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeB} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
-    if (in_array($case,['prompt_drafts','prompt_review','prompt_complete','prompt_partial','prompt_partial_submit','prompt_partial_no_comment_submit','prompt_no_comment','prompt_no_comment_page','prompt_no_comment_submit','prompt_incomplete_answers','prompt_incomplete_submit','prompt_revised'],true)) {
+    if (in_array($case,['prompt_drafts','prompt_review','prompt_complete','prompt_complete_success','prompt_partial','prompt_partial_submit','prompt_partial_no_comment_submit','prompt_no_comment','prompt_no_comment_page','prompt_no_comment_submit','prompt_incomplete_answers','prompt_incomplete_submit','prompt_revised','prompt_mixed_colleges'],true)) {
         foreach ($teachers as $i=>$teacher) {
-            $status=$case==='prompt_complete'||(in_array($case,['prompt_partial','prompt_partial_submit','prompt_partial_no_comment_submit'],true)&&$i===0)?'submitted':'draft';
+            $status=in_array($case,['prompt_complete','prompt_complete_success'],true)||(in_array($case,['prompt_partial','prompt_partial_submit','prompt_partial_no_comment_submit'],true)&&$i===0)?'submitted':'draft';
             $seedAccess($collegeA,$teacher,$term,$status,4,'PROMPT TEST '.($status==='submitted'?'PRESERVE SUBMITTED':'DRAFT'),$case==='prompt_revised'?'legacy-20':null);
         }
+    }
+    if (in_array($case,['prompt_complete_success','prompt_false_success'],true)) { $handler='student/class-program.php';$_GET['final_status']='success'; }
+    if ($case==='prompt_mixed_colleges') {
+        $conn->query("UPDATE tbl_college_evaluation_settings SET student_open=1 WHERE college_id={$collegeB} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+        synk_evaluation_query($conn,"INSERT INTO tbl_student_management_enrolled_subjects (import_batch_key,campus_id,college_id,program_id,ay_id,semester,student_id,subject_id,subject_code,faculty_id,is_active) VALUES (?,?,?,?,?,?,?,1,'SHARED-PROMPT',?,1)",'siiiiiii',[$tag,$otherProgram['campus_id'],$collegeB,$otherProgram['program_id'],$term['ay_id'],$term['semester'],$students['first'],$teachers[0]]);
+        $seedAccess($collegeB,$teachers[0],$term,'draft',4,'');
     }
     if (in_array($case,['prompt_incomplete_answers','prompt_incomplete_submit'],true)) $conn->query('DELETE a FROM tbl_student_faculty_evaluation_answers a JOIN tbl_student_faculty_evaluations e ON e.evaluation_id=a.evaluation_id WHERE e.student_id='.(int)$students['first'].' AND e.faculty_id='.(int)$teachers[0]." AND a.question_key='MTL1'");
     if (in_array($case,['prompt_no_comment','prompt_no_comment_page','prompt_no_comment_submit','prompt_partial_no_comment_submit'],true)) $conn->query('UPDATE tbl_student_faculty_evaluations SET comment_text=\'   \' WHERE student_id='.(int)$students['first'].' AND faculty_id='.(int)$teachers[0]);

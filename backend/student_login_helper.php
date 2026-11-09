@@ -72,22 +72,21 @@ function synk_student_login_find_directory(mysqli $conn, string $email): array
     return $rows;
 }
 
-function synk_student_login_verified_identity(mysqli $conn, string $submitted, array $identity, string $allowedDomain): array
+function synk_student_login_verified_identity(mysqli $conn, array $identity, string $allowedDomain): array
 {
     $email = synk_normalize_email((string)($identity['email'] ?? ''));
     $name = (string)($identity['name'] ?? '');
     if (($identity['email_verified'] ?? false) !== true || trim((string)($identity['sub'] ?? '')) === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        synk_student_login_activity_record($conn,$submitted,'failure','google_profile_invalid');
+        synk_student_login_activity_record($conn,'','failure','google_profile_invalid');
         throw new DomainException('google_profile_invalid');
     }
     $failure = '';
     if (!synk_is_allowed_email_domain($email, $allowedDomain)) $failure = 'email_domain_denied';
-    elseif (!hash_equals(synk_normalize_email($submitted), $email)) $failure = 'student_email_mismatch';
     $rows = $failure === '' ? synk_student_login_find_directory($conn, $email) : [];
     if ($failure === '' && !$rows) $failure = 'student_directory_access_denied';
     elseif ($failure === '' && count($rows) !== 1) $failure = 'student_email_ambiguous';
     if ($failure !== '') {
-        synk_student_login_record_issue($conn, $submitted, $failure, $email, $name);
+        synk_student_login_record_issue($conn, $email, $failure, $email, $name);
         throw new DomainException($failure);
     }
     return $rows[0];

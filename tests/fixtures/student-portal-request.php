@@ -156,14 +156,18 @@ if($scenario==='foreign_term')$_GET['student_term']='999999:3';
 if($scenario==='guard_changed')$conn->query("UPDATE tbl_student_management SET email_address='changed-{$email}' WHERE student_id={$students['first']}");
 if($scenario==='guard_wrong_id')$_SESSION['student_id']=$students['other'];
 if(strpos($scenario,'login_')===0){$handler='student/login.php';$_SESSION['role']='admin';if($scenario==='login_error'){synk_student_login_record_issue($conn,'wrong-'.$email,'student_directory_access_denied');$_SESSION['student_login_last_email']='wrong-'.$email;$_GET['auth_status']='student_directory_access_denied';}}
-if(strpos($scenario,'start_')===0){$handler='backend/auth_google_student_start.php';unset($_SESSION['role'],$_SESSION['user_id']);$_POST=['csrf_token'=>$csrf,'email'=>$email];
+if(strpos($scenario,'start_')===0){$handler='backend/auth_google_student_start.php';unset($_SESSION['role'],$_SESSION['user_id']);$_POST=['csrf_token'=>$csrf];
+    if(in_array($scenario,['start_bad_csrf','start_rate'],true))$_POST['email']=$email; // Forged identifiers must not be attributed to a student.
     if($scenario==='start_invalid')$_POST['email']='invalid email';if($scenario==='start_domain')$_POST['email']='qa@example.com';if($scenario==='start_bad_csrf')$_POST['csrf_token']='wrong';
+    if($scenario==='start_get')$_POST=[];
+    if($scenario==='start_stale_email'){$_SESSION['student_google_oauth_email']=$email;$_SESSION['student_login_last_email']=$email;}
     if($scenario==='start_rate')$_SESSION['student_login_requests']=array_fill(0,10,time());}
 if($scenario==='start_unknown')$_POST['email']='unknown-'.$email;
-if(strpos($scenario,'callback_')===0){$handler='backend/auth_google_callback.php';$_SESSION['student_google_oauth_state']='qa-student-state';$_SESSION['student_google_oauth_nonce']='qa-student-nonce';$_SESSION['student_google_oauth_email']=$email;$_SESSION['student_google_oauth_started_at']=time();$_SESSION['google_oauth_state']='qa-main-state';$_SESSION['google_oauth_nonce']='qa-main-nonce';$_SESSION['google_oauth_portal']='main';$_GET['state']='qa-student-state';$_GET['error']='access_denied';
+if(strpos($scenario,'callback_')===0){$handler='backend/auth_google_callback.php';$_SESSION['student_google_oauth_state']='qa-student-state';$_SESSION['student_google_oauth_nonce']='qa-student-nonce';$_SESSION['student_google_oauth_started_at']=time();$_SESSION['google_oauth_state']='qa-main-state';$_SESSION['google_oauth_nonce']='qa-main-nonce';$_SESSION['google_oauth_portal']='main';$_GET['state']='qa-student-state';$_GET['error']='access_denied';
     if($scenario==='callback_main_cancelled'){$_GET['state']='qa-main-state';$_SESSION['google_oauth_portal']='student';}
     if($scenario==='callback_invalid_state'){$_GET['state']='wrong-state';$_SESSION['google_oauth_portal']='student';}
     if($scenario==='callback_expired')$_SESSION['student_google_oauth_started_at']=time()-1800;
+    if($scenario==='callback_missing_start')unset($_SESSION['student_google_oauth_started_at']);
     if($scenario==='callback_missing_code')unset($_GET['error']);}
 if(strpos($scenario,'admin_')===0){$handler='administrator/student-login-issues.php';$_SESSION=['user_id'=>$adminId,'role'=>'admin','email'=>'admin-'.$email,'username'=>'Portal QA Admin','college_id'=>(int)$program['college_id'],'csrf_token'=>SYNK_STUDENT_PORTAL_QA,'student_login_csrf'=>$csrf];
     synk_student_login_record_issue($conn,$email,'student_directory_access_denied',$email,'Alex Portal QA');
@@ -257,8 +261,6 @@ $protectedBefore=$snapshot($protected);
 ob_start(static function($html)use($handler):string {if(strpos($handler,'student/')===0||strpos($handler,'administrator/')===0||strpos($handler,'college-dean/')===0||strpos($handler,'professor/')===0||strpos($handler,'program-chair/')===0){$base=dirname($handler);$html=preg_replace('/<head([^>]*)>/', '<head$1><base href="http://localhost/synk/'.$base.'/">',$html,1);}return $html;});
 register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$protected,$protectedBefore,$snapshot,$loginActivityFloor):void {
     $stmt=$conn->prepare('SELECT submitted_email,google_email,google_name,failure_code,identity_verified,attempt_count,review_status,review_note FROM tbl_student_login_issues WHERE submitted_email LIKE ? ORDER BY issue_id');$like='%'.$tag.'%';$stmt->bind_param('s',$like);$stmt->execute();$issues=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
-    // The deliberate invalid-address preflight scenarios use non-tagged emails.
-    if(isset($_POST['email'])&&in_array($_POST['email'],['invalid email','qa@example.com'],true))$issues=$conn->query("SELECT submitted_email,google_email,failure_code,identity_verified,attempt_count,review_status FROM tbl_student_login_issues WHERE submitted_email IN ('invalid email','qa@example.com')")->fetch_all(MYSQLI_ASSOC);
     header('X-QA-Issues: '.rawurlencode(json_encode($issues)));header('X-QA-Students: '.rawurlencode(json_encode($students)));
     if (strpos($_GET['scenario'] ?? '','attendance_qr_')===0) {
         $owners=$conn->query('SELECT student_id FROM tbl_management_student_qr_tokens WHERE student_id IN ('.(int)$students['first'].','.(int)$students['other'].') ORDER BY student_id')->fetch_all(MYSQLI_ASSOC);
@@ -275,20 +277,23 @@ register_shutdown_function(static function()use($conn,$tag,$students,$teachers,$
         $audit=$conn->query("SELECT control_name,previous_value,new_value FROM tbl_college_evaluation_audit WHERE user_id=".(int)($_SESSION['user_id'] ?? 0).' ORDER BY audit_id')->fetch_all(MYSQLI_ASSOC);
         header('X-QA-Evaluation-State: '.rawurlencode(json_encode(['responses'=>$state,'controls'=>$controls,'audit'=>$audit])));
     }
-    header('X-QA-OAuth-Pending: '.rawurlencode(json_encode(['student'=>isset($_SESSION['student_google_oauth_state']),'main'=>isset($_SESSION['google_oauth_state'])])));
+    header('X-QA-OAuth-Pending: '.rawurlencode(json_encode(['student'=>isset($_SESSION['student_google_oauth_state']),'main'=>isset($_SESSION['google_oauth_state']),
+        'student_nonce'=>isset($_SESSION['student_google_oauth_nonce']), 'student_started'=>(int)($_SESSION['student_google_oauth_started_at'] ?? 0)>0,
+        'student_email'=>isset($_SESSION['student_google_oauth_email']), 'last_email'=>isset($_SESSION['student_login_last_email'])])));
     $conn->requestMode=false;$conn->rollback();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();
 });
 if(strpos($scenario,'verified_')===0){
-    $identity=['sub'=>'qa-sub-'.$tag,'email'=>$email,'email_verified'=>true,'name'=>'Alex Portal QA'];$submitted=$email;
-    if($scenario==='verified_unknown')$identity['email']=$submitted='unknown-'.$email;
-    if($scenario==='verified_mismatch')$submitted='wrong-'.$email;
-    if($scenario==='verified_mismatch_known_student')$identity['email']='other-'.$email;
+    $identity=['sub'=>'qa-sub-'.$tag,'email'=>$email,'email_verified'=>true,'name'=>'Alex Portal QA'];
+    if($scenario==='verified_unknown')$identity['email']='unknown-'.$email;
+    if($scenario==='verified_other_account')$identity['email']='other-'.$email;
     if($scenario==='verified_unverified')$identity['email_verified']=false;
-    if($scenario==='verified_domain')$identity['email']=$submitted='outside-'.$tag.'@example.com';
+    if($scenario==='verified_missing_sub')$identity['sub']='';
+    if($scenario==='verified_invalid_email')$identity['email']='invalid email';
+    if($scenario==='verified_domain')$identity['email']='outside-'.$tag.'@example.com';
     if(strpos($scenario,'verified_login_')===0) $_SESSION=[];
     header('Content-Type: application/json');
     if($scenario==='verified_login_storage_failure') $conn->failActivityWrite=true;
-    try{$record=synk_student_login_verified_identity($conn,$submitted,$identity,$domain);if(in_array($scenario,['verified_login_success','verified_login_storage_failure'],true))synk_student_login_complete($conn,$record,$identity['email'],$identity['name'],$identity['sub']);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id'],'authenticated'=>(($_SESSION['role'] ?? '')==='student' && (int)($_SESSION['student_id'] ?? 0)===(int)$record['student_id'])]);}
+    try{$record=synk_student_login_verified_identity($conn,$identity,$domain);if(in_array($scenario,['verified_login_success','verified_login_storage_failure'],true))synk_student_login_complete($conn,$record,$identity['email'],$identity['name'],$identity['sub']);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id'],'authenticated'=>(($_SESSION['role'] ?? '')==='student' && (int)($_SESSION['student_id'] ?? 0)===(int)$record['student_id'])]);}
     catch(DomainException $e){http_response_code(403);echo json_encode(['status'=>'denied','reason'=>$e->getMessage()]);}
     exit;
 }

@@ -51,6 +51,7 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?php echo filemtime(__DIR__ . '/custom_css.css'); ?>">
   <link rel="stylesheet" href="workload.css?v=<?php echo filemtime(__DIR__ . '/workload.css'); ?>">
+  <link rel="stylesheet" href="workload_lms.css?v=<?php echo filemtime(__DIR__ . '/workload_lms.css'); ?>">
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
 </head>
@@ -124,7 +125,7 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
                                 <th scope="row" class="workload-subject-cell"><?php require __DIR__ . '/workload-class-summary.php'; ?></th>
                                 <td class="workload-enrolled-cell"><strong><?= (int)$row['student_count'] ?></strong></td>
                                 <td class="workload-activity-cell"><span class="workload-activity-ratio" aria-label="<?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' active, ' . (int)$row['activity']['inactive'] . ' inactive' : 'Activity unavailable' ?>"><?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' / ' . (int)$row['activity']['inactive'] : '&mdash;' ?></span><small><?= (int)$row['activity']['students'] ?> listed</small></td>
-                                <td class="workload-action-cell"><button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>" aria-label="<?= synk_professor_h('Show Students for ' . $row['subject_code'] . ' ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button></td>
+                                <td class="workload-action-cell"><div class="workload-actions-lms"><?php require __DIR__ . '/workload-action_lms.php'; ?><button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>" aria-label="<?= synk_professor_h('Show Students for ' . $row['subject_code'] . ' ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button></div></td>
                               </tr>
                           </tbody>
                         <?php endforeach; ?>
@@ -138,7 +139,8 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
                         <article class="card workload-class" data-workload-class data-workload-key="<?php echo (int)$row['semester'] . '-' . (int)$row['offering_id']; ?>" data-search="<?php echo synk_professor_h($searchText); ?>" aria-label="<?php echo synk_professor_h($row['subject_code'] . ' - ' . $row['section_display']); ?>">
                           <?php require __DIR__ . '/workload-class-summary.php'; ?>
                           <div class="workload-card-counts"><span><strong><?= (int)$row['student_count'] ?></strong> Enrolled</span><span><strong><?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' / ' . (int)$row['activity']['inactive'] : '&mdash;' ?></strong> Active / Inactive</span></div>
-                          <button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button>
+                          <div class="workload-actions-lms"><?php require __DIR__ . '/workload-action_lms.php'; ?>
+                          <button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button></div>
                         </article>
                       <?php endforeach; ?>
                     </div>

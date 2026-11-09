@@ -492,14 +492,15 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
   <?php endif; ?>
 
   <?php if ($draftStatus === 'saved'): ?>
-    <div class="alert alert-success">
-      Faculty evaluation draft saved. Review the remaining faculty first, then use the final submission button once every linked faculty has a saved draft.
+    <div class="alert alert-warning">
+      Answers saved — not yet submitted. Complete any remaining faculty evaluations, then choose Submit Evaluations to review and finish.
     </div>
   <?php endif; ?>
 
-  <?php if ($finalStatus === 'success'): ?>
-    <div class="alert alert-success">
-      Final faculty evaluation submitted successfully. The QR proof is now available for this academic term.
+  <?php if ($finalStatus === 'success' && $allFacultyFinalized): ?>
+    <div class="alert alert-success" role="status">
+      Evaluations successfully submitted. Your answers are locked and your QR proof is now available for this academic term.
+      <div class="mt-3"><a class="btn btn-success" href="<?= synk_student_h(synk_student_build_portal_url('index.php')) ?>">Continue to Dashboard</a></div>
     </div>
   <?php endif; ?>
 
@@ -573,7 +574,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
       <div class="faculty-evaluation-overview-top">
         <div>
           <h2 id="facultyEvaluationTitle">Select faculty for evaluation</h2>
-          <p>Evaluate each professor below, save your drafts, then review and submit them together.</p>
+          <p>Answer each professor's evaluation, save your answers, then review and submit them together.</p>
           <div class="faculty-evaluation-context">
             <?php if ($selectedTermLabel !== ''): ?><span class="badge bg-label-primary"><?= synk_student_h($selectedTermLabel) ?></span><?php endif; ?>
             <?php if ($evaluationCollege): ?><span class="badge bg-label-secondary"><?= synk_student_h($evaluationCollege['college_name']) ?></span><?php endif; ?>
@@ -581,15 +582,15 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
         </div>
         <?php if ($evaluableCount > 0): ?>
           <div class="faculty-final-review-action">
-            <button type="button" class="btn faculty-final-review-button<?= $canOpenFinalReview ? ' is-ready' : '' ?>" data-bs-toggle="modal" data-bs-target="#finalEvaluationReviewModal" aria-describedby="faculty-final-review-note"<?= (!$canOpenFinalReview && !$allFacultyFinalized) ? ' disabled' : '' ?>><i class="bx bx-check-double" aria-hidden="true"></i>Review Final Evaluation</button>
-            <p id="faculty-final-review-note"><?php if ($allFacultyFinalized): ?>Your faculty evaluations have been submitted.<?php elseif ($canOpenFinalReview): ?>Click this button to review your drafts, then choose <strong>Submit Final Evaluation</strong> to finalize and submit your evaluation.<?php else: ?>Complete all ratings and add a comment for each faculty to unlock final submission.<?php endif; ?></p>
+            <button type="button" class="btn faculty-final-review-button<?= $canOpenFinalReview ? ' is-ready' : '' ?>" data-bs-toggle="modal" data-bs-target="#finalEvaluationReviewModal" aria-describedby="faculty-final-review-note"<?= (!$canOpenFinalReview && !$allFacultyFinalized) ? ' disabled' : '' ?>><i class="bx bx-check-double" aria-hidden="true"></i><?= $allFacultyFinalized ? 'View Submitted Evaluations' : 'Submit Evaluations' ?></button>
+            <p id="faculty-final-review-note"><?php if ($allFacultyFinalized): ?>Your faculty evaluations have been submitted.<?php elseif ($canOpenFinalReview): ?>All answers are saved but not submitted. Review them, then confirm <strong>Submit Evaluations</strong> to finish.<?php else: ?>Complete all ratings and add a comment for each faculty to unlock final submission.<?php endif; ?></p>
           </div>
         <?php endif; ?>
       </div>
       <div class="faculty-evaluation-progress" aria-label="Evaluation progress">
         <span><strong><?= (int)$evaluableCount ?></strong> faculty</span>
         <span><strong><?= (int)$totalSubjectCount ?></strong> subjects</span>
-        <?php if ($evaluableCount > 0): ?><span><strong><?= (int)$savedCount ?> / <?= (int)$evaluableCount ?></strong> drafts ready</span><?php endif; ?>
+        <?php if ($evaluableCount > 0): ?><span><strong><?= (int)$savedCount ?> / <?= (int)$evaluableCount ?></strong> answered</span><?php endif; ?>
       </div>
       <div class="faculty-action-note">
         <?php if ($allFacultyFinalized): ?>
@@ -599,9 +600,9 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
         <?php elseif ($studentPortalPreviewMode): ?>
           Open a faculty card to review the evaluation form and any saved responses.
         <?php elseif ($missingCount > 0): ?>
-          Complete the ratings and required comment, then save draft evaluations for <?= (int)$missingCount ?> more faculty member<?= $missingCount === 1 ? '' : 's' ?> to unlock the final submission review.
+          Complete the ratings and required comment, then save answers for <?= (int)$missingCount ?> more faculty member<?= $missingCount === 1 ? '' : 's' ?> to unlock final submission.
         <?php else: ?>
-          All linked faculty now have saved drafts. Review the summary first, then send the final submission once.
+          All faculty answers are saved — final submission is pending. Choose Submit Evaluations to review and finish.
         <?php endif; ?>
       </div>
     </div>
@@ -648,8 +649,8 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                   <span class="badge bg-label-secondary"><?= $evaluationCurrent ? 'Evaluations closed' : 'Archived term' ?></span>
                   <?php if ($cardEval): ?><button type="button" class="btn btn-outline-secondary faculty-evaluation-button" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>"><i class="bx bx-show-alt" aria-hidden="true"></i>View saved evaluation</button><?php endif; ?>
                 <?php else: ?>
-                  <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : (!empty($card['requires_comment']) ? 'Add your required comment' : 'Draft saved')) : 'Ready to evaluate' ?></span>
-                  <button type="button" class="btn <?= !empty($card['is_draft_saved']) ? 'btn-success' : 'btn-primary' ?> faculty-evaluation-button faculty-evaluate-button<?= !empty($card['is_draft_saved']) ? ' is-draft-saved' : '' ?>" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Draft' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
+                  <span class="faculty-evaluation-state"><?= !empty($card['has_saved_evaluation']) ? (!empty($card['requires_revised_evaluation']) ? 'Update your draft' : (!empty($card['requires_comment']) ? 'Add your required comment' : 'Answered — not submitted')) : 'Ready to evaluate' ?></span>
+                  <button type="button" class="btn <?= !empty($card['is_draft_saved']) ? 'btn-success' : 'btn-primary' ?> faculty-evaluation-button faculty-evaluate-button<?= !empty($card['is_draft_saved']) ? ' is-draft-saved' : '' ?>" data-bs-toggle="modal" data-bs-target="#<?= synk_student_h($cardModalId) ?>" aria-label="<?= synk_student_h((!empty($card['has_saved_evaluation']) ? 'Review evaluation for ' : 'Evaluate ').$card['faculty_name']) ?>"><i class="bx bx-edit" aria-hidden="true"></i><?= !empty($card['has_saved_evaluation']) ? 'Review / Edit Answers' : 'Evaluate Faculty' ?><i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
                 <?php endif; ?>
                 <?php if ((int)$card['faculty_id'] > 0 && (int)$card['subject_count'] > 1): ?><p>One evaluation covers all <?= (int)$card['subject_count'] ?> subjects with this professor.</p><?php endif; ?>
               </div>
@@ -665,7 +666,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
                         <span class="badge bg-label-primary"><?php echo synk_student_h((string)($cardEval['final_submitted_at'] ?? '')); ?></span>
                       <?php endif; ?>
                     <?php else: ?>
-                      <span class="badge bg-label-warning">Draft saved</span>
+                      <span class="badge bg-label-warning">Saved — not submitted</span>
                       <?php if (trim((string)($cardEval['updated_at'] ?? '')) !== ''): ?>
                         <span class="badge bg-label-secondary"><?php echo synk_student_h((string)($cardEval['updated_at'] ?? '')); ?></span>
                       <?php endif; ?>
@@ -835,7 +836,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <?php if ($cardReadOnly || $allFacultyFinalized): ?>
               <button type="button" class="btn btn-primary" disabled><?php echo $studentPortalPreviewMode?'Preview Only':'Read only'; ?></button>
             <?php else: ?>
-              <button type="submit" class="btn btn-success faculty-save-draft-button">Save Draft Evaluation</button>
+              <button type="submit" class="btn btn-primary faculty-save-draft-button">Save Answers</button>
             <?php endif; ?>
           </div>
         </form>
@@ -851,7 +852,7 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
         <form method="post" action="<?php echo synk_student_h(synk_student_build_portal_url('class-program.php')); ?>" id="finalFacultyEvaluationForm">
           <div class="modal-header">
             <div>
-              <h5 class="modal-title" id="finalEvaluationReviewModalLabel">Final Evaluation Review</h5>
+              <h5 class="modal-title" id="finalEvaluationReviewModalLabel">Review and Submit Evaluations</h5>
               <small class="text-muted">Check each faculty's average and comment before submitting.</small>
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -907,9 +908,9 @@ $finalStatus = trim((string)($_GET['final_status'] ?? ''));
             <?php elseif ($allFacultyFinalized): ?>
               <button type="button" class="btn btn-success" disabled>Already Submitted</button>
             <?php elseif ($canOpenFinalReview): ?>
-              <button type="submit" class="btn btn-primary">Submit Final Evaluation</button>
+              <button type="submit" class="btn btn-primary">Submit Evaluations</button>
             <?php else: ?>
-              <button type="button" class="btn btn-primary" disabled>Complete All Faculty Drafts First</button>
+              <button type="button" class="btn btn-primary" disabled>Complete All Faculty Evaluations First</button>
             <?php endif; ?>
           </div>
         </form>
@@ -992,10 +993,10 @@ document.addEventListener("DOMContentLoaded", function () {
         showClass: {popup: '', icon: ''},
         hideClass: {popup: '', icon: ''},
         icon: "warning",
-        title: "Submit Final Evaluation?",
-        text: "This will lock all saved faculty drafts for the selected term and generate the final QR proof. You will no longer be able to edit the evaluations after this step.",
+        title: "Submit Evaluations?",
+        text: "This submits and locks your saved faculty answers for this college and term, and generates your QR proof. You will no longer be able to edit these evaluations.",
         showCancelButton: true,
-        confirmButtonText: "Yes, submit final evaluation",
+        confirmButtonText: "Submit Evaluations",
         cancelButtonText: "Review Again",
         confirmButtonColor: "#696cff",
         didClose: restoreFinalReview

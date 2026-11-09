@@ -1,26 +1,40 @@
+/* Standalone login styles: no shared dashboard CSS or icon font is needed. */
 :root{--student-primary:#696cff;--student-heading:#566a7f;--student-text:#697a8d;--student-orange:#b94d14;--student-login-background:radial-gradient(ellipse at 25% 20%,#efefff 0,transparent 52%),#f5f5f9;--synk-login-intro-background:var(--student-login-background)}
-body{margin:0;background:#f5f5f9;color:var(--student-text);font-family:'Public Sans',system-ui,-apple-system,sans-serif}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#f5f5f9;color:var(--student-text);font:400 15px/1.53 'Public Sans',system-ui,-apple-system,sans-serif;-webkit-text-size-adjust:100%}
+button{font:inherit}
+svg{display:block;flex-shrink:0}
 .student-login-shell{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:40px 20px;background:var(--student-login-background)}
 .student-login-wrap{width:100%;max-width:460px}
 .student-login-brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:26px;text-decoration:none;color:var(--student-heading);font-size:29px;font-weight:700;letter-spacing:-1px}
-.student-login-brand .badge{margin-left:5px;font-size:11px;letter-spacing:.3px}
-.student-login-card{border:0;border-radius:12px;box-shadow:0 4px 20px #43597112}
-.student-login-card .card-body{padding:34px}
+.student-login-brand img{object-fit:contain}
+.student-login-badge{margin-left:5px;padding:5px 7px;border-radius:4px;background:#e7e7ff;color:var(--student-primary);font-size:11px;line-height:1;font-weight:500;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
+.student-login-card{display:flex;min-height:548px;background:#fff;border:0;border-radius:12px;box-shadow:0 4px 20px #43597112}
+.student-login-card .card-body{display:flex;flex:1;flex-direction:column;min-width:0;padding:34px}
 .student-login-card h1{line-height:1.15;color:var(--student-heading);font-weight:600;letter-spacing:-.6px;margin:0 0 16px}
 .student-login-title-lead{display:block;font-size:22px;line-height:1.4;margin-bottom:2px}
 .student-login-title-accent{display:block;font-family:'Space Grotesk',system-ui,sans-serif;font-size:46px;line-height:1.1;font-weight:700;letter-spacing:-2px;color:var(--student-orange)}
-.student-login-intro{line-height:1.6;margin-bottom:26px;font-size:14px}
-.student-login-card .form-label{font-weight:600;color:var(--student-heading)}
-.student-login-card .form-control{font-size:15px;min-height:48px}
-.student-login-card .form-text{font-size:12px;line-height:1.6;margin-top:8px}
-.student-google-button{display:flex;align-items:center;justify-content:center;gap:10px;min-height:48px;font-size:14px;font-weight:600;box-shadow:0 3px 8px #696cff30}
-.student-google-button:disabled{opacity:.65}
+.student-login-intro{line-height:1.6;margin:0 0 26px;font-size:14px}
+.student-login-details{display:flex;align-items:flex-start;gap:12px;min-height:128px;margin-bottom:24px;padding:18px 16px;background:#f7f7ff;border:1px solid #e9e9ff;border-radius:9px}
+.student-login-details>svg{margin-top:2px;color:var(--student-primary)}
+.student-login-details strong{font-size:14px;font-weight:600;color:var(--student-heading)}
+.student-login-details p{margin:6px 0 0;font-size:13px;line-height:1.6}
+#studentLoginForm{margin-top:auto}
+.student-google-button{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;padding:12px 14px;border:1px solid var(--student-primary);border-radius:6px;background:var(--student-primary);color:#fff;font-size:14px;line-height:1.5;font-weight:600;cursor:pointer;box-shadow:0 3px 8px #696cff30;transition:background-color .15s,box-shadow .15s}
+.student-google-button:hover:not(:disabled){background:#5f61e6;border-color:#5f61e6;box-shadow:0 4px 10px #696cff40}
+.student-google-button:disabled{opacity:.65;cursor:default}
+.student-google-button:focus-visible,.student-login-brand:focus-visible{outline:3px solid #b6b8ff;outline-offset:4px}
 .student-login-support{display:flex;gap:10px;border-top:1px solid #eceef1;padding-top:22px;margin-top:24px}
-.student-login-support>.bx{font-size:21px;margin-top:1px;color:var(--student-primary)}
+.student-login-support>svg{margin-top:1px;color:var(--student-primary)}
 .student-login-support strong{font-size:13px;color:var(--student-heading);font-weight:600}
 .student-login-support p{font-size:12px;line-height:1.6;margin:5px 0 0}
-.student-login-message{font-size:13px;line-height:1.6}
+.student-login-message{padding:14px 16px;margin-bottom:20px;border:1px solid #ffe0b3;border-radius:6px;background:#fff2dc;color:#855710;font-size:13px;line-height:1.6}
+.student-login-message p{margin:4px 0 0}
+.student-login-message .student-login-message-note{margin-top:8px;font-size:12px}
+.student-login-unavailable{background:#def6fb;border-color:#b5e9f5;color:#166578}
 .student-login-footer{text-align:center;font-size:12px;margin:24px 0 0;color:#8592a3;line-height:1.8}
+/* Animation fragments and both logo images reuse the same smaller asset. */
+.synk-login-logo-piece{background-image:url('../assets/img/favicon/synk-icon-login.png')}
 @media(max-width:480px){.student-login-shell{padding:26px 16px}.student-login-card .card-body{padding:26px 22px}.student-login-title-lead{font-size:20px}.student-login-title-accent{font-size:42px;letter-spacing:-1.8px}.student-login-brand{font-size:26px;margin-bottom:22px}}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

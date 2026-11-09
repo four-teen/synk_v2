@@ -33,13 +33,14 @@ try {
     $check(in_array($r['activity'][0]['ip_address'],['127.0.0.1','::1'],true) && $r['activity'][0]['browser']==='Chrome' && $r['activity'][0]['operating_system']==='Windows','Request metadata is captured and an untrusted forwarded IP is not accepted.');
     $r=$request('verified_login_storage_failure');
     $check($r['status']===200 && $r['data']['authenticated']===true && count($r['activity'])===0,'An activity storage failure cannot prevent a verified student from signing in.');
-    foreach (['start_invalid'=>'student_email_invalid','start_domain'=>'email_domain_denied','start_unknown'=>'student_directory_access_denied','start_duplicate'=>'student_email_ambiguous','start_bad_csrf'=>'student_login_request_invalid','start_rate'=>'student_login_rate_limited','callback_student_cancelled'=>'google_cancelled','callback_expired'=>'google_state_invalid','callback_missing_code'=>'google_code_missing','callback_invalid_state'=>'google_state_invalid','verified_mismatch_known_student'=>'student_email_mismatch','verified_unverified'=>'google_profile_invalid'] as $scenario=>$reason) {
+    foreach (['start_bad_csrf'=>'student_login_request_invalid','start_rate'=>'student_login_rate_limited','callback_student_cancelled'=>'google_cancelled','callback_expired'=>'google_state_invalid','callback_missing_start'=>'google_state_invalid','callback_missing_code'=>'google_code_missing','callback_invalid_state'=>'google_state_invalid','verified_unknown'=>'student_directory_access_denied','verified_duplicate'=>'student_email_ambiguous','verified_domain'=>'email_domain_denied','verified_unverified'=>'google_profile_invalid','verified_missing_sub'=>'google_profile_invalid','verified_invalid_email'=>'google_profile_invalid'] as $scenario=>$reason) {
         $r=$request($scenario);
         $check(count($r['activity'])===1 && $r['activity'][0]['outcome']==='failure' && $r['activity'][0]['reason_code']===$reason,'Every observed failed sign-in outcome produces one event, without duplicates: '.$scenario);
-        if (in_array($scenario,['start_unknown','start_duplicate','callback_invalid_state'],true)) $check($r['activity'][0]['student_id']===null,'Unknown, ambiguous or unbound attempts are never assigned to a guessed student: '.$scenario);
-        if ($scenario==='verified_mismatch_known_student') $check($r['activity'][0]['student_id']!==null && (int)$r['activity'][0]['identity_verified']===1,'A mismatched Google account is an attempt using the entered student email, with verification distinguished from successful sign-in.');
+        $check($r['activity'][0]['student_id']===null,'Failed identity or pre-verification requests are never assigned to a guessed student: '.$scenario);
+        $verified=in_array($scenario,['verified_unknown','verified_duplicate','verified_domain'],true);
+        $check((int)$r['activity'][0]['identity_verified']===($verified?1:0)&&($verified||$r['activity'][0]['submitted_email']===''),'Only verified Google emails can appear in sign-in activity: '.$scenario);
     }
-    foreach (['start_success','callback_main_cancelled','verified_success'] as $scenario) {
+    foreach (['start_success','start_invalid','start_domain','start_unknown','start_duplicate','start_stale_email','callback_main_cancelled','verified_success','verified_other_account'] as $scenario) {
         $r=$request($scenario); $check(count($r['activity'])===0,'Pending Google redirects, staff logins and identity lookup alone never count as student logins: '.$scenario);
     }
     $r=$request('login_activity_list');

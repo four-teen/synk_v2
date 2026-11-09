@@ -20,16 +20,15 @@ $nonceSessionKey = $isManagementPortal ? 'management_google_oauth_nonce' : ($isS
 $managementStartedAt = (int)($_SESSION['management_google_oauth_started_at'] ?? 0);
 $storedState = (string)($_SESSION[$stateSessionKey] ?? '');
 $storedNonce = (string)($_SESSION[$nonceSessionKey] ?? '');
-$submittedStudentEmail = $isStudentPortal ? (string)($_SESSION['student_google_oauth_email'] ?? '') : '';
 $studentStartedAt = (int)($_SESSION['student_google_oauth_started_at'] ?? 0);
 $verifiedStudentEmail = '';
 $verifiedStudentName = '';
 if ($isStudentPortal) require_once __DIR__ . '/student_login_helper.php';
 $redirectStatus = static function (string $status, bool $record = true) use ($conn, $isStudentPortal, $redirectTarget,
-    $matchesStudent, $submittedStudentEmail, &$verifiedStudentEmail, &$verifiedStudentName): void {
+    $matchesStudent, &$verifiedStudentEmail, &$verifiedStudentName): void {
     if ($isStudentPortal && $record) {
-        if ($matchesStudent && $submittedStudentEmail !== '') {
-            try { synk_student_login_record_issue($conn, $submittedStudentEmail, $status, $verifiedStudentEmail, $verifiedStudentName); }
+        if ($matchesStudent && $verifiedStudentEmail !== '') {
+            try { synk_student_login_record_issue($conn, $verifiedStudentEmail, $status, $verifiedStudentEmail, $verifiedStudentName); }
             catch (Throwable $e) { error_log('Student sign-in diagnostics could not be saved.'); $status = 'student_portal_unavailable'; }
         } else synk_student_login_activity_record($conn,'','failure',$status);
     }
@@ -50,7 +49,7 @@ if ($isManagementPortal) {
     unset($_SESSION['management_google_oauth_started_at']);
     if ($managementStartedAt < time() - 900) $redirectStatus('google_state_invalid');
 }
-if ($isStudentPortal && ($submittedStudentEmail === '' || $studentStartedAt < time() - 900)) $redirectStatus('google_state_invalid');
+if ($isStudentPortal && $studentStartedAt < time() - 900) $redirectStatus('google_state_invalid');
 
 if (!empty($_GET['error'])) {
     $redirectStatus('google_cancelled');
@@ -124,7 +123,7 @@ if (!synk_is_allowed_email_domain($email, (string)$settings['allowed_domain'])) 
 
 if ($isStudentPortal) {
     try {
-        $directoryStudent = synk_student_login_verified_identity($conn, $submittedStudentEmail, $userInfo, (string)$settings['allowed_domain']);
+        $directoryStudent = synk_student_login_verified_identity($conn, $userInfo, (string)$settings['allowed_domain']);
     } catch (DomainException $e) { $redirectStatus($e->getMessage(), false); }
     catch (Throwable $e) { $redirectStatus('student_portal_unavailable'); }
     synk_student_login_complete($conn,$directoryStudent,$email,$displayName,$googleSub);
