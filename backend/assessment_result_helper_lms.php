@@ -6,7 +6,7 @@ function synk_assessment_result_text_lms(string $value): string
     return function_exists('mb_strtolower')?mb_strtolower($value,'UTF-8'):strtolower($value);
 }
 
-// Published questions are immutable. Only aggregate counts leave the server,
+// Started attempts use their original questions. Only aggregate counts leave the server,
 // and only after an attempt is locked. These counts are not course grades.
 function synk_assessment_result_lms(array $record,array $questions,?array $attempt): ?array
 {
@@ -18,7 +18,7 @@ function synk_assessment_result_lms(array $record,array $questions,?array $attem
     }
     foreach($questions as $question){
         $kind=$question['question_type'];
-        $key=json_decode($question['answer_key_json']??'null',true);
+        $key=array_key_exists('answer_key',$question)?$question['answer_key']:json_decode($question['answer_key_json']??'null',true);
         $answer=$attempt['answers'][$question['question_id']]??null;
         if(($kind==='multiple_choice'&&is_int($key))||($kind==='true_false'&&is_bool($key))){
             $correct=$answer===$key;

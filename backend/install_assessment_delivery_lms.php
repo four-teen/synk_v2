@@ -9,4 +9,7 @@ foreach ($lms->query('SHOW TABLES')->fetch_all(MYSQLI_NUM) as $table) {
 }
 $sql=file_get_contents(__DIR__.'/sql/assessment_delivery_lms.sql');
 if ($sql===false || !$lms->query($sql)) throw new RuntimeException('Unable to prepare LMS assessment delivery storage.');
+if (!synk_assessment_snapshots_ready_lms($lms)) {
+    $lms->query('ALTER TABLE tbl_lms_assessment_attempts ADD COLUMN assessment_snapshot_json MEDIUMTEXT NULL AFTER answers_json');
+}
 echo 'Assessment delivery storage is ready in the separate LMS database.',PHP_EOL;

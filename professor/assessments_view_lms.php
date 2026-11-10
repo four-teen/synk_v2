@@ -6,7 +6,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     <div><p class="assessment-eyebrow">CLASSWORK</p><h2 id="assessmentWorkspaceTitle">Activities &amp; assessments</h2><p>Create and reuse quizzes, exams, and assignments for each grading period.</p></div>
     <?php if ($assessmentsReady): ?><button type="button" class="btn btn-primary" id="assessmentNew"><i class="bx bx-plus me-1" aria-hidden="true"></i>Create draft</button><?php endif; ?>
   </div>
-  <p class="assessment-stage-note"><i class="bx bx-lock-alt" aria-hidden="true"></i>Drafts are private. Publish a completed assessment to let enrolled students respond. Published questions are locked; duplicate an assessment to prepare a new version.</p>
+  <p class="assessment-stage-note"><i class="bx bx-edit-alt" aria-hidden="true"></i>Drafts are private. You can edit published assessments at any time. Changes apply to new attempts; students who have started keep their original questions, answers, and timer.</p>
   <?php if (!$assessmentsReady): ?>
     <div class="lms-feedback-state" role="status">The assessment workspace needs to be set up. Ask your administrator to prepare LMS assessment storage.</div>
   <?php else: ?>
@@ -27,6 +27,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
         <div><button class="assessment-text-button" type="button" id="assessmentBack"><i class="bx bx-arrow-back" aria-hidden="true"></i>All assessments</button><h3 id="assessmentEditorTitle">New assessment</h3><span class="assessment-save-state" id="assessmentSaveState" role="status">Not saved yet</span></div>
         <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentPreview">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSave">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublish">Publish</button></div>
       </div>
+      <p class="assessment-stage-note" id="assessmentLiveNote" role="note" hidden></p>
       <form id="assessmentForm">
         <div class="assessment-editor-grid">
           <div class="assessment-content">
@@ -52,11 +53,11 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
             <div><label class="form-label" for="assessmentOpens">Opens <span class="text-muted">(optional)</span></label><input class="form-control" id="assessmentOpens" type="datetime-local" min="2000-01-01T00:00" max="2100-12-31T23:59"></div>
             <div><label class="form-label" for="assessmentDue">Due <span class="text-muted">(optional)</span></label><input class="form-control" id="assessmentDue" type="datetime-local" min="2000-01-01T00:00" max="2100-12-31T23:59"></div>
             <div id="assessmentTimer"><label class="form-label" for="assessmentTimeLimit">Time limit <span class="text-muted">(optional)</span></label><div class="input-group"><input class="form-control" id="assessmentTimeLimit" type="number" min="1" max="240" step="1" placeholder="No limit"><span class="input-group-text">min</span></div></div>
-            <p class="assessment-help mb-0">Dates use Philippine time (Asia/Manila). These settings are saved with your draft; saving does not publish it.</p>
+            <p class="assessment-help mb-0" id="assessmentSettingsHelp">Dates use Philippine time (Asia/Manila). Saving a draft does not publish it.</p>
           </aside>
         </div>
       </form>
-      <div class="assessment-floating-actions" id="assessmentFloatingActions" role="group" aria-label="Unsaved draft actions" hidden>
+      <div class="assessment-floating-actions" id="assessmentFloatingActions" role="group" aria-label="Unsaved assessment actions" hidden>
         <span class="assessment-floating-state" id="assessmentFloatingState">Not saved yet</span>
         <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentPreviewBottom">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSaveBottom">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublishBottom">Publish</button></div>
       </div>

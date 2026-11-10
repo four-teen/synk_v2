@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS tbl_lms_assessment_attempts (
   student_id INT UNSIGNED NOT NULL,
   status ENUM('in_progress','submitted','expired') NOT NULL DEFAULT 'in_progress',
   answers_json MEDIUMTEXT NOT NULL,
+  assessment_snapshot_json MEDIUMTEXT NULL,
   version INT UNSIGNED NOT NULL DEFAULT 1,
   started_at DATETIME NOT NULL,
   deadline_at DATETIME NULL,
