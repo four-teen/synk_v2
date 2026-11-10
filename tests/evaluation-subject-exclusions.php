@@ -9,11 +9,13 @@ require_once __DIR__.'/../backend/student_portal_helper.php';
 $checks=0;
 $check=static function(bool $ok,string $message)use(&$checks):void { if (!$ok) throw new RuntimeException($message); $checks++; };
 $check(synk_evaluation_subject_exclusions_ready($conn),'Prepare the subject exclusion migration before testing.');
+$check(synk_evaluation_student_exclusions_ready($conn),'Prepare the student exclusion migration before testing.');
 $snapshot=static function(mysqli $db,array $tables):string {
     $data=[]; foreach ($tables as $table) $data[$table]=$db->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     return hash('sha256',json_encode($data,JSON_THROW_ON_ERROR));
 };
 $tables=['tbl_college_evaluation_subject_exclusions','tbl_college_evaluation_subject_exclusion_audit','tbl_student_faculty_evaluation_subject_scope','tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_faculty','tbl_college','tbl_program','tbl_useraccount','tbl_useraccount_roles','tbl_useraccount_faculty_links','tbl_college_evaluation_settings','tbl_class_schedule','tbl_faculty_workload_sched','tbl_academic_settings'];
+$tables=array_merge($tables,['tbl_college_evaluation_student_exclusions','tbl_college_evaluation_student_exclusion_audit']);
 $before=$snapshot($conn,$tables);
 class EvaluationSubjectQAConnection extends mysqli {
     public bool $fixture=false;
@@ -26,7 +28,7 @@ class EvaluationSubjectQAConnection extends mysqli {
     public function rollback($flags=0,$name=null) { return $this->fixture ? $this->query('ROLLBACK TO SAVEPOINT subject_exclusion_request') : parent::rollback($flags,$name); }
     #[\ReturnTypeWillChange]
     public function prepare($sql) {
-        if ($this->failAudit && stripos($sql,'INSERT INTO tbl_college_evaluation_subject_exclusion_audit')!==false) throw new RuntimeException('Deliberate audit failure');
+        if ($this->failAudit && preg_match('/INSERT INTO tbl_college_evaluation_(subject|student)_exclusion_audit/i',$sql)) throw new RuntimeException('Deliberate audit failure');
         return parent::prepare($sql);
     }
     #[\ReturnTypeWillChange]
@@ -143,6 +145,7 @@ try {
     $check((int)$conn->query('SELECT COUNT(*) n FROM tbl_college_evaluation_subject_exclusion_audit WHERE college_id='.$college)->fetch_assoc()['n']===2,'Only committed changes create audit records.');
     $check(synk_evaluation_resolve_subjects($labelA,[$subjectRows[0],array_replace($subjectRows[0],['subject_id'=>$b])])[0]['subject_id']===0,'Ambiguous historical labels are never guessed.');
     $check(synk_evaluation_classify_subjects([],[$a=>[]])==='review','Missing historical associations are kept for review.');
+    require __DIR__.'/fixtures/evaluation-student-exclusion-checks.php';
 } finally { $conn->fixture=false; $conn->rollback(); }
 $check($before===$snapshot($conn,$tables),'All test data rolled back, including schedules and workloads.');
-echo 'Evaluation subject exclusions: ',$checks,' checks passed. All fixture records rolled back.',PHP_EOL;
+echo 'Evaluation subject and student exclusions: ',$checks,' checks passed. All fixture records rolled back.',PHP_EOL;

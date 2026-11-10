@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/evaluation_access_helper.php';
+require_once __DIR__.'/evaluation_student_exclusion_helper.php';
 
 function synk_evaluation_subject_exclusions_ready(mysqli $conn): bool
 {
@@ -89,11 +90,16 @@ function synk_evaluation_classify_subjects(array $subjects,array $rules): string
 // Shared by all scoring reports. Collection and completion never use these states.
 function synk_evaluation_score_states(mysqli $conn,int $ayId,int $semester,bool $includeAll=false): array
 {
-    if (!synk_evaluation_table_exists($conn,'tbl_college_evaluation_subject_exclusions')) return [];
-    $rules=[];
-    foreach (synk_evaluation_query($conn,'SELECT college_id,subject_id FROM tbl_college_evaluation_subject_exclusions
-        WHERE ay_id=? AND semester=? AND excluded=1','ii',[$ayId,$semester]) as $rule) $rules[(int)$rule['college_id']][(int)$rule['subject_id']]=$rule;
-    if (!$rules && !$includeAll) return [];
+    $rules=[]; $studentRules=[];
+    if (synk_evaluation_table_exists($conn,'tbl_college_evaluation_subject_exclusions')) {
+        foreach (synk_evaluation_query($conn,'SELECT college_id,subject_id FROM tbl_college_evaluation_subject_exclusions
+            WHERE ay_id=? AND semester=? AND excluded=1','ii',[$ayId,$semester]) as $rule) $rules[(int)$rule['college_id']][(int)$rule['subject_id']]=$rule;
+    }
+    if (synk_evaluation_table_exists($conn,'tbl_college_evaluation_student_exclusions')) {
+        foreach (synk_evaluation_query($conn,'SELECT college_id,student_id FROM tbl_college_evaluation_student_exclusions
+            WHERE ay_id=? AND semester=? AND excluded=1','ii',[$ayId,$semester]) as $rule) $studentRules[(int)$rule['college_id']][(int)$rule['student_id']]=true;
+    }
+    if ((!$rules && !$studentRules && !$includeAll) || !synk_evaluation_table_exists($conn,'tbl_student_faculty_evaluations')) return [];
     $snapshotReady=synk_evaluation_table_exists($conn,'tbl_student_faculty_evaluation_subject_scope');
     $snapshotColumn=$snapshotReady ? 'ss.subjects_json' : 'NULL AS subjects_json';
     $snapshotJoin=$snapshotReady ? 'LEFT JOIN tbl_student_faculty_evaluation_subject_scope ss ON ss.evaluation_id=e.evaluation_id' : '';
@@ -113,10 +119,12 @@ function synk_evaluation_score_states(mysqli $conn,int $ayId,int $semester,bool 
     foreach ($headers as $header) {
         $key=$header['student_id'].':'.$header['faculty_id']; $college=(int)$header['college_id'];
         if (!$college && count($owners[$key] ?? [])===1) $college=(int)array_keys($owners[$key])[0];
-        if (empty($rules[$college]) && !$includeAll) continue;
+        $studentExcluded=isset($studentRules[$college][(int)$header['student_id']]);
+        if (empty($rules[$college]) && !$studentExcluded && !$includeAll) continue;
         $subjects=$header['subjects_json']!==null ? json_decode($header['subjects_json'],true) : synk_evaluation_resolve_subjects((string)$header['subject_summary'],$members[$key.':'.$college] ?? []);
         if (!is_array($subjects)) $subjects=[];
-        $states[(int)$header['evaluation_id']]=['state'=>synk_evaluation_classify_subjects($subjects,$rules[$college] ?? []),'subjects'=>$subjects];
+        $state=$studentExcluded ? 'excluded' : synk_evaluation_classify_subjects($subjects,$rules[$college] ?? []);
+        $states[(int)$header['evaluation_id']]=['state'=>$state,'subjects'=>$subjects,'exclusion_source'=>$studentExcluded?'student':($state==='excluded'?'subject':null)];
     }
     return $states;
 }

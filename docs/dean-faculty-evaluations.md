@@ -111,7 +111,9 @@ college/term enrollment evidence. Missing or ambiguous associations are not gues
 A response covering only excluded subjects is omitted from overall, category,
 statement and student-component scores. A response covering both included and
 excluded subjects remains counted and appears for Dean review. There is no
-automatic whole-response exclusion for a mixed response. Unknown historical associations remain counted
+automatic whole-response exclusion from a subject rule for a mixed response. A separate
+student exclusion, described below, excludes that student's entire response.
+Unknown historical associations remain counted
 for review. Scores cannot be divided between subjects after a combined response
 has already been collected. The subject list's response counts can overlap when
 one teacher response covers more than one subject.
@@ -143,6 +145,83 @@ php tests/evaluation-subject-exclusions.php
 php tests/evaluation-subject-exclusions-http.php
 node tests/evaluation-subject-exclusions-browser.cjs
 ```
+
+## Student exclusions from score computation
+
+The assigned Dean opens **Faculty Evaluation → Student Results → Manage Student
+Exclusions** (`college-dean/evaluation-student-exclusions.php`). Search by student
+name or number, click **Manage**, choose **Exclude from faculty scores**, enter a
+private reason and click **Save Student Rule**. The page lists original enrollment,
+saved-response and existing-rule evidence for the selected college, academic year
+and semester, including students whose original roster has since been removed.
+It shows identity and submission counts without linking names to individual
+ratings, teachers or submitted comments.
+
+The rule applies to every teacher response by that student in that college and
+term, across questionnaire versions, both existing and subsequently submitted.
+Versions retain separate scores. A student exclusion takes precedence over subject
+eligibility, including combined or unverified subject associations. College
+ownership must still be proven; ambiguous legacy college ownership is not guessed.
+Other students, colleges and terms are unaffected. Rules do not carry into a new term.
+
+**Include / restore eligibility** reverses the student rule. Active subject
+exclusions still apply after restoration; restoring a subject likewise cannot
+override an active student rule. Dean, Program Chair, administrator, released
+professor and combined 60/40 performance reports all use the same eligibility
+function. No eligible responses produces no score, rather than a zero score.
+
+Answers, comments, original submissions, completion counts and student collection
+access are preserved. Students continue saving and finalizing all linked teachers
+normally. Private reasons and change history appear only on the Dean management
+page. Every change records its previous/new values, reason, acting Dean and time
+in the same transaction. CSRF, stale versions, role, active Dean assignment,
+college membership and term membership are revalidated on save. Audit failure
+rolls back the rule change. Mobile lists use cards and a full-screen management
+dialog with visible save/cancel actions; uncertain saves require reloading.
+
+Run `php backend/tools/prepare_evaluation_student_exclusions.php` before serving
+this feature, or apply `backend/sql/evaluation_student_exclusions.sql` to the
+main evaluation database. Setup is additive and repeatable; it adds only
+`tbl_college_evaluation_student_exclusions` and
+`tbl_college_evaluation_student_exclusion_audit` and excludes no student by default.
+The LMS and Management databases, shared academic settings, profiles, scheduling
+and workloads are unchanged. Existing subject exclusions continue working before
+the student exclusion schema is installed.
+
+For the requested live test student, import the standalone
+`backend/sql/evaluation_student_exclusions_live_ccsi.sql` in the main Synk database.
+It includes both new tables and only the `ccsi@sksu.edu.ph` student, reusing the live
+student by email or creating its directory record if missing. It adds missing
+active CPC 001 and CS 114 enrollments in BSCS 2A and CS 111 in BSCS 1A for
+2026-2027 / semester 1, then seeds the student's exclusion with its audit entry.
+Faculty, subjects, offerings, campus, college, program, year and assigned Dean
+are resolved against existing live records rather than copied local IDs.
+Existing student profiles and enrollment rows are preserved. No staff login,
+password, other student account, evaluation answer or financial record is copied.
+
+The script reports `APPLIED` after validating all three enrollments and the
+exclusion audit. Missing or ambiguous catalog/teacher/Dean matches cause data
+changes to roll back and appear in the final diagnostic results. The two schema
+creations are additive and run before the data transaction. An identical rerun
+does not duplicate enrollments or exclusion audit entries. Set
+`@synk_ccsi_apply=0` in the same SQL session before importing for a data preview
+that rolls back; the new table definitions are still applied. The script does
+not open evaluation collection or release results.
+
+Checks (database fixtures must run sequentially):
+
+```text
+php tests/evaluation-subject-exclusions.php
+php tests/evaluation-student-exclusions-http.php
+node tests/evaluation-student-exclusions-browser.cjs
+php tests/evaluation-student-exclusions-live-sql.php
+```
+
+The first suite covers subject/student precedence, future submissions, mixed and
+unknown subject associations, college/year/semester isolation, audit rollback,
+restoration and consistency across scoring reports. HTTP/browser checks cover
+Dean authorization, search, escaped private reasons, form validation, normal
+student completion, refreshed rules, uncertain saves and desktop/mobile layouts.
 
 Regression checks:
 
