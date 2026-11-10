@@ -35,7 +35,7 @@ function api(request) {
   check(JSON.stringify(request.context) === JSON.stringify(pageConfig.context) && request.csrf_token === pageConfig.csrf_token,
     'The editor carries its signed class context and CSRF token for every request.');
   const payload = request.payload || {}, found = records.find(item => item.assessment_id === payload.assessment_id);
-  if (request.action === 'list') return { ok:true, assessments:records.filter(item=>item.status!=='archived').map(item=>({ ...clone(item), question_count:item.questions.length })) };
+  if (request.action === 'list') return { ok:true, assessments:records.filter(item=>item.status!=='archived').map(item=>({ ...clone(item), question_count:item.questions.length, student_count:28, answered_count:item.status==='draft'?0:12 })) };
   if (request.action === 'detail') return { ok:true, assessment:clone(found) };
   if (request.action === 'save' || request.action === 'publish') {
     if (conflict) { conflict=false; return { status:409, ok:false, message:'This draft changed in another tab. Reopen it before saving.' }; }
@@ -90,8 +90,10 @@ async function main() {
   await call('Page.navigate',{url:'http://localhost/synk/professor/class_lms.php?'+new URLSearchParams(pageConfig.context)},session);
   await until('document.readyState==="complete" && document.querySelector("#assessmentList").getAttribute("aria-busy")==="false" && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(await evaluate('document.querySelector("#assessmentList").innerText.includes("No Midterm assessments")'),'The first visit displays an honest empty Midterm state.');
+  check(await evaluate('(()=>{const m=document.querySelector("[data-period=midterm]"),f=document.querySelector("[data-period=final]");return getComputedStyle(m).backgroundColor!==getComputedStyle(f).backgroundColor && getComputedStyle(m).getPropertyValue("--period-color")!==getComputedStyle(f).getPropertyValue("--period-color") && m.getAttribute("aria-pressed")==="true";})()'),'Midterm and Final have distinct colors and an accessible selected state.');
   check(await evaluate('document.querySelector("#assessmentFloatingActions").hidden'),'The draft library has no floating save bar.');
   await click('[data-period="final"]');await click('#assessmentNew');
+  check(await evaluate('document.querySelector("[data-period=final]").getAttribute("aria-pressed")==="true" && document.querySelector("[data-period=midterm]").getAttribute("aria-pressed")==="false"'),'Changing periods moves the selected state to Final.');
   check(await evaluate('document.querySelector("#assessmentPeriod").value==="final"'),'A new draft inherits the selected grading period.');
   check(await evaluate('!document.querySelector("#assessmentFloatingActions").hidden && getComputedStyle(document.querySelector("#assessmentFloatingActions")).position==="fixed" && document.querySelector(".assessment-editor-heading #assessmentSave") && document.querySelector(".assessment-editor-heading #assessmentPreview")'),'New drafts expose bottom actions while preserving both top buttons.');
   check(await evaluate('document.querySelector("#assessmentSave").nextElementSibling.id==="assessmentPublish" && document.querySelector("#assessmentSaveBottom").nextElementSibling.id==="assessmentPublishBottom" && !document.querySelector("#assessmentNewEditor,#assessmentNewBottom")'),'Publish replaces the mistakenly added New draft buttons in both action bars.');
@@ -168,6 +170,7 @@ async function main() {
   await click('#assessmentSave');await until('document.querySelector("#assessmentSaveState").textContent.includes("version 2")');
   await click('#assessmentBack');
   check(await evaluate('document.querySelector("#assessmentFinalCount").textContent==="1" && !document.querySelector("#assessmentList img")'),'The Final list count updates and titles remain escaped.');
+  check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("0") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28")'),'Draft cards show zero answered and the actual roster total.');
   await click('[data-action="duplicate"]');await until('document.querySelector("#assessmentDuplicateModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentDuplicateModal"))._isTransitioning');
   await fill('#assessmentDuplicatePeriod','midterm','change');duplicateFailure=true;await click('#assessmentDuplicateForm [type="submit"]');
   await until('document.querySelector("#swal2-html-container")?.textContent.includes("Refresh before duplicating")');
@@ -222,6 +225,13 @@ async function main() {
   await click('#assessmentPublishBottom');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(records[2].status==='published'&&records[2].instructions==='Write your project explanation.','Publish saves the current contents and exposes the published state.');
   check(await evaluate('!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer response review and closing without editing their questions.');
+  check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("12") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28") && getComputedStyle(document.querySelector(".assessment-count-answered")).color==="rgb(21, 128, 61)" && getComputedStyle(document.querySelector(".assessment-count-total")).color==="rgb(185, 28, 28)"'),'Published cards display answered students in green and total students in red.');
+  for(const width of [390,320]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(100);
+    await evaluate('document.querySelector(".assessment-list-card").scrollIntoView({block:"center",behavior:"instant"})');
+    check(await evaluate('(()=>{const r=document.querySelector(".assessment-participation").getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth && r.left>=0 && r.right<=innerWidth && getComputedStyle(document.querySelector(".assessment-list-summary")).flexDirection==="column";})()'),'The participation count and assessment card fit at '+width+'px.');
+  }
+  const participationMobile=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-participation-mobile_lms.png'),Buffer.from(participationMobile.data,'base64'));
   await click('[data-action=submissions]');await until('document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
   check(await evaluate('document.querySelector("#assessmentSubmissionsBody").textContent.includes("No student attempts yet")'),'The response viewer explains an empty submission list.');
   await click('#assessmentSubmissionsModal .btn-close');await until('!document.querySelector("#assessmentSubmissionsModal").classList.contains("show")');

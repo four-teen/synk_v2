@@ -19,6 +19,13 @@ try{
         ['question_type'=>'essay','prompt'=>'Explain your program','points'=>5]
     ]];
     $draft=synk_assessment_save_lms($lms,$context,$sample,$actor);$id=$draft['assessment_id'];
+    $participation=static function(int $assessmentId)use($conn,$lms,$context):array {
+        $rows=array_column(synk_assessment_list_with_participation_lms($conn,$lms,$context),null,'assessment_id');
+        return $rows[$assessmentId];
+    };
+    $counts=$participation($id);
+    $check($counts['answered_count']===0 && $counts['student_count']===3,'Assessment cards use the three actual distinct enrolled students, including legacy membership, rather than the recorded headcount of 260.');
+    $check(!isset($counts['answers_json'],$counts['student_id']),'Assessment card counts expose no individual student or answer data.');
     $subjectCards=synk_student_subjects_lms($conn,$sid);
     $check(count($subjectCards)===2,'Enrolled subject cards must be available before publishing.');
     $check(count(synk_student_subjects_lms($conn,$f['students']['inactive']))===1,'Legacy enrollment must still have a subject card.');
@@ -50,6 +57,7 @@ try{
     $check($again['attempt']['attempt_id']===$attempt['attempt_id']&&$again['attempt']['deadline_at']===$attempt['deadline_at'],'A second tab or reload must resume the same attempt without resetting the timer.');
     $questions=$started['assessment']['questions'];$answers=[$questions[0]['question_id']=>1,$questions[1]['question_id']=>false,$questions[2]['question_id']=>"hYpertext \t preprocessor",$questions[3]['question_id']=>'Literal <script>code</script>'];
     $saved=synk_student_assessment_action_lms($conn,$lms,$sid,'save',['assessment_id'=>$id,'version'=>1,'answers'=>$answers]);
+    $check($participation($id)['answered_count']===0,'Saved in-progress answers do not count as submitted student responses.');
     $check($saved['attempt']['version']===2&&$saved['attempt']['answers']===$answers,'Student responses, including False and code-like text, must round-trip.');
     $check($saved['result']===null,'Saving answers must not create a correctness oracle.');
     $listed=synk_student_assessment_list_lms($conn,$lms,$sid);
@@ -59,11 +67,21 @@ try{
     $invalid=$answers;$invalid[$questions[1]['question_id']]='false';$denied(static function()use($conn,$lms,$sid,$id,$invalid){synk_student_assessment_action_lms($conn,$lms,$sid,'save',['assessment_id'=>$id,'version'=>2,'answers'=>$invalid]);},422);
     $submitted=synk_student_assessment_action_lms($conn,$lms,$sid,'submit',['assessment_id'=>$id,'version'=>2,'answers'=>$answers]);
     $check($submitted['attempt']['status']==='submitted','Submitting locks the saved student responses.');
+    $counts=$participation($id);
+    $check($counts['answered_count']===1 && $counts['student_count']===3,'Submitting adds one answered student while preserving the full roster total.');
     $check($submitted['result']===['correct_count'=>3,'mistake_count'=>0,'pending_review_count'=>1,'checked_count'=>3],'Final results must count typed objective answers and normalized short-answer alternatives while leaving essays for review.');
     $check(strpos(json_encode($submitted),'answer_key')===false,'Final results must expose aggregate totals without answer keys.');
     $repeat=synk_student_assessment_action_lms($conn,$lms,$sid,'submit',['assessment_id'=>$id,'version'=>2,'answers'=>[]]);
     $check($repeat['attempt']['answers']===$answers&&$repeat['attempt']['version']===3,'Duplicate submissions must not overwrite or resubmit answers.');
     $check($repeat['result']===$submitted['result'],'Repeated submission must preserve result totals.');
+    $check($participation($id)['answered_count']===1,'A repeated submission never counts the same student twice.');
+    $lms->query('SAVEPOINT assessment_participation_scope');
+    foreach (['foreign','withdrawn','wrong_term','second'] as $excludedStudent) {
+        $now=synk_assessment_now_lms();
+        synk_assessment_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,started_at,submitted_at,updated_at) VALUES (?,?,'submitted','{}',?,?,?)",'iisss',[$id,$f['students'][$excludedStudent],$now,$now,$now]);
+    }
+    $check($participation($id)['answered_count']===1,'Foreign, withdrawn, historical and other-class attempts do not inflate the answered count.');
+    $lms->query('ROLLBACK TO SAVEPOINT assessment_participation_scope');
     $reopened=synk_student_assessment_action_lms($conn,$lms,$sid,'detail',['assessment_id'=>$id]);
     $check($reopened['result']===$submitted['result'],'Previously submitted work must retain its results when reopened.');
     $listed=synk_student_assessment_list_lms($conn,$lms,$sid);
@@ -79,11 +97,13 @@ try{
     synk_assessment_query_lms($lms,"UPDATE tbl_lms_assessment_attempts SET deadline_at='2000-01-01 00:00:00' WHERE assessment_id=? AND student_id=?",'ii',[$id,$secondSid]);
     $expired=synk_student_assessment_action_lms($conn,$lms,$secondSid,'save',['assessment_id'=>$id,'version'=>1,'answers'=>$answers]);
     $check($expired['attempt']['status']==='expired'&&$expired['attempt']['answers']===[],'Late payloads must be rejected while retaining responses saved before the deadline.');
+    $check($participation($id)['answered_count']===1,'Expired attempts do not inflate the submitted response count.');
     $check($expired['result']===['correct_count'=>0,'mistake_count'=>3,'pending_review_count'=>1,'checked_count'=>3],'Expired attempts must use only the last saved answers for result totals.');
     $listed=synk_student_assessment_list_lms($conn,$lms,$secondSid);$listed=array_column($listed,null,'assessment_id');
     $check($listed[$id]['result']===$expired['result'],'Expired assessment cards must show results for retained answers.');
     $closed=synk_assessment_close_lms($lms,$context,['assessment_id'=>$id,'version'=>2],$actor);
     $check($closed['status']==='closed','Professors can close published assessments.');
+    $check($participation($id)['answered_count']===1,'Closed assessment cards retain their submitted student count.');
     $denied(static function()use($conn,$lms,$f,$id){synk_student_assessment_action_lms($conn,$lms,$f['students']['failed'],'start',['assessment_id'=>$id]);},409);
     $scheduled=$sample;$scheduled['opens_at']='2099-01-01T08:00';$scheduled=synk_assessment_publish_lms($lms,$context,$scheduled,$actor);
     $denied(static function()use($conn,$lms,$sid,$scheduled){synk_student_assessment_action_lms($conn,$lms,$sid,'start',['assessment_id'=>$scheduled['assessment_id']]);},409);
@@ -92,6 +112,12 @@ try{
     $data=synk_student_assessment_action_lms($conn,$lms,$sid,'start',['assessment_id'=>$assignment['assessment_id']]);
     $data=synk_student_assessment_action_lms($conn,$lms,$sid,'submit',['assessment_id'=>$assignment['assessment_id'],'version'=>1,'answers'=>['assignment_response'=>'0']]);
     $check($data['attempt']['answers']['assignment_response']==='0','Assignments accept written responses including the string zero.');
+    $check($participation($assignment['assessment_id'])['answered_count']===1,'Final-period written assignments receive their own submitted student count.');
+    $conn->query('SAVEPOINT assessment_empty_roster');
+    synk_assessment_query_lms($conn,'UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE faculty_id=?','i',[$f['faculty_id']]);
+    $counts=$participation($id);
+    $check($counts['answered_count']===0 && $counts['student_count']===0,'An empty current roster displays zero answered out of zero students without counting historical attempts.');
+    $conn->query('ROLLBACK TO SAVEPOINT assessment_empty_roster');
     $check($data['result']===['correct_count'=>0,'mistake_count'=>0,'pending_review_count'=>1,'checked_count'=>0],'Assignments must await professor review rather than being marked as mistakes.');
     $listed=array_column(synk_student_assessment_list_lms($conn,$lms,$sid),null,'assessment_id');
     $check($listed[$assignment['assessment_id']]['result']===$data['result'],'Written assignment cards must retain the pending professor review summary.');

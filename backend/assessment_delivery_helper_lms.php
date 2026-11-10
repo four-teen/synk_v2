@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/assessment_helper_lms.php';
+require_once __DIR__.'/professor_workload_students_helper.php';
 
 function synk_assessment_delivery_ready_lms(mysqli $lms): bool
 {
@@ -7,6 +8,36 @@ function synk_assessment_delivery_ready_lms(mysqli $lms): bool
         "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tbl_lms_assessment_attempts'");
 }
 function synk_assessment_now_lms(): string { return (new DateTimeImmutable('now',new DateTimeZone('Asia/Manila')))->format('Y-m-d H:i:s'); }
+
+// Read only: use the same deduplicated class membership as student delivery,
+// including merged classes and legacy enrollment matches. Attempts stay in LMS.
+function synk_assessment_list_with_participation_lms(mysqli $core,mysqli $lms,array $context): array
+{
+    $rows=synk_assessment_list_lms($lms,$context);
+    if (!$rows) return [];
+    $class=$context['class']; $offering=(int)$class['offering_id'];
+    $memberships=synk_professor_workload_student_memberships($core,[$class],(int)$class['ay_id'],(int)$class['semester']);
+    $students=$memberships[$offering] ?? [];
+    $ready=synk_assessment_delivery_ready_lms($lms); $answered=[];
+    if ($ready && $students) {
+        $attempts=synk_assessment_query_lms($lms,"SELECT DISTINCT t.assessment_id,t.student_id
+            FROM tbl_lms_assessment_attempts t JOIN tbl_lms_assessments a ON a.assessment_id=t.assessment_id
+            WHERE a.faculty_id=? AND a.offering_id=? AND a.ay_id=? AND a.semester=?
+              AND a.status IN ('published','closed') AND t.status='submitted'",'iiii',synk_assessment_scope_params_lms($context));
+        foreach ($attempts as $attempt) {
+            if (isset($students[(int)$attempt['student_id']])) {
+                $id=(int)$attempt['assessment_id'];
+                $answered[$id]=($answered[$id] ?? 0)+1;
+            }
+        }
+    }
+    foreach ($rows as &$row) {
+        $row['student_count']=count($students);
+        $row['answered_count']=$ready ? ($answered[$row['assessment_id']] ?? 0) : null;
+    }
+    unset($row);
+    return $rows;
+}
 
 function synk_assessment_publish_lms(mysqli $lms,array $context,array $input,int $actor): array
 {
