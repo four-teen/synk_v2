@@ -3,6 +3,8 @@ require_once __DIR__.'/db_lms.php';
 require_once __DIR__.'/assessment_delivery_helper_lms.php';
 require_once __DIR__.'/student_portal_helper.php';
 require_once __DIR__.'/professor_workload_students_helper.php';
+require_once __DIR__.'/student_subject_helper_lms.php';
+require_once __DIR__.'/assessment_result_helper_lms.php';
 
 function synk_student_assessment_identity_lms(mysqli $core): int
 {
@@ -52,13 +54,13 @@ function synk_student_assessment_public_lms(mysqli $lms,array $record,?array $at
     // Explicit allowlist. Answer keys and professor-only fields never enter a student response.
     $public=array_intersect_key($record,array_flip(['assessment_id','grading_period','assessment_type','title','instructions','topic','status','total_points','opens_at','due_at','time_limit_minutes','subject_label']));
     $public['total_points']=(float)$public['total_points'];$public['time_limit_minutes']=$public['time_limit_minutes']===null?null:(int)$public['time_limit_minutes'];
-    $public['questions']=[];
+    $public['questions']=[];$questions=[];
     if ($attempt) {
-        $questions=synk_assessment_query_lms($lms,'SELECT question_id,question_type,prompt,points,options_json FROM tbl_lms_assessment_questions WHERE assessment_id=? ORDER BY sort_order,question_id','i',[$record['assessment_id']]);
+        $questions=synk_assessment_query_lms($lms,'SELECT question_id,question_type,prompt,points,options_json,answer_key_json FROM tbl_lms_assessment_questions WHERE assessment_id=? ORDER BY sort_order,question_id','i',[$record['assessment_id']]);
         foreach ($questions as $q) $public['questions'][]=['question_id'=>(int)$q['question_id'],'question_type'=>$q['question_type'],'prompt'=>$q['prompt'],'points'=>(float)$q['points'],'options'=>json_decode($q['options_json'],true)?:[]];
     }
     if ($attempt) unset($attempt['student_id'],$attempt['assessment_id']);
-    return ['assessment'=>$public,'attempt'=>$attempt,'server_time'=>synk_assessment_now_lms()];
+    return ['assessment'=>$public,'attempt'=>$attempt,'result'=>synk_assessment_result_lms($record,$questions,$attempt),'server_time'=>synk_assessment_now_lms()];
 }
 function synk_student_assessment_answers_lms(array $record,array $questions,$input): array
 {
@@ -83,7 +85,7 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
     $term=synk_fetch_current_academic_term($core);
     $rows=synk_assessment_query_lms($lms,"SELECT assessment_id,faculty_id,offering_id,ay_id,semester,grading_period,assessment_type,title,status,total_points,opens_at,due_at,time_limit_minutes
         FROM tbl_lms_assessments WHERE ay_id=? AND semester=? AND status IN ('published','closed') ORDER BY assessment_id DESC",'ii',[(int)$term['ay_id'],(int)$term['semester']]);
-    $result=[];$classes=[];$members=[];
+    $result=[];$classes=[];$members=[];$finished=[];
     foreach ($rows as $row) {
         $facultyId=(int)$row['faculty_id'];
         if (!isset($classes[$facultyId])) {
@@ -97,10 +99,23 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
         $class=$classes[$facultyId][$offering];
         $item=array_intersect_key($row,array_flip(['assessment_id','grading_period','assessment_type','title','status','total_points','opens_at','due_at','time_limit_minutes']));
         $item['assessment_id']=(int)$item['assessment_id'];$item['subject_label']=$class['subject_code'].': '.$class['descriptive_title'];
-        $attempt=synk_assessment_query_lms($lms,'SELECT status,deadline_at FROM tbl_lms_assessment_attempts WHERE assessment_id=? AND student_id=?','ii',[$item['assessment_id'],$studentId]);
+        $item['subject_key']=synk_student_subject_key_lms($facultyId,$class['subject_code'],$class['descriptive_title']);
+        $attempt=synk_assessment_query_lms($lms,'SELECT status,deadline_at,answers_json FROM tbl_lms_assessment_attempts WHERE assessment_id=? AND student_id=?','ii',[$item['assessment_id'],$studentId]);
         $item['attempt_status']=$attempt?$attempt[0]['status']:null;
         if ($item['attempt_status']==='in_progress' && $attempt[0]['deadline_at']!==null && $attempt[0]['deadline_at']<=synk_assessment_now_lms()) $item['attempt_status']='expired';
+        $item['result']=null;
+        if(in_array($item['attempt_status'],['submitted','expired'],true))$finished[$item['assessment_id']]=['status'=>$item['attempt_status'],'answers'=>json_decode($attempt[0]['answers_json'],true)?:[]];
         $result[]=$item;
+    }
+    if($finished){
+        // Read keys only for authorized, locked attempts; return aggregate counts only.
+        $ids=array_keys($finished);$questions=[];
+        $rows=synk_assessment_query_lms($lms,'SELECT assessment_id,question_id,question_type,answer_key_json FROM tbl_lms_assessment_questions WHERE assessment_id IN ('.implode(',',array_fill(0,count($ids),'?')).')',str_repeat('i',count($ids)),$ids);
+        foreach($rows as $question)$questions[(int)$question['assessment_id']][]=$question;
+        foreach($result as &$item){
+            $id=$item['assessment_id'];
+            if(isset($finished[$id]))$item['result']=synk_assessment_result_lms($item,$questions[$id]??[],$finished[$id]);
+        }unset($item);
     }
     return $result;
 }
@@ -142,6 +157,8 @@ function synk_student_assessment_request_lms(mysqli $core,array $input): array
     $action=$input['action']??null;
     if (!is_string($action) || !in_array($action,['list','detail','start','save','submit'],true)) throw new DomainException('Choose a valid assessment action.',400);
     $payload=$input['payload']??[];if (!is_array($payload)) throw new DomainException('Enter valid assessment details.',400);
+    $allowed=in_array($action,['save','submit'],true)?['assessment_id','version','answers']:($action==='list'?[]:['assessment_id']);
+    if(array_diff(array_keys($input),['action','payload','csrf_token'])||array_diff(array_keys($payload),$allowed))throw new DomainException('This request contains unsupported assessment fields. Reload your student workspace.',400);
     $lms=synk_database_connection_lms($core);
     if (!synk_assessment_delivery_ready_lms($lms)) throw new DomainException('Your assessments workspace is not ready yet.',503);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin the assessment request.');

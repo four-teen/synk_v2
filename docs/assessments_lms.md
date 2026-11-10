@@ -46,12 +46,35 @@ the current contents and changes status atomically. Published contents are locke
 duplicate an assessment to create a new editable version. Duplication clears dates.
 
 Students use Activities & assessments from their dashboard or navigation (More on
-mobile). Their real identity, current academic term, active enrollment (including
+mobile). My subjects opens first as a responsive card grid, including subjects
+that have no published work yet. Each card shows its professor, schedule, room,
+and section; search matches subject codes, titles, professors, and sections.
+View assessments opens only that faculty subject's Midterm/Final list. All subjects
+returns to the cards, and leaving an answer form preserves the selected subject.
+Below View assessments, each subject card has three colored rows with count badges: Needs attention
+(amber), Completed assessments (green), and Total assessments (blue). Attention
+counts only currently open, published work that can still be answered. Completed
+counts submitted attempts. Total includes all visible published/closed assessments,
+including upcoming, overdue, and time-ended work. Counts cover both LMS grading
+periods, update after submission, and retain zero values. Submitted work remains
+available to review.
+The dashboard's former subject-list area is reserved for announcements; posting
+announcements is not implemented yet. Staff dashboard previews keep their existing
+read-only subject list and historical term controls.
+
+Their real identity, current academic term, active enrollment (including
 legacy and merged-class matching), active faculty, and live workload ownership
 are checked on every operation. Other student IDs and academic term values in a
 request cannot override session identity or shared academic settings. Staff preview
 cannot answer assessments. Questions are disclosed only after the attempt starts;
 answer keys never appear in student responses.
+The student page accepts no URL selectors and redirects query strings to its clean
+URL; extra path segments are rejected. Its POST-only API rejects query selectors,
+unsupported top-level fields, and payload fields outside the selected action's
+allowlist, including supplied student/attempt/faculty/term identifiers. Every
+attempt read or update is scoped to both the authenticated student and authorized
+assessment. Knowing an assessment or another student's attempt ID grants no access
+to that student's work. CSRF tokens are bound to the current session.
 
 The deadline is the earlier of the due date and the time limit measured from the
 server's start timestamp. Reloading or another tab resumes the same attempt and
@@ -63,8 +86,26 @@ submission is idempotent and locks responses. Quizzes support all four question
 types; assignments accept written responses. File attachments are not included.
 
 Professors use Student responses in the assessment list to review saved or submitted
-answers. No numerical grades, automatic checking, manual grade entry, or grade
-release are implemented; these remain part of the gradebook work.
+answers. After submission or timer expiry, students see server-calculated total
+correct and total mistakes for multiple-choice, True/False, and accepted short
+answers. Short answers ignore case and repeated/leading/trailing whitespace and
+match any saved accepted alternative. Unanswered automatically checked questions
+count as mistakes. Essays and assignments remain awaiting professor review and
+are excluded from those totals. No results are returned while an attempt can
+still be edited, and answer keys and per-question correctness remain private.
+Existing submitted attempts receive the same summary when reopened; no schema
+migration is needed. These are question counts, not weighted or released course
+grades. Manual grade entry, course-grade calculation, and grade release remain
+part of the gradebook work.
+The subject's assessment list also shows these totals directly on submitted
+cards, with a green background and View results action. Time-ended attempts use
+an amber background and their last saved answers. Active cards keep their normal
+background and never receive result totals or private answer data in the list API.
+Subject cards use compact spacing and retain their three count rows below View
+assessments. Assessment-list results use small inline badges that wrap on narrow
+screens; repeated subject labels are omitted because the subject heading already
+identifies the class. Action buttons retain a 44px minimum height. In the full
+result view, How results are checked expands the grading explanation on request.
 
 ## Storage and installation
 
@@ -97,6 +138,6 @@ The familiar title/instructions/points/due-date flow follows the concepts in
 and [quiz assignments](https://support.google.com/edu/classroom/answer/9095575).
 This is a native LMS builder; it does not connect to Google Classroom or Forms.
 
-Next, connect assessment scores to grading components, add objective checking,
+Next, connect assessment scores to grading components, add point-based scoring,
 professor grading for written answers, and explicit grade release. File uploads,
 individual-student assignment, and reusable question banks can follow.

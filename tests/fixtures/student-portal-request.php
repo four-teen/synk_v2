@@ -73,6 +73,12 @@ $adminId=(int)$conn->insert_id;synk_persist_useraccount_roles($conn,$adminId,['a
 session_save_path($root.'/temp');session_id('studentportalqa'.bin2hex(random_bytes(10)));session_start();
 $_SESSION=[];synk_complete_student_login($email,'Alex Portal QA','qa-sub-'.$tag);$_SESSION['student_id']=$students['first'];
 $csrf=synk_student_login_csrf();$_POST=[];$handler='student/index.php';
+if(strpos($scenario,'assessments_')===0){
+    $handler='student/assessments_lms.php';
+    if($scenario==='assessments_foreign_parameters'){$_GET['student_id']=$students['other'];$_GET['preview_student_id']=$students['other'];$_GET['student_term']='999999:3';}
+    if($scenario==='assessments_old_term')$_GET['student_term']=$oldTerm['ay_id'].':'.$oldTerm['semester'];
+    if($scenario==='assessments_empty')$conn->query("UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id={$students['first']} AND ay_id={$term['ay_id']} AND semester={$term['semester']}");
+}
 if (strpos($scenario,'attendance_qr_')===0) {
     $_SESSION['management_student_qr_csrf']=$csrf;
     $handler=$scenario==='attendance_qr_page'?'student/attendance-qr.php':'backend/query_management_student_qr.php';
@@ -296,6 +302,10 @@ if(strpos($scenario,'verified_')===0){
     try{$record=synk_student_login_verified_identity($conn,$identity,$domain);if(in_array($scenario,['verified_login_success','verified_login_storage_failure'],true))synk_student_login_complete($conn,$record,$identity['email'],$identity['name'],$identity['sub']);echo json_encode(['status'=>'ok','student_id'=>(int)$record['student_id'],'authenticated'=>(($_SESSION['role'] ?? '')==='student' && (int)($_SESSION['student_id'] ?? 0)===(int)$record['student_id'])]);}
     catch(DomainException $e){http_response_code(403);echo json_encode(['status'=>'denied','reason'=>$e->getMessage()]);}
     exit;
+}
+if($handler==='student/assessments_lms.php'){
+    $_GET=array_intersect_key($_GET,array_flip(['student_id','preview_student_id','student_term']));
+    $_SERVER['QUERY_STRING']=http_build_query($_GET);
 }
 session_write_close();$_SERVER['REQUEST_METHOD']=$_POST?'POST':'GET';$_SERVER['PHP_SELF']='/synk/'.$handler;$conn->requestMode=true;
 chdir($root.'/'.dirname($handler));require $root.'/'.$handler;

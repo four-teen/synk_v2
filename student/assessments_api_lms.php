@@ -4,6 +4,7 @@ header('Content-Type: application/json; charset=utf-8');header('Cache-Control: n
 try {
     if (($_SERVER['REQUEST_METHOD']??'')!=='POST') { header('Allow: POST');throw new DomainException('Use the assessments page.',405); }
     if (($_SESSION['role']??'')!=='student' || empty($_SESSION['user_id'])) throw new DomainException('Sign in as a student to continue.',401);
+    if(!empty($_GET)||(string)($_SERVER['QUERY_STRING']??'')!==''||!empty($_SERVER['PATH_INFO']))throw new DomainException('Open assessments from your student workspace. URL selectors are not supported.',400);
     $raw=file_get_contents('php://input',false,null,0,1048577);
     if ($raw===false || strlen($raw)>1048576) throw new DomainException('The assessment request is too large.',413);
     $input=json_decode($raw,true);if (!is_array($input) || json_last_error()!==JSON_ERROR_NONE) throw new DomainException('Enter a valid assessment request.',400);
