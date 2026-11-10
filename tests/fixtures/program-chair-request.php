@@ -12,9 +12,13 @@ class ProgramChairRequestConnection extends mysqli
 {
     public $failClassificationWrite = false;
     public $failAccountWrite = false;
+    public $failAttentionRead = false;
     #[\ReturnTypeWillChange]
     public function prepare($query)
     {
+        if ($this->failAttentionRead && strpos($query, 'SELECT es.student_enrollment_id,es.student_id') === 0) {
+            throw new RuntimeException('Simulated student review read failure.');
+        }
         if ($this->failClassificationWrite && preg_match('/^\s*UPDATE\s+tbl_faculty\s+SET\s+employment_classification/i',$query)) {
             return new ProgramChairFailedWrite($this,$query);
         }
@@ -300,11 +304,56 @@ switch ($case) {
         $_POST=[]; $_SERVER['REQUEST_METHOD']='GET'; $handler='program-chair/manage-college-faculty.php'; break;
     case 'page':
         $page = substr($scenario, 5);
-        if (!in_array($page, ['index','programs','students','reports','faculty-workload','faculty-profile','manage-faculty-profile','faculty-evaluations','student-statistics','faculty-statistics','manage-college-faculty'], true)) throw new RuntimeException('Invalid fixture page.');
+        if (!in_array($page, ['index','programs','students','reports','faculty-workload','faculty-profile','manage-faculty-profile','faculty-evaluations','student-statistics','faculty-statistics','manage-college-faculty','need-attention'], true)) throw new RuntimeException('Invalid fixture page.');
         // Put the faculty in its home college so the shared profile editor can open it.
         $conn->query("UPDATE tbl_faculty SET college_id={$collegeId} WHERE faculty_id={$facultyId}");
         $_POST = []; $_GET = $page === 'manage-faculty-profile' ? ['faculty_id'=>(string)$facultyId] : []; $_SERVER['REQUEST_METHOD']='GET';
         $handler = 'program-chair/' . $page . '.php'; break;
+    case 'attention_program':
+    case 'attention_invalid':
+    case 'attention_array':
+    case 'attention_outside':
+    case 'attention_term':
+    case 'attention_wrong_role':
+    case 'attention_unauthenticated':
+    case 'attention_revoked':
+    case 'attention_reassigned':
+    case 'attention_dean_direct':
+    case 'attention_query_failure':
+    case 'attention_year':
+    case 'attention_year_empty':
+    case 'attention_year_invalid':
+    case 'attention_year_array':
+    case 'attention_dashboard_term':
+    case 'attention_dashboard_failure':
+        $ownProgram=$conn->query("SELECT program_id FROM tbl_program WHERE college_id={$collegeId} ORDER BY program_id LIMIT 1")->fetch_assoc();
+        $otherProgram=$conn->query("SELECT program_id FROM tbl_program WHERE college_id={$otherCollege} ORDER BY program_id LIMIT 1")->fetch_assoc();
+        if (!$ownProgram || !$otherProgram) throw new RuntimeException('Programs in both fixture colleges are required.');
+        $_POST=[]; $_GET=['program_id'=>(string)$ownProgram['program_id']]; $_SERVER['REQUEST_METHOD']='GET';
+        $handler='program-chair/need-attention.php';
+        if ($scenario==='attention_year') $_GET['year_level']='3';
+        if ($scenario==='attention_year_empty') $_GET['year_level']='1';
+        if ($scenario==='attention_year_invalid') $_GET['year_level']='9';
+        if ($scenario==='attention_year_array') $_GET['year_level']=['3'];
+        if ($scenario==='attention_dashboard_term') {
+            $handler='program-chair/index.php'; $_GET=['dean_ay_id'=>(string)$term['ay_id'],'dean_semester'=>(string)($term['semester']===1?2:1)];
+        }
+        if ($scenario==='attention_dashboard_failure') $handler='program-chair/index.php';
+        if ($scenario==='attention_invalid') $_GET['program_id']='1bad';
+        if ($scenario==='attention_array') $_GET['program_id']=['1'];
+        if ($scenario==='attention_outside') $_GET['program_id']=(string)$otherProgram['program_id'];
+        if ($scenario==='attention_term') $_GET+=['dean_ay_id'=>(string)$term['ay_id'],'dean_semester'=>(string)($term['semester']===1?2:1)];
+        if ($scenario==='attention_wrong_role') $_SESSION['role']='professor';
+        if ($scenario==='attention_unauthenticated') $_SESSION=[];
+        if ($scenario==='attention_revoked') $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$userId} AND role='program_chair'");
+        if ($scenario==='attention_reassigned') $conn->query("UPDATE tbl_useraccount SET college_id={$otherCollege} WHERE user_id={$userId}");
+        if ($scenario==='attention_dean_direct') { $_SESSION['role']='college_dean'; $handler='college-dean/need-attention.php'; }
+        if ($scenario==='attention_query_failure' || $scenario==='attention_dashboard_failure') {
+            $conn->failAttentionRead=true;
+            $logPath=$root.'/temp/attention-error-'.bin2hex(random_bytes(8)).'.log'; ini_set('error_log',$logPath);
+            register_shutdown_function(static function () use ($logPath): void { if (is_file($logPath)) unlink($logPath); });
+        }
+        break;
     case 'heatmap': $handler='backend/dashboard_program_chair_schedule_heatmap.php'; break;
     case 'matrix': $handler='backend/load_program_chair_room_time_matrix.php'; break;
     case 'rosters': $_POST['action']='bootstrap'; $handler='backend/query_program_chair_rosters.php'; break;

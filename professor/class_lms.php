@@ -11,6 +11,9 @@ $roster = null;
 $pageError = '';
 $backUrl = 'workload.php';
 $view = 'overview';
+$assessmentsReady = false;
+$gradingReady = false;
+$overviewSummary = null;
 try {
     if (!in_array($_SERVER['REQUEST_METHOD'] ?? '', ['GET', 'HEAD'], true)) {
         header('Allow: GET, HEAD');
@@ -22,6 +25,20 @@ try {
     $view = $context['view'];
     $backUrl .= '?term=' . (int)$class['ay_id'] . '-' . (int)$class['semester'];
     $lmsConn = synk_database_connection_lms($conn);
+    if ($view === 'overview') {
+        require_once __DIR__ . '/../backend/class_overview_helper_lms.php';
+        $overviewSummary = synk_class_overview_summary_lms($lmsConn, $context);
+    }
+    if ($view === 'assessments') {
+        require_once __DIR__ . '/../backend/assessment_helper_lms.php';
+        $assessmentsReady = synk_assessment_ready_lms($lmsConn);
+        if (empty($_SESSION['lms_assessment_csrf'])) $_SESSION['lms_assessment_csrf'] = bin2hex(random_bytes(32));
+    }
+    if ($view === 'grading') {
+        require_once __DIR__ . '/../backend/grading_helper_lms.php';
+        $gradingReady = synk_grading_ready_lms($lmsConn);
+        if (empty($_SESSION['lms_grading_csrf'])) $_SESSION['lms_grading_csrf'] = bin2hex(random_bytes(32));
+    }
     if ($view === 'students') {
         require_once __DIR__ . '/../backend/professor_workload_students_helper.php';
         $roster = synk_professor_workload_students($conn, (int)$portal['faculty_id'], (int)$class['ay_id'], (int)$class['semester'], (int)$class['offering_id']);
@@ -54,6 +71,9 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
   <link rel="stylesheet" href="class_lms.css?v=<?= (int)filemtime(__DIR__.'/class_lms.css') ?>">
+  <?php if ($class && in_array($view, ['overview','assessments','grading'], true)): ?><link rel="stylesheet" href="feedback_lms.css?v=<?= (int)filemtime(__DIR__.'/feedback_lms.css') ?>"><?php endif; ?>
+  <?php if ($view === 'assessments' && $class): ?><link rel="stylesheet" href="assessments_lms.css?v=<?= (int)filemtime(__DIR__.'/assessments_lms.css') ?>"><?php endif; ?>
+  <?php if ($view === 'grading' && $class): ?><link rel="stylesheet" href="grading_lms.css?v=<?= (int)filemtime(__DIR__.'/grading_lms.css') ?>"><?php endif; ?>
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body>
@@ -72,15 +92,21 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
             <span class="class-lms-heading-label"><i class="bx bx-book-open" aria-hidden="true"></i>Learning management</span>
           </div>
           <header class="card class-lms-hero">
-            <div class="class-lms-hero-top"><span class="class-lms-eyebrow">CLASS WORKSPACE</span><span class="class-lms-term"><i class="bx bx-calendar" aria-hidden="true"></i><?= synk_professor_h($termLabel) ?></span></div>
-            <div class="class-lms-subject"><span class="class-lms-code"><?= synk_professor_h($class['subject_code']) ?></span><h2><?= synk_professor_h($class['descriptive_title']) ?></h2></div>
-            <p class="class-lms-section"><i class="bx bx-group" aria-hidden="true"></i><?= synk_professor_h($class['section_display'] ?: 'Section pending') ?></p>
-            <p class="class-lms-program"><?= synk_professor_h($class['program_label']) ?></p>
-            <div class="class-lms-hero-bottom"><span><i class="bx bx-user-circle" aria-hidden="true"></i><?= synk_professor_h($portal['faculty_name']) ?></span><span><i class="bx bx-map" aria-hidden="true"></i><?= synk_professor_h($class['campus_name']) ?></span><span><strong><?= (int)$class['student_count'] ?></strong> enrolled</span></div>
+            <div class="class-lms-identity">
+              <span class="class-lms-eyebrow">CLASS WORKSPACE</span>
+              <h2 class="class-lms-subject"><?= synk_professor_h($class['subject_code']) ?>: <?= synk_professor_h($class['descriptive_title']) ?></h2>
+              <p class="class-lms-context"><span class="class-lms-section"><?= synk_professor_h($class['section_display'] ?: 'Section pending') ?></span><span class="class-lms-context-divider" aria-hidden="true">&middot;</span><span class="class-lms-program"><?= synk_professor_h($class['program_label']) ?></span></p>
+            </div>
+            <div class="class-lms-hero-meta">
+              <span class="class-lms-term"><i class="bx bx-calendar" aria-hidden="true"></i><?= synk_professor_h($termLabel) ?></span>
+              <span class="class-lms-enrollment"><strong><?= (int)$class['student_count'] ?></strong> enrolled</span>
+            </div>
           </header>
           <nav class="class-lms-tabs" aria-label="Class workspace views">
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class)) ?>"<?= $view==='overview'?' aria-current="page"':'' ?>><i class="bx bx-grid-alt" aria-hidden="true"></i>Class overview</a>
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>"<?= $view==='students'?' aria-current="page"':'' ?>><i class="bx bx-group" aria-hidden="true"></i>Students</a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'assessments')) ?>"<?= $view==='assessments'?' aria-current="page"':'' ?>><i class="bx bx-task" aria-hidden="true"></i>Activities &amp; assessments</a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>"<?= $view==='grading'?' aria-current="page"':'' ?>><i class="bx bx-slider-alt" aria-hidden="true"></i>Grading system</a>
           </nav>
           <?php if ($view === 'students'): ?>
             <section class="card class-lms-panel" aria-labelledby="class-lms-students-title">
@@ -92,49 +118,12 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
               <?php endif; ?>
               <p class="class-lms-note">The named roster and recorded enrollment total may differ. Contact your college office if a student is missing.</p>
             </section>
+          <?php elseif ($view === 'assessments'): ?>
+            <?php include __DIR__ . '/assessments_view_lms.php'; ?>
+          <?php elseif ($view === 'grading'): ?>
+            <?php include __DIR__ . '/grading_view_lms.php'; ?>
           <?php else: ?>
-            <div class="class-lms-overview">
-              <section class="class-lms-tools" aria-labelledby="class-lms-tools-title">
-                <div class="class-lms-tools-heading"><h2 id="class-lms-tools-title">Manage this subject</h2><p>Students, learning content, and class activities in one place.</p></div>
-                <div class="class-lms-tool-grid">
-                  <article class="card class-lms-tool class-lms-tool-students">
-                    <div class="class-lms-tool-top"><span class="class-lms-card-icon"><i class="bx bx-group" aria-hidden="true"></i></span><span class="class-lms-tool-status class-lms-tool-available">Available</span></div>
-                    <h3>Students</h3><p>See the students enrolled in this subject and section.</p>
-                    <a class="class-lms-tool-link" href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>">View class roster<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
-                  </article>
-                  <article class="card class-lms-tool">
-                    <div class="class-lms-tool-top"><span class="class-lms-card-icon class-lms-icon-materials"><i class="bx bx-folder-open" aria-hidden="true"></i></span><span class="class-lms-tool-status">Planned</span></div>
-                    <h3>Learning materials</h3><p>Organize modules, lessons, and resources for your students.</p>
-                    <span class="class-lms-tool-pending">Materials will appear here</span>
-                  </article>
-                  <article class="card class-lms-tool">
-                    <div class="class-lms-tool-top"><span class="class-lms-card-icon class-lms-icon-announcements"><i class="bx bx-bell" aria-hidden="true"></i></span><span class="class-lms-tool-status">Planned</span></div>
-                    <h3>Announcements</h3><p>Share class updates, reminders, and important notices.</p>
-                    <span class="class-lms-tool-pending">Class updates will appear here</span>
-                  </article>
-                  <article class="card class-lms-tool">
-                    <div class="class-lms-tool-top"><span class="class-lms-card-icon class-lms-icon-activities"><i class="bx bx-task" aria-hidden="true"></i></span><span class="class-lms-tool-status">Planned</span></div>
-                    <h3>Activities &amp; assessments</h3><p>Manage assignments, quizzes, and student submissions.</p>
-                    <span class="class-lms-tool-pending">Learning activities will appear here</span>
-                  </article>
-                </div>
-                <p class="class-lms-tools-note"><i class="bx bx-info-circle" aria-hidden="true"></i><span>Your class roster is ready to view. The other class tools are planned for the next stages.</span></p>
-              </section>
-              <aside class="class-lms-reference" aria-label="Selected class information">
-                <section class="card class-lms-panel" aria-labelledby="class-lms-details-title">
-                  <div class="class-lms-panel-head"><div><h2 id="class-lms-details-title">Class details</h2><p>Your teaching assignment.</p></div></div>
-                  <dl class="class-lms-details"><div><dt>College</dt><dd><?= synk_professor_h($class['college_name']) ?></dd></div><div><dt>Program</dt><dd><?= synk_professor_h($class['program_label']) ?></dd></div><div><dt>Section</dt><dd><?= synk_professor_h($class['section_display'] ?: 'Section pending') ?></dd></div></dl>
-                </section>
-                <section class="card class-lms-panel" aria-labelledby="class-lms-meetings-title">
-                  <div class="class-lms-panel-head"><div><h2 id="class-lms-meetings-title">Class meetings</h2><p>Your assigned schedule and rooms.</p></div></div>
-                  <?php if (!$class['meetings']): ?><p class="class-lms-note">No class meetings are listed yet.</p><?php else: ?>
-                    <ul class="class-lms-meetings">
-                      <?php foreach ($class['meetings'] as $meeting): ?><li><span class="class-lms-meeting-type"><?= synk_professor_h($meeting['type_label']) ?></span><div><strong><?= synk_professor_h($meeting['days'] ?: 'Days to be arranged') ?></strong><span><?= synk_professor_h($meeting['time'] ?: 'Time to be arranged') ?></span><small><?= synk_professor_h($meeting['room'] ?: 'Room to be arranged') ?></small></div></li><?php endforeach; ?>
-                    </ul>
-                  <?php endif; ?>
-                </section>
-              </aside>
-            </div>
+            <?php include __DIR__ . '/class_overview_lms.php'; ?>
           <?php endif; ?>
         <?php endif; ?>
       </main>
@@ -143,5 +132,9 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
   </div>
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
+<?php if ($class && in_array($view, ['overview','assessments','grading'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'overview' && $class): ?><script src="class_overview_lms.js?v=<?= (int)filemtime(__DIR__.'/class_overview_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'assessments' && $class && $assessmentsReady): ?><script src="content_lms.js?v=<?= (int)filemtime(__DIR__.'/content_lms.js') ?>" defer></script><script src="assessments_lms.js?v=<?= (int)filemtime(__DIR__.'/assessments_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'grading' && $class && $gradingReady): ?><script src="grading_lms.js?v=<?= (int)filemtime(__DIR__.'/grading_lms.js') ?>" defer></script><?php endif; ?>
 </body>
 </html>

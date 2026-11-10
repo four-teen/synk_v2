@@ -37,7 +37,7 @@ $r=$request('login');
 $check($r['response']['status']==='success' && $r['response']['redirect']==='program-chair/' && $r['session_role']==='program_chair' && $r['session_college']===$r['college_id'], 'Shared faculty login did not open Program Chair with the assigned college.');
 $r=$request('missing_scope');
 $check(!in_array('program_chair',$r['response']['roles'],true) && in_array('professor',$r['response']['roles'],true), 'An unassigned chair could log in, or another role was lost.');
-foreach (['index','programs','students','reports','faculty-workload','faculty-profile','manage-faculty-profile','faculty-evaluations','student-statistics','faculty-statistics','manage-college-faculty'] as $page) {
+foreach (['index','programs','students','reports','faculty-workload','faculty-profile','manage-faculty-profile','faculty-evaluations','student-statistics','faculty-statistics','manage-college-faculty','need-attention'] as $page) {
     $r=$request('page_'.$page); $body=$r['response'];
     $check($r['http_status']===200 && is_string($body) && !preg_match('/Fatal error|Parse error|<b>Warning<\/b>|xdebug-error/i',$body), 'Page failed: '.$page);
     $check(strpos($body,'Program Chair Portal')!==false && strpos($body,'href="manage-college-faculty.php"')!==false, 'Chair navigation missing: '.$page);
@@ -46,8 +46,21 @@ foreach (['index','programs','students','reports','faculty-workload','faculty-pr
     if ($page==='faculty-workload') $check(strpos($body,'id="deanManualRosterModal"')===false && strpos($body,'manual-roster.js')===false && strpos($body,'id="deanRosterAddStudent"')===false && strpos($body,'id="deanClearRosterModal"')===false && strpos($body,'clear-roster.js')===false && strpos($body,'id="deanRosterClearStudents"')===false && strpos($body,'id="deanRosterReviewRefresh"')===false && strpos($body,'roster-review.js')===false,'Program Chair workload exposed Dean roster management controls.');
     if ($page==='students') $check(strpos($body,'Login Activity')===false && strpos($body,'id="deanStudentLoginModal"')===false && strpos($body,'student-login-activity.js')===false,'The shared Chair student page exposed Dean login activity controls.');
     if ($page==='index') {
+        $check(strpos($body,'Student Login Activity')===false && strpos($body,'Student access')===false
+            && strpos($body,'collegeStudentActivity')===false && strpos($body,'studentActivityConfig')===false
+            && strpos($body,'student-activity')===false, 'The Chair dashboard must omit the student login card, configuration and dedicated assets.');
+        $check(strpos($body,'"activity"')===false && strpos($body,'"activity activity"')===false,
+            'The Chair dashboard must not reserve an empty student activity grid row.');
+        $check(strpos($body,'id="chairNeedAttention"')!==false && strpos($body,'data-attention-year="1"')!==false
+            && strpos($body,'data-attention-year="4"')!==false && strpos($body,'id="collegeScheduleOverview"')!==false,
+            'The Chair dashboard must show Need Attention counts and preserve its schedule overview.');
+        $check(strpos($body,'Suspicious Workload Review')===false && strpos($body,'collegeStudentWorkload')===false
+            && strpos($body,'student-workload.js')===false && strpos($body,'student-workload.css')===false,
+            'The replaced Chair dashboard workload card must not leave its configuration or assets behind.');
         $check(strpos($body,'dashboard_program_chair_schedule_heatmap.php')!==false && strpos($body,'load_program_chair_room_time_matrix.php')!==false, 'Chair dashboard chart endpoints missing.');
-        preg_match_all('/<script(?:\s[^>]*)?>(.*?)<\/script>/s',$body,$matches);
+        // JSON configuration blocks are data, not executable JavaScript.
+        $executableHtml=preg_replace('/<script\b[^>]*\btype=["\']application\/(?:ld\+)?json["\'][^>]*>.*?<\/script>/si','',$body);
+        preg_match_all('/<script(?:\s[^>]*)?>(.*?)<\/script>/s',$executableHtml,$matches);
         $scriptPath=$root.'/tmp/chair-rendered-dashboard.js'; file_put_contents($scriptPath,implode("\n",$matches[1]));
         exec('node --check '.escapeshellarg($scriptPath).' 2>&1',$output,$exit); unlink($scriptPath);
         $check($exit===0,'Rendered dashboard JavaScript failed to compile: '.implode("\n",$output));

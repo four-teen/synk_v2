@@ -102,6 +102,10 @@ if ($collegePortalIsChair) {
             ['href'=>'manage-prospectus.php','title'=>'Curriculum Builder','icon'=>'bx-edit-alt'],
         ],
     ]]);
+    $curriculumMenuIndex = array_search('curriculum',array_column($collegeDeanSidebarItems,'key'),true);
+    array_splice($collegeDeanSidebarItems,$curriculumMenuIndex+1,0,[['key'=>'need-attention','href'=>'need-attention.php',
+        'icon_bg'=>'bg-label-danger','icon'=>'bx-error-circle','title'=>'Need Attention',
+        'description'=>'Students enrolled above their curriculum unit limit','pages'=>['need-attention.php']]]);
 
     $chairSidebarByKey = array_column($collegeDeanSidebarItems, null, 'key');
     $chairSidebarByKey['manage-college-faculty']['section'] = 'Faculty Management';
@@ -112,7 +116,7 @@ if ($collegePortalIsChair) {
     $collegeDeanSidebarItems = array_map(static function (string $key) use ($chairSidebarByKey): array {
         return $chairSidebarByKey[$key];
     }, ['dashboard','manage-college-faculty','faculty-profile','faculty-workload','faculty-evaluations',
-        'programs','curriculum','students','reports']);
+        'programs','curriculum','need-attention','students','reports']);
 }
 
 $collegeDeanSidebarActiveKey = 'dashboard';

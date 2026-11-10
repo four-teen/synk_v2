@@ -51,6 +51,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
           <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1>Welcome, <?= synk_student_h($firstName) ?>.</h1><p>Your subjects and class details, at a glance.</p></div>
           <div class="student-welcome-program"><i class="bx bx-book-reader" aria-hidden="true"></i><div><strong><?= synk_student_h($student['source_program_name'] ?: 'Student record') ?></strong><span><?= synk_student_h($student['campus_name']) ?><?= (int)$student['year_level'] > 0 ? ' · Year '.(int)$student['year_level'] : '' ?></span></div></div>
         </section>
+        <?php if (!$isPreview): ?><div class="mb-3"><a class="btn btn-outline-primary" href="assessments_lms.php"><i class="bx bx-task me-1" aria-hidden="true"></i>Activities &amp; assessments</a></div><?php endif; ?>
         <div class="student-summary-grid" aria-label="Subjects overview">
           <div class="card student-summary-card"><span class="student-stat-icon bg-label-primary"><i class="bx bx-book-open" aria-hidden="true"></i></span><div><span>Subjects</span><strong><?= count($subjects) ?></strong></div></div>
           <div class="card student-summary-card"><span class="student-stat-icon bg-label-success"><i class="bx bx-user-voice" aria-hidden="true"></i></span><div><span>Instructors</span><strong><?= count($instructors) ?></strong></div></div>
