@@ -1,10 +1,10 @@
-#evaluationSubjectExclusions{min-width:0;overflow-wrap:anywhere}
+#evaluationSubjectExclusions,#evaluationStudentExclusions{min-width:0;overflow-wrap:anywhere}
 .exclusion-search{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,210px) auto;gap:1rem;align-items:end}
 .exclusion-search>div{min-width:0}.exclusion-search .btn{min-height:42px}
 .exclusion-table{width:100%;table-layout:fixed}.exclusion-table td,.exclusion-table th{white-space:normal;vertical-align:middle;overflow-wrap:anywhere}
 .exclusion-table th:first-child{width:30%}.exclusion-table th:last-child{width:110px}
-[data-subject-row][hidden],#subjectExclusionNoMatches[hidden]{display:none!important}
-.exclusion-table [data-manage-subject]{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+[data-subject-row][hidden],#subjectExclusionNoMatches[hidden],[data-student-row][hidden],#studentExclusionNoMatches[hidden]{display:none!important}
+.exclusion-table [data-manage-subject],.exclusion-table [data-manage-student]{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 .exclusion-empty{padding:1.25rem 0;margin:0}
 .exclusion-modal .modal-header{align-items:flex-start;gap:1rem}.exclusion-modal .modal-header>div{min-width:0;overflow-wrap:anywhere}
 .exclusion-modal .modal-header .btn-close{flex:0 0 44px;width:44px;height:44px;padding:12px;margin:0;box-sizing:border-box;transform:none}
@@ -17,10 +17,10 @@
  .exclusion-table tr{display:grid;grid-template-columns:1fr 1fr;overflow:hidden;border:1px solid #e0e6ef;border-radius:.75rem}
  .exclusion-table td{display:flex;flex-direction:column;align-items:flex-start;gap:.4rem;padding:.8rem;border:0;min-width:0}
  .exclusion-table td[data-label]::before{content:attr(data-label);font-size:.7rem;color:#73839a}
- .exclusion-table td[data-label="Subject"]{grid-column:1/-1;background:#f8f9fc;font-weight:600;border-bottom:1px solid #e0e6ef}
+ .exclusion-table td[data-label="Subject"],.exclusion-table td[data-label="Student"]{grid-column:1/-1;background:#f8f9fc;font-weight:600;border-bottom:1px solid #e0e6ef}
  .exclusion-table td[data-label="Faculty"],.exclusion-table td[data-label="Original Subjects"]{grid-column:1/-1}
  .exclusion-table td[data-label="Action"]{grid-column:1/-1;border-top:1px solid #edf0f5}
- .exclusion-table td[data-label="Action"]::before{display:none}.exclusion-table [data-manage-subject]{width:100%}
+ .exclusion-table td[data-label="Action"]::before{display:none}.exclusion-table [data-manage-subject],.exclusion-table [data-manage-student]{width:100%}
 }
 @media(max-width:575.98px){
  .exclusion-search{grid-template-columns:minmax(0,1fr) auto;gap:.75rem}.exclusion-search>div:first-of-type{grid-column:1/-1}
