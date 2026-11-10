@@ -5,6 +5,8 @@ ob_start();
 require_once '../backend/db.php';
 require_once '../backend/college_dean_dashboard_helper.php';
 synk_college_dean_require_login($conn);
+$showStudentLoginActivity = ($_SESSION['role'] ?? '') === 'college_dean';
+$showChairNeedAttention = ($_SESSION['role'] ?? '') === 'program_chair';
 $collegeDeanDashboardScope = synk_college_dean_dashboard_require_scope($conn, [], true);
 $collegeDeanPortalContext = synk_college_dean_portal_context($conn);
 $collegeDeanPortalDisplayName = (string)$collegeDeanPortalContext['account_name'];
@@ -1615,8 +1617,14 @@ if ($consolidatedReportAssigneesJson === false) {
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
   <link rel="stylesheet" href="../assets/vendor/libs/apex-charts/apex-charts.css" />
   <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css'); ?>" />
+  <?php if ($showStudentLoginActivity): ?>
   <link rel="stylesheet" href="student-activity.css?v=<?= (int)filemtime(__DIR__.'/student-activity.css') ?>" />
+  <?php endif; ?>
+  <?php if ($showChairNeedAttention): ?>
+  <link rel="stylesheet" href="../program-chair/need-attention-card.css?v=<?= (int)filemtime(__DIR__.'/../program-chair/need-attention-card.css') ?>" />
+  <?php else: ?>
   <link rel="stylesheet" href="student-workload.css?v=<?= (int)filemtime(__DIR__.'/student-workload.css') ?>" />
+  <?php endif; ?>
 
   <script src="../assets/vendor/js/helpers.js"></script>
   <script src="../assets/js/config.js"></script>
@@ -1625,7 +1633,7 @@ if ($consolidatedReportAssigneesJson === false) {
     .college-dashboard-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "overview" "operations" "schedule" "snapshot" "faculty" "activity" "workload" "programs";
+      grid-template-areas: "overview" "operations" "schedule" "snapshot" "faculty"<?= $showStudentLoginActivity ? ' "activity"' : '' ?> "workload" "programs";
       gap: 1.5rem;
     }
 
@@ -1636,7 +1644,9 @@ if ($consolidatedReportAssigneesJson === false) {
     .college-snapshot-card { grid-area: snapshot; }
     .college-faculty-card { grid-area: faculty; min-height: 0; }
     .college-programs-card { grid-area: programs; }
+    <?php if ($showStudentLoginActivity): ?>
     .college-student-activity-card { grid-area: activity; }
+    <?php endif; ?>
 
     .college-faculty-card > .card-header,
     .college-programs-card > .card-header {
@@ -1647,7 +1657,7 @@ if ($consolidatedReportAssigneesJson === false) {
     @media (min-width: 992px) {
       .college-dashboard-grid {
         grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-        grid-template-areas: "overview snapshot" "operations faculty" "schedule faculty" "activity activity" "workload workload" "programs programs";
+        grid-template-areas: "overview snapshot" "operations faculty" "schedule faculty"<?= $showStudentLoginActivity ? ' "activity activity"' : '' ?> "workload workload" "programs programs";
       }
 
       .college-faculty-card > .card-body {
@@ -3481,8 +3491,12 @@ if ($consolidatedReportAssigneesJson === false) {
                   </div>
                 </div>
 
-                <?php include __DIR__.'/student-activity-card.php'; ?>
-                <?php include __DIR__.'/student-workload-card.php'; ?>
+                <?php if ($showStudentLoginActivity) include __DIR__.'/student-activity-card.php'; ?>
+                <?php if ($showChairNeedAttention): ?>
+                  <?php include __DIR__.'/../program-chair/need-attention-card.php'; ?>
+                <?php else: ?>
+                  <?php include __DIR__.'/student-workload-card.php'; ?>
+                <?php endif; ?>
 
                 <div class="card shadow-sm college-programs-card">
                   <div class="card-header d-flex justify-content-between align-items-center">
@@ -3637,8 +3651,12 @@ if ($consolidatedReportAssigneesJson === false) {
 
   <!-- Main JS -->
   <script src="../assets/js/main.js"></script>
+  <?php if ($showStudentLoginActivity): ?>
   <script src="student-activity.js?v=<?= (int)filemtime(__DIR__.'/student-activity.js') ?>" defer></script>
+  <?php endif; ?>
+  <?php if (!$showChairNeedAttention): ?>
   <script src="student-workload.js?v=<?= (int)filemtime(__DIR__.'/student-workload.js') ?>" defer></script>
+  <?php endif; ?>
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {

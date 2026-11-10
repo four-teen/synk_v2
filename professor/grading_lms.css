@@ -1,0 +1,43 @@
+.grading-workspace{margin-top:26px}
+.grading-heading h2{font-size:22px;margin:0 0 7px}
+.grading-heading p{color:#6d7b90;font-size:13px;line-height:1.7;margin:0}
+.grading-eyebrow{font-size:10px!important;color:#7b8798;font-weight:700;letter-spacing:1.1px;margin:0 0 6px!important}
+.grading-note{display:flex;align-items:flex-start;gap:9px;margin:20px 0 24px;padding:13px 16px;background:#f0f3f9;border:1px solid #e4e9f3;border-radius:9px;color:#65758b;font-size:12px;line-height:1.8}
+.grading-note i{font-size:18px;flex-shrink:0;margin-top:2px}
+.grading-period-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:20px}
+.grading-period{padding:22px;min-width:0}
+.grading-period-heading{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:20px}
+.grading-period-heading h3{font-size:20px;margin:0 0 6px}
+.grading-save-state{font-size:11px;color:#7b8798}
+.grading-total{padding:8px 12px;background:#f0f2f7;color:#65758b;border-radius:8px;font-size:18px;font-weight:600;white-space:nowrap}
+.grading-period.is-balanced .grading-total{background:#eaf7f0;color:#23734e}
+.grading-period.is-unbalanced .grading-total{background:#fff1e7;color:#a45b1a}
+.grading-period-tools{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.grading-primary-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.grading-primary-actions .btn{white-space:nowrap}
+.grading-period-tools .btn{display:inline-flex;align-items:center;gap:6px;min-height:40px}
+.grading-text-button{border:0;background:none;color:#6265c6;font-size:12px;padding:6px 0;min-height:36px}
+.grading-components{display:grid;gap:14px}
+.grading-empty{padding:26px 18px;border:1px dashed #dbe1ef;border-radius:8px;text-align:center;color:#6d7b90;font-size:13px;line-height:1.8}
+.grading-component{padding:16px;border:1px solid #e0e5ee;border-radius:9px;min-width:0;background:#fff}
+.grading-component-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.grading-component-heading h4{font-size:12px;margin:0;color:#6d7b90}
+.grading-component-controls{display:flex;gap:4px}
+.grading-component-controls button{height:34px;min-width:34px;padding:0 6px;background:#fff;border:1px solid #e3e8f0;border-radius:6px;color:#7b8798}
+.grading-component-controls button:hover{background:#f3f3ff;color:#6265c6}
+.grading-component-controls button:disabled{opacity:.35}
+.grading-component-fields{display:grid;grid-template-columns:minmax(0,1fr) 98px;gap:12px}
+.grading-component-description{grid-column:1/-1}
+.grading-workspace .form-label{font-size:11px;line-height:1.6;white-space:normal}
+.grading-workspace .form-control{font-size:12px;line-height:1.7}
+.grading-workspace textarea{resize:vertical}
+.grading-component-weight .input-group-text{padding:8px;color:#7b8798;font-size:12px}
+.grading-component-weight input{padding:8px;min-width:0}
+.grading-period-footer{margin-top:20px;padding-top:18px;border-top:1px solid #e4e9f2;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.grading-period-footer strong{font-size:13px;color:#536079}
+.grading-period-footer p{font-size:11px;color:#7b8798;line-height:1.7;margin:5px 0 0}
+.grading-workspace button:focus-visible{outline:3px solid #b6b8ff;outline-offset:3px}
+.grading-workspace [hidden]{display:none!important}
+@media(max-width:991.98px){.grading-period-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:575.98px){.grading-heading h2{font-size:20px}.grading-period{padding:18px}.grading-component{padding:12px}.grading-component-fields{grid-template-columns:minmax(0,1fr) 90px}.grading-component-controls button{height:40px;min-width:40px}.grading-period-tools .btn,.grading-period-footer button{min-height:44px}.grading-period-tools{gap:6px}.grading-primary-actions{width:100%}.grading-primary-actions .btn{justify-content:center;flex:1;padding-left:8px;padding-right:8px;font-size:12px}.grading-component-weight input{padding:8px 5px}}
+@media(max-width:359.98px){.grading-primary-actions .btn{font-size:11px;gap:4px}}

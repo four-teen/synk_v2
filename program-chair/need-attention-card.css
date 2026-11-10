@@ -1,0 +1,15 @@
+.chair-attention-card { grid-area: workload; min-width: 0; }
+.chair-attention-copy { color: #8592a3; font-size: .84rem; line-height: 1.5; }
+.chair-attention-programs { display: grid; gap: 1.5rem; }
+.chair-attention-program + .chair-attention-program { border-top: 1px solid #eceef1; padding-top: 1.5rem; }
+.chair-attention-program h6 { line-height: 1.5; overflow-wrap: anywhere; }
+.chair-attention-years { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9rem; }
+.chair-attention-year { display: flex; flex-direction: column; gap: .6rem; padding: 1rem; border: 1px solid #e7e7ef; border-radius: .65rem; color: #566a7f; background: #fafbfe; transition: border-color .15s, box-shadow .15s; }
+.chair-attention-year:hover, .chair-attention-year:focus-visible { color: #566a7f; border-color: #696cff; box-shadow: 0 3px 12px rgba(67, 89, 113, .09); }
+.chair-attention-year:focus-visible { outline: 2px solid #696cff; outline-offset: 3px; }
+.chair-attention-year.has-issues { background: #fff7f5; border-color: #f4d4cc; }
+.chair-attention-year-label { font-size: .85rem; font-weight: 600; }
+.chair-attention-count { font-size: 1.85rem; font-weight: 600; line-height: 1.1; }
+.has-issues .chair-attention-count { color: #c4523b; }
+.chair-attention-year-note { display: flex; justify-content: space-between; align-items: center; gap: .35rem; font-size: .76rem; color: #8592a3; }
+@media (max-width: 767.98px) { .chair-attention-years { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; } .chair-attention-year { padding: .85rem; } }

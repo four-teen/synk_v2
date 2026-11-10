@@ -1,11 +1,17 @@
 # Management terms
 
-Midterm and Final are used only by the Management module. Keep their settings,
+Midterm and Final financial periods are used only by the Management module. Keep their settings,
 storage, validation, and UI inside Management-specific files and tables. Never add
 these terms to shared Academic Settings, academic helpers, workloads, scheduling
 views, or academic reports. Management may read the existing shared academic year
 and semester without changing their data or behavior. Preserve this boundary when
 building legacy history migration, payments, attendance, and clearance features.
+
+At the user's explicit request, the professor LMS assessment and grading system features separately
+uses Midterm and Final as grading periods. Keep these inside LMS-specific files
+and tables in the separate LMS database. Never synchronize them with Management's
+financial period or add them to shared academic settings, scheduling, workloads,
+or academic reports.
 
 The Management financial calendar is August-October = 1st Semester/Midterm,
 November-December = 1st Semester/Final, January-March = 2nd Semester/Midterm,

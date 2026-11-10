@@ -43,6 +43,10 @@ $studentSidebarItems = [
     ],
 ];
 if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
+    'key'=>'assessments','href'=>'assessments_lms.php','icon_bg'=>'bg-label-primary','icon'=>'bx-task',
+    'title'=>'Activities & assessments','mobile_title'=>'Assessments','description'=>'Answer published quizzes, exams and assignments','pages'=>['assessments_lms.php'],
+];
+if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
     'key'=>'finances','href'=>'finances.php','icon_bg'=>'bg-label-warning','icon'=>'bx-wallet',
     'title'=>'My Finances','mobile_title'=>'Finances','description'=>'Contributions, attendance and charges','pages'=>['finances.php'],
 ];

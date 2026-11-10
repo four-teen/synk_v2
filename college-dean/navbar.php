@@ -21,6 +21,11 @@ $deanNavbarContext = [];
 foreach (['faculty_id', 'offering_id', 'list_status'] as $key) {
     if (isset($_GET[$key]) && is_string($_GET[$key])) $deanNavbarContext[$key] = $_GET[$key];
 }
+if ($deanNavbarPage === 'need-attention.php') {
+    foreach (['program_id', 'year_level'] as $key) {
+        if (isset($_GET[$key]) && is_string($_GET[$key])) $deanNavbarContext[$key] = $_GET[$key];
+    }
+}
 ?>
 
 <nav
