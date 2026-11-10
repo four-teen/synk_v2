@@ -89,6 +89,16 @@
     try { await callback(); } catch (error) { notice(error.message, true); }
     finally { busy(false); }
   }
+  function participation(row) {
+    const answered = Number.isInteger(row.answered_count) && row.answered_count >= 0 ? row.answered_count : null;
+    const total = Number.isInteger(row.student_count) && row.student_count >= 0 ? row.student_count : null;
+    return `<div class="assessment-participation" title="Submitted responses from enrolled students">
+      <i class="bx bx-group" aria-hidden="true"></i><div><div class="assessment-participation-count">
+        <span class="${answered === null ? 'assessment-count-unavailable' : 'assessment-count-answered'}">${answered === null ? '&mdash;' : number(answered)}<span class="visually-hidden">${answered === null ? ' answered count unavailable' : ' students answered'}</span></span>
+        <span class="assessment-count-divider" aria-hidden="true">/</span>
+        <span class="${total === null ? 'assessment-count-unavailable' : 'assessment-count-total'}">${total === null ? '&mdash;' : number(total)}<span class="visually-hidden">${total === null ? ' student count unavailable' : ' total students'}</span></span>
+      </div><p aria-hidden="true">answered / students</p></div></div>`;
+  }
   function renderList() {
     for (const period of Object.keys(periods)) {
       const count = state.rows.filter(row => row.grading_period === period).length;
@@ -110,8 +120,8 @@
     }
     $('assessmentList').innerHTML = rows.map(row => `<article class="card assessment-list-card">
       <span class="assessment-list-icon"><i class="bx ${icons[row.assessment_type] || 'bx-task'}" aria-hidden="true"></i></span>
-      <div class="assessment-list-main"><div class="assessment-list-labels"><span class="badge bg-label-primary">${escape(labels[row.assessment_type])}</span><span class="badge bg-label-secondary">${escape(row.status === 'draft' ? 'Draft' : row.status)}</span>${row.topic ? `<span class="text-muted">${escape(row.topic)}</span>` : ''}</div>
-      <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.due_at ? 'Due ' + escape(dateLabel(row.due_at)) : 'No due date'}</span></div>
+      <div class="assessment-list-main"><div class="assessment-list-summary"><div class="assessment-list-details"><div class="assessment-list-labels"><span class="badge bg-label-primary">${escape(labels[row.assessment_type])}</span><span class="badge bg-label-secondary">${escape(row.status === 'draft' ? 'Draft' : row.status)}</span>${row.topic ? `<span class="text-muted">${escape(row.topic)}</span>` : ''}</div>
+      <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.due_at ? 'Due ' + escape(dateLabel(row.due_at)) : 'No due date'}</span></div></div>${participation(row)}</div>
       <div class="assessment-list-actions">${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">Edit draft</button>` : ''}<button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div></div></article>`).join('');
   }
   async function refresh() {

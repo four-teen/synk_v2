@@ -81,6 +81,8 @@ try {
     $r=$call('archive',['assessment_id'=>$copyId,'version'=>1]);$check($r['status']===200,'A draft can be archived through the real API.');
     $r=$call('list');$ids=array_column($r['data']['assessments'],'assessment_id');
     $check($r['status']===200&&in_array($id,$ids,true)&&!in_array($copyId,$ids,true),'The refreshed list includes the draft and excludes the archived copy.');
+    $listed=array_column($r['data']['assessments'],null,'assessment_id');
+    $check($listed[$id]['answered_count']===0 && is_int($listed[$id]['student_count']) && $listed[$id]['student_count']>=0,'The PHP 7.1 list endpoint returns integer submission and roster counts for cards.');
     $r=$request($apiUrl,'invalid json');$check($r['status']===400,'Malformed JSON must be rejected.');
     $r=$request($apiUrl,str_repeat('a',1048577));$check($r['status']===413,'Oversized assessment requests must be rejected.');
     $r=$request($apiUrl,null,true,'GET');$check($r['status']===405,'The assessment API must reject GET.');

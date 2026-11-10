@@ -19,6 +19,19 @@ The workspace supports private authoring, publishing, and enrolled student respo
   submission locking, and professor response review.
 - Close published assessments; saved work is retained and further responses stop.
 
+Each professor assessment card shows answered students in green / total students
+in red. Answered counts distinct submitted attempts from the actual enrolled
+class roster; in-progress, expired, withdrawn and other-class attempts do not
+inflate it. The total uses the same deduplicated roster as student delivery,
+including legacy and merged-class membership, rather than the recorded class
+headcount. Drafts show zero answered and retain the roster total. Closed
+assessments retain their submitted count. Refresh updates the card counts. If
+delivery storage is unavailable, the answered count is shown as unavailable.
+Midterm uses indigo and Final teal, with a filled selected button, icons, counts,
+keyboard focus outlines and pressed states. Counts wrap below the title on phones.
+These are read-only aggregates from existing core enrollment and separate LMS
+attempt storage; this display change requires no database migration.
+
 LMS notifications use the locally bundled SweetAlert2 library: success toasts,
 validation and request error dialogs, and confirmations for removing questions,
 changing to Assignment, archiving, discarding edits, and leaving the page.

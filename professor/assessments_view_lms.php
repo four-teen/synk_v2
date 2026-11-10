@@ -12,8 +12,8 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
   <?php else: ?>
     <div id="assessmentLibrary">
       <div class="assessment-periods" role="group" aria-label="Grading period">
-        <button type="button" data-period="midterm" class="is-active" aria-pressed="true"><span>Midterm</span><span class="assessment-period-count" id="assessmentMidtermCount">0</span></button>
-        <button type="button" data-period="final" aria-pressed="false"><span>Final</span><span class="assessment-period-count" id="assessmentFinalCount">0</span></button>
+        <button type="button" data-period="midterm" class="is-active" aria-pressed="true"><span class="assessment-period-label"><i class="bx bx-sun" aria-hidden="true"></i>Midterm</span><span class="assessment-period-count" id="assessmentMidtermCount" title="Midterm assessments">0</span></button>
+        <button type="button" data-period="final" aria-pressed="false"><span class="assessment-period-label"><i class="bx bx-flag" aria-hidden="true"></i>Final</span><span class="assessment-period-count" id="assessmentFinalCount" title="Final assessments">0</span></button>
       </div>
       <div class="assessment-toolbar">
         <div class="assessment-search"><label for="assessmentSearch" class="visually-hidden">Search assessment title or topic</label><i class="bx bx-search" aria-hidden="true"></i><input type="search" class="form-control" id="assessmentSearch" maxlength="200" placeholder="Search title or topic"></div>
