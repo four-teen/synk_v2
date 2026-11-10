@@ -3,7 +3,7 @@
 if (PHP_SAPI !== 'cli' && (!defined('SYNK_PROFESSOR_LMS_QA')
     || !in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1','::1'], true)
     || !is_string($_GET['qa'] ?? null) || !hash_equals(SYNK_PROFESSOR_LMS_QA, $_GET['qa']))) { http_response_code(404); exit; }
-function professor_students_fixtures(mysqli $conn): array
+function professor_students_fixtures(mysqli $conn,bool $distinctSubjects=false): array
 {
     $term = synk_fetch_current_academic_term($conn);
     $source = synk_professor_workload_assignment_source_sql();
@@ -13,6 +13,11 @@ function professor_students_fixtures(mysqli $conn): array
         WHERE fw.ay_id={$term['ay_id']} AND fw.semester={$term['semester']} ORDER BY po.offering_id,fw.schedule_id")->fetch_all(MYSQLI_ASSOC);
     $offerings = [];
     foreach ($rows as $row) if (!isset($offerings[$row['offering_id']])) $offerings[$row['offering_id']] = $row;
+    if($distinctSubjects){
+        $bySubject=[];
+        foreach($offerings as $row){$code=strtoupper(preg_replace('/\s+/u','',$row['sub_code']));if(!isset($bySubject[$code]))$bySubject[$code]=$row;}
+        $offerings=$bySubject;
+    }
     $offerings = array_slice(array_values($offerings), 0, 3);
     if (count($offerings) < 3) throw new RuntimeException('Three current assigned offerings are required for workload fixtures.');
     $tag = 'WorkloadStudentsQA' . bin2hex(random_bytes(7));

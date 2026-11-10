@@ -11,10 +11,14 @@ register_shutdown_function(static function()use($conn,$tables,$before,&$photo):v
     $conn->rollback();if($photo!==null&&is_file($photo))unlink($photo);if(session_status()===PHP_SESSION_ACTIVE)session_destroy();
     header('X-QA-Core-Unchanged: '.($conn->query('CHECKSUM TABLE '.$tables)->fetch_all(MYSQLI_ASSOC)===$before?'yes':'no'));
 });
-$fixture=professor_students_fixtures($conn);$id=$fixture['students']['active'];
+$fixture=professor_students_fixtures($conn,true);$id=$fixture['students']['active'];
 $student=synk_student_fetch_directory_record_by_student_id($conn,$id);
 session_save_path($root.'/temp');session_id('studentlmsqa'.bin2hex(random_bytes(10)));session_start();
 synk_complete_student_login($student['email_address'],'Student LMS QA','qa-lms-'.bin2hex(random_bytes(12)));$_SESSION['student_id']=$id;
 $candidatePhoto=synk_student_profile_image_path($id);if(is_file($candidatePhoto))throw new RuntimeException('Refusing to replace an existing profile image.');$photo=$candidatePhoto;
 $bytes=file_get_contents(__DIR__.'/student-camera-portrait.jpg');if($bytes===false||file_put_contents($photo,$bytes)===false)throw new RuntimeException('Unable to prepare the isolated QA photo.');
-session_write_close();$_SERVER['REQUEST_METHOD']='GET';$_SERVER['PHP_SELF']='/synk/student/assessments_lms.php';chdir($root.'/student');require $root.'/student/assessments_lms.php';
+$page=($_GET['view']??'')==='dashboard'?'index.php':'assessments_lms.php';
+// The QA route's token is not a selector on the real student page.
+$tamper=($_GET['view']??'')==='tampered';$_GET=$tamper?['student_id'=>$fixture['students']['foreign'],'assessment_id'=>2147483647,'student_term'=>'999999:3']:[];
+$_SERVER['QUERY_STRING']=$tamper?http_build_query($_GET):'';
+session_write_close();$_SERVER['REQUEST_METHOD']='GET';$_SERVER['PHP_SELF']='/synk/student/'.$page;chdir($root.'/student');require $root.'/student/'.$page;

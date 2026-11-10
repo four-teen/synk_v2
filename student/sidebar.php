@@ -7,8 +7,8 @@ $studentSidebarItems = [
         'icon_bg' => 'bg-label-primary',
         'icon' => 'bx-home-circle',
         'title' => 'Dashboard',
-        'mobile_title' => 'Subjects',
-        'description' => 'Your imported subjects and class details',
+        'mobile_title' => 'Home',
+        'description' => 'Announcements and student updates',
         'pages' => ['index.php'],
     ],
     [
@@ -44,7 +44,7 @@ $studentSidebarItems = [
 ];
 if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
     'key'=>'assessments','href'=>'assessments_lms.php','icon_bg'=>'bg-label-primary','icon'=>'bx-task',
-    'title'=>'Activities & assessments','mobile_title'=>'Assessments','description'=>'Answer published quizzes, exams and assignments','pages'=>['assessments_lms.php'],
+    'title'=>'Activities & assessments','mobile_title'=>'Assessments','description'=>'Your subjects, professors, and classwork','pages'=>['assessments_lms.php'],
 ];
 if (($_SESSION['role'] ?? '')==='student') $studentSidebarItems[]=[
     'key'=>'finances','href'=>'finances.php','icon_bg'=>'bg-label-warning','icon'=>'bx-wallet',

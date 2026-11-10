@@ -37,8 +37,18 @@ status checks do not reset that timer. The College Dean dashboard shows a live
 student grid and successful-login counts for the selected academic year and semester; see
 [student-live-activity.md](student-live-activity.md) for behavior and deployment.
 
-The dashboard reads active imported enrollment records for the signed-in student.
-Each subject appears in a full-width row with the professor's circular profile
+The student dashboard reserves its main panel for announcements and retains its
+subject, instructor, section, and workload totals. Until announcement posting is
+available, this panel shows an empty state and a link to the student's subjects.
+
+My subjects now lives in **Activities & assessments**, with one card for each
+subject and professor in the current academic term, including subjects with no
+published assessments yet. Cards show the professor, schedule, room, and section.
+Search finds subjects or professors. View assessments opens that faculty subject's
+published classwork, separated into LMS grading periods. See
+[assessments_lms.md](assessments_lms.md) for student delivery rules.
+
+Staff dashboard previews and profile subject lists retain the full-width rows with the professor's circular profile
 photo, orange professor name, subject title and compact schedule lines. Lecture
 and laboratory entries separated by semicolons or newlines appear on separate
 lines. Room, section and subject code sit below the schedule. Photos use the

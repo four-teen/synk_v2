@@ -29,7 +29,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>My Subjects | Synk Student</title>
+  <title><?= $isPreview ? 'My Subjects' : 'Dashboard' ?> | Synk Student</title>
   <link rel="icon" href="../assets/img/favicon/synk-icon.png" type="image/png">
   <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css">
   <link rel="stylesheet" href="../assets/vendor/css/core.css">
@@ -48,7 +48,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
       <div class="container-xxl flex-grow-1 container-p-y">
         <?php if ($isPreview): ?><div class="alert alert-info student-preview-notice" role="status"><i class="bx bx-show-alt" aria-hidden="true"></i><div><strong><?= synk_student_h(synk_student_preview_label()) ?> · Read only</strong><br>You are viewing <?= synk_student_h($studentPortalDisplayName) ?>’s subjects<?= ($_SESSION['role'] ?? '')==='college_dean' ? ' for your college' : '' ?>.</div></div><?php endif; ?>
         <section class="student-welcome">
-          <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1>Welcome, <?= synk_student_h($firstName) ?>.</h1><p>Your subjects and class details, at a glance.</p></div>
+          <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1>Welcome, <?= synk_student_h($firstName) ?>.</h1><p><?= $isPreview ? 'Your subjects and class details, at a glance.' : 'Your announcements and student updates, at a glance.' ?></p></div>
           <div class="student-welcome-program"><i class="bx bx-book-reader" aria-hidden="true"></i><div><strong><?= synk_student_h($student['source_program_name'] ?: 'Student record') ?></strong><span><?= synk_student_h($student['campus_name']) ?><?= (int)$student['year_level'] > 0 ? ' · Year '.(int)$student['year_level'] : '' ?></span></div></div>
         </section>
         <?php if (!$isPreview): ?><div class="mb-3"><a class="btn btn-outline-primary" href="assessments_lms.php"><i class="bx bx-task me-1" aria-hidden="true"></i>Activities &amp; assessments</a></div><?php endif; ?>
@@ -60,6 +60,12 @@ $firstName = trim($student['first_name']) ?: 'Student';
         </div>
         <p class="student-workload-note">Units and weekly lecture/laboratory contact hours for <?= synk_student_h($viewTerm['term_text']) ?>.</p>
         <?php if (empty($viewTerm['is_current'])): ?><div class="student-term-notice" role="status"><i class="bx bx-history" aria-hidden="true"></i><span>You’re viewing <?= synk_student_h($viewTerm['term_text']) ?>. The current term is <?= synk_student_h($currentTerm['term_text']) ?>.</span></div><?php endif; ?>
+        <?php if (!$isPreview): ?>
+        <section class="card student-announcement-panel" aria-labelledby="announcements-title">
+          <div class="student-subject-toolbar"><div><h2 id="announcements-title">Announcements</h2><p>Keep up with notices and reminders.</p></div><span class="student-announcement-icon" aria-hidden="true"><i class="bx bx-bell"></i></span></div>
+          <div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-bell" aria-hidden="true"></i></span><h3>No announcements yet</h3><p>This space is reserved for announcements. Open Activities &amp; assessments to find your subjects and classwork.</p><a class="btn btn-outline-primary" href="assessments_lms.php">View my subjects</a></div>
+        </section>
+        <?php else: ?>
         <section class="card student-subject-panel" aria-labelledby="subjects-title">
           <div class="student-subject-toolbar"><div><h2 id="subjects-title">My subjects <span class="badge bg-label-primary"><?= count($subjects) ?></span></h2><p><?= synk_student_h($viewTerm['term_text']) ?></p></div>
             <?php if ($subjects): ?><div class="student-search"><i class="bx bx-search" aria-hidden="true"></i><label class="visually-hidden" for="subject-search">Search your subjects</label><input id="subject-search" class="form-control" type="search" placeholder="Search subject or instructor" autocomplete="off"></div><?php endif; ?>
@@ -77,6 +83,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
           <?php endif; ?>
           <div class="student-subject-help"><i class="bx bx-info-circle" aria-hidden="true"></i><p>These subjects come from your college’s imported student lists. Missing a subject or seeing an incorrect detail? Ask your college office to check your record.</p></div>
         </section>
+        <?php endif; ?>
       </div>
       <?php include __DIR__.'/../footer.php'; ?>
     </main>
