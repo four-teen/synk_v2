@@ -35,7 +35,7 @@
     const visible = !!state.draft && !$('assessmentEditor').hidden && (!state.draft.assessment_id || state.dirty);
     $('assessmentFloatingActions').hidden = !visible;
     $('assessmentEditor').classList.toggle('has-floating-actions', visible);
-    $('assessmentFloatingState').textContent = state.busy ? 'Saving draft...' : state.dirty ? 'Unsaved changes' : 'Not saved yet';
+    $('assessmentFloatingState').textContent = state.busy ? 'Saving assessment...' : state.dirty ? 'Unsaved changes' : 'Not saved yet';
     if (visible) positionFloatingActions();
   }
   function dateLabel(value) {
@@ -52,7 +52,7 @@
     $('assessmentSaveState').textContent = 'Unsaved changes';
     updateFloatingActions();
   }
-  async function canLeave() { return !state.dirty || await feedback.confirm({title:'Discard unsaved changes?',text:'Your changes to this assessment draft will be discarded.',confirmText:'Discard changes',cancelText:'Keep editing'}); }
+  async function canLeave() { return !state.dirty || await feedback.confirm({title:'Discard unsaved changes?',text:'Your changes to this assessment will be discarded.',confirmText:'Discard changes',cancelText:'Keep editing'}); }
   function busy(value) {
     state.busy = value;
     root.setAttribute('aria-busy', String(value));
@@ -122,7 +122,7 @@
       <span class="assessment-list-icon"><i class="bx ${icons[row.assessment_type] || 'bx-task'}" aria-hidden="true"></i></span>
       <div class="assessment-list-main"><div class="assessment-list-summary"><div class="assessment-list-details"><div class="assessment-list-labels"><span class="badge bg-label-primary">${escape(labels[row.assessment_type])}</span><span class="badge bg-label-secondary">${escape(row.status === 'draft' ? 'Draft' : row.status)}</span>${row.topic ? `<span class="text-muted">${escape(row.topic)}</span>` : ''}</div>
       <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.due_at ? 'Due ' + escape(dateLabel(row.due_at)) : 'No due date'}</span></div></div>${participation(row)}</div>
-      <div class="assessment-list-actions">${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">Edit draft</button>` : ''}<button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div></div></article>`).join('');
+      <div class="assessment-list-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">${row.status === 'draft' ? 'Edit draft' : 'Edit assessment'}</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div></div></article>`).join('');
   }
   async function refresh() {
     const data = await api('list'); state.rows = data.assessments; renderList();
@@ -187,6 +187,20 @@
     $('assessmentTimer').hidden = assignment;
     $('assessmentTimeLimit').disabled = assignment;
   }
+  function editorLabels() {
+    const record = state.draft, live = ['published','closed'].includes(record.status);
+    $('assessmentEditorTitle').textContent = record.assessment_id ? (live ? 'Edit assessment' : 'Edit draft') : 'New assessment';
+    $('assessmentSaveState').textContent = record.assessment_id ? `Saved ${live ? record.status : 'draft'} / version ${record.version}` : 'Not saved yet';
+    for (const id of ['assessmentSave','assessmentSaveBottom']) $(id).textContent = live ? 'Save changes' : 'Save draft';
+    for (const id of ['assessmentPublish','assessmentPublishBottom']) {
+      $(id).hidden = record.status === 'published';
+      $(id).textContent = record.status === 'closed' ? 'Reopen' : 'Publish';
+      $(id).parentElement.classList.toggle('is-published', record.status === 'published');
+    }
+    $('assessmentLiveNote').hidden = !live;
+    $('assessmentLiveNote').textContent = 'Changes apply only to students who have not started. Started attempts keep their original questions, instructions, answer keys, points, and deadline.' + (record.status === 'closed' ? ' Saving keeps this assessment closed. Reopen allows new attempts; submitted and time-ended attempts stay locked.' : ' Saving keeps this assessment published.');
+    $('assessmentSettingsHelp').textContent = 'Dates use Philippine time (Asia/Manila). ' + (live ? 'Updated opening dates, deadlines, and time limits apply to new attempts. Existing timers do not change.' : 'Saving a draft does not publish it.');
+  }
   function openEditor(record) {
     state.draft = record;
     state.questions = (record.questions || []).map(item => question(item.question_type, { ...item, uid:++state.sequence }));
@@ -200,8 +214,7 @@
     $('assessmentOpens').value = stamp(record.opens_at);
     $('assessmentDue').value = stamp(record.due_at);
     $('assessmentTimeLimit').value = record.time_limit_minutes || '';
-    $('assessmentEditorTitle').textContent = record.assessment_id ? 'Edit draft' : 'New assessment';
-    $('assessmentSaveState').textContent = record.assessment_id ? 'Saved draft / version ' + record.version : 'Not saved yet';
+    editorLabels();
     $('assessmentLibrary').hidden = true;
     $('assessmentEditor').hidden = false;
     $('assessmentNew').hidden = true;
@@ -275,7 +288,7 @@
     if (selected === 'assignment' && state.questions.length) {
       const wasDirty = state.dirty, saveState = $('assessmentSaveState').textContent;
       $('assessmentType').value = state.draft.assessment_type;
-      if (!await feedback.confirm({title:'Switch to Assignment?',text:'The quiz questions will be removed from this draft. Changes take effect when you save.',confirmText:'Switch type',cancelText:'Keep questions'})) {
+      if (!await feedback.confirm({title:'Switch to Assignment?',text:'The quiz questions will be removed from this assessment. Started attempts keep their original questions. Changes take effect when you save.',confirmText:'Switch type',cancelText:'Keep questions'})) {
         state.dirty = wasDirty; $('assessmentSaveState').textContent = saveState; updateFloatingActions(); return;
       }
       $('assessmentType').value = selected;
@@ -315,7 +328,7 @@
     const button = event.target.closest('[data-operation]'); if (!button || state.busy) return;
     const index = Number(button.closest('[data-question]').dataset.question), operation = button.dataset.operation;
     syncQuestions(); const item = state.questions[index];
-    if (operation === 'remove') { if (item.prompt && !await feedback.confirm({title:'Remove question?',text:'This question will be removed from the draft. Changes take effect when you save.',confirmText:'Remove question',danger:true})) return; state.questions.splice(index,1); }
+    if (operation === 'remove') { if (item.prompt && !await feedback.confirm({title:'Remove question?',text:'This question will be removed when you save. Started attempts keep their original questions and answers.',confirmText:'Remove question',danger:true})) return; state.questions.splice(index,1); }
     if (operation === 'copy' && state.questions.length < 100) state.questions.splice(index+1,0,question(item.question_type, { ...JSON.parse(JSON.stringify(item)), uid:++state.sequence }));
     if (operation === 'up' && index > 0) [state.questions[index-1],state.questions[index]] = [item,state.questions[index-1]];
     if (operation === 'down' && index < state.questions.length-1) [state.questions[index+1],state.questions[index]] = [item,state.questions[index+1]];
@@ -330,23 +343,24 @@
   $('assessmentForm').addEventListener('submit', async event => {
     event.preventDefault(); if (state.busy) return;
     const publishing = ['assessmentPublish','assessmentPublishBottom'].includes(event.submitter?.id);
+    const live = ['published','closed'].includes(state.draft.status), reopening = publishing && state.draft.status === 'closed';
     const fromBottom = event.submitter === $('assessmentSaveBottom');
     let saved = false;
     const payload = readDraft();
     if (payload.opens_at && payload.due_at && payload.due_at <= payload.opens_at) { notice('The due date must be after the opening date.', true); return; }
-    if (publishing && !await feedback.confirm({title:'Publish assessment?',text:'Your current work will be saved and published to enrolled students. Opening dates, deadlines, and time limits apply. Published questions are locked.',confirmText:'Publish',cancelText:'Keep editing'})) return;
+    if (publishing && !await feedback.confirm({title:reopening ? 'Reopen assessment?' : 'Publish assessment?',text:reopening ? 'Your changes will be saved and new students can start according to the saved dates. Started attempts keep their original version. Submitted and time-ended attempts stay locked.' : 'Your current work will be saved and published to enrolled students. Opening dates, deadlines, and time limits apply. You can edit it later; started attempts keep their original version.',confirmText:reopening ? 'Reopen' : 'Publish',cancelText:'Keep editing'})) return;
+    if (!publishing && live && !await feedback.confirm({title:'Save assessment changes?',text:'Changes apply to new attempts. Students who have started keep their original questions, answers, results, and deadline.',confirmText:'Save changes',cancelText:'Keep editing'})) return;
     await task(async () => {
       notice(); const data = await api(publishing ? 'publish' : 'save', payload);
       state.draft = data.assessment; state.dirty = false; saved = true;
       updateFloatingActions();
-      $('assessmentEditorTitle').textContent = 'Edit draft';
-      $('assessmentSaveState').textContent = 'Saved draft / version ' + data.assessment.version;
+      editorLabels();
       if (publishing) {
         state.period=data.assessment.grading_period;state.draft=null;
         $('assessmentEditor').hidden=true;$('assessmentLibrary').hidden=false;$('assessmentNew').hidden=false;updateFloatingActions();
       }
-      notice(publishing ? 'Assessment published. Enrolled students can open it from their assessments page.' : 'Draft saved. It is private to you.');
-      try { await refresh(); } catch { notice('Draft saved. Refresh the list to see the latest counts.'); }
+      notice(publishing ? (reopening ? 'Assessment reopened. Existing attempts are preserved.' : 'Assessment published. Enrolled students can open it from their assessments page.') : live ? 'Assessment changes saved for new attempts.' : 'Draft saved. It is private to you.');
+      try { await refresh(); } catch { notice('Assessment saved. Refresh the list to see the latest counts.'); }
     });
     if (saved && fromBottom) $('assessmentSave').focus({ preventScroll:true });
   });
@@ -363,9 +377,9 @@
     }
     if (action === 'submissions') {
       task(async () => {
-        const [detail,data]=await Promise.all([api('detail',{assessment_id:row.assessment_id}),api('submissions',{assessment_id:row.assessment_id})]);
+        const data=await api('submissions',{assessment_id:row.assessment_id});
         $('assessmentSubmissionsTitle').textContent=row.title+' / Student responses';
-        $('assessmentSubmissionsBody').innerHTML=data.submissions.length ? data.submissions.map(attempt => `<details class="assessment-response"><summary>${escape(attempt.student_name || attempt.student_number)} <span>${escape(attempt.status.replace('_',' '))}</span></summary>${detail.assessment.assessment_type==='assignment' ? `<p class="assessment-plain-text">${escape(attempt.answers.assignment_response || 'No response saved.')}</p>` : detail.assessment.questions.map((q,index) => {
+        $('assessmentSubmissionsBody').innerHTML=data.submissions.length ? data.submissions.map(attempt => `<details class="assessment-response"><summary>${escape(attempt.student_name || attempt.student_number)} <span>${escape(attempt.status.replace('_',' '))} / version ${number(attempt.assessment.version)}</span></summary>${attempt.assessment.assessment_type==='assignment' ? `<p class="assessment-plain-text">${escape(attempt.answers.assignment_response || 'No response saved.')}</p>` : attempt.assessment.questions.map((q,index) => {
           const value=attempt.answers[q.question_id];
           const answer=value===null || value===undefined || value==='' ? 'No response saved.' : q.question_type==='multiple_choice' ? q.options[value] : q.question_type==='true_false' ? (value?'True':'False') : value;
           return `<div class="assessment-preview-question"><strong>Question ${index+1}</strong><div class="assessment-formatted-prompt">${formatQuestion(q.prompt)}</div><p class="assessment-plain-text">${escape(answer)}</p></div>`;

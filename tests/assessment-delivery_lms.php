@@ -44,7 +44,7 @@ try{
         $check(synk_student_assessment_list_lms($conn,$lms,$f['students'][$key])===[],'Unenrolled or inactive students must not see the assessment.');
         $denied(static function()use($conn,$lms,$f,$key,$id){synk_student_assessment_action_lms($conn,$lms,$f['students'][$key],'start',['assessment_id'=>$id]);},404);
     }
-    $denied(static function()use($lms,$context,$sample,$id,$actor){synk_assessment_save_lms($lms,$context,array_replace($sample,['assessment_id'=>$id,'version'=>2]),$actor);},409);
+    $denied(static function()use($lms,$context,$sample,$id,$actor){synk_assessment_save_lms($lms,$context,array_replace($sample,['assessment_id'=>$id,'version'=>1]),$actor);},409);
     $denied(static function()use($lms,$context,$id,$actor){synk_assessment_archive_lms($lms,$context,['assessment_id'=>$id,'version'=>2],$actor);},409);
     $detail=synk_student_assessment_action_lms($conn,$lms,$sid,'detail',['assessment_id'=>$id]);
     $check($detail['attempt']===null&&$detail['assessment']['questions']===[],'Before Start, student detail must not disclose questions.');

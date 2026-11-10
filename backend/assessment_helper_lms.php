@@ -153,6 +153,15 @@ function synk_assessment_detail_lms(mysqli $lms, array $context, int $id, bool $
         AND offering_id=? AND ay_id=? AND semester=?' . ($lock ? ' FOR UPDATE' : ''), 'iiiii', array_merge([$id], synk_assessment_scope_params_lms($context)));
     if (!$rows) throw new DomainException('This assessment is unavailable in your class.', 404);
     $record = $rows[0];
+    $record['questions'] = synk_assessment_questions_lms($lms, $id);
+    foreach (['assessment_id','version'] as $field) $record[$field] = (int)$record[$field];
+    $record['time_limit_minutes'] = $record['time_limit_minutes'] === null ? null : (int)$record['time_limit_minutes'];
+    $record['total_points'] = (float)$record['total_points'];
+    return $record;
+}
+
+function synk_assessment_questions_lms(mysqli $lms, int $id): array
+{
     $questions = synk_assessment_query_lms($lms, 'SELECT question_id,question_type,prompt,points,options_json,answer_key_json
         FROM tbl_lms_assessment_questions WHERE assessment_id=? ORDER BY sort_order,question_id', 'i', [$id]);
     foreach ($questions as &$question) {
@@ -162,10 +171,40 @@ function synk_assessment_detail_lms(mysqli $lms, array $context, int $id, bool $
         unset($question['options_json'], $question['answer_key_json']);
     }
     unset($question);
-    foreach (['assessment_id','version'] as $field) $record[$field] = (int)$record[$field];
-    $record['time_limit_minutes'] = $record['time_limit_minutes'] === null ? null : (int)$record['time_limit_minutes'];
-    $record['total_points'] = (float)$record['total_points']; $record['questions'] = $questions;
-    return $record;
+    return $questions;
+}
+
+function synk_assessment_snapshots_ready_lms(mysqli $lms): bool
+{
+    return (bool)synk_assessment_query_lms($lms, "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tbl_lms_assessment_attempts' AND COLUMN_NAME='assessment_snapshot_json'");
+}
+
+function synk_assessment_snapshot_json_lms(array $record): string
+{
+    $snapshot = array_intersect_key($record, array_flip(['version','grading_period','assessment_type','title','instructions','topic',
+        'total_points','opens_at','due_at','time_limit_minutes','questions']));
+    $json = json_encode($snapshot, JSON_UNESCAPED_UNICODE);
+    if ($json === false) throw new RuntimeException('Unable to preserve the original assessment.');
+    return $json;
+}
+
+// Live status/ownership remain authoritative. Content and settings belong to the started attempt.
+function synk_assessment_attempt_record_lms(array $record, ?array $attempt): array
+{
+    if (!$attempt || ($attempt['assessment_snapshot_json'] ?? null) === null) return $record;
+    $snapshot = json_decode($attempt['assessment_snapshot_json'], true);
+    if (!is_array($snapshot) || !isset($snapshot['questions'], $snapshot['assessment_type'])) {
+        throw new RuntimeException('Unable to read the original assessment.');
+    }
+    return array_replace($record, array_intersect_key($snapshot, array_flip(['version','grading_period','assessment_type','title','instructions','topic',
+        'total_points','opens_at','due_at','time_limit_minutes','questions'])));
+}
+
+function synk_assessment_validate_published_lms(array $record): void
+{
+    if ($record['assessment_type'] !== 'assignment' && !$record['questions']) throw new DomainException('Add at least one complete question before publishing or saving changes.', 422);
+    if ($record['assessment_type'] === 'assignment' && $record['instructions'] === '') throw new DomainException('Add assignment instructions before publishing or saving changes.', 422);
 }
 
 function synk_assessment_log_lms(mysqli $lms, int $id, int $userId, string $action, array $details): void
@@ -182,8 +221,16 @@ function synk_assessment_save_lms(mysqli $lms, array $context, array $input, int
     $version = 1;
     if ($id) {
         $before = synk_assessment_detail_lms($lms, $context, $id, true);
-        if ($before['status'] !== 'draft') throw new DomainException('Only drafts can be edited. Duplicate this assessment to prepare a new version.', 409);
-        if (synk_assessment_id_lms($input['version'] ?? null) !== $before['version']) throw new DomainException('This draft changed in another tab. Reopen it before saving.', 409);
+        if (!in_array($before['status'], ['draft','published','closed'], true)) throw new DomainException('This assessment has been archived.', 409);
+        if (synk_assessment_id_lms($input['version'] ?? null) !== $before['version']) throw new DomainException('This assessment changed in another tab. Reopen it before saving.', 409);
+        if ($before['status'] !== 'draft') {
+            synk_assessment_validate_published_lms($record);
+            if (!synk_assessment_snapshots_ready_lms($lms)) throw new DomainException('Assessment version storage needs to be prepared before editing published work.', 503);
+            // Assessment-row lock serializes this with student starts/saves and closing.
+            // Preserve pre-upgrade attempts before replacing any question IDs or settings.
+            synk_assessment_query_lms($lms, 'UPDATE tbl_lms_assessment_attempts SET assessment_snapshot_json=?
+                WHERE assessment_id=? AND assessment_snapshot_json IS NULL', 'si', [synk_assessment_snapshot_json_lms($before),$id]);
+        }
         $version = $before['version'] + 1;
     }
     $now = date('Y-m-d H:i:s');
@@ -208,7 +255,8 @@ function synk_assessment_save_lms(mysqli $lms, array $context, array $input, int
                 $question['answer_key'] === null ? null : json_encode($question['answer_key'], JSON_UNESCAPED_UNICODE),$index+1]);
     }
     synk_assessment_log_lms($lms, $id, $userId, $version === 1 ? 'created' : 'updated',
-        ['version'=>$version, 'grading_period'=>$record['grading_period'], 'question_count'=>count($record['questions'])]);
+        ['version'=>$version, 'grading_period'=>$record['grading_period'], 'question_count'=>count($record['questions']),
+            'status'=>$before['status'] ?? 'draft', 'previous_version'=>$before['version'] ?? null]);
     return synk_assessment_detail_lms($lms, $context, $id);
 }
 

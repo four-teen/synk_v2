@@ -55,8 +55,23 @@ new draft or unsaved edits, hides after a successful save, and reappears on edit
 
 Saving a draft does not publish it. Publish validates complete questions/answer
 keys (or assignment instructions), requires a future deadline if supplied, saves
-the current contents and changes status atomically. Published contents are locked;
-duplicate an assessment to create a new editable version. Duplication clears dates.
+the current contents and changes status atomically. Published and closed assessments
+offer Edit assessment for correcting questions, choices, answer keys, points,
+instructions, type, grading period, opening dates, deadlines, and time limits.
+Save changes preserves the current published/closed status. Closed assessments
+also offer Reopen, which explicitly publishes the saved changes for new attempts.
+Submitted and time-ended attempts remain locked. Duplication still creates a
+separate draft and clears dates.
+
+Each started attempt keeps an LMS-only snapshot of its original assessment,
+including question IDs/order, choices, answer keys, points, instructions, grading
+period and timing settings. Changes apply only to students who have not started.
+Existing browser tabs can continue saving and submitting their original answers;
+editing never resets an attempt timer or revision. Student detail, list-card
+results, and professor response review use that attempt's original content.
+Snapshots and answer keys never enter student responses. Pre-upgrade attempts
+without a snapshot are preserved atomically before the first published/closed
+edit. The assessment row lock serializes edits with starts, saves and closing.
 
 Students use Activities & assessments from their dashboard or navigation (More on
 mobile). My subjects opens first as a responsive card grid, including subjects
@@ -130,6 +145,12 @@ writes never create tables.
 Run `php backend/install_assessment_delivery_lms.php` after that installer to create
 `tbl_lms_assessment_attempts` in the same separate LMS database. It is safe to rerun.
 Attempt answers, deadlines, revisions and submission timestamps are LMS-only.
+For existing installations, rerun that delivery installer before deploying the
+editing feature. It adds the nullable `assessment_snapshot_json MEDIUMTEXT` column
+without changing existing answers. With phpMyAdmin, run
+`backend/sql/assessment_editing_upgrade_lms.sql` in the **separate LMS database**.
+Web requests never perform schema changes; published editing and student delivery
+require the upgraded storage. Existing snapshots are never overwritten by edits.
 
 LMS grading periods are independent of Management financial periods. Core
 academic settings, academic years, semesters, workloads, schedules, student
@@ -140,9 +161,18 @@ year, and semester. Reassignment removes access immediately even with a valid
 signed link.
 
 Questions and points are validated on the server, and quiz totals are recalculated
-from question points. Only draft records can be edited or archived. A stale
+from question points. Draft, published and closed records can be edited; only
+drafts can be archived. Published/closed saves must retain complete questions
+or assignment instructions. A stale
 revision returns HTTP 409 and preserves the newer saved content. CSRF tokens and
 signed class context are required for all API requests, including reads.
+
+Regression checks: `php tests/assessment-editing_lms.php` covers multiple revisions,
+pre-upgrade attempts, original results and timers, new start dates, type conversion,
+closed edits/reopening, ownership, stale revisions and transactional rollback.
+`php tests/assessment-delivery-http_lms.php` exercises the real PHP 7.1 endpoints;
+`node tests/assessments_lms_browser.cjs` covers published/closed editing, original
+response review, save confirmations and mobile action controls.
 
 ## Reference and next stage
 

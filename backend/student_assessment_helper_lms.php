@@ -51,15 +51,16 @@ function synk_student_attempt_lms(mysqli $lms,int $assessmentId,int $studentId):
 }
 function synk_student_assessment_public_lms(mysqli $lms,array $record,?array $attempt): array
 {
+    $record=synk_assessment_attempt_record_lms($record,$attempt);
     // Explicit allowlist. Answer keys and professor-only fields never enter a student response.
     $public=array_intersect_key($record,array_flip(['assessment_id','grading_period','assessment_type','title','instructions','topic','status','total_points','opens_at','due_at','time_limit_minutes','subject_label']));
     $public['total_points']=(float)$public['total_points'];$public['time_limit_minutes']=$public['time_limit_minutes']===null?null:(int)$public['time_limit_minutes'];
     $public['questions']=[];$questions=[];
     if ($attempt) {
-        $questions=synk_assessment_query_lms($lms,'SELECT question_id,question_type,prompt,points,options_json,answer_key_json FROM tbl_lms_assessment_questions WHERE assessment_id=? ORDER BY sort_order,question_id','i',[$record['assessment_id']]);
-        foreach ($questions as $q) $public['questions'][]=['question_id'=>(int)$q['question_id'],'question_type'=>$q['question_type'],'prompt'=>$q['prompt'],'points'=>(float)$q['points'],'options'=>json_decode($q['options_json'],true)?:[]];
+        $questions=$record['questions']??synk_assessment_questions_lms($lms,(int)$record['assessment_id']);
+        foreach ($questions as $q) $public['questions'][]=['question_id'=>(int)$q['question_id'],'question_type'=>$q['question_type'],'prompt'=>$q['prompt'],'points'=>(float)$q['points'],'options'=>$q['options']];
     }
-    if ($attempt) unset($attempt['student_id'],$attempt['assessment_id']);
+    if ($attempt) unset($attempt['student_id'],$attempt['assessment_id'],$attempt['assessment_snapshot_json']);
     return ['assessment'=>$public,'attempt'=>$attempt,'result'=>synk_assessment_result_lms($record,$questions,$attempt),'server_time'=>synk_assessment_now_lms()];
 }
 function synk_student_assessment_answers_lms(array $record,array $questions,$input): array
@@ -97,24 +98,27 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
         $offering=(int)$row['offering_id'];
         if (!isset($members[$facultyId][$offering][$studentId],$classes[$facultyId][$offering])) continue;
         $class=$classes[$facultyId][$offering];
+        $attempt=synk_assessment_query_lms($lms,'SELECT status,deadline_at,answers_json,assessment_snapshot_json FROM tbl_lms_assessment_attempts WHERE assessment_id=? AND student_id=?','ii',[(int)$row['assessment_id'],$studentId]);
+        $row=synk_assessment_attempt_record_lms($row,$attempt[0]??null);
         $item=array_intersect_key($row,array_flip(['assessment_id','grading_period','assessment_type','title','status','total_points','opens_at','due_at','time_limit_minutes']));
         $item['assessment_id']=(int)$item['assessment_id'];$item['subject_label']=$class['subject_code'].': '.$class['descriptive_title'];
         $item['subject_key']=synk_student_subject_key_lms($facultyId,$class['subject_code'],$class['descriptive_title']);
-        $attempt=synk_assessment_query_lms($lms,'SELECT status,deadline_at,answers_json FROM tbl_lms_assessment_attempts WHERE assessment_id=? AND student_id=?','ii',[$item['assessment_id'],$studentId]);
         $item['attempt_status']=$attempt?$attempt[0]['status']:null;
         if ($item['attempt_status']==='in_progress' && $attempt[0]['deadline_at']!==null && $attempt[0]['deadline_at']<=synk_assessment_now_lms()) $item['attempt_status']='expired';
         $item['result']=null;
-        if(in_array($item['attempt_status'],['submitted','expired'],true))$finished[$item['assessment_id']]=['status'=>$item['attempt_status'],'answers'=>json_decode($attempt[0]['answers_json'],true)?:[]];
+        if(in_array($item['attempt_status'],['submitted','expired'],true))$finished[$item['assessment_id']]=['status'=>$item['attempt_status'],'answers'=>json_decode($attempt[0]['answers_json'],true)?:[],'questions'=>$row['questions']??null];
         $result[]=$item;
     }
     if($finished){
         // Read keys only for authorized, locked attempts; return aggregate counts only.
-        $ids=array_keys($finished);$questions=[];
-        $rows=synk_assessment_query_lms($lms,'SELECT assessment_id,question_id,question_type,answer_key_json FROM tbl_lms_assessment_questions WHERE assessment_id IN ('.implode(',',array_fill(0,count($ids),'?')).')',str_repeat('i',count($ids)),$ids);
-        foreach($rows as $question)$questions[(int)$question['assessment_id']][]=$question;
+        $ids=array_keys(array_filter($finished,static function(array $attempt):bool{return $attempt['questions']===null;}));$questions=[];
+        if($ids){
+            $rows=synk_assessment_query_lms($lms,'SELECT assessment_id,question_id,question_type,answer_key_json FROM tbl_lms_assessment_questions WHERE assessment_id IN ('.implode(',',array_fill(0,count($ids),'?')).')',str_repeat('i',count($ids)),$ids);
+            foreach($rows as $question)$questions[(int)$question['assessment_id']][]=$question;
+        }
         foreach($result as &$item){
             $id=$item['assessment_id'];
-            if(isset($finished[$id]))$item['result']=synk_assessment_result_lms($item,$questions[$id]??[],$finished[$id]);
+            if(isset($finished[$id]))$item['result']=synk_assessment_result_lms($item,$finished[$id]['questions']??($questions[$id]??[]),$finished[$id]);
         }unset($item);
     }
     return $result;
@@ -124,6 +128,7 @@ function synk_student_assessment_action_lms(mysqli $core,mysqli $lms,int $studen
     $id=synk_assessment_id_lms($payload['assessment_id']??null);
     $record=synk_student_assessment_record_lms($core,$lms,$id,$studentId);
     $attempt=synk_student_attempt_lms($lms,$id,$studentId);$now=synk_assessment_now_lms();
+    $record=synk_assessment_attempt_record_lms($record,$attempt);
     if ($action==='start' && !$attempt) {
         if ($record['status']!=='published') throw new DomainException('This assessment is closed.',409);
         if ($record['opens_at']!==null && $record['opens_at']>$now) throw new DomainException('This assessment has not opened yet.',409);
@@ -133,7 +138,8 @@ function synk_student_assessment_action_lms(mysqli $core,mysqli $lms,int $studen
             $timer=(new DateTimeImmutable($now,new DateTimeZone('Asia/Manila')))->modify('+'.(int)$record['time_limit_minutes'].' minutes')->format('Y-m-d H:i:s');
             if ($deadline===null || $timer<$deadline) $deadline=$timer;
         }
-        synk_assessment_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,started_at,deadline_at,updated_at) VALUES (?,?,'in_progress','{}',?,?,?)",'iisss',[$id,$studentId,$now,$deadline,$now]);
+        $record['questions']=synk_assessment_questions_lms($lms,$id);
+        synk_assessment_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,assessment_snapshot_json,started_at,deadline_at,updated_at) VALUES (?,?,'in_progress','{}',?,?,?,?)",'iissss',[$id,$studentId,synk_assessment_snapshot_json_lms($record),$now,$deadline,$now]);
         $attempt=synk_student_attempt_lms($lms,$id,$studentId);
     }
     if (in_array($action,['save','submit'],true)) {

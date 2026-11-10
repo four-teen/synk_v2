@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '..'), tag = crypto.randomBytes(10).toStrin
 const route = path.join(root, 'tmp', `assessment-browser-${tag}_lms.php`), profile = path.join(root, '.tmp', `assessment-browser-${tag}_lms`);
 const pending = new Map(), errors = [], failures = [], requests = [];
 let browser, ws, call, session, pageConfig, checks = 0, nextId = 100, conflict = false, duplicateFailure = false;
-const records = [], delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const records = [], submissionRows = [], delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (ok, message) => { if (!ok) throw Error(message); checks++; };
 const clone = value => JSON.parse(JSON.stringify(value));
 const phpString = value => "'" + value.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
@@ -40,7 +40,7 @@ function api(request) {
   if (request.action === 'save' || request.action === 'publish') {
     if (conflict) { conflict=false; return { status:409, ok:false, message:'This draft changed in another tab. Reopen it before saving.' }; }
     const record = { ...clone(payload), assessment_id:payload.assessment_id || ++nextId, version:found ? found.version+1 : 1,
-      status:request.action==='publish'?'published':'draft', total_points:payload.assessment_type==='assignment' ? Number(payload.total_points) : payload.questions.reduce((sum,q)=>sum+Number(q.points),0), updated_at:'2026-11-10 12:00:00' };
+      status:request.action==='publish'?'published':found?.status||'draft', total_points:payload.assessment_type==='assignment' ? Number(payload.total_points) : payload.questions.reduce((sum,q)=>sum+Number(q.points),0), updated_at:'2026-11-10 12:00:00' };
     record.questions.forEach(item=>{ item.points=Number(item.points); });
     if (found) records.splice(records.indexOf(found),1,record); else records.push(record);
     return { ok:true, assessment:clone(record) };
@@ -53,7 +53,7 @@ function api(request) {
   }
   if (request.action === 'archive') { found.status='archived';found.version++;return { ok:true }; }
   if (request.action === 'close') { found.status='closed';found.version++;return { ok:true,assessment:clone(found) }; }
-  if (request.action === 'submissions') return {ok:true,submissions:[]};
+  if (request.action === 'submissions') return {ok:true,submissions:clone(submissionRows)};
   throw Error('Unexpected assessment action: ' + request.action);
 }
 async function main() {
@@ -224,7 +224,8 @@ async function main() {
   check(records[2].status==='draft'&&await evaluate('document.querySelector("#assessmentInstructions").value==="Write your project explanation."'),'Canceling Publish preserves the draft and unsaved instructions.');
   await click('#assessmentPublishBottom');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(records[2].status==='published'&&records[2].instructions==='Write your project explanation.','Publish saves the current contents and exposes the published state.');
-  check(await evaluate('!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer response review and closing without editing their questions.');
+  const publishedVersion=records[2].version;
+  check(await evaluate('!!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer editing, response review and closing.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("12") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28") && getComputedStyle(document.querySelector(".assessment-count-answered")).color==="rgb(21, 128, 61)" && getComputedStyle(document.querySelector(".assessment-count-total")).color==="rgb(185, 28, 28)"'),'Published cards display answered students in green and total students in red.');
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(100);
@@ -232,11 +233,38 @@ async function main() {
     check(await evaluate('(()=>{const r=document.querySelector(".assessment-participation").getBoundingClientRect();return document.documentElement.scrollWidth<=innerWidth && r.left>=0 && r.right<=innerWidth && getComputedStyle(document.querySelector(".assessment-list-summary")).flexDirection==="column";})()'),'The participation count and assessment card fit at '+width+'px.');
   }
   const participationMobile=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-participation-mobile_lms.png'),Buffer.from(participationMobile.data,'base64'));
+  await click('[data-action=edit]');await until('!document.querySelector("#assessmentEditor").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(await evaluate('document.querySelector("#assessmentEditorTitle").textContent==="Edit assessment" && document.querySelector("#assessmentSave").textContent==="Save changes" && document.querySelector("#assessmentPublish").hidden && !document.querySelector("#assessmentLiveNote").hidden'),'The published editor explains original attempts and offers Save changes.');
+  await fill('#assessmentOpens','2026-11-15T08:00');await fill('#assessmentDue','2026-11-16T08:00');await fill('#assessmentInstructions','Corrected project instructions.');
+  await fill('#assessmentType','quiz','change');await click('#assessmentAddQuestion');await fill('[data-question="0"] [data-field="type"]','true_false','change');
+  await fill('[data-question="0"] [data-field="prompt"]','Corrected published question');await fill('[data-question="0"] [data-field="true_false"]','false','change');
+  for(const width of [390,320]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(150);
+    check(await evaluate('[...document.querySelectorAll(".assessment-actions.is-published")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===2 && Math.abs(buttons[0].top-buttons[1].top)<1 && buttons.every(r=>r.height>=44&&r.width>80&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'Published edit actions fit at '+width+'px.');
+  }
+  await click('#assessmentSaveBottom');await answerDialog(false);
+  check(records[2].instructions==='Write your project explanation.'&&await evaluate('document.querySelector("#assessmentInstructions").value==="Corrected project instructions." && !document.querySelector("#assessmentFloatingActions").hidden'),'Canceling Save changes keeps the unsaved correction.');
+  await click('#assessmentSaveBottom');await answerDialog();await until(`document.querySelector("#assessmentSaveState").textContent.includes("version ${publishedVersion+1}") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"`);
+  check(records[2].status==='published'&&records[2].opens_at==='2026-11-15T08:00'&&records[2].instructions==='Corrected project instructions.','Saving published edits updates opening dates and instructions without creating a draft.');
+  check(records[2].assessment_type==='quiz'&&records[2].questions[0].prompt==='Corrected published question'&&records[2].questions[0].answer_key===false,'Published questions, types and answer keys remain editable through the browser.');
+  check(await evaluate('document.querySelector("#assessmentFloatingActions").hidden && document.querySelector("#assessmentPublish").hidden && !document.querySelector("#assessmentSave").disabled'),'Published saves restore usable controls and hide the unsaved bar.');
+  await click('#assessmentBack');
   await click('[data-action=submissions]');await until('document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
   check(await evaluate('document.querySelector("#assessmentSubmissionsBody").textContent.includes("No student attempts yet")'),'The response viewer explains an empty submission list.');
-  await click('#assessmentSubmissionsModal .btn-close');await until('!document.querySelector("#assessmentSubmissionsModal").classList.contains("show")');
+  await click('#assessmentSubmissionsModal .btn-close');await until('!document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
+  submissionRows.push({student_name:'Original version student',status:'submitted',answers:{41:1},assessment:{assessment_type:'quiz',version:1,questions:[{question_id:41,question_type:'multiple_choice',prompt:'Original question before correction',options:['Old choice A','Old choice B']}]}});
+  await click('[data-action=submissions]');await until('document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
+  check(await evaluate('document.querySelector("#assessmentSubmissionsBody").textContent.includes("Original question before correction") && document.querySelector("#assessmentSubmissionsBody").textContent.includes("Old choice B") && document.querySelector("#assessmentSubmissionsBody").textContent.includes("version 1")'),'Professor review displays each attempt original question type, choice and version after edits.');
+  await click('#assessmentSubmissionsModal .btn-close');await until('!document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
   await click('[data-action=close]');await answerDialog(false);check(records[2].status==='published','Canceling Close leaves the assessment published.');
   await click('[data-action=close]');await answerDialog();await until('document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');check(records[2].status==='closed','The professor can close a published assessment.');
+  await click('[data-action=edit]');await until('!document.querySelector("#assessmentEditor").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(await evaluate('document.querySelector("#assessmentPublish").textContent==="Reopen" && !document.querySelector("#assessmentPublish").hidden && document.querySelector("#assessmentSave").textContent==="Save changes"'),'Closed assessments remain editable and provide an explicit Reopen action.');
+  await fill('#assessmentTopic','Closed assessment correction');await click('#assessmentSave');await answerDialog();await until(`document.querySelector("#assessmentSaveState").textContent.includes("version ${publishedVersion+3}") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"`);
+  check(records[2].status==='closed','Saving edits to a closed assessment keeps it closed.');
+  await click('#assessmentPublish');await answerDialog(false);check(records[2].status==='closed','Canceling Reopen keeps the assessment closed.');
+  await click('#assessmentPublish');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(records[2].status==='published','Reopen explicitly publishes the updated assessment for new attempts.');
   await fill('#assessmentSearch','no-such-assessment');
   check(await evaluate('document.querySelector("#assessmentList").innerText.includes("No matching assessments")'),'Search distinguishes no matches from an empty grading period.');
   await fill('#assessmentSearch','');await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);
@@ -247,7 +275,11 @@ async function main() {
   check(requests.some(request=>request.action==='save')&&requests.some(request=>request.action==='archive'),'The editor exercises both save and archive actions.');
   console.log(`LMS assessment browser: ${checks} checks passed, including authoring, preview, revisions, duplication, archiving, and mobile layout.`);
 }
-main().catch(error=>{console.error(error.stack);process.exitCode=1;}).finally(async()=>{
+main().catch(async error=>{
+  console.error(error.stack);
+  if(call&&ws?.readyState===WebSocket.OPEN){try{console.error(JSON.stringify(await evaluate('({busy:document.querySelector("#assessmentWorkspace")?.getAttribute("aria-busy"),libraryHidden:document.querySelector("#assessmentLibrary")?.hidden,editorHidden:document.querySelector("#assessmentEditor")?.hidden,dialog:document.querySelector(".swal2-popup:not(.swal2-toast)")?.textContent,submissions:document.querySelector("#assessmentSubmissionsBody")?.textContent,modalClass:document.querySelector("#assessmentSubmissionsModal")?.className})')));}catch{}}
+  console.error(JSON.stringify({errors,requests:requests.slice(-5).map(request=>({action:request.action,payload:request.payload}))}));process.exitCode=1;
+}).finally(async()=>{
   if(call&&ws?.readyState===WebSocket.OPEN){try{await call('Browser.close');}catch{}}if(ws)ws.close();
   if(browser&&browser.exitCode===null){await delay(400);if(browser.exitCode===null)browser.kill();}
   for(const item of pending.values())clearTimeout(item.timer);if(fs.existsSync(route))fs.unlinkSync(route);

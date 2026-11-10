@@ -18,13 +18,13 @@ function synk_assessment_request_lms(mysqli $conn, array $input): array
     $payload = $input['payload'] ?? [];
     if (!is_array($payload)) throw new DomainException('Enter valid assessment details.', 400);
     if ($action === 'list') return ['assessments'=>synk_assessment_list_with_participation_lms($conn, $lms, $context)];
-    if ($action === 'detail') return ['assessment'=>synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($payload['assessment_id'] ?? null))];
     if (in_array($action,['publish','close','submissions'],true) && !synk_assessment_delivery_ready_lms($lms)) throw new DomainException('Assessment delivery storage is not ready yet.',503);
-    if ($action === 'submissions') return ['submissions'=>synk_assessment_submissions_lms($conn,$lms,$context,synk_assessment_id_lms($payload['assessment_id']??null))];
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin an assessment update.');
     try {
         $actor = (int)$_SESSION['user_id'];
-        if ($action === 'save') $data = ['assessment'=>synk_assessment_save_lms($lms, $context, $payload, $actor)];
+        if ($action === 'detail') $data = ['assessment'=>synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($payload['assessment_id'] ?? null), true)];
+        elseif ($action === 'submissions') $data = ['submissions'=>synk_assessment_submissions_lms($conn,$lms,$context,synk_assessment_id_lms($payload['assessment_id']??null))];
+        elseif ($action === 'save') $data = ['assessment'=>synk_assessment_save_lms($lms, $context, $payload, $actor)];
         elseif ($action === 'publish') $data = ['assessment'=>synk_assessment_publish_lms($lms,$context,$payload,$actor)];
         elseif ($action === 'close') $data = ['assessment'=>synk_assessment_close_lms($lms,$context,$payload,$actor)];
         elseif ($action === 'duplicate') $data = ['assessment'=>synk_assessment_duplicate_lms($lms, $context, $payload, $actor)];

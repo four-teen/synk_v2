@@ -95,8 +95,16 @@ try{
  $r=$studentCall('submit',['assessment_id'=>$id,'version'=>2,'answers'=>[]]);$check($r['status']===200&&$r['data']['attempt']['answers']===$answers,'Repeated submission changed locked answers.');
  $r=$profCall('submissions',['assessment_id'=>$id]);$check($r['status']===200&&count($r['data']['submissions'])===2&&in_array($student['student_id'],array_column($r['data']['submissions'],'student_id'),true)&&in_array($secondStudent['student_id'],array_column($r['data']['submissions'],'student_id'),true),'Only the authorized professor can review both students responses.');
  $r=$studentCall('submissions',['assessment_id'=>$id]);$check($r['status']===400,'Students must not invoke professor-only response review.');
- $r=$profCall('save',array_replace($sample,['assessment_id'=>$id,'version'=>$published['version']]));$check($r['status']===409,'Published questions must be immutable.');
- $r=$profCall('close',['assessment_id'=>$id,'version'=>$published['version']]);$check($r['status']===200&&$r['data']['assessment']['status']==='closed','Closing failed.');
+ $edit=array_replace($sample,['assessment_id'=>$id,'version'=>$published['version'],'opens_at'=>'2099-01-01T08:00','due_at'=>'2099-01-01T09:00',
+   'questions'=>[['question_type'=>'essay','prompt'=>'Corrected question','points'=>10]]]);
+ $r=$profCall('save',$edit);$check($r['status']===200&&$r['data']['assessment']['status']==='published','Published edits must save through the real endpoint.');$edited=$r['data']['assessment'];
+ $check($edited['opens_at']==='2099-01-01 08:00:00'&&$edited['questions'][0]['prompt']==='Corrected question','The real endpoint must save new opening dates and corrected questions.');
+ $r=$studentCall('detail',['assessment_id'=>$id]);$check($r['status']===200&&count($r['data']['assessment']['questions'])===2&&$r['data']['attempt']['answers']===$answers&&$r['data']['result']['correct_count']===2,'Editing must preserve a started student original questions, answers and results.');
+ $check(strpos(json_encode($r['data']),'answer_key')===false&&strpos(json_encode($r['data']),'assessment_snapshot_json')===false,'The real endpoint must keep original answer keys private.');
+ $r=$secondCall('list');$otherListed=array_column($r['data']['assessments'],null,'assessment_id');$check($otherListed[$id]['result']['correct_count']===0&&$otherListed[$id]['opens_at']===null,'The student list must retain original results and dates.');
+ $r=$profCall('save',$edit);$check($r['status']===409,'A stale published edit must be rejected.');
+ $r=$profCall('submissions',['assessment_id'=>$id]);$check(count($r['data']['submissions'][0]['assessment']['questions'])===2,'Professor HTTP review must use original questions for old attempts.');
+ $r=$profCall('close',['assessment_id'=>$id,'version'=>$edited['version']]);$check($r['status']===200&&$r['data']['assessment']['status']==='closed','Closing failed.');
  $r=$request('http://localhost/synk/student/assessments_api_lms.php',['action'=>'list','csrf_token'=>'bad'],'anonymous');$check($r['status']===401,'Anonymous callers must not read student assessment data.');
 }finally{
  $rows=synk_assessment_query_lms($lms,'SELECT assessment_id,title FROM tbl_lms_assessments WHERE title=?','s',[$tag]);
