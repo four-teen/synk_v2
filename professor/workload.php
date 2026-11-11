@@ -111,36 +111,25 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
               <div id="workload-class-list">
                 <?php foreach ($semesterGroups as $group): ?>
                   <section class="workload-semester-group" data-semester-group aria-label="<?php echo synk_professor_h($group['semester_label']); ?> classes">
-                    <div class="workload-table-wrap">
-                      <table class="workload-table">
-                        <caption class="visually-hidden"><?php echo synk_professor_h($selectedYear['label'] . ' / ' . $group['semester_label']); ?> workload</caption>
-                        <colgroup><col class="workload-col-subject"><col class="workload-col-enrolled"><col class="workload-col-activity"><col class="workload-col-action"></colgroup>
-                        <thead><tr><th scope="col">Subject</th><th scope="col" class="workload-enrolled-cell">Enrolled</th><th scope="col" class="workload-activity-cell">Active / Inactive</th><th scope="col" class="workload-action-cell">Action</th></tr></thead>
-                        <?php foreach ($group['subjects'] as $row):
-                            $searchText = implode(' ', array_map('strval', [$row['subject_code'], $row['descriptive_title'], $row['section_display'], $row['program_label'], $row['schedule_text'], $row['room_name'], $row['campus_name']]));
-                            foreach ($row['meetings'] as $meeting) { $searchText .= ' ' . $meeting['days'] . ' ' . $meeting['type_label']; }
-                        ?>
-                          <tbody data-workload-class data-workload-key="<?php echo (int)$row['semester'] . '-' . (int)$row['offering_id']; ?>" data-search="<?php echo synk_professor_h($searchText); ?>">
-                              <tr>
-                                <th scope="row" class="workload-subject-cell"><?php require __DIR__ . '/workload-class-summary.php'; ?></th>
-                                <td class="workload-enrolled-cell"><strong><?= (int)$row['student_count'] ?></strong></td>
-                                <td class="workload-activity-cell"><span class="workload-activity-ratio" aria-label="<?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' active, ' . (int)$row['activity']['inactive'] . ' inactive' : 'Activity unavailable' ?>"><?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' / ' . (int)$row['activity']['inactive'] : '&mdash;' ?></span><small><?= (int)$row['activity']['students'] ?> listed</small></td>
-                                <td class="workload-action-cell"><div class="workload-actions-lms"><?php require __DIR__ . '/workload-action_lms.php'; ?><button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>" aria-label="<?= synk_professor_h('Show Students for ' . $row['subject_code'] . ' ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button></div></td>
-                              </tr>
-                          </tbody>
-                        <?php endforeach; ?>
-                      </table>
-                    </div>
                     <div class="workload-class-grid">
                       <?php foreach ($group['subjects'] as $row):
                           $searchText = implode(' ', array_map('strval', [$row['subject_code'], $row['descriptive_title'], $row['section_display'], $row['program_label'], $row['schedule_text'], $row['room_name'], $row['campus_name']]));
                           foreach ($row['meetings'] as $meeting) { $searchText .= ' ' . $meeting['days'] . ' ' . $meeting['type_label']; }
                       ?>
                         <article class="card workload-class" data-workload-class data-workload-key="<?php echo (int)$row['semester'] . '-' . (int)$row['offering_id']; ?>" data-search="<?php echo synk_professor_h($searchText); ?>" aria-label="<?php echo synk_professor_h($row['subject_code'] . ' - ' . $row['section_display']); ?>">
-                          <?php require __DIR__ . '/workload-class-summary.php'; ?>
-                          <div class="workload-card-counts"><span><strong><?= (int)$row['student_count'] ?></strong> Enrolled</span><span><strong><?= $studentActivity['available'] ? (int)$row['activity']['active'] . ' / ' . (int)$row['activity']['inactive'] : '&mdash;' ?></strong> Active / Inactive</span></div>
-                          <div class="workload-actions-lms"><?php require __DIR__ . '/workload-action_lms.php'; ?>
-                          <button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button></div>
+                          <div class="workload-class-body">
+                            <?php require __DIR__ . '/workload-subject-summary.php'; ?>
+                            <dl class="workload-class-stats" aria-label="Student counts">
+                              <div><dt>Enrolled</dt><dd><?= (int)$row['student_count'] ?></dd></div>
+                              <div class="workload-class-active"><dt>Active</dt><dd><?= $studentActivity['available'] ? (int)$row['activity']['active'] : '&mdash;' ?></dd></div>
+                              <div class="workload-class-inactive<?= !empty($row['activity']['inactive']) ? ' has-inactive' : '' ?>"><dt>Inactive</dt><dd><?= $studentActivity['available'] ? (int)$row['activity']['inactive'] : '&mdash;' ?></dd></div>
+                            </dl>
+                            <?php if ($studentActivity['available']): ?><p class="workload-card-roster-note">Sign-in activity for <?= (int)$row['activity']['students'] ?> listed students</p><?php endif; ?>
+                          </div>
+                          <footer class="workload-class-footer"><div class="workload-actions-lms">
+                            <button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>" aria-label="<?= synk_professor_h('Show Students for ' . $row['subject_code'] . ' ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button>
+                            <?php require __DIR__ . '/workload-action_lms.php'; ?>
+                          </div></footer>
                         </article>
                       <?php endforeach; ?>
                     </div>

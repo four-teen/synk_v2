@@ -4,7 +4,7 @@ $classTools = [
     ['key'=>'students','title'=>'Students','icon'=>'bx-group','status'=>'Available','view'=>'students','purpose'=>'View the students enrolled in this subject and section.'],
     ['key'=>'activities','title'=>'Activities & assessments','icon'=>'bx-task','status'=>'Draft builder','view'=>'assessments','purpose'=>'Prepare quizzes, exams, assignments, and answer keys.'],
     ['key'=>'grading','title'=>'Manage Grading System','icon'=>'bx-slider-alt','status'=>'Available','view'=>'grading','purpose'=>'Set the grading components and percentage weights for each period.'],
-    ['key'=>'gradebook','title'=>'Grade Book','icon'=>'bx-spreadsheet','status'=>'Planned','view'=>null,'purpose'=>'Record scores and calculate grades using your grading components.'],
+    ['key'=>'gradebook','title'=>'Grade Book','icon'=>'bx-spreadsheet','status'=>'Available','view'=>'gradebook','purpose'=>'Record scores and calculate grades using your grading components.'],
     ['key'=>'materials','title'=>'Learning materials','icon'=>'bx-folder-open','status'=>'Planned','view'=>null,'purpose'=>'Organize modules, lesson notes, and learning resources.'],
     ['key'=>'announcements','title'=>'Announcements','icon'=>'bx-bell','status'=>'Planned','view'=>null,'purpose'=>'Post class updates, reminders, and important notices.']
 ];

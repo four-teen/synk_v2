@@ -37,8 +37,8 @@ loads only the selected period, preserving unsaved work in the other one.
 
 Existing components retain their IDs across edits and reordering. Removed
 components are archived, and each save records before/after snapshots. These
-provide a foundation for future gradebook component references and historical
-grade calculations. No student grades, assessment-to-component links, score
-computation, grade conversion, or Midterm/Final blending are implemented here;
-those rules require the later gradebook feature. A future gradebook must reference
-the appropriate saved scheme revision when scores have been recorded.
+support the [LMS gradebook](gradebook_lms.md), which records manual scores and
+linked assessments against a saved grading revision. Changes to grading weights
+do not silently alter recorded grades: the professor reviews and applies the
+latest revision in Grade Book. The grading setup itself never writes student
+scores, schedules, workload assignments, or shared academic records.

@@ -20,7 +20,7 @@ if($case==='inactive_faculty')$conn->query("UPDATE tbl_faculty SET status='inact
 if($case==='unlinked')$conn->query('DELETE FROM tbl_useraccount_faculty_links WHERE user_id='.$fixture['user_id']);
 if($case==='reassigned')$conn->query('DELETE FROM tbl_faculty_workload_sched WHERE faculty_id='.$fixture['faculty_id']);
 $_GET+=['offering_id'=>(string)$fixture['offerings'][0]['offering_id'],'ay_id'=>(string)$fixture['term']['ay_id'],'semester'=>(string)$fixture['term']['semester']];
-$requestedView=in_array($case,['students','assessments','grading'],true)?$case:'overview';
+$requestedView=in_array($case,['students','assessments','grading','gradebook'],true)?$case:'overview';
 if($requestedView!=='overview')$_GET['view']=$requestedView;
 $signingClass=['faculty_id'=>$fixture['faculty_id'],'offering_id'=>$fixture['offerings'][0]['offering_id'],
     'ay_id'=>$fixture['term']['ay_id'],'semester'=>$fixture['term']['semester']];

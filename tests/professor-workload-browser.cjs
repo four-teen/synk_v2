@@ -23,7 +23,7 @@ async function main(){
   }
   let file;
   if(url.pathname==='/synk/professor/workload.php')file=html;
-  else if(url.pathname.startsWith('/synk/assets/')||url.pathname==='/synk/student/profile-placeholder.svg'||/^\/synk\/professor\/[a-z-]+\.(css|js)$/.test(url.pathname)){
+  else if(url.pathname.startsWith('/synk/assets/')||url.pathname==='/synk/student/profile-placeholder.svg'||/^\/synk\/professor\/[a-z_-]+\.(css|js)$/.test(url.pathname)){
    const candidate=path.resolve(root,url.pathname.slice('/synk/'.length));
    if(candidate.startsWith(root+path.sep))file=candidate;
   }
@@ -46,11 +46,18 @@ async function main(){
  const until=async expression=>{for(let i=0;i<100;i++){if(await evaluate('Boolean('+expression+')'))return;await delay(80);}throw Error('Condition timed out: '+expression+'; '+errors.join('; '));};
  const resize=async(width,height=1000)=>{await call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},session);await delay(140);};
  const screenshot=async name=>fs.writeFileSync(path.join(root,'.tmp',name),Buffer.from((await call('Page.captureScreenshot',{format:'png'},session)).data,'base64'));
- const open=async(other=false)=>{await evaluate(`new Promise(resolve=>{document.getElementById('workload-students-modal').addEventListener('shown.bs.modal',()=>resolve(true),{once:true});document.querySelector('.workload-table-wrap [data-offering-id="${other?fixtures.other.class.offering_id:fixtures.roster.class.offering_id}"]').click()})`);};
+ const open=async(other=false)=>{await evaluate(`new Promise(resolve=>{document.getElementById('workload-students-modal').addEventListener('shown.bs.modal',()=>resolve(true),{once:true});document.querySelector('.workload-class-grid [data-offering-id="${other?fixtures.other.class.offering_id:fixtures.roster.class.offering_id}"]').click()})`);};
  const close=async()=>{await evaluate('bootstrap.Modal.getInstance(document.getElementById("workload-students-modal")).hide()');await until('!document.getElementById("workload-students-modal").classList.contains("show")&&!document.body.classList.contains("modal-open")');await delay(180);};
  await resize(1440);await call('Page.navigate',{url:`http://127.0.0.1:${server.address().port}/synk/professor/workload.php`},session);await until('document.readyState==="complete"&&typeof bootstrap!=="undefined"');
- check(await evaluate('Array.from(document.querySelectorAll(".workload-table thead th"),el=>el.textContent.trim()).join("|")==="Subject|Enrolled|Active / Inactive|Action"'),'The requested workload columns are incorrect.');
- check(await evaluate('!document.querySelector(".workload-class-details")&&document.querySelectorAll(".workload-summary-schedule").length===4'),'Class details remain, or compact meeting summaries are missing.');
+ check(await evaluate('document.querySelectorAll(".workload-class-grid>article").length===2 && !document.querySelector(".workload-table") && document.querySelectorAll(".workload-class-footer .workload-manage-class-lms").length===2 && document.querySelectorAll(".workload-class-footer .workload-show-students").length===2'),'Each subject renders once as a card, with both class actions in its footer.');
+ check(await evaluate('getComputedStyle(document.querySelector(".workload-class-grid")).gridTemplateColumns.split(" ").length===2 && [...document.querySelectorAll(".workload-class")].every(card=>card.querySelectorAll(".workload-class-stats>div").length===3)'),'The desktop subject grid has two cards per row with separate enrolled, active and inactive counts.');
+ check(await evaluate('document.querySelectorAll(".workload-meeting-details").length===2 && [...document.querySelectorAll(".workload-meeting-details")].every(details=>!details.open) && [...document.querySelectorAll(".workload-class-title")].every(title=>title.textContent.trim())'),'Each subject card has a readable title and a collapsed schedule disclosure.');
+ await evaluate('document.querySelector(".workload-class-grid .workload-meeting-details>summary").click()');
+ check(await evaluate('(()=>{const details=document.querySelector(".workload-class-grid .workload-meeting-details");return details.open && details.querySelector(".workload-meeting-content").getBoundingClientRect().height>0 && [...details.querySelectorAll(".workload-meeting-list>li")].every(meeting=>meeting.querySelector(".workload-meeting-days").textContent.trim()&&meeting.querySelector(".workload-meeting-time").textContent.trim()&&meeting.querySelector(".workload-meeting-room").textContent.trim());})()'),'Expanding a subject keeps each lecture or lab together with its own days, time and room.');
+ await call('Page.bringToFront',{},session);await evaluate('document.querySelector(".workload-class-grid .workload-meeting-details>summary").focus()');
+ await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13},session);await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,nativeVirtualKeyCode:13},session);
+ await until('!document.querySelector(".workload-class-grid .workload-meeting-details").open');
+ check(await evaluate('!document.querySelector(".workload-class-grid .workload-meeting-details").open'),'The schedule disclosure also works from the keyboard.');
  check(await evaluate('document.getElementById("workload-total-active").textContent==="1"&&document.getElementById("workload-total-inactive").textContent==="3"'),'Activity totals double-count shared students.');
  check(await evaluate('getComputedStyle(document.getElementById("layout-menu")).display!=="none"&&getComputedStyle(document.getElementById("professor-bottom-nav")).display==="none"'),'Desktop must retain its sidebar.');
  await screenshot('professor-workload-desktop.png');
@@ -75,6 +82,8 @@ async function main(){
  for(const width of[1199,1024,768,390,320]){
   await resize(width,800);
   check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'The page overflows at '+width+'px.');
+  check(await evaluate('(()=>{const grid=document.querySelector(".workload-class-grid"),details=grid.querySelector(".workload-meeting-details");details.open=true;const fits=document.documentElement.scrollWidth<=innerWidth&&details.querySelector("summary").getBoundingClientRect().height>=44&&details.querySelector(".workload-meeting-content").getBoundingClientRect().height>0;details.open=false;return fits;})()'),'Subject schedules expand without overflow and have a full-size touch target at '+width+'px.');
+  check(await evaluate('(()=>{const grid=document.querySelector(".workload-class-grid"),columns=getComputedStyle(grid).gridTemplateColumns.split(" ").length;return columns===(innerWidth>=768?2:1)&&[...grid.querySelectorAll(".workload-class-footer")].every(footer=>[...footer.querySelectorAll(".btn")].every(button=>button.getBoundingClientRect().height>=44&&button.getBoundingClientRect().width<=footer.clientWidth));})()'),'Cards use the right column count and keep footer actions accessible at '+width+'px.');
   check(await evaluate('getComputedStyle(document.getElementById("layout-menu")).display==="none"&&document.getElementById("layout-menu").inert&&getComputedStyle(document.getElementById("professor-bottom-nav")).display==="grid"'),'Mobile navigation is incorrect at '+width+'px.');
   check(await evaluate('Array.from(document.querySelectorAll("#professor-bottom-nav>a,#professor-bottom-nav>button")).every(el=>el.getBoundingClientRect().height>=44)'),'Footer touch targets are too small at '+width+'px.');
  }
