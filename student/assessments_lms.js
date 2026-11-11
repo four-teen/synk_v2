@@ -2,10 +2,35 @@
   'use strict';
   const $=id=>document.getElementById(id),root=$('studentAssessments');if(!root)return;
   const config=JSON.parse($('studentAssessmentConfig').textContent),feedback=window.synkLmsFeedback,{escape,formatQuestion}=window.synkLmsContent;
-  const state={rows:[],period:'midterm',subject:null,data:null,busy:false,dirty:false,generation:0,clock:0,expiredCheck:false};
+  const state={rows:[],period:'midterm',subject:null,data:null,busy:false,dirty:false,generation:0,clock:0,expiredCheck:false,nextAvailabilityAt:null};
   const time=value=>value?Date.parse(value.replace(' ','T')+'+08:00'):null;
   const date=value=>value?new Date(time(value)).toLocaleString('en-PH',{timeZone:'Asia/Manila',dateStyle:'medium',timeStyle:'short'}):'No deadline';
   const now=()=>state.clock+performance.now();
+  const waitingToOpen=(row,current=now())=>row.status==='published'&&!['submitted','expired'].includes(row.attempt_status)&&row.opens_at&&time(row.opens_at)>current&&(!row.due_at||time(row.due_at)>current);
+  function openingCountdown(value,current=now()){
+    const seconds=Math.max(0,Math.ceil((time(value)-current)/1000)),days=Math.floor(seconds/86400);
+    return `${days?days+'d ':''}${String(Math.floor(seconds/3600)%24).padStart(2,'0')}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  }
+  function availabilityLabel(row,current=now()){
+    return row.attempt_status==='submitted'?'Submitted':row.attempt_status==='expired'?'Time ended':row.status==='closed'?'Closed':row.due_at&&time(row.due_at)<=current?'Deadline passed':waitingToOpen(row,current)?'Starts in '+openingCountdown(row.opens_at,current):row.attempt_status==='in_progress'?'In progress':'Available';
+  }
+  function assessmentIntro(a){
+    return a.status==='closed'?'This assessment is closed.':a.due_at&&time(a.due_at)<=now()?'The deadline has passed.':waitingToOpen(a)?'Opens '+date(a.opens_at)+'.':'One attempt is allowed. Your timer, if set, begins when you choose Start assessment.';
+  }
+  function updateAvailability(){
+    const current=now();
+    if(state.nextAvailabilityAt!==null&&current>=state.nextAvailabilityAt)renderSubjectCounts();
+    const boundaries=state.rows.filter(row=>row.status==='published'&&!['submitted','expired'].includes(row.attempt_status)).flatMap(row=>[time(row.opens_at),time(row.due_at)]).filter(value=>value>current);
+    state.nextAvailabilityAt=boundaries.length?Math.min(...boundaries):null;
+    root.querySelectorAll('[data-assessment-status]').forEach(label=>{
+      const row=state.rows.find(row=>row.assessment_id===Number(label.dataset.assessmentStatus));if(!row)return;
+      const text=availabilityLabel(row,current),waiting=!!waitingToOpen(row,current);
+      if(label.textContent!==text)label.textContent=text;
+      label.parentElement.title=waiting?'Opens '+date(row.opens_at):'';
+      if(waiting){label.setAttribute('role','timer');label.setAttribute('aria-live','off');}
+      else{label.removeAttribute('role');label.removeAttribute('aria-live');}
+    });
+  }
   async function api(action,payload={}){
     let response;try{response=await fetch(config.endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action,payload,csrf_token:config.csrf_token})});}catch{throw Error('The connection was interrupted. Keep this page open and try saving again.');}
     let data;try{data=await response.json();}catch{throw Error('The server returned an invalid response. Your local answers have been kept.');}
@@ -14,13 +39,21 @@
   }
   async function task(callback){if(state.busy)return;state.busy=true;root.querySelectorAll('button').forEach(button=>{button.dataset.wasDisabled=String(button.disabled);button.disabled=true;});try{await callback();}catch(error){feedback.error(error.message,'Assessment workspace');}finally{state.busy=false;root.querySelectorAll('[data-was-disabled]').forEach(button=>{button.disabled=button.dataset.wasDisabled==='true';delete button.dataset.wasDisabled;});updateActions();}}
   function renderList(){
-    root.querySelectorAll('[data-student-period]').forEach(button=>{const active=button.dataset.studentPeriod===state.period;button.classList.toggle('is-active',active);button.setAttribute('aria-pressed',String(active));});
-    const rows=state.rows.filter(row=>row.subject_key===state.subject?.subject_key&&row.grading_period===state.period);
+    const subjectRows=state.rows.filter(row=>row.subject_key===state.subject?.subject_key);
+    root.querySelectorAll('[data-student-period]').forEach(button=>{
+      const period=button.dataset.studentPeriod,active=period===state.period,count=subjectRows.filter(row=>row.grading_period===period).length;
+      button.classList.toggle('is-active',active);button.setAttribute('aria-pressed',String(active));
+      button.querySelector('[data-student-period-count]').textContent=count;
+      button.querySelector('[data-student-period-unit]').textContent=count===1?'activity':'activities';
+    });
+    const rows=subjectRows.filter(row=>row.grading_period===state.period),periodLabel=state.period==='midterm'?'Midterm':'Final';
+    $('studentAssessmentListSummary').textContent=`${periodLabel} · ${rows.length} ${rows.length===1?'activity':'activities'}`;
     $('studentAssessmentList').innerHTML=rows.length?rows.map(row=>{
       const submitted=row.attempt_status==='submitted',expired=row.attempt_status==='expired',result=submitted||expired?row.result:null;
-      const label=row.attempt_status==='submitted'?'Submitted':row.attempt_status==='expired'?'Time ended':row.status==='closed'?'Closed':row.opens_at&&time(row.opens_at)>now()?'Not open yet':row.due_at&&time(row.due_at)<=now()?'Deadline passed':row.attempt_status==='in_progress'?'In progress':'Available';
-      return `<article class="card assessment-list-card${submitted?' is-submitted':expired?' is-expired':''}" data-assessment-card="${row.assessment_id}"><span class="badge ${submitted?'bg-label-success':expired?'bg-label-warning':'bg-label-primary'}">${submitted?'<i class="bx bx-check-circle" aria-hidden="true"></i> ':expired?'<i class="bx bx-time-five" aria-hidden="true"></i> ':''}${escape(label)}</span><h2 class="student-assessment-list-title">${escape(row.title)}</h2><div class="assessment-preview-meta"><span>${escape(row.assessment_type)}</span><span>${escape(row.total_points)} points</span><span>${row.due_at?'Due '+escape(date(row.due_at)):'No deadline'}</span></div><div class="student-assessment-card-footer">${result?`<section class="student-list-result" aria-label="Assessment result"><h3>Results</h3>${resultTotals(result,true)}</section>`:''}<button class="btn btn-outline-primary" type="button" data-open="${row.assessment_id}">${result?'View results':'Open assessment'}</button></div></article>`;
-    }).join(''):'<div class="card assessment-empty">No published assessments for this subject in this grading period yet.</div>';
+      const label=availabilityLabel(row);
+      return `<article class="card assessment-list-card${submitted?' is-submitted':expired?' is-expired':''}" data-assessment-card="${row.assessment_id}"><div class="student-assessment-card-top"><span class="student-assessment-type">${escape(row.assessment_type)}</span><span class="badge ${submitted?'bg-label-success':expired?'bg-label-warning':'bg-label-primary'}">${submitted?'<i class="bx bx-check-circle" aria-hidden="true"></i> ':expired?'<i class="bx bx-time-five" aria-hidden="true"></i> ':''}<span data-assessment-status="${row.assessment_id}">${escape(label)}</span></span></div><h3 class="student-assessment-list-title">${escape(row.title)}</h3><div class="assessment-preview-meta"><span>${escape(row.total_points)} points</span><span>${row.due_at?'Due '+escape(date(row.due_at)):'No deadline'}</span>${row.time_limit_minutes?`<span>${escape(row.time_limit_minutes)} min time limit</span>`:''}</div><div class="student-assessment-card-footer">${result?`<section class="student-list-result" aria-label="Assessment result"><h4>Results</h4>${resultTotals(result,true)}</section>`:''}<button class="btn btn-outline-primary" type="button" data-open="${row.assessment_id}">${result?'View results':row.attempt_status==='in_progress'?'Continue assessment':'Open assessment'}</button></div></article>`;
+    }).join(''):`<div class="card assessment-empty"><i class="bx bx-book-open" aria-hidden="true"></i><h3>No ${periodLabel} activities yet</h3><p>Your professor's published activities for this period will appear here.</p></div>`;
+    updateAvailability();
   }
   function renderSubjectCounts(){
     root.querySelectorAll('[data-subject-key]').forEach(card=>{
@@ -28,15 +61,21 @@
       const active=rows.filter(row=>row.status==='published'&&!['submitted','expired'].includes(row.attempt_status)&&(!row.opens_at||time(row.opens_at)<=now())&&(!row.due_at||time(row.due_at)>now())).length;
       const completed=rows.filter(row=>row.attempt_status==='submitted').length;
       const summary=card.querySelector('[data-subject-count]');
-      summary.innerHTML=`<div class="student-class-summary-row needs-attention"><span><i class="bx bx-bell" aria-hidden="true"></i>Needs attention</span><span class="badge student-count-badge" data-subject-active>${active}</span></div><div class="student-class-summary-row completed-assessments"><span><i class="bx bx-check-circle" aria-hidden="true"></i>Completed assessments</span><span class="badge student-count-badge" data-subject-completed>${completed}</span></div><div class="student-class-summary-row total-assessments"><span><i class="bx bx-list-ul" aria-hidden="true"></i>Total assessments</span><span class="badge student-count-badge" data-subject-total>${rows.length}</span></div>`;
+      summary.innerHTML=`<div class="student-class-summary-row needs-attention"><span class="student-count-badge" data-subject-active>${active}</span><span>To do</span></div><div class="student-class-summary-row completed-assessments"><span class="student-count-badge" data-subject-completed>${completed}</span><span>Submitted</span></div><div class="student-class-summary-row total-assessments"><span class="student-count-badge" data-subject-total>${rows.length}</span><span>Activities</span></div>`;
       card.classList.toggle('has-pending',active>0);
     });
   }
   function openSubject(key){
     const subject=config.subjects.find(row=>row.subject_key===key);if(!subject)return;
     state.subject=subject;
+    root.dataset.view='activities';
+    // Prefer a populated period when entering a subject; never infer a grading period from the calendar.
+    const subjectRows=state.rows.filter(row=>row.subject_key===key);
+    if(!subjectRows.some(row=>row.grading_period===state.period)&&subjectRows.length)state.period=subjectRows[0].grading_period;
     $('studentSubjectLibrary').hidden=true;$('studentAssessmentLibrary').hidden=false;
-    $('studentClassTitle').textContent=`${subject.subject_code}: ${subject.descriptive_title}`;
+    $('studentClassCode').textContent=(subject.subject_code||'Subject')+':';
+    $('studentClassDescription').textContent=subject.descriptive_title;
+    $('studentClassTitle').title=`${subject.subject_code}: ${subject.descriptive_title}`;
     $('studentClassFaculty').textContent=subject.faculty_name||'Instructor to be posted';
     renderList();$('studentClassTitle').focus();
   }
@@ -60,13 +99,14 @@
   }
   function render(data){
     state.data=data;state.dirty=false;state.expiredCheck=false;
+    root.dataset.view='assessment';
     const {assessment:a,attempt:t}=data,answers=t?.answers||{};
     if(t){const row=state.rows.find(item=>item.assessment_id===a.assessment_id);if(row){row.attempt_status=t.status;row.result=data.result;}renderSubjectCounts();}
     $('studentSubjectLibrary').hidden=true;$('studentAssessmentLibrary').hidden=true;$('studentAssessmentEditor').hidden=false;
     $('studentAssessmentTitle').textContent=a.title;
     $('studentAssessmentMeta').textContent=`${a.subject_label} / ${a.grading_period==='midterm'?'Midterm':'Final'} / ${a.total_points} points${a.time_limit_minutes?' / '+a.time_limit_minutes+' minutes':''}${a.due_at?' / Due '+date(a.due_at):''}`;
     $('studentAssessmentInstructions').textContent=a.instructions||'Read each question carefully.';
-    $('studentAssessmentStatus').textContent=!t?(a.status==='closed'?'This assessment is closed.':a.opens_at&&time(a.opens_at)>now()?'Opens '+date(a.opens_at)+'.':a.due_at&&time(a.due_at)<=now()?'The deadline has passed.':'One attempt is allowed. Your timer, if set, begins when you choose Start assessment.'):t.status==='submitted'?'Submitted. Your responses are locked.':t.status==='expired'?'Time ended. Your last saved responses are locked.':'Your responses save automatically every 15 seconds while you are editing. Use Save answers before leaving.';
+    $('studentAssessmentStatus').textContent=!t?assessmentIntro(a):t.status==='submitted'?'Submitted. Your responses are locked.':t.status==='expired'?'Time ended. Your last saved responses are locked.':'Your responses save automatically every 15 seconds while you are editing. Use Save answers before leaving.';
     renderResult(data);
     $('studentAssessmentForm').hidden=!t;
     $('studentAssessmentQuestions').innerHTML=!t?'':a.assessment_type==='assignment'?`<label class="form-label mt-4" for="assignmentResponse">Your response</label><textarea id="assignmentResponse" class="form-control" rows="12" maxlength="20000" data-assignment>${escape(answers.assignment_response||'')}</textarea>`:a.questions.map((q,index)=>{
@@ -96,8 +136,14 @@
     });
   }
   function tick(){
+    updateAvailability();
     if(!state.data)return;const attempt=state.data.attempt;
-    if(!attempt){const a=state.data.assessment;$('studentAssessmentStart').disabled=state.busy||a.status!=='published'||(a.opens_at&&time(a.opens_at)>now())||(a.due_at&&time(a.due_at)<=now());}
+    if(!attempt){
+      const a=state.data.assessment;$('studentAssessmentStart').disabled=state.busy||a.status!=='published'||(a.opens_at&&time(a.opens_at)>now())||(a.due_at&&time(a.due_at)<=now());
+      $('studentAssessmentTimer').textContent=waitingToOpen(a)?'Starts in '+openingCountdown(a.opens_at):'';
+      const intro=assessmentIntro(a);if($('studentAssessmentStatus').textContent!==intro)$('studentAssessmentStatus').textContent=intro;
+      return;
+    }
     if(!attempt?.deadline_at||attempt.status!=='in_progress'){$('studentAssessmentTimer').textContent='';return;}
     const seconds=Math.max(0,Math.ceil((time(attempt.deadline_at)-now())/1000));
     $('studentAssessmentTimer').textContent=`Time remaining: ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
@@ -110,7 +156,7 @@
     const button=event.target.closest('[data-open]');if(button)task(async()=>render(await api('detail',{assessment_id:Number(button.dataset.open)})));
   });
   $('studentSubjectBack').addEventListener('click',()=>{
-    if(state.busy)return;state.subject=null;$('studentAssessmentLibrary').hidden=true;$('studentSubjectLibrary').hidden=false;
+    if(state.busy)return;state.subject=null;root.dataset.view='subjects';$('studentAssessmentLibrary').hidden=true;$('studentSubjectLibrary').hidden=false;
     root.querySelector('[data-open-subject]')?.focus();
   });
   $('studentAssessmentStart').addEventListener('click',async()=>{
@@ -122,7 +168,7 @@
   $('studentAssessmentForm').addEventListener('submit',event=>{event.preventDefault();save(true);});
   $('studentAssessmentBack').addEventListener('click',async()=>{
     if(state.busy)return;if(state.dirty&&!await feedback.confirm({title:'Leave unsaved answers?',text:'Your latest changes have not been saved. Saved answers will remain available.',confirmText:'Discard unsaved changes',cancelText:'Keep answering'}))return;
-    state.dirty=false;state.data=null;$('studentAssessmentEditor').hidden=true;$('studentAssessmentLibrary').hidden=false;task(refresh);
+    state.dirty=false;state.data=null;root.dataset.view='activities';$('studentAssessmentEditor').hidden=true;$('studentAssessmentLibrary').hidden=false;task(refresh);
   });
   $('studentAssessmentRefresh').addEventListener('click',()=>{if(!state.data)task(refresh);else feedback.info('Use Save answers to record your current work. Return to All assessments to refresh the list.','Assessment in progress');});
   feedback.guardNavigation(()=>state.dirty,()=>{state.dirty=false;},'Your unsaved answers will be discarded. Save your answers before leaving.');
