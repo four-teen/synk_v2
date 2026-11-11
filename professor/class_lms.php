@@ -13,6 +13,7 @@ $backUrl = 'workload.php';
 $view = 'overview';
 $assessmentsReady = false;
 $gradingReady = false;
+$gradebookReady = false;
 $overviewSummary = null;
 try {
     if (!in_array($_SERVER['REQUEST_METHOD'] ?? '', ['GET', 'HEAD'], true)) {
@@ -38,6 +39,11 @@ try {
         require_once __DIR__ . '/../backend/grading_helper_lms.php';
         $gradingReady = synk_grading_ready_lms($lmsConn);
         if (empty($_SESSION['lms_grading_csrf'])) $_SESSION['lms_grading_csrf'] = bin2hex(random_bytes(32));
+    }
+    if ($view === 'gradebook') {
+        require_once __DIR__.'/../backend/gradebook_helper_lms.php';
+        $gradebookReady = synk_gradebook_ready_lms($lmsConn);
+        if (empty($_SESSION['lms_gradebook_csrf'])) $_SESSION['lms_gradebook_csrf'] = bin2hex(random_bytes(32));
     }
     if ($view === 'students') {
         require_once __DIR__ . '/../backend/professor_workload_students_helper.php';
@@ -71,9 +77,10 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
   <link rel="stylesheet" href="class_lms.css?v=<?= (int)filemtime(__DIR__.'/class_lms.css') ?>">
-  <?php if ($class && in_array($view, ['overview','assessments','grading'], true)): ?><link rel="stylesheet" href="feedback_lms.css?v=<?= (int)filemtime(__DIR__.'/feedback_lms.css') ?>"><?php endif; ?>
+  <?php if ($class && in_array($view, ['overview','assessments','grading','gradebook'], true)): ?><link rel="stylesheet" href="feedback_lms.css?v=<?= (int)filemtime(__DIR__.'/feedback_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'assessments' && $class): ?><link rel="stylesheet" href="assessments_lms.css?v=<?= (int)filemtime(__DIR__.'/assessments_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'grading' && $class): ?><link rel="stylesheet" href="grading_lms.css?v=<?= (int)filemtime(__DIR__.'/grading_lms.css') ?>"><?php endif; ?>
+  <?php if ($view === 'gradebook' && $class): ?><link rel="stylesheet" href="gradebook_lms.css?v=<?= (int)filemtime(__DIR__.'/gradebook_lms.css') ?>"><?php endif; ?>
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body>
@@ -107,6 +114,7 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>"<?= $view==='students'?' aria-current="page"':'' ?>><i class="bx bx-group" aria-hidden="true"></i>Students</a>
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'assessments')) ?>"<?= $view==='assessments'?' aria-current="page"':'' ?>><i class="bx bx-task" aria-hidden="true"></i>Activities &amp; assessments</a>
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>"<?= $view==='grading'?' aria-current="page"':'' ?>><i class="bx bx-slider-alt" aria-hidden="true"></i>Grading system</a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>"<?= $view==='gradebook'?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i>Grade Book</a>
           </nav>
           <?php if ($view === 'students'): ?>
             <section class="card class-lms-panel" aria-labelledby="class-lms-students-title">
@@ -122,6 +130,8 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
             <?php include __DIR__ . '/assessments_view_lms.php'; ?>
           <?php elseif ($view === 'grading'): ?>
             <?php include __DIR__ . '/grading_view_lms.php'; ?>
+          <?php elseif ($view === 'gradebook'): ?>
+            <?php include __DIR__ . '/gradebook_view_lms.php'; ?>
           <?php else: ?>
             <?php include __DIR__ . '/class_overview_lms.php'; ?>
           <?php endif; ?>
@@ -132,9 +142,10 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
   </div>
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
-<?php if ($class && in_array($view, ['overview','assessments','grading'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($class && in_array($view, ['overview','assessments','grading','gradebook'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'overview' && $class): ?><script src="class_overview_lms.js?v=<?= (int)filemtime(__DIR__.'/class_overview_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'assessments' && $class && $assessmentsReady): ?><script src="content_lms.js?v=<?= (int)filemtime(__DIR__.'/content_lms.js') ?>" defer></script><script src="assessments_lms.js?v=<?= (int)filemtime(__DIR__.'/assessments_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'grading' && $class && $gradingReady): ?><script src="grading_lms.js?v=<?= (int)filemtime(__DIR__.'/grading_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'gradebook' && $class && $gradebookReady): ?><script src="gradebook_lms.js?v=<?= (int)filemtime(__DIR__.'/gradebook_lms.js') ?>" defer></script><?php endif; ?>
 </body>
 </html>

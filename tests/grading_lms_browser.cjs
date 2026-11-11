@@ -58,21 +58,21 @@ async function main(){
   await call('Input.dispatchMouseEvent',{type:'mouseMoved',...gradebook},session);
   await until('getComputedStyle(document.querySelector("[data-class-tool=gradebook]")).transform!=="none"');
   check(await evaluate('getComputedStyle(document.querySelector("[data-class-tool=gradebook] .class-lms-tool-link"),"::after").position==="absolute"'),'Cards have hover feedback and a full-card click target.');
-  for(const key of ['gradebook','materials','announcements']){
+  for(const key of ['materials','announcements']){
     const point=await evaluate(`(()=>{const r=document.querySelector('[data-class-tool=${key}]').getBoundingClientRect();return {x:r.x+10,y:r.y+10};})()`);
     await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...point},session);await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...point},session);
     await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');
     check(await evaluate('Swal.getTitle().textContent.length>0 && Swal.getHtmlContainer().textContent.includes("not available yet")'),'Clicking the '+key+' card background explains its planned functionality.');
     await answerDialog();
   }
-  for(const selector of ['[data-class-tool=students]','[data-class-tool=activities]','[data-class-tool=grading]']){
+  for(const selector of ['[data-class-tool=students]','[data-class-tool=activities]','[data-class-tool=grading]','[data-class-tool=gradebook]']){
     check(await evaluate(`(()=>{const card=document.querySelector(${JSON.stringify(selector)}),r=card.getBoundingClientRect(),target=document.elementFromPoint(r.left+10,r.top+10);return target===card.querySelector('.class-lms-tool-link') && !!target.href && target.href.includes('signature=');})()`),'The available '+selector+' card preserves its signed navigation over the entire surface.');
   }
-  await evaluate('document.querySelector("[data-class-tool=gradebook] button").focus()');
-  check(await evaluate('document.activeElement===document.querySelector("[data-class-tool=gradebook] button")'),'The Grade Book card is keyboard focusable.');
+  await evaluate('document.querySelector("[data-class-tool=materials] button").focus()');
+  check(await evaluate('document.activeElement===document.querySelector("[data-class-tool=materials] button")'),'The learning materials card is keyboard focusable.');
   await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',text:'\r',unmodifiedText:'\r',windowsVirtualKeyCode:13},session);await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13},session);
   await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');
-  check(await evaluate('Swal.getTitle().textContent==="Grade Book"'),'The Grade Book card can be opened with the keyboard.');await answerDialog();
+  check(await evaluate('Swal.getTitle().textContent==="Learning materials"'),'The planned learning materials card can be opened with the keyboard.');await answerDialog();
   const overview=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','grading-tools_lms.png'),Buffer.from(overview.data,'base64'));
   await resize(900);check(await evaluate('getComputedStyle(document.querySelector(".class-lms-tool-grid")).gridTemplateColumns.split(" ").length===2'),'Tablet overview uses two columns.');
   await resize(390,844);check(await evaluate('getComputedStyle(document.querySelector(".class-lms-tool-grid")).gridTemplateColumns.split(" ").length===1 && document.documentElement.scrollWidth<=innerWidth'),'Phone overview uses one column without overflow.');

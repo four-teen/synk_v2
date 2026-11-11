@@ -2,3 +2,62 @@
 .workload-actions-lms>.btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:44px;font-size:.75rem;line-height:1.4;white-space:normal}
 .workload-actions-lms>.btn i{font-size:1rem;flex-shrink:0}
 @media(max-width:767.98px){.workload-class>.workload-actions-lms{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;margin-top:16px}}
+
+/* One card per assigned class, with consistent actions in its footer. */
+#workload-class-list .workload-class-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:stretch}
+#workload-class-list .workload-class{display:flex;flex-direction:column;min-width:0;padding:0;overflow:hidden;border-radius:12px;box-shadow:0 3px 12px #33496806}
+#workload-class-list .workload-class-body{display:flex;flex-direction:column;flex:1;min-width:0;padding:20px 24px}
+#workload-class-list .workload-class-body>.workload-subject-overview{margin-bottom:12px}
+#workload-class-list .workload-class-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:auto 0 0;padding-top:14px;border-top:1px solid #e9edf3}
+#workload-class-list .workload-class-stats>div{display:flex;flex-direction:column;gap:6px;min-width:0;padding:0 16px}
+#workload-class-list .workload-class-stats>div:first-child{padding-left:0}
+#workload-class-list .workload-class-stats>div+div{border-left:1px solid #e9edf3}
+#workload-class-list .workload-class-stats dt{order:2;font-size:12px;line-height:1.5;font-weight:400;color:#6c7a8f}
+#workload-class-list .workload-class-stats dd{order:1;font-size:25px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;color:#34465e;margin:0}
+#workload-class-list .workload-class-active dd{color:#28714e}
+#workload-class-list .workload-class-inactive.has-inactive dd{color:#99631e}
+#workload-class-list .workload-card-roster-note{font-size:11px;line-height:1.6;color:#768298;margin:12px 0 0}
+#workload-class-list .workload-class-footer{padding:12px 24px;border-top:1px solid #e7ebf3;background:#f9fafe}
+#workload-class-list .workload-class-footer .workload-actions-lms{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;max-width:none;margin:0}
+#workload-class-list .workload-class-footer .btn{flex:0 0 auto;width:auto;max-width:100%;min-height:44px;padding:9px 14px;border-radius:0;font-size:13px;box-shadow:none;line-height:1.4;white-space:nowrap}
+#workload-class-list .workload-class-footer .workload-show-students{background:#fff;border-color:#d8deec;color:#575b9b}
+#workload-class-list .workload-class-footer .workload-show-students:hover{background:#f0f0fd;border-color:#a7a7df}
+#workload-class-list .workload-class-footer .btn:focus-visible{outline:3px solid #b6b8ff;outline-offset:3px}
+#workload-class-list .workload-subject-overview{min-width:0;color:#3b4b61;font-weight:400}
+#workload-class-list .workload-class-reference{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;margin-bottom:6px;line-height:1.5}
+#workload-class-list .workload-class-code{font-size:12px;font-weight:700;letter-spacing:.03em;color:#5650b7}
+#workload-class-list .workload-class-section{font-size:12px;font-weight:500;color:#65758b;background:#f1f3f8;border:1px solid #e6eaf1;border-radius:5px;padding:4px 8px;max-width:100%;overflow-wrap:anywhere}
+#workload-class-list .workload-class-title{font-size:21px;font-weight:600;line-height:1.3;letter-spacing:-.2px;text-transform:uppercase;color:#34465e;margin:0 0 4px;overflow-wrap:anywhere}
+#workload-class-list .workload-meeting-details{max-width:600px}
+#workload-class-list .workload-meeting-details>summary{display:flex;align-items:center;flex-wrap:wrap;gap:7px;min-height:44px;width:fit-content;max-width:100%;padding:6px 0;cursor:pointer;list-style:none;font-size:12px;font-weight:400;line-height:1.5;color:#626d8c}
+#workload-class-list .workload-meeting-details>summary::-webkit-details-marker{display:none}
+#workload-class-list .workload-meeting-details>summary:hover{color:#514acb}
+#workload-class-list .workload-meeting-details>summary:focus-visible{outline:3px solid #b6b8ff;outline-offset:3px}
+#workload-class-list .workload-meeting-details>summary>.bx{font-size:17px;flex-shrink:0}
+#workload-class-list .workload-meeting-count{font-size:11px;color:#768298;margin-left:6px}
+#workload-class-list .workload-meeting-chevron{transition:transform .15s}
+#workload-class-list .workload-meeting-details[open] .workload-meeting-chevron{transform:rotate(180deg)}
+#workload-class-list .workload-meeting-content{margin:6px 0 4px;padding:14px 16px;border:1px solid #e6eaf2;border-radius:7px;background:#f8f9fc}
+#workload-class-list .workload-meeting-list{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+#workload-class-list .workload-meeting-list>li{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start}
+#workload-class-list .workload-meeting-list>li+li{padding-top:14px;border-top:1px solid #e3e8f0}
+#workload-class-list .workload-meeting-type{font-size:11px;font-weight:600;color:#625e9e;line-height:1.6;padding-top:1px}
+#workload-class-list .workload-meeting-info{display:grid;gap:3px;min-width:0;font-size:12px;line-height:1.6}
+#workload-class-list .workload-meeting-days{font-weight:600;color:#43556b}
+#workload-class-list .workload-meeting-time{color:#52637a}
+#workload-class-list .workload-meeting-room{display:flex;align-items:baseline;gap:5px;font-size:12px;font-weight:400;line-height:1.6;color:#68798e;margin:2px 0 0;overflow-wrap:anywhere}
+#workload-class-list .workload-meeting-room>.bx{font-size:14px;flex-shrink:0;align-self:start;line-height:1.6}
+#workload-class-list .workload-meeting-pending{font-size:12px;line-height:1.6;margin:0 0 6px;color:#68798e}
+@media(max-width:767.98px){
+  #workload-class-list .workload-class-grid{grid-template-columns:minmax(0,1fr);gap:16px}
+  #workload-class-list .workload-class-body{padding:16px 20px}
+  #workload-class-list .workload-class-title{font-size:20px}
+  #workload-class-list .workload-class-footer{padding:12px 20px}
+  #workload-class-list .workload-class-footer .workload-actions-lms{gap:8px}
+  #workload-class-list .workload-class-footer .btn{padding:8px;font-size:12px}
+  #workload-class-list .workload-class-stats>div{padding:0 12px}
+  #workload-class-list .workload-meeting-content{padding:12px}
+  #workload-class-list .workload-meeting-list>li{grid-template-columns:52px minmax(0,1fr);gap:8px}
+  #workload-class-list .workload-meeting-count{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){#workload-class-list .workload-meeting-chevron{transition:none}}

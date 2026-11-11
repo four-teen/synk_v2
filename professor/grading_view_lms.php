@@ -3,7 +3,7 @@ if (!isset($class, $gradingReady) || $view !== 'grading' || ($_SESSION['role'] ?
 ?>
 <section class="grading-workspace" id="gradingWorkspace" aria-labelledby="gradingTitle">
   <div class="grading-heading"><div><p class="grading-eyebrow">GRADING SETUP</p><h2 id="gradingTitle">Manage Grading System</h2><p>Choose how each component contributes to the Midterm and Final grade.</p></div></div>
-  <p class="grading-note"><i class="bx bx-info-circle" aria-hidden="true"></i><span>Each period must total 100%. These components will form the basis of the gradebook. Student scores and grade computation will be added in a later stage.</span></p>
+  <p class="grading-note"><i class="bx bx-info-circle" aria-hidden="true"></i><span>Each period must total 100%. Grade Book uses these components for manual entries and linked LMS assessments. After changing a setup used by recorded scores, open Grade Book to review and apply the new revision.</span></p>
   <?php if (!$gradingReady): ?>
     <div class="lms-feedback-state" role="status">Grading storage needs to be prepared. Ask your administrator to set up the LMS grading system.</div>
   <?php else: ?>
