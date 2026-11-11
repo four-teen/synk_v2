@@ -59,6 +59,10 @@
 .assessment-question-heading h4 { margin:0 0 5px; }
 .assessment-total { font-size:11px; color:#5659bb; white-space:nowrap; padding:6px 9px; border-radius:6px; background:#efefff; }
 .assessment-questions { margin-top:14px; }
+.assessment-question-empty { display:flex; align-items:center; gap:10px; padding:16px 18px; border:1px dashed #cdd3ed; background:#f3f4fd; color:#5b6387; font-size:13px; line-height:1.7; }
+.assessment-question-empty>i { flex-shrink:0; font-size:22px; color:#6961ba; }
+.assessment-question-empty p { margin:0; }
+.assessment-actions #assessmentAddQuestion,.assessment-actions #assessmentAddQuestionBottom { display:inline-flex; align-items:center; justify-content:center; gap:5px; }
 .assessment-question { padding:22px; min-width:0; }
 .assessment-question-top { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:18px; }
 .assessment-question-top h5 { font-size:13px; margin:0; }
@@ -104,3 +108,4 @@
 @media(max-width:575.98px) { .assessment-floating-actions { padding:10px 12px; } .assessment-floating-state { display:none; } .assessment-floating-actions .assessment-actions { width:100%; gap:10px; } .assessment-floating-actions button { flex:1; } .assessment-prompt-preview { padding:10px; } }
 @media(max-width:575.98px) { .assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; } .assessment-editor-heading .assessment-actions .btn,.assessment-floating-actions .assessment-actions .btn { padding:8px 4px; min-height:44px; white-space:nowrap; font-size:12px; } }
 @media(max-width:575.98px) { .assessment-editor-heading .assessment-actions.is-published,.assessment-floating-actions .assessment-actions.is-published { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:575.98px) { .assessment-editor-heading .assessment-actions.has-question-action,.assessment-floating-actions .assessment-actions.has-question-action { grid-template-columns:repeat(2,minmax(0,1fr)); } .assessment-editor-heading .assessment-actions.has-question-action.is-published,.assessment-floating-actions .assessment-actions.has-question-action.is-published { grid-template-columns:repeat(3,minmax(0,1fr)); } .has-floating-actions { padding-bottom:150px; } }

@@ -82,10 +82,15 @@ function synk_gradebook_score_map_lms(mysqli $lms, array $context, array $items,
         $attempts=synk_grading_query_lms($lms,'SELECT status,student_id,answers_json,assessment_snapshot_json,deadline_at FROM tbl_lms_assessment_attempts WHERE assessment_id=?','i',[$item['assessment_id']]);
         foreach ($attempts as $attempt) {
             $studentId=(int)$attempt['student_id'];
-            if (!isset($students[$studentId]) || isset($map[$item['item_id']][$studentId])) continue;
+            if (!isset($students[$studentId])) continue;
             if ($attempt['status']==='in_progress' && $attempt['deadline_at']!==null && $attempt['deadline_at']<=synk_assessment_now_lms()) $attempt['status']='expired';
             if (!in_array($attempt['status'],['submitted','expired'],true)) continue;
-            $map[$item['item_id']][$studentId]=synk_gradebook_auto_points_lms($record,$attempt,$item['max_points'])+['source'=>'lms','remark'=>''];
+            $automatic=synk_gradebook_auto_points_lms($record,$attempt,$item['max_points']);
+            if (isset($map[$item['item_id']][$studentId])) {
+                $map[$item['item_id']][$studentId]['automatic_points']=$automatic['points'];
+            } else {
+                $map[$item['item_id']][$studentId]=$automatic+['source'=>'lms','remark'=>'','automatic_points'=>$automatic['points']];
+            }
         }
     }
     return $map;
@@ -146,9 +151,11 @@ function synk_gradebook_workspace_lms(mysqli $core, mysqli $lms, array $context)
         foreach ($roster as $student) $results[$student['student_id']]=synk_gradebook_calculate_lms($book['scheme'],$items,$scores,(int)$student['student_id']);
         $periods[$period]=$book+['items'=>$items,'scores'=>(object)array_map(static function(array $v){return (object)$v;},$scores),'results'=>(object)$results];
     }
-    $summary=[];
+    // PHP 7.1 cannot read numeric properties on an object cast from an array.
+    // Read the internal student maps as arrays before building the JSON payload.
+    $midtermResults=(array)$periods['midterm']['results'];$finalResults=(array)$periods['final']['results'];$summary=[];
     foreach ($roster as $student) {
-        $id=(int)$student['student_id'];$mid=$periods['midterm']['results']->{$id};$fin=$periods['final']['results']->{$id};
+        $id=(int)$student['student_id'];$mid=$midtermResults[$id];$fin=$finalResults[$id];
         $average=$mid['complete']&&$fin['complete']?($mid['percent']+$fin['percent'])/2:null;
         $summary[$id]=['midterm'=>$mid['percent'],'final'=>$fin['percent'],'average'=>$average,'rating'=>$average===null?null:synk_gradebook_rating_lms($average)['rating'],'remark'=>$average===null?'—':synk_gradebook_rating_lms($average)['remark']];
     }

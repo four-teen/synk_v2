@@ -25,7 +25,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     <div id="assessmentEditor" hidden>
       <div class="assessment-editor-heading">
         <div><button class="assessment-text-button" type="button" id="assessmentBack"><i class="bx bx-arrow-back" aria-hidden="true"></i>All assessments</button><h3 id="assessmentEditorTitle">New assessment</h3><span class="assessment-save-state" id="assessmentSaveState" role="status">Not saved yet</span></div>
-        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentPreview">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSave">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublish">Publish</button></div>
+        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentAddQuestion"><i class="bx bx-plus" aria-hidden="true"></i>Add question</button><button type="button" class="btn btn-outline-primary" id="assessmentPreview">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSave">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublish">Publish</button></div>
       </div>
       <p class="assessment-stage-note" id="assessmentLiveNote" role="note" hidden></p>
       <form id="assessmentForm">
@@ -38,7 +38,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
             </section>
             <section id="assessmentQuestionsSection" aria-labelledby="assessmentQuestionsTitle">
               <div class="assessment-question-heading"><div><h4 id="assessmentQuestionsTitle">Questions</h4><p>Choose a type, set points, and prepare the answer key.</p></div><span class="assessment-total" id="assessmentQuestionTotal">0 questions / 0 points</span></div>
-              <button type="button" class="btn btn-outline-primary w-100" id="assessmentAddQuestion"><i class="bx bx-plus me-1" aria-hidden="true"></i>Add question</button>
+              <div class="assessment-question-empty" id="assessmentQuestionsEmpty" role="status"><i class="bx bx-help-circle" aria-hidden="true"></i><p><strong>No questions yet.</strong> Click <strong>Add question</strong> in the action bar to start.</p></div>
               <div id="assessmentQuestions" class="assessment-questions"></div>
               <p class="assessment-help mt-2">Drafts can start without questions. Short answers accept the alternatives you list; essays require manual grading.</p>
             </section>
@@ -59,7 +59,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
       </form>
       <div class="assessment-floating-actions" id="assessmentFloatingActions" role="group" aria-label="Unsaved assessment actions" hidden>
         <span class="assessment-floating-state" id="assessmentFloatingState">Not saved yet</span>
-        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentPreviewBottom">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSaveBottom">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublishBottom">Publish</button></div>
+        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentAddQuestionBottom"><i class="bx bx-plus" aria-hidden="true"></i>Add question</button><button type="button" class="btn btn-outline-primary" id="assessmentPreviewBottom">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSaveBottom">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublishBottom">Publish</button></div>
       </div>
     </div>
     <div class="modal fade" id="assessmentPreviewModal" tabindex="-1" aria-labelledby="assessmentPreviewTitle" aria-hidden="true">
