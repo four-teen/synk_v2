@@ -103,12 +103,13 @@ try {
     $denied(static function()use($save,$revision,$assessment,$component){$save('save_item',$revision()+['entry_kind'=>'lms','assessment_id'=>$assessment['assessment_id'],'title'=>'Duplicate LMS quiz','component_id'=>$component[2],'max_points'=>10]);},422);
     $denied(static function()use($save,$revision,$linked,$student){$save('save_scores',$revision()+['item_id'=>$linked['item_id'],'scores'=>[['student_id'=>$student,'points'=>7]]]);},422);
     $save('save_scores',$revision()+['item_id'=>$linked['item_id'],'scores'=>[['student_id'=>$student,'points'=>7,'remark'=>'Reviewed correction']]]);
-    $map=synk_gradebook_score_map_lms($lms,$context,$items,synk_gradebook_roster_lms($conn,$context));$check($map[$linked['item_id']][$student]['points']==7 && $map[$linked['item_id']][$student]['source']==='manual','Manual reviews must override an LMS score with a note.');
+    $map=synk_gradebook_score_map_lms($lms,$context,$items,synk_gradebook_roster_lms($conn,$context));$check($map[$linked['item_id']][$student]['points']==7 && $map[$linked['item_id']][$student]['source']==='manual' && $map[$linked['item_id']][$student]['automatic_points']==2,'Manual reviews must override the effective score while retaining the automatic score shown when clearing an override.');
     $save('save_scores',$revision()+['item_id'=>$linked['item_id'],'scores'=>[['student_id'=>$student,'points'=>null]]]);
     $map=synk_gradebook_score_map_lms($lms,$context,$items,synk_gradebook_roster_lms($conn,$context));$check($map[$linked['item_id']][$student]['points']==2,'Clearing a manual LMS override restores the automatic score.');
     $unmappedFinal=synk_assessment_save_lms($lms,$context,['grading_period'=>'final','assessment_type'=>'quiz','title'=>'Unmapped Final quiz','questions'=>[['question_type'=>'true_false','prompt'=>'Final quiz?','points'=>1,'answer_key'=>true]]],$actor);
     synk_grading_query_lms($lms,"UPDATE tbl_lms_assessments SET status='published' WHERE assessment_id=?",'i',[$unmappedFinal['assessment_id']]);
     synk_grading_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,assessment_snapshot_json,started_at,submitted_at,updated_at) VALUES (?,?,'submitted',?,?,?,?,?)",'iisssss',[$unmappedFinal['assessment_id'],$student,json_encode([$unmappedFinal['questions'][0]['question_id']=>false]),synk_assessment_snapshot_json_lms($unmappedFinal),$now,$now,$now]);
+    synk_grading_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,assessment_snapshot_json,started_at,submitted_at,updated_at) VALUES (?,?,'submitted',?,?,?,?,?)",'iisssss',[$unmappedFinal['assessment_id'],$other,json_encode([$unmappedFinal['questions'][0]['question_id']=>true]),synk_assessment_snapshot_json_lms($unmappedFinal),$now,$now,$now]);
     $discovered=array_column(synk_gradebook_available_assessments_lms($lms,$context,synk_gradebook_roster_lms($conn,$context)),null,'assessment_id');
     $check($discovered[$assessment['assessment_id']]['link_status']==='active' && $discovered[$unmappedFinal['assessment_id']]['link_status']==='unlinked' && $discovered[$unmappedFinal['assessment_id']]['grading_period']==='final' && $discovered[$unmappedFinal['assessment_id']]['scores']->{$student}['points']==0,'Discovery must distinguish mapped work, Final work and an actual zero score.');
     if (($argv[1]??'')==='--render') {
@@ -123,6 +124,28 @@ try {
         };
         file_put_contents($renderHtml,$render());
     }
+    // Exercise real LMS submissions after linking, period isolation, reassignment,
+    // and the semester summary together. These fixtures still roll back below.
+    $secondQuiz=synk_assessment_save_lms($lms,$context,['grading_period'=>'midterm','assessment_type'=>'quiz','title'=>'Second weighted LMS quiz','questions'=>[['question_type'=>'true_false','prompt'=>'Second quiz?','points'=>4,'answer_key'=>true]]],$actor);
+    synk_grading_query_lms($lms,"UPDATE tbl_lms_assessments SET status='published' WHERE assessment_id=?",'i',[$secondQuiz['assessment_id']]);
+    $save('save_item',$revision()+['entry_kind'=>'lms','assessment_id'=>$secondQuiz['assessment_id'],'title'=>'Second linked quiz','component_id'=>$component[2],'max_points'=>4]);
+    $midtermItems=synk_gradebook_items_lms($lms,$book['book_id']);$secondItem=end($midtermItems);
+    $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);$r=$workspace['periods']['midterm']['results']->{$student};
+    $check(abs($r['components'][2]['earned']-27)<0.00000001 && $r['components'][2]['possible']==54 && abs($r['percent']-67.5)<0.00000001,'Two linked quizzes and manual work must share the assigned component, with the unsubmitted quiz contributing zero and its maximum still counted.');
+    $check($workspace['periods']['final']['results']->{$student}['percent']==90 && abs($workspace['summary']->{$student}['average']-78.75)<0.00000001,'Assigning Midterm work must immediately update the semester summary while preserving Final.');
+    $versionBeforeSubmission=$revision();
+    synk_grading_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,assessment_snapshot_json,started_at,submitted_at,updated_at) VALUES (?,?,'submitted',?,?,?,?,?)",'iisssss',[$secondQuiz['assessment_id'],$student,json_encode([$secondQuiz['questions'][0]['question_id']=>true]),synk_assessment_snapshot_json_lms($secondQuiz),$now,$now,$now]);
+    $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);$r=$workspace['periods']['midterm']['results']->{$student};$expectedMidterm=37.5+10+31/54*40;
+    $check($workspace['periods']['midterm']['scores']->{$secondItem['item_id']}->{$student}['points']==4 && abs($r['percent']-$expectedMidterm)<0.00000001 && abs($workspace['summary']->{$student}['average']-($expectedMidterm+90)/2)<0.00000001,'A new LMS submission must update its score, weighted component, period grade and semester average on the next workspace read.');
+    $check($revision()===$versionBeforeSubmission,'Synchronizing an LMS submission must not write artificial score rows or change the saved gradebook revision.');
+    $save('save_item',$revision()+['item_id'=>$secondItem['item_id'],'entry_kind'=>'lms','assessment_id'=>$secondQuiz['assessment_id'],'title'=>'Second linked quiz','component_id'=>$component[0],'max_points'=>4]);
+    $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);$r=$workspace['periods']['midterm']['results']->{$student};
+    $check(abs($r['components'][0]['contribution']-49/64*50)<0.00000001 && abs($r['components'][2]['contribution']-27/50*40)<0.00000001 && count($workspace['periods']['midterm']['items'])===6,'Reassigning a quiz must move its score and maximum to the selected component without counting it twice.');
+    $denied(static function()use($save,$revision,$unmappedFinal,$component){$save('save_item',$revision()+['entry_kind'=>'lms','assessment_id'=>$unmappedFinal['assessment_id'],'title'=>'Wrong period quiz','component_id'=>$component[2],'max_points'=>1]);},422);
+    $save('save_item',$revision('final')+['entry_kind'=>'lms','assessment_id'=>$unmappedFinal['assessment_id'],'title'=>'Linked Final quiz','component_id'=>$final['components'][0]['component_id'],'max_points'=>1]);
+    $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);$expectedFinal=90/101*100;$currentMidterm=$r['percent'];
+    $check(abs($workspace['periods']['final']['results']->{$student}['percent']-$expectedFinal)<0.00000001 && abs($workspace['periods']['midterm']['results']->{$student}['percent']-$currentMidterm)<0.00000001 && abs($workspace['summary']->{$student}['average']-($currentMidterm+$expectedFinal)/2)<0.00000001,'Assigning a zero-score Final assessment must use the Final component weight and update the same student semester summary without changing Midterm.');
+    $save('archive_item',$revision()+['item_id'=>$secondItem['item_id']]);
     $save('archive_item',$revision()+['item_id'=>$linked['item_id']]);
     $check(count(synk_gradebook_items_lms($lms,$book['book_id']))===4 && synk_grading_query_lms($lms,'SELECT status FROM tbl_lms_gradebook_items WHERE item_id=?','i',[$linked['item_id']])[0]['status']==='archived','Archiving removes an entry from calculations and preserves its history.');
     $discovered=array_column(synk_gradebook_available_assessments_lms($lms,$context,synk_gradebook_roster_lms($conn,$context)),null,'assessment_id');

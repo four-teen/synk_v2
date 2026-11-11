@@ -53,7 +53,7 @@ try {
     $check($scheme['status']===200,'Unable to create the tagged grading setup.');$scheme=$scheme['data']['scheme'];
     $r=$bookCall('save_item',['grading_period'=>'midterm','version'=>0,'scheme_version'=>$scheme['version'],'component_id'=>$scheme['components'][0]['component_id'],'entry_kind'=>'score','title'=>$tag.' Written exam','max_points'=>50]);
     $check($r['status']===200,'Actual endpoint failed to create a manual exam: '.json_encode($r));$data=$r['data'];$exam=$data['periods']['midterm']['items'][0]['item_id'];
-    $revision=static function(array $data):array {$b=$data['periods']['midterm'];return ['grading_period'=>'midterm','version'=>$b['version'],'scheme_version'=>$b['scheme']['version']];};
+    $revision=static function(array $data,string $period='midterm'):array {$b=$data['periods'][$period];return ['grading_period'=>$period,'version'=>$b['version'],'scheme_version'=>$b['scheme']['version']];};
     $r=$bookCall('save_item',$revision($data)+['component_id'=>$scheme['components'][1]['component_id'],'entry_kind'=>'attendance','title'=>$tag.' Attendance','max_points'=>1]);$check($r['status']===200,'Attendance session creation failed.');$data=$r['data'];$attendance=$data['periods']['midterm']['items'][1]['item_id'];
     $stale=$revision($data);$r=$bookCall('save_scores',$revision($data)+['item_id'=>$exam,'scores'=>[['student_id'=>$session['student_id'],'points'=>'40.00']]]);$check($r['status']===200,'Actual endpoint failed to save exam points.');$data=$r['data'];
     $r=$bookCall('save_scores',$revision($data)+['item_id'=>$attendance,'scores'=>[['student_id'=>$session['student_id'],'points'=>1]]]);$check($r['status']===200,'Actual endpoint failed to save attendance.');$data=$r['data'];
@@ -63,6 +63,17 @@ try {
     $r=$bookCall('save_scores',$revision($data)+['item_id'=>$secondExam,'scores'=>[['student_id'=>$session['student_id'],'points'=>10]]]);$check($r['status']===200,'Unable to update the second exam score.');$data=$r['data'];
     $check(abs($data['periods']['midterm']['results'][$session['student_id']]['percent']-70)<0.0000001,'Recording the second score must immediately recalculate the component and period total.');
     $check($data['summary'][$session['student_id']]['average']===null,'Final must remain independent and leave the average incomplete.');
+    $finalScheme=$gradingCall(['grading_period'=>'final','version'=>0,'components'=>[['name'=>$tag.' Final exam','weight'=>100]]]);
+    $check($finalScheme['status']===200,'Unable to create the tagged Final grading setup.');$finalScheme=$finalScheme['data']['scheme'];
+    $r=$bookCall('save_item',['grading_period'=>'final','version'=>0,'scheme_version'=>$finalScheme['version'],'component_id'=>$finalScheme['components'][0]['component_id'],'entry_kind'=>'score','title'=>$tag.' Final exam','max_points'=>100]);
+    $check($r['status']===200,'Unable to create a Final exam through the actual endpoint.');$data=$r['data'];$finalExam=$data['periods']['final']['items'][0]['item_id'];
+    $check(abs($data['periods']['midterm']['results'][$session['student_id']]['percent']-70)<0.0000001 && $data['periods']['final']['results'][$session['student_id']]['percent']==0 && abs($data['summary'][$session['student_id']]['average']-35)<0.0000001,'The endpoint must combine configured Midterm and zero-score Final periods immediately: '.json_encode($data['summary'][$session['student_id']]));
+    $r=$bookCall('save_scores',$revision($data,'final')+['item_id'=>$finalExam,'scores'=>[['student_id'=>$session['student_id'],'points'=>80]]]);
+    $check($r['status']===200,'Unable to save the Final exam score.');$data=$r['data'];
+    $check($data['summary'][$session['student_id']]['midterm']==70 && $data['summary'][$session['student_id']]['final']==80 && $data['summary'][$session['student_id']]['average']==75 && $data['summary'][$session['student_id']]['rating']==3,'Saving Final must return the synchronized semester average and legend rating in the same response.');
+    $r=$bookCall('save_scores',$revision($data)+['item_id'=>$secondExam,'scores'=>[['student_id'=>$session['student_id'],'points'=>50]]]);
+    $check($r['status']===200,'Unable to update a Midterm score after Final has been recorded.');$data=$r['data'];
+    $check($data['summary'][$session['student_id']]['midterm']==94 && $data['summary'][$session['student_id']]['final']==80 && $data['summary'][$session['student_id']]['average']==87 && $data['summary'][$session['student_id']]['rating']==2,'Updating Midterm must preserve Final and recalculate the semester result and rating immediately.');
     $r=$bookCall('save_scores',$stale+['item_id'=>$exam,'scores'=>[['student_id'=>$session['student_id'],'points'=>10]]]);$check($r['status']===409,'The actual endpoint must reject a stale gradebook revision.');
     $r=$bookCall('save_scores',$revision($data)+['item_id'=>$exam,'scores'=>[['student_id'=>$session['student_id'],'points'=>20],['student_id'=>2147483000,'points'=>10]]]);$check($r['status']===422,'An out-of-roster student must reject the whole score batch.');
     $unchanged=$bookCall('get');$check($unchanged['data']['periods']['midterm']['version']===$data['periods']['midterm']['version']&&$unchanged['data']['periods']['midterm']['scores'][$exam][$session['student_id']]['points']==40,'A rejected batch must roll back valid student changes and revision increments.');

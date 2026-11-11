@@ -97,6 +97,14 @@ async function main() {
   check(await evaluate('document.querySelector("#assessmentPeriod").value==="final"'),'A new draft inherits the selected grading period.');
   check(await evaluate('!document.querySelector("#assessmentFloatingActions").hidden && getComputedStyle(document.querySelector("#assessmentFloatingActions")).position==="fixed" && document.querySelector(".assessment-editor-heading #assessmentSave") && document.querySelector(".assessment-editor-heading #assessmentPreview")'),'New drafts expose bottom actions while preserving both top buttons.');
   check(await evaluate('document.querySelector("#assessmentSave").nextElementSibling.id==="assessmentPublish" && document.querySelector("#assessmentSaveBottom").nextElementSibling.id==="assessmentPublishBottom" && !document.querySelector("#assessmentNewEditor,#assessmentNewBottom")'),'Publish replaces the mistakenly added New draft buttons in both action bars.');
+  check(await evaluate('document.querySelector("#assessmentAddQuestion").nextElementSibling.id==="assessmentPreview" && document.querySelector("#assessmentAddQuestionBottom").nextElementSibling.id==="assessmentPreviewBottom" && !document.querySelector("#assessmentQuestionsEmpty").hidden && document.querySelector("#assessmentQuestionsEmpty").textContent.includes("No questions yet.")'),'Both action bars place Add question before Preview, and an empty question list explains how to start.');
+  await click('#assessmentAddQuestionBottom');check(await evaluate('document.querySelectorAll("[data-question]").length===1&&document.querySelector("#assessmentQuestionsEmpty").hidden'),'The floating Add question button creates a question and hides the empty prompt.');await click('[data-question="0"] [data-operation="remove"]');check(await evaluate('!document.querySelector("#assessmentQuestionsEmpty").hidden'),'Removing the last blank question restores the prompt.');
+  for(const width of [390,320]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(150);
+    check(await evaluate('[...document.querySelectorAll(".assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===4&&Math.abs(buttons[0].top-buttons[1].top)<1&&Math.abs(buttons[2].top-buttons[3].top)<1&&buttons[2].top>buttons[0].top&&buttons.every(r=>r.width>100&&r.height>=44&&r.left>=0&&r.right<=innerWidth);})&&document.documentElement.scrollWidth<=innerWidth'),'The four quiz actions form two usable rows on '+width+'px mobile screens.');
+    if(width===390){await evaluate('document.querySelector(".assessment-editor-heading").scrollIntoView({block:"start",behavior:"instant"})');fs.writeFileSync(path.join(root,'.tmp','assessment-quiz-actions-mobile_lms.png'),Buffer.from((await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session)).data,'base64'));}
+  }
+  await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);
   await fill('#assessmentTitle','Quiz <img src=x onerror=alert(1)>');
   await fill('#assessmentTitle','');await click('#assessmentSave');await until('document.querySelector(".swal2-title")?.textContent==="Check the required details"');
   check(!requests.some(request=>request.action==='save'),'Assessment required-field validation uses SweetAlert2 before saving.');
@@ -105,7 +113,7 @@ async function main() {
   await fill('#assessmentTopic','Variables');
   await fill('#assessmentTimeLimit','30');
   await click('#assessmentAddQuestion');
-  check(await evaluate('!!(document.querySelector("#assessmentAddQuestion").compareDocumentPosition(document.querySelector("#assessmentQuestions")) & Node.DOCUMENT_POSITION_FOLLOWING)'),'Add question is above the question list.');
+  check(await evaluate('!!document.querySelector(".assessment-editor-heading #assessmentAddQuestion")&&!document.querySelector("#assessmentQuestionsSection #assessmentAddQuestion")&&document.querySelector("#assessmentQuestionsEmpty").hidden'),'Add question lives in the action bar and the prompt hides when questions exist.');
   await fill('[data-question="0"] [data-field="prompt"]','What is 2 + 2?');await fill('[data-question="0"] [data-field="points"]','2.5');
   await evaluate('document.querySelector("[data-question=\\"0\\"] [data-field=\\"prompt\\"]").setSelectionRange(8,13)');
   await click('[data-question="0"] [data-format="inline"]');
@@ -131,7 +139,7 @@ async function main() {
   await fill('[data-question="0"] [data-field="prompt"]',formattedPrompt);
   await evaluate('document.querySelector("[data-question=\\"0\\"]").scrollIntoView({block:"start",behavior:"instant"})');
   const editorShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-code-editor_lms.png'),Buffer.from(editorShot.data,'base64'));
-  for(const [index,value] of ['3','4','5','6'].entries())await fill(`#aq1choice${index}`,value);
+  for(const [index,value] of ['3','4','5','6'].entries())await fill(`[data-question="0"] [data-choice][id$="choice${index}"]`,value);
   await click('[data-question="0"] [data-answer][value="1"]');
   await click('#assessmentAddQuestion');
   check(await evaluate(`document.querySelector('[data-question="0"] [data-field="prompt"]').value==='' && document.querySelector('[data-question="1"] [data-field="prompt"]').value===${JSON.stringify(formattedPrompt)} && document.activeElement===document.querySelector('[data-question="0"] [data-field="prompt"]')`),'A new question is inserted and focused first, preserving the existing formatted prompt.');
@@ -203,7 +211,7 @@ async function main() {
   await until('document.querySelector("#assessmentMidtermCount").textContent==="0"');
   check(records[1].status==='archived','Archiving removes only the chosen copy from the active list.');
   await click('#assessmentNew');await fill('#assessmentType','assignment','change');await fill('#assessmentTitle','Programming project');await fill('#assessmentPoints','100');
-  check(await evaluate('document.querySelector("#assessmentQuestionsSection").hidden && !document.querySelector("#assessmentPoints").disabled && document.querySelector("#assessmentTimeLimit").disabled'),'Assignment type exposes total points and hides quiz-only controls.');
+  check(await evaluate('document.querySelector("#assessmentQuestionsSection").hidden && document.querySelector("#assessmentAddQuestion").hidden && document.querySelector("#assessmentAddQuestionBottom").hidden && !document.querySelector("#assessmentPoints").disabled && document.querySelector("#assessmentTimeLimit").disabled'),'Assignment type exposes total points and hides question actions and quiz-only controls.');
   await click('#assessmentSave');await until('document.querySelector("#assessmentSaveState").textContent.includes("version 1")');
   await click('#assessmentBack');await click('[data-action="edit"]');await until('document.querySelector("#assessmentTitle").value==="Programming project" && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(await evaluate('!document.querySelector("#assessmentPoints").disabled && document.querySelector("#assessmentPoints").value==="100"'),'Assignment settings reopen with the correct enabled state.');
@@ -213,7 +221,7 @@ async function main() {
   check(await evaluate('(()=>{const bar=document.querySelector("#assessmentFloatingActions"),r=bar.getBoundingClientRect(),nav=document.querySelector("#professor-bottom-nav").getBoundingClientRect();return !bar.hidden && r.left>=0 && r.right<=innerWidth && r.bottom<=nav.top-8 && r.bottom>nav.top-30 && !document.querySelector("#assessmentSaveBottom").disabled;})()'),'The floating actions stay above the mobile navigation without covering it.');
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(100);
-    check(await evaluate('[...document.querySelectorAll(".assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions")].every(bar=>{const buttons=[...bar.querySelectorAll("button")].map(button=>button.getBoundingClientRect());return buttons.length===3 && Math.max(...buttons.map(r=>r.top))-Math.min(...buttons.map(r=>r.top))<1 && buttons.every(r=>r.width>60&&r.height>=44&&r.left>=0&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'All three draft action buttons fit on one row at '+width+'px.');
+    check(await evaluate('[...document.querySelectorAll(".assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===3 && Math.max(...buttons.map(r=>r.top))-Math.min(...buttons.map(r=>r.top))<1 && buttons.every(r=>r.width>60&&r.height>=44&&r.left>=0&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'All three assignment action buttons fit on one row at '+width+'px.');
   }
   await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true},session);
   await evaluate('document.querySelector(".assessment-editor-heading").scrollIntoView({block:"start",behavior:"instant"})');
@@ -240,7 +248,7 @@ async function main() {
   await fill('[data-question="0"] [data-field="prompt"]','Corrected published question');await fill('[data-question="0"] [data-field="true_false"]','false','change');
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(150);
-    check(await evaluate('[...document.querySelectorAll(".assessment-actions.is-published")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===2 && Math.abs(buttons[0].top-buttons[1].top)<1 && buttons.every(r=>r.height>=44&&r.width>80&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'Published edit actions fit at '+width+'px.');
+    check(await evaluate('[...document.querySelectorAll(".assessment-actions.is-published")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===3 && Math.abs(buttons[0].top-buttons[2].top)<1 && buttons.every(r=>r.height>=44&&r.width>80&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'Published edit actions, including Add question, fit at '+width+'px.');
   }
   await click('#assessmentSaveBottom');await answerDialog(false);
   check(records[2].instructions==='Write your project explanation.'&&await evaluate('document.querySelector("#assessmentInstructions").value==="Corrected project instructions." && !document.querySelector("#assessmentFloatingActions").hidden'),'Canceling Save changes keeps the unsaved correction.');

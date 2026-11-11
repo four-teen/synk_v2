@@ -64,6 +64,20 @@ example, scores 1/4 and an unrecorded /15 quiz in a 20% component contribute
 `(1 + 0) / (4 + 15) × 20 = 1.052631...` to the period grade. The main table shows
 only the numerical component totals, period grade and rating.
 
+Nonzero score cells, component totals, period grades and semester results use
+a light green background. Zero and unrecorded scores keep the normal background.
+Rating and status cells follow the underlying grade so a 5.00 rating for a zero
+grade does not imply recorded work. Score inputs update their highlight as the
+professor types; clearing an LMS override shows the automatic score's highlight.
+
+Saving an entry, component assignment or score returns freshly calculated
+Midterm, Final and semester results together. The open overview refreshes from
+LMS every 30 seconds, when returning to the tab, and when changing periods.
+Refresh pauses during score entry, component assignment and open dialogs, so
+unsaved changes are preserved. Newly submitted linked assessments enter the
+calculation on the next refresh; newly published work appears in the work list
+and requires a component assignment before it contributes to grades.
+
 Midterm and Final are independent and can have entirely different components.
 The reference Gradesheet uses `(Midterm + Final) / 2`, so the semester summary
 uses 50% of each configured period grade. No semester average appears until

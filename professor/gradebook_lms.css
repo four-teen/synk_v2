@@ -77,7 +77,8 @@
 .gb-table th>strong{font-size:13px;font-weight:600;display:block}
 .gb-table small{display:block;font-size:11px;line-height:1.5;color:#7a8799;margin-top:3px;font-weight:400}
 .gb-table .gb-grade{background:#f7f6ff;font-weight:600;min-width:150px}
-.gb-pending{font-size:12px;font-weight:400;color:#95824f}
+.gb-table td.gb-has-score{background:#e6f5e9;color:#245a36}
+.gb-table td.gb-has-score .form-control,.gb-table td.gb-has-score .form-select{background-color:#effaf1;border-color:#abd5b4;color:#245a36}
 .gb-table-hint{font-size:11px;line-height:1.6;color:var(--gb-muted);padding:12px 20px;margin:0;border-top:1px solid var(--gb-line)}
 .gb-calculation{font-size:12px;line-height:1.8;color:var(--gb-muted);margin:22px 0}
 .gb-calculation summary{min-height:44px;padding:10px 0;cursor:pointer;color:#5f5b9e}

@@ -67,7 +67,7 @@
         delete element.dataset.assessmentWasDisabled;
       });
       if (state.draft && !$('assessmentEditor').hidden) toggleType();
-      $('assessmentAddQuestion').disabled = state.questions.length >= 100;
+      updateQuestionActions();
     }
     updateFloatingActions();
   }
@@ -152,6 +152,15 @@
     const total = state.questions.reduce((sum,item) => sum + Math.round((Number(item.points) || 0) * 100), 0) / 100;
     $('assessmentQuestionTotal').textContent = `${state.questions.length} questions / ${number(total)} points`;
   }
+  function updateQuestionActions() {
+    const assignment = $('assessmentType').value === 'assignment';
+    for (const id of ['assessmentAddQuestion','assessmentAddQuestionBottom']) {
+      $(id).hidden = assignment;
+      $(id).disabled = state.busy || state.questions.length >= 100;
+      $(id).parentElement.classList.toggle('has-question-action', !assignment);
+    }
+    $('assessmentQuestionsEmpty').hidden = assignment || state.questions.length > 0;
+  }
   function renderQuestions(focus = null) {
     $('assessmentQuestions').innerHTML = state.questions.map((item,index) => {
       const id = 'aq' + item.uid;
@@ -174,7 +183,7 @@
     }).join('');
     $('assessmentQuestions').querySelectorAll('[data-question]').forEach(updateQuestionPreview);
     totals();
-    $('assessmentAddQuestion').disabled = state.questions.length >= 100;
+    updateQuestionActions();
     if (focus !== null) $('assessmentQuestions').querySelector(`[data-question="${focus}"] [data-field="prompt"]`)?.focus();
   }
   function toggleType() {
@@ -186,6 +195,7 @@
     $('assessmentPoints').disabled = !assignment;
     $('assessmentTimer').hidden = assignment;
     $('assessmentTimeLimit').disabled = assignment;
+    updateQuestionActions();
   }
   function editorLabels() {
     const record = state.draft, live = ['published','closed'].includes(record.status);
@@ -296,10 +306,13 @@
     if (selected === 'assignment') { state.questions = []; renderQuestions(); }
     state.draft.assessment_type = selected; toggleType(); dirty();
   });
-  $('assessmentAddQuestion').addEventListener('click', () => {
-    syncQuestions(); if (state.questions.length >= 100) return;
+  function addQuestion() {
+    if (state.busy || $('assessmentType').value === 'assignment' || state.questions.length >= 100) return;
+    syncQuestions();
     state.questions.unshift(question()); renderQuestions(0); dirty();
-  });
+  }
+  $('assessmentAddQuestion').addEventListener('click', addQuestion);
+  $('assessmentAddQuestionBottom').addEventListener('click', addQuestion);
   $('assessmentQuestions').addEventListener('change', event => {
     if (!event.target.matches('[data-field="type"]')) return;
     const index = Number(event.target.closest('[data-question]').dataset.question);
