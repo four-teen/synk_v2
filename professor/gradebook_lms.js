@@ -9,11 +9,12 @@
   const hasScore=value=>Number.isFinite(Number(value))&&Number(value)>0;
   const valueCell=(value,content,classes='')=>`<td class="${classes}${hasScore(value)?' gb-has-score':''}">${content}</td>`;
   const labels={midterm:'Midterm',final:'Final',summary:'Semester summary'},fold=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const state={data:null,period:'midterm',busy:false,requestFailed:false,syncing:false,item:null,preview:null,editingItem:null,editPeriod:null,assignment:null,drafts:new Map(),originals:new Map(),changed:new Set(),loaded:false,returnToWork:false,afterItemClose:null,paste:null};
-  const dirty=()=>state.changed.size>0;
+  const state={data:null,period:'midterm',busy:false,requestFailed:false,syncing:false,item:null,preview:null,editingItem:null,editPeriod:null,assignment:null,drafts:new Map(),originals:new Map(),changed:new Set(),loaded:false,returnToWork:false,afterItemClose:null,paste:null,attendance:null};
+  const dirty=()=>state.changed.size>0||!!state.attendance?.dirty;
   const book=(period=state.period)=>state.data.periods[period];
   const modal=bootstrap.Modal.getOrCreateInstance($('gbItemModal'));
   const workModal=bootstrap.Modal.getOrCreateInstance($('gbWorkModal'));
+  const attendanceModal=bootstrap.Modal.getOrCreateInstance($('gbAttendanceModal'));
   let workModalReady=false;
   $('gbWorkModal').addEventListener('shown.bs.modal',()=>{workModalReady=true;});
   $('gbWorkModal').addEventListener('hidden.bs.modal',()=>{workModalReady=false;state.assignment=null;$('gbAssignmentForm').hidden=true;setTimeout(syncAvailableWork,0);});
@@ -43,7 +44,7 @@
     }
     $('gbLoadState').hidden=true;$('gbRetry').hidden=true;$('gbContent').hidden=false;renderOverview();
   });if(!state.data){$('gbLoadState').textContent='Unable to load the gradebook. Try again.';$('gbRetry').hidden=false;}}
-  function canSync(){return state.loaded&&!state.busy&&!dirty()&&!state.item&&!state.preview&&!state.assignment&&document.visibilityState==='visible'&&!document.querySelector('.modal.show,.modal-backdrop,.swal2-popup:not(.swal2-toast)');}
+  function canSync(){return state.loaded&&!state.busy&&!dirty()&&!state.item&&!state.preview&&!state.assignment&&!state.attendance&&document.visibilityState==='visible'&&!document.querySelector('.modal.show,.modal-backdrop,.swal2-popup:not(.swal2-toast)');}
   async function syncAvailableWork(){
     if(state.syncing||!canSync())return;
     state.syncing=true;const previous=state.data;
@@ -63,7 +64,7 @@
     root.querySelectorAll('[data-gb-period]').forEach(button=>{const active=button.dataset.gbPeriod===state.period;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);});
     const summary=state.period==='summary';$('gbPeriodTitle').textContent=summary?'Semester summary':labels[state.period]+' gradebook';
     $('gbResultsTitle').textContent=summary?'Midterm, Final & semester grade':'Student grades';
-    $('gbAdd').hidden=summary;$('gbAddManual').hidden=summary;
+    $('gbAdd').hidden=summary;$('gbAddManual').hidden=summary;$('gbAddAttendance').hidden=summary;
     const notice=$('gbSchemeNotice');notice.hidden=true;notice.innerHTML='';
     if(!summary){
       const b=book(),scheme=b.scheme,ready=scheme.components.length&&scheme.total_weight===100;
@@ -79,7 +80,7 @@
     $('gbWorkTitle').textContent=(summary?'All periods':labels[state.period])+' · Graded work';
     $('gbWorkTable').innerHTML=`<table class="gb-table gb-work-table"><caption class="visually-hidden">Graded work and component assignments</caption><thead><tr><th>Graded work</th>${summary?'<th>Period</th>':''}<th>Type</th><th>Max points</th><th>Grading component</th><th>Actions</th></tr></thead><tbody>${rows.map(row=>{
       const scheme=book(row.period).scheme,component=scheme.components.find(c=>c.component_id===row.component_id),ready=scheme.components.length&&scheme.total_weight===100;
-      return `<tr data-work-key="${row.key}"><th scope="row">${escape(row.title)}</th>${summary?`<td>${labels[row.period]}</td>`:''}<td>${row.entry_kind==='attendance'?'Attendance':row.entry_kind==='lms'?'LMS assessment':'Manual score'}</td><td>${number(row.max_points)}</td><td><button type="button" class="btn btn-outline-primary gb-assign-button" data-assign-work="${row.key}"${ready?'':' disabled'}>${component?escape(component.name):'Assign component'}<i class="bx bx-chevron-down" aria-hidden="true"></i></button></td><td><div class="gb-work-row-actions">${row.item_id?`<button type="button" class="btn btn-outline-primary" data-score-work="${row.key}">Enter scores</button><button type="button" class="gb-text-button" data-edit-work="${row.key}">Edit</button><button type="button" class="gb-text-button gb-danger" data-archive-work="${row.key}">Archive</button>`:`<button type="button" class="btn btn-outline-secondary" data-preview-work="${row.key}">View scores</button>`}</div></td></tr>`;
+      return `<tr data-work-key="${row.key}"><th scope="row">${escape(row.title)}${row.recorded_date?`<small>${escape(attendanceDate(row.recorded_date))}</small>`:''}</th>${summary?`<td>${labels[row.period]}</td>`:''}<td>${row.entry_kind==='attendance'?'Attendance':row.entry_kind==='lms'?'LMS assessment':'Manual score'}</td><td>${number(row.max_points)}</td><td><button type="button" class="btn btn-outline-primary gb-assign-button" data-assign-work="${row.key}"${ready?'':' disabled'}>${component?escape(component.name):'Assign component'}<i class="bx bx-chevron-down" aria-hidden="true"></i></button></td><td><div class="gb-work-row-actions">${row.item_id?`<button type="button" class="btn btn-outline-primary" data-score-work="${row.key}">${row.entry_kind==='attendance'?'Record attendance':'Enter scores'}</button><button type="button" class="gb-text-button" data-edit-work="${row.key}">Edit</button><button type="button" class="gb-text-button gb-danger" data-archive-work="${row.key}">Archive</button>`:`<button type="button" class="btn btn-outline-secondary" data-preview-work="${row.key}">View scores</button>`}</div></td></tr>`;
     }).join('')||`<tr><td colspan="${summary?6:5}">No graded work to show.</td></tr>`}</tbody></table>`;
     if(!state.assignment)$('gbAssignmentForm').hidden=true;
   }
@@ -121,6 +122,76 @@
     }).join('');
     $('gbResultsTable').innerHTML=`<table class="gb-table"><caption class="visually-hidden">${escape(labels[state.period])} student grades</caption><thead><tr><th scope="col">Student</th>${headers}</tr></thead><tbody>${rows||`<tr><td colspan="${summary?6:(b.scheme.components.length+3)}">${state.data.roster.length?'No matching students.':'No students are listed for this class.'}</td></tr>`}</tbody></table>`;
   }
+  function attendanceDate(date){return date?new Date(date+'T12:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'Undated';}
+  function attendanceSnapshot(){return JSON.stringify({component:$('gbAttendanceComponent').value,date:$('gbAttendanceDate').value,title:$('gbAttendanceName').value,present:[...$('gbAttendanceRoster').querySelectorAll('[data-attendance-student]:checked')].map(node=>node.dataset.attendanceStudent)});}
+  function openAttendance(id=0,period=state.period,fromWork=false){
+    const b=book(period),item=id?b.items.find(i=>i.item_id===id&&i.entry_kind==='attendance'):null;
+    if(id&&!item)return;
+    state.attendance={item_id:id,period,revision:revision(period),original:'',dirty:false,allowClose:false,fromWork,unrecorded:false};
+    $('gbAttendanceForm').reset();$('gbAttendanceForm').querySelectorAll('.is-invalid').forEach(node=>node.classList.remove('is-invalid'));
+    $('gbAttendanceTitle').textContent=id?'Edit attendance entry':'Add attendance entry';$('gbAttendancePeriod').textContent=labels[period]+' attendance';
+    const options=b.scheme.components.map(c=>`<option value="${c.component_id}">${escape(c.name)} · ${number(c.weight)}%</option>`).join('');
+    $('gbAttendanceComponent').innerHTML='<option value="">Choose grading component</option>'+options;
+    $('gbAttendanceComponent').value=item?.component_id||'';$('gbAttendanceDate').value=item?.recorded_date||config.today;$('gbAttendanceName').value=item?.title||'Attendance';
+    $('gbAttendanceHistoryComponent').innerHTML='<option value="">All components</option>'+options;$('gbAttendanceHistoryComponent').value=item?.component_id||'';
+    $('gbAttendanceSearch').value='';
+    $('gbAttendanceRoster').innerHTML=state.data.roster.map(student=>{
+      const score=b.scores[id]?.[student.student_id];if(id&&!score)state.attendance.unrecorded=true;
+      return `<div class="gb-attendance-row" data-attendance-row data-search="${escape(fold(student.full_name+' '+student.student_number))}"><div>${person(student)}</div><label class="gb-attendance-check"><input type="checkbox" class="form-check-input" data-attendance-student="${student.student_id}"${Number(score?.points)===1?' checked':''} aria-label="Present: ${escape(student.full_name)}"><span>Present</span></label></div>`;
+    }).join('')||'<p class="gb-help gb-attendance-no-roster">No students are listed for this class.</p>';
+    state.attendance.original=attendanceSnapshot();filterAttendance();renderAttendanceHistory();showAttendanceTab(false);updateAttendanceState();attendanceModal.show();
+  }
+  function filterAttendance(){
+    const words=fold($('gbAttendanceSearch').value.trim()).split(/\s+/).filter(Boolean);let shown=0;
+    $('gbAttendanceRoster').querySelectorAll('[data-attendance-row]').forEach(row=>{row.hidden=!words.every(word=>row.dataset.search.includes(word));if(!row.hidden)shown++;});
+    $('gbAttendanceFilterState').textContent=words.length?`${shown} of ${state.data.roster.length} students shown. Totals and bulk actions include the whole class.`:'';
+    $('gbAttendanceEmpty').hidden=shown>0||!state.data.roster.length;
+  }
+  function updateAttendanceState(){
+    const attendance=state.attendance;if(!attendance)return;
+    attendance.dirty=attendance.original!==attendanceSnapshot();
+    const history=!$('gbAttendanceHistory').hidden,total=state.data.roster.length,present=$('gbAttendanceRoster').querySelectorAll('[data-attendance-student]:checked').length;
+    $('gbAttendanceTotals').textContent=history?'Attendance totals for '+labels[attendance.period]:`${present} present · ${total-present} absent when saved`;
+    $('gbAttendanceSaveState').textContent=history?'Only saved attendance entries are included.':state.busy&&!state.requestFailed?'Saving attendance…':attendance.dirty?'Unsaved attendance changes':attendance.item_id&&!attendance.unrecorded?'All changes saved':'Ready to record this class';
+    $('gbSaveAttendance').hidden=history;$('gbSaveAttendance').disabled=state.busy||!total||(!!attendance.item_id&&!attendance.dirty&&!attendance.unrecorded);
+    $('gbAttendanceMarkAll').disabled=$('gbAttendanceClearAll').disabled=state.busy||!total;
+  }
+  function showAttendanceTab(history,focus=false){
+    $('gbAttendanceRecord').hidden=history;$('gbAttendanceHistory').hidden=!history;
+    for(const [id,active] of [['gbAttendanceRecordTab',!history],['gbAttendanceHistoryTab',history]]){const tab=$(id);tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;if(active&&focus)tab.focus();}
+    if(history)renderAttendanceHistory();updateAttendanceState();
+  }
+  function renderAttendanceHistory(){
+    if(!state.attendance)return;
+    const b=book(state.attendance.period),component=Number($('gbAttendanceHistoryComponent').value),all=b.items.filter(i=>i.entry_kind==='attendance');
+    const entries=all.filter(i=>!component||i.component_id===component).sort((a,b)=>(a.recorded_date||'').localeCompare(b.recorded_date||'')||a.item_id-b.item_id);
+    $('gbAttendanceHistoryCount').textContent=all.length;$('gbAttendanceHistoryTitle').textContent=entries.length+' recorded '+(entries.length===1?'attendance entry':'attendance entries');
+    $('gbAttendanceHistoryTable').innerHTML=entries.length?`<table class="gb-table gb-attendance-history-table"><caption class="visually-hidden">${labels[state.attendance.period]} attendance history</caption><thead><tr><th scope="col">Student</th>${entries.map(i=>`<th scope="col"><button type="button" class="gb-text-button" data-attendance-edit="${i.item_id}">${escape(attendanceDate(i.recorded_date))}<small>${escape(i.title)}</small></button></th>`).join('')}<th scope="col">Present</th><th scope="col">Absent</th><th scope="col">Recorded</th><th scope="col">Attendance %</th></tr></thead><tbody>${state.data.roster.map(student=>{
+      let present=0,absent=0;const cells=entries.map(i=>{const score=b.scores[i.item_id]?.[student.student_id],recorded=score!==undefined,p=recorded&&Number(score.points)===1;if(p)present++;else if(recorded)absent++;return `<td><span class="gb-attendance-mark${recorded?(p?' is-present':' is-absent'):''}">${recorded?(p?'P':'A'):'—'}</span></td>`;}).join('');
+      return `<tr><th scope="row">${person(student)}</th>${cells}<td><strong>${present}</strong></td><td>${absent}</td><td>${present+absent}</td><td>${percent(present/entries.length*100)}</td></tr>`;
+    }).join('')}</tbody></table>`:'<p class="gb-attendance-no-roster">No saved attendance entries for this selection.</p>';
+  }
+  async function saveAttendance(event){
+    event.preventDefault();const attendance=state.attendance;
+    if(!attendance||state.busy||$('gbAttendanceRecord').hidden||!$('gbAttendanceForm').reportValidity())return;
+    const b=book(attendance.period),scores=[...$('gbAttendanceRoster').querySelectorAll('[data-attendance-student]')].map(node=>{const student=Number(node.dataset.attendanceStudent);return {student_id:student,points:node.checked?1:0,remark:b.scores[attendance.item_id]?.[student]?.remark||''};});
+    const payload={...attendance.revision,item_id:attendance.item_id,component_id:Number($('gbAttendanceComponent').value),title:$('gbAttendanceName').value,recorded_date:$('gbAttendanceDate').value,scores};
+    await task(async()=>{state.data=await api('save_attendance',payload);attendance.original=attendanceSnapshot();attendance.dirty=false;attendance.allowClose=true;renderOverview();attendanceModal.hide();feedback.toast('Attendance saved. Component totals and grades recalculated.');});
+  }
+  $('gbAttendanceModal').addEventListener('hide.bs.modal',event=>{
+    const attendance=state.attendance;if(!attendance)return;
+    if(state.busy&&!attendance.allowClose){event.preventDefault();return;}
+    if(attendance.dirty&&!attendance.allowClose){event.preventDefault();feedback.confirm({title:'Discard unsaved attendance?',text:'Your attendance changes have not been saved.',confirmText:'Discard changes',cancelText:'Keep editing'}).then(discard=>{if(discard&&state.attendance===attendance){attendance.allowClose=true;attendanceModal.hide();}});}
+  });
+  $('gbAttendanceModal').addEventListener('hidden.bs.modal',()=>{const fromWork=state.attendance?.fromWork;state.attendance=null;if(fromWork)openWork();else setTimeout(syncAvailableWork,0);});
+  $('gbAttendanceForm').addEventListener('submit',saveAttendance);feedback.validation($('gbAttendanceForm'));
+  $('gbAttendanceForm').addEventListener('input',updateAttendanceState);$('gbAttendanceForm').addEventListener('change',updateAttendanceState);
+  $('gbAttendanceSearch').addEventListener('input',filterAttendance);
+  for(const [id,present] of [['gbAttendanceMarkAll',true],['gbAttendanceClearAll',false]])$(id).addEventListener('click',()=>{if(state.busy)return;$('gbAttendanceRoster').querySelectorAll('[data-attendance-student]').forEach(node=>{node.checked=present;});updateAttendanceState();});
+  $('gbAttendanceRecordTab').addEventListener('click',()=>showAttendanceTab(false));$('gbAttendanceHistoryTab').addEventListener('click',()=>showAttendanceTab(true));
+  $('gbAttendanceModal').querySelector('[role="tablist"]').addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();showAttendanceTab(event.key==='End'||(event.key!=='Home'&&$('gbAttendanceHistory').hidden),true);}});
+  $('gbAttendanceHistoryComponent').addEventListener('change',renderAttendanceHistory);
+  $('gbAttendanceHistoryTable').addEventListener('click',async event=>{const button=event.target.closest('[data-attendance-edit]'),attendance=state.attendance;if(!button||!attendance||state.busy)return;if(attendance.dirty&&!await feedback.confirm({title:'Discard unsaved attendance?',text:'Open this saved entry and discard your unsaved changes?',confirmText:'Open saved entry',cancelText:'Keep editing'}))return;openAttendance(Number(button.dataset.attendanceEdit),attendance.period,attendance.fromWork);});
   function itemPeriodFields(period){
     const b=book(period),item=state.editingItem;state.editPeriod=period;
     $('gbItemComponent').innerHTML='<option value="">Choose grading component</option>'+b.scheme.components.map(c=>`<option value="${c.component_id}">${escape(c.name)} · ${number(c.weight)}%</option>`).join('');
@@ -211,7 +282,8 @@
     $('gbSaveScores').disabled=state.busy||!dirty()||!!invalid;
     $('gbSaveState').textContent=state.busy&&state.item&&!state.requestFailed?'Saving changes…':dirty()?state.changed.size+' unsaved '+(state.changed.size===1?'student':'students'):'All changes saved';
     if(state.item){const recorded=[...state.drafts.keys()].filter(id=>scoreRecorded(id)).length,total=state.drafts.size;$('gbScoreProgress').textContent=recorded+' of '+total+' recorded · '+(total-recorded)+' unrecorded'+(invalid?' · '+invalid+' to correct':'');}
-    if(state.data){const ready=state.period!=='summary'&&book().scheme.components.length&&book().scheme.total_weight===100;$('gbAdd').disabled=$('gbAddManual').disabled=state.busy||!ready;}
+    if(state.data){const ready=state.period!=='summary'&&book().scheme.components.length&&book().scheme.total_weight===100;$('gbAdd').disabled=$('gbAddManual').disabled=$('gbAddAttendance').disabled=state.busy||!ready;}
+    updateAttendanceState();
   }
   async function leaveScores(reopen=true){if(dirty()&&!await feedback.confirm({title:'Discard unsaved scores?',text:'Your latest score changes have not been saved.',confirmText:'Discard changes',cancelText:'Keep editing'}))return false;closePaste();state.changed.clear();state.item=null;$('gbScoreEditor').hidden=true;$('gbOverview').hidden=false;updateSaveState();if(reopen)openWork();return true;}
   async function saveScores(){
@@ -284,8 +356,8 @@
     if(action){
       const key=action.dataset.assignWork||action.dataset.scoreWork||action.dataset.editWork||action.dataset.archiveWork||action.dataset.previewWork,row=workRows().find(row=>row.key===key);if(!row)return;
       if(action.dataset.assignWork)assignWork(key);
-      if(action.dataset.scoreWork)afterWorkClosed(()=>openScores(row.item_id,row.period));
-      if(action.dataset.editWork)afterWorkClosed(()=>editItem(row.item_id,row.period));
+      if(action.dataset.scoreWork)afterWorkClosed(()=>row.entry_kind==='attendance'?openAttendance(row.item_id,row.period,true):openScores(row.item_id,row.period));
+      if(action.dataset.editWork)afterWorkClosed(()=>row.entry_kind==='attendance'?openAttendance(row.item_id,row.period,true):editItem(row.item_id,row.period));
       if(action.dataset.previewWork)afterWorkClosed(()=>previewAssessment(row.assessment_id));
       if(action.dataset.archiveWork&&await feedback.confirm({title:'Archive this entry?',text:'It will be excluded from grades. Scores and the change history remain stored.',confirmText:'Archive entry',cancelText:'Keep entry',danger:true}))await task(async()=>{state.data=await api('archive_item',{...revision(row.period),item_id:row.item_id});renderOverview();feedback.toast('Entry archived.');});
     }
@@ -295,6 +367,7 @@
   $('gbItemKind').addEventListener('change',updateItemType);$('gbItemAssessment').addEventListener('change',updateItemType);
   $('gbItemPeriod').addEventListener('change',()=>{itemPeriodFields($('gbItemPeriod').value);updateItemType();});
   $('gbAddManual').addEventListener('click',()=>{if(!state.busy&&state.period!=='summary')editItem(0,state.period,true,false);});
+  $('gbAddAttendance').addEventListener('click',()=>{if(!state.busy&&state.period!=='summary')openAttendance();});
   $('gbOpenWork').addEventListener('click',openWork);$('gbAdd').addEventListener('click',()=>afterWorkClosed(()=>editItem()));$('gbReload').addEventListener('click',load);$('gbRetry').addEventListener('click',load);
   $('gbAssignmentForm').addEventListener('submit',saveAssignment);feedback.validation($('gbAssignmentForm'));
   $('gbAssignmentCancel').addEventListener('click',()=>{state.assignment=null;$('gbAssignmentForm').hidden=true;});$('gbWorkSearch').addEventListener('input',renderWork);
@@ -303,7 +376,7 @@
   $('gbScoreSearch').addEventListener('input',filterScores);
   $('gbScoreBack').addEventListener('click',()=>leaveScores());$('gbSaveScores').addEventListener('click',saveScores);
   $('gbMarkPresent').addEventListener('click',async()=>{const unmarked=[...state.drafts.values()].filter(d=>String(d.points)==='');if(!unmarked.length)return;if(!await feedback.confirm({title:'Mark unrecorded students present?',text:`This will mark ${unmarked.length} unrecorded students present across the whole roster. Recorded absences stay unchanged. Save scores to record these changes.`,confirmText:'Mark present',cancelText:'Cancel'}))return;unmarked.forEach(d=>{d.points='1';const input=$('gbScoreTable').querySelector(`[data-gb-input="${d.student_id}"]`);input.value='1';changedDraft(d.student_id);});updateSaveState();});
-  feedback.guardNavigation(dirty,()=>state.changed.clear(),'Your unsaved scores will be discarded. Save scores before leaving.');
+  feedback.guardNavigation(dirty,()=>{state.changed.clear();state.attendance=null;},'Your unsaved scores or attendance will be discarded. Save your changes before leaving.');
   window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault();event.returnValue='';}});
   window.addEventListener('focus',syncAvailableWork);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncAvailableWork();});

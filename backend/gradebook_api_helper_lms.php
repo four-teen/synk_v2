@@ -3,6 +3,36 @@ require_once __DIR__.'/db_lms.php';
 require_once __DIR__.'/professor_class_helper_lms.php';
 require_once __DIR__.'/gradebook_helper_lms.php';
 
+function synk_gradebook_validate_scores_lms(array $entries, array $students, array $item, bool $attendanceSheet = false): array
+{
+    if (!$entries || count($entries)>1000 || array_values($entries)!==$entries) throw new DomainException('Save between 1 and 1,000 student scores at a time.',422);
+    $validated=[];
+    foreach ($entries as $entry) {
+        if (!is_array($entry) || array_diff(array_keys($entry),['student_id','points','remark'])) throw new DomainException('Enter a valid student score.',422);
+        $studentId=synk_grading_integer_lms($entry['student_id']??null);
+        if (!isset($students[$studentId])) throw new DomainException('A student is not in this class roster. Reload the gradebook.',422);
+        if (isset($validated[$studentId])) throw new DomainException('A student can appear only once in a score save.',422);
+        $points=$entry['points']??null;
+        if ($points==='') $points=null;
+        if ($points!==null) $points=synk_gradebook_points_lms($points)/100;
+        if ($attendanceSheet && $points===null) throw new DomainException('Mark every student present or absent before saving attendance.',422);
+        if ($points!==null && $points>$item['max_points']) throw new DomainException('A score cannot exceed this entry\'s maximum points.',422);
+        if ($points!==null && $item['entry_kind']==='attendance' && $points!=0 && $points!=1) throw new DomainException('Attendance is present = 1 or absent = 0. Leave unmarked attendance blank.',422);
+        $remark=synk_grading_text_lms($entry['remark']??'','Score note',1000);
+        if ($points!==null && $item['entry_kind']==='lms' && $remark==='') throw new DomainException('Add a note when manually grading or overriding an LMS result.',422);
+        $validated[$studentId]=['student_id'=>$studentId,'points'=>$points,'remark'=>$remark];
+    }
+    if ($attendanceSheet && count($validated)!==count($students)) throw new DomainException('The class roster changed. Reload before recording attendance; every current student must be included.',422);
+    return $validated;
+}
+function synk_gradebook_write_scores_lms(mysqli $lms, int $itemId, array $entries, int $actor, string $now): void
+{
+    foreach ($entries as $entry) {
+        if ($entry['points']===null) synk_grading_query_lms($lms,'DELETE FROM tbl_lms_gradebook_scores WHERE item_id=? AND student_id=?','ii',[$itemId,$entry['student_id']]);
+        else synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_scores (item_id,student_id,points,remark,actor_user_id,updated_at) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE points=VALUES(points),remark=VALUES(remark),actor_user_id=VALUES(actor_user_id),updated_at=VALUES(updated_at)','iidsis',[$itemId,$entry['student_id'],$entry['points'],$entry['remark'],$actor,$now]);
+    }
+}
+
 function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, string $action, array $payload, int $actor): array
 {
     $period=synk_grading_period_lms($payload['grading_period']??null);
@@ -15,17 +45,18 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
         $book['book_id']=(int)$lms->insert_id;
     }
     $items=synk_gradebook_items_lms($lms,$book['book_id']);$itemMap=array_column($items,null,'item_id');$components=array_column($scheme['components'],null,'component_id');
-    if ($action==='save_item') {
+    if ($action==='save_item' || $action==='save_attendance') {
         $id=synk_grading_integer_lms($payload['item_id']??0);$before=$itemMap[$id]??null;
         if ($id && !$before) throw new DomainException('This entry is unavailable in this gradebook.',404);
         if (!$id && count($items)>=300) throw new DomainException('A period can contain up to 300 active entries.',422);
         $component=synk_grading_integer_lms($payload['component_id']??null);
         if (!isset($components[$component])) throw new DomainException('Choose a component from this period\'s grading system.',422);
-        $kind=$before?$before['entry_kind']:($payload['entry_kind']??'');
+        $kind=$before?$before['entry_kind']:($action==='save_attendance'?'attendance':($payload['entry_kind']??''));
+        if ($action==='save_attendance' && $kind!=='attendance') throw new DomainException('Choose an attendance entry from this grading period.',422);
         if (!is_string($kind) || !in_array($kind,['score','attendance','lms'],true)) throw new DomainException('Choose a manual score, attendance, or LMS assessment.',422);
         $title=synk_grading_text_lms($payload['title']??'','Entry title',200,true);
         $assessment=$before?$before['assessment_id']:null;
-        $max=synk_gradebook_points_lms($payload['max_points']??null,false)/100;
+        $max=$action==='save_attendance'?1:synk_gradebook_points_lms($payload['max_points']??null,false)/100;
         if ($kind==='lms') {
             if ($before) $max=$before['max_points'];
             else {
@@ -42,10 +73,17 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
         }
         $date=$payload['recorded_date']??null;
         if ($date==='') $date=null;
+        if ($action==='save_attendance' && $date===null) throw new DomainException('Choose the attendance date.',422);
         if ($date!==null) {
             if (!is_string($date)) throw new DomainException('Enter a valid entry date.',422);
             $parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
             if (!$parsed || $parsed->format('Y-m-d')!==$date || substr($date,0,4)<'2000' || substr($date,0,4)>'2100') throw new DomainException('Enter a valid entry date between 2000 and 2100.',422);
+        }
+        if ($action==='save_attendance') {
+            if (!is_array($payload['scores']??null)) throw new DomainException('Include the class attendance sheet.',422);
+            $students=array_column(synk_gradebook_roster_lms($core,$context),null,'student_id');
+            $validated=synk_gradebook_validate_scores_lms($payload['scores'],$students,['entry_kind'=>'attendance','max_points'=>1],true);
+            $previousScores=$id?synk_grading_query_lms($lms,'SELECT student_id,points,remark FROM tbl_lms_gradebook_scores WHERE item_id=?','i',[$id]):[];
         }
         if ($id) synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_items SET component_id=?,title=?,max_points=?,recorded_date=?,updated_at=? WHERE item_id=? AND book_id=?','isdssii',[$component,$title,$max,$date,$now,$id,$book['book_id']]);
         else {
@@ -53,6 +91,10 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
             $id=(int)$lms->insert_id;
         }
         $details=['before'=>$before,'after'=>['item_id'=>$id,'component_id'=>$component,'title'=>$title,'entry_kind'=>$kind,'assessment_id'=>$assessment,'max_points'=>$max,'recorded_date'=>$date]];
+        if ($action==='save_attendance') {
+            synk_gradebook_write_scores_lms($lms,$id,$validated,$actor,$now);
+            $details['scores']=['before'=>$previousScores,'after'=>array_values($validated)];
+        }
     } elseif ($action==='archive_item') {
         $id=synk_grading_integer_lms($payload['item_id']??null);
         if (!isset($itemMap[$id])) throw new DomainException('This entry is unavailable in this period.',404);
@@ -63,26 +105,10 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
         if (!isset($itemMap[$id])) throw new DomainException('This entry is unavailable in this period.',404);
         $item=$itemMap[$id];$students=array_column(synk_gradebook_roster_lms($core,$context),null,'student_id');
         $entries=$payload['scores']??null;
-        if (!is_array($entries) || !$entries || count($entries)>1000 || array_values($entries)!==$entries) throw new DomainException('Save between 1 and 1,000 student scores at a time.',422);
-        $before=synk_grading_query_lms($lms,'SELECT student_id,points,remark FROM tbl_lms_gradebook_scores WHERE item_id=?','i',[$id]);$validated=[];
-        foreach ($entries as $entry) {
-            if (!is_array($entry) || array_diff(array_keys($entry),['student_id','points','remark'])) throw new DomainException('Enter a valid student score.',422);
-            $studentId=synk_grading_integer_lms($entry['student_id']??null);
-            if (!isset($students[$studentId])) throw new DomainException('A student is not in this class roster. Reload the gradebook.',422);
-            if (isset($validated[$studentId])) throw new DomainException('A student can appear only once in a score save.',422);
-            $points=$entry['points']??null;
-            if ($points==='') $points=null;
-            if ($points!==null) $points=synk_gradebook_points_lms($points)/100;
-            if ($points!==null && $points>$item['max_points']) throw new DomainException('A score cannot exceed this entry\'s maximum points.',422);
-            if ($points!==null && $item['entry_kind']==='attendance' && $points!=0 && $points!=1) throw new DomainException('Attendance is present = 1 or absent = 0. Leave unmarked attendance blank.',422);
-            $remark=synk_grading_text_lms($entry['remark']??'','Score note',1000);
-            if ($points!==null && $item['entry_kind']==='lms' && $remark==='') throw new DomainException('Add a note when manually grading or overriding an LMS result.',422);
-            $validated[$studentId]=['student_id'=>$studentId,'points'=>$points,'remark'=>$remark];
-        }
-        foreach ($validated as $entry) {
-            if ($entry['points']===null) synk_grading_query_lms($lms,'DELETE FROM tbl_lms_gradebook_scores WHERE item_id=? AND student_id=?','ii',[$id,$entry['student_id']]);
-            else synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_scores (item_id,student_id,points,remark,actor_user_id,updated_at) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE points=VALUES(points),remark=VALUES(remark),actor_user_id=VALUES(actor_user_id),updated_at=VALUES(updated_at)','iidsis',[$id,$entry['student_id'],$entry['points'],$entry['remark'],$actor,$now]);
-        }
+        if (!is_array($entries)) throw new DomainException('Include the student scores.',422);
+        $validated=synk_gradebook_validate_scores_lms($entries,$students,$item);
+        $before=synk_grading_query_lms($lms,'SELECT student_id,points,remark FROM tbl_lms_gradebook_scores WHERE item_id=?','i',[$id]);
+        synk_gradebook_write_scores_lms($lms,$id,$validated,$actor,$now);
         $details=['item_id'=>$id,'before'=>$before,'after'=>array_values($validated)];
     } elseif ($action==='use_latest_scheme') {
         $latest=$book['latest_scheme'];$latestIds=array_column($latest['components'],null,'component_id');
@@ -94,7 +120,7 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
     $version=$book['version']+1;
     synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_periods SET version=?,updated_at=? WHERE book_id=?','isi',[$version,$now,$book['book_id']]);
     synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_logs (book_id,actor_user_id,version,action,details_json,recorded_at) VALUES (?,?,?,?,?,?)','iiisss',[$book['book_id'],$actor,$version,$action,json_encode($details,JSON_UNESCAPED_UNICODE),$now]);
-    return $action==='save_item'?['saved_item_id'=>$id]:[];
+    return in_array($action,['save_item','save_attendance'],true)?['saved_item_id'=>$id]:[];
 }
 function synk_gradebook_request_lms(mysqli $core, array $input): array
 {
@@ -103,11 +129,12 @@ function synk_gradebook_request_lms(mysqli $core, array $input): array
     if (array_diff(array_keys($input),['action','context','payload','csrf_token'])) throw new DomainException('This request contains unsupported gradebook fields.',400);
     if (!is_array($input['context']??null) || ($input['context']['view']??'')!=='gradebook') throw new DomainException('Open Grade Book from your class workspace.',403);
     $action=$input['action']??null;
-    if (!is_string($action) || !in_array($action,['get','save_item','archive_item','save_scores','use_latest_scheme'],true)) throw new DomainException('Choose an available gradebook action.',400);
+    if (!is_string($action) || !in_array($action,['get','save_item','save_attendance','archive_item','save_scores','use_latest_scheme'],true)) throw new DomainException('Choose an available gradebook action.',400);
     $context=synk_professor_class_context_lms($core,$input['context']);$lms=synk_database_connection_lms($core);
     if (!synk_gradebook_ready_lms($lms)) throw new DomainException('The gradebook storage is not ready yet. Contact your administrator.',503);
     $payload=$input['payload']??[];
     $fields=['get'=>[],'save_item'=>['grading_period','version','scheme_version','item_id','component_id','title','entry_kind','assessment_id','max_points','recorded_date'],'archive_item'=>['grading_period','version','scheme_version','item_id'],'save_scores'=>['grading_period','version','scheme_version','item_id','scores'],'use_latest_scheme'=>['grading_period','version','scheme_version']];
+    $fields['save_attendance']=['grading_period','version','scheme_version','item_id','component_id','title','recorded_date','scores'];
     if (!is_array($payload) || array_diff(array_keys($payload),$fields[$action])) throw new DomainException('Enter valid gradebook details.',400);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin the gradebook request.');
     try {
