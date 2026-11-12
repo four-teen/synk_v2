@@ -1,5 +1,20 @@
 # Professor class overview
 
+Class views share a compact, full-width navigation bar with square outer corners
+and icons above five short labels: Overview, Students, Activities, Grading and
+Grade Book. The current view shows only its centered icon in a circle using the
+disabled primary button's lavender tint, seated in a smooth curved recess in the
+white bar. The selected link retains its full accessible name.
+The recess uses a concentric circular arc with a consistent 4px gap around the
+selected circle and mirrored shoulders. Separate unscaled SVG geometry matches
+the desktop, phone and narrow-phone circle sizes to preserve equal spacing.
+The bar is 48px tall on desktop and 44px on phones, with 44px minimum touch
+targets. All five links stay in one row on desktop and phones,
+retain their signed class URLs and full accessible names, and expose the selected
+view through `aria-current="page"`. Focus outlines and reduced motion remain
+available. The class-page header keeps the academic-term badge and profile
+controls while omitting the Professor Portal and Manage Class badges.
+
 Manage Class shows six cards, with three columns on desktop, two on tablet, and
 one on phones. Students, Activities & assessments, Manage Grading System and Grade Book open
 their existing signed class views. The entire card is clickable and keyboard

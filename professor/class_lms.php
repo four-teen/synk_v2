@@ -61,7 +61,7 @@ try {
 }
 $professorPortalDisplayName = $portal['faculty_name'] ?? (string)($_SESSION['username'] ?? 'Professor');
 $professorPortalDisplayEmail = $portal['email'] ?? (string)($_SESSION['email'] ?? '');
-$professorPortalFacultyStatusLabel = 'Manage Class';
+$professorPortalCompactHeader = true;
 $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semester_label']) : '';
 ?>
 <!DOCTYPE html>
@@ -109,12 +109,17 @@ $termLabel = $class ? trim($class['academic_year_label'] . ' / ' . $class['semes
               <span class="class-lms-enrollment"><strong><?= (int)$class['student_count'] ?></strong> enrolled</span>
             </div>
           </header>
-          <nav class="class-lms-tabs" aria-label="Class workspace views">
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class)) ?>"<?= $view==='overview'?' aria-current="page"':'' ?>><i class="bx bx-grid-alt" aria-hidden="true"></i>Class overview</a>
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>"<?= $view==='students'?' aria-current="page"':'' ?>><i class="bx bx-group" aria-hidden="true"></i>Students</a>
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'assessments')) ?>"<?= $view==='assessments'?' aria-current="page"':'' ?>><i class="bx bx-task" aria-hidden="true"></i>Activities &amp; assessments</a>
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>"<?= $view==='grading'?' aria-current="page"':'' ?>><i class="bx bx-slider-alt" aria-hidden="true"></i>Grading system</a>
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>"<?= $view==='gradebook'?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i>Grade Book</a>
+          <nav class="class-lms-tabs" aria-label="Class workspace views" style="--class-lms-active-x: <?= ['overview'=>10,'students'=>30,'assessments'=>50,'grading'=>70,'gradebook'=>90][$view] ?>%">
+            <span class="class-lms-tab-surface" aria-hidden="true">
+              <svg class="class-lms-notch-desktop" viewBox="0 0 84 48" preserveAspectRatio="xMidYMin meet" focusable="false"><path d="M0 0 C6 0 10 0 10 6 A32 32 0 0 0 74 6 C74 0 78 0 84 0 V48 H0 Z" fill="white"/></svg>
+              <svg class="class-lms-notch-mobile" viewBox="0 0 76 44" preserveAspectRatio="xMidYMin meet" focusable="false"><path d="M0 0 C5 0 8 0 8 4 A30 30 0 0 0 68 4 C68 0 71 0 76 0 V44 H0 Z" fill="white"/></svg>
+              <svg class="class-lms-notch-small" viewBox="0 0 66 44" preserveAspectRatio="xMidYMin meet" focusable="false"><path d="M0 0 C3 0 6 0 6 4 A27 27 0 0 0 60 4 C60 0 63 0 66 0 V44 H0 Z" fill="white"/></svg>
+            </span>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class)) ?>" aria-label="Class overview"<?= $view==='overview'?' aria-current="page"':'' ?>><i class="bx bx-grid-alt" aria-hidden="true"></i><span>Overview</span></a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>" aria-label="Students"<?= $view==='students'?' aria-current="page"':'' ?>><i class="bx bx-group" aria-hidden="true"></i><span>Students</span></a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'assessments')) ?>" aria-label="Activities and assessments"<?= $view==='assessments'?' aria-current="page"':'' ?>><i class="bx bx-task" aria-hidden="true"></i><span>Activities</span></a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>" aria-label="Grading system"<?= $view==='grading'?' aria-current="page"':'' ?>><i class="bx bx-slider-alt" aria-hidden="true"></i><span>Grading</span></a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>" aria-label="Grade Book"<?= $view==='gradebook'?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i><span>Grade Book</span></a>
           </nav>
           <?php if ($view === 'students'): ?>
             <section class="card class-lms-panel" aria-labelledby="class-lms-students-title">

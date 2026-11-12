@@ -13,6 +13,41 @@ its students and historical scores are not imported.
 
 ## Entries and scores
 
+**Add manual entry** opens a short form for face-to-face work under any saved
+grading component. The selected Midterm or Final period is preselected; the
+professor can choose another configured period before creating the entry.
+**Create and enter scores** saves the title, component, maximum and optional
+date, then opens the full class roster for that exact new entry. The server
+returns its saved item ID so concurrent entries cannot open the wrong roster.
+
+Score encoding supports Enter to move to the next visible student and Shift +
+Enter to move back. Name/number search filters the roster without changing its
+order. Progress counts the entire class and distinguishes blank/unrecorded
+scores from recorded zeros. Invalid or excessive scores are flagged beside the
+input and block saving. Notes stay collapsed until needed; LMS overrides still
+require a note. Reverting an edit to its saved value clears its unsaved state.
+
+**Paste scores from Excel** accepts a single score column in full-roster order,
+starting with an explicitly selected student. The preview shows each student,
+current score, proposed score and replacement or validation status. Blank lines
+preserve current scores while retaining their positions. Extra columns, invalid
+scores and rows extending past the roster block application. Applying the
+preview updates the local score table only; **Save scores** records the changes.
+Pasting a multiline column into a manual score input opens the same preview,
+starting with that student. Search filters do not alter paste mapping.
+Editing scores after a preview invalidates it so the current-score comparison
+must be reviewed again. Saving with an unapplied paste asks the professor to
+apply or close it first.
+
+`tests/manual-entry_lms_browser.js` runs through the connected browser with
+intercepted mutations in its own test tab. Prepare its HTML and JSON using
+`php tests/gradebook_lms.php --render` with absolute output paths ending in
+`.tmp/manual-entry_lms.html` and `.tmp/manual-entry_lms.json`. The PHP fixtures
+roll back; the browser checks creation, period/component selection, keyboard
+entry, zero handling, validation, paste previews, save failure recovery,
+corrections, mobile widths, attendance and LMS override notes without production
+writes.
+
 **Open graded work** opens a wide table modal. Its button counts all active
 manual entries and published/closed LMS assessments in the selected period,
 including work not yet assigned to a component. The semester summary opens work
@@ -48,6 +83,52 @@ write synthetic zero records or overwrite submissions.
 Entry title, component, date and manual maximum can be edited. The maximum
 cannot drop below an existing score. Archive excludes an entry from calculation
 and retains its record, score rows and audit history.
+
+## Print grade sheet
+
+**Print grade sheet** opens a separate print preview using the supplied
+GRADESHEET.docx layout and its original university seal, Bagong Pilipinas logo,
+and stationery. The seven columns contain family-first student names,
+program/year/section, Midterm percentage, Final percentage, semester average,
+numerical rating, and remark. The name column uses 34% of the table width so the
+current class's full names fit on one line at the existing font size.
+All grades come from the same LMS semester summary;
+the sample student and sample 1.75 rating in the Word file are never imported.
+The legend uses the existing LMS 96–98 band for 1.25, correcting the document's
+overlapping 96–93 typo.
+
+The preview includes the complete named roster, regardless of gradebook search
+or selected period, on 8.5 × 13 inch portrait sheets. The date, GRADESHEET title,
+campus, semester/year, course and professor appear only on the first sheet.
+Each sheet repeats the university letterhead, column headers and institutional
+footer. Pagination measures the actual printed row heights and fills each sheet
+before continuing, including the space freed by omitting the first-sheet heading.
+Exactly one blank row separates the final student from the summary. No other
+blank student rows are inserted. If the closing section needs another sheet,
+the last student moves with it to keep the record, separator and summary together.
+Only the final sheet includes the whole-class summary totals,
+signatures, legend, Dean's approval and acknowledgement receipt. The receipt uses
+the Word template's thin dash-dot frame, 10-point Arial, blank Date/Time areas,
+By line and centered representative label. The institutional footer retains its
+centered black 6-point Arial, original paragraph breaks and pipe separators.
+An unconfigured period prints blank. Configured periods retain the gradebook's zero-score rule.
+The date uses Asia/Manila. Printing is blocked during score saves or unsaved edits.
+
+Program/year/section is read from matching active class enrollment, including
+merged offerings and enrollment rows without an offering ID. Sex is read only
+from approved enrollment for the same academic year and semester. If any student
+has no recorded sex, Male/Female totals print as unavailable; the explanation
+appears only in the preview toolbar, outside the printed form. The class total
+always includes every named student. No sex is inferred from names.
+
+The print endpoint revalidates the professor's active account, role, faculty link,
+assignment, and signed Grade Book context. It does not write grade records or
+introduce report tables. All implementation stays in LMS-specific files; shared
+academic settings, workloads, scheduling, and Management are unchanged.
+
+Validation: `php tests/gradesheet_lms.php` checks printed grade parity, null/zero
+handling, names, pagination, enrollment metadata, membership and signed access,
+with all database fixtures rolled back.
 
 ## Calculation
 

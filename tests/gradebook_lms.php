@@ -31,14 +31,15 @@ try {
     $context=synk_professor_class_context_lms($conn,$params);$student=(int)$fixture['students']['active'];$other=(int)$fixture['students']['failed'];
     $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);
     $check(count($workspace['roster'])===3 && $workspace['periods']['midterm']['book_id']===0,'Gradebook must use the exact named roster and not initialize empty periods.');
-    $save=static function(string $action,array $payload)use($conn,$lms,$context,$actor):void{synk_gradebook_mutate_lms($conn,$lms,$context,$action,$payload,$actor);};
+    $save=static function(string $action,array $payload)use($conn,$lms,$context,$actor):array{return synk_gradebook_mutate_lms($conn,$lms,$context,$action,$payload,$actor);};
     $revision=static function(string $period='midterm')use($lms,$context):array{$b=synk_gradebook_period_lms($lms,$context,$period);return ['grading_period'=>$period,'version'=>$b['version'],'scheme_version'=>$b['scheme']['version']];};
     $manual=['item_id'=>0,'entry_kind'=>'score','title'=>'Handwritten exam','max_points'=>'60','recorded_date'=>'2026-11-11'];
     $denied(static function()use($save,$revision,$manual){$save('save_item',$revision()+$manual+['component_id'=>1]);},422);
     $scheme=synk_grading_save_lms($lms,$context,['grading_period'=>'midterm','version'=>0,'components'=>[['name'=>'Exam','weight'=>'60'],['name'=>'Attendance','weight'=>'10'],['name'=>'Classwork','weight'=>'30']]],$actor);
     $component=array_column($scheme['components'],'component_id');
-    $save('save_item',$revision()+$manual+['component_id'=>$component[0]]);
+    $savedManual=$save('save_item',$revision()+$manual+['component_id'=>$component[0]]);
     $book=synk_gradebook_period_lms($lms,$context,'midterm');$items=synk_gradebook_items_lms($lms,$book['book_id']);$exam=$items[0]['item_id'];
+    $check($savedManual===['saved_item_id'=>$exam],'Creating a manual entry must return its exact saved ID for immediate score encoding.');
     $check($book['version']===1 && $book['scheme']['version']===1,'Recording the first entry must freeze the grading scheme revision.');
     $save('save_item',$revision()+['entry_kind'=>'attendance','title'=>'Attendance Nov 11','component_id'=>$component[1],'max_points'=>1]);
     $items=synk_gradebook_items_lms($lms,$book['book_id']);$attendance=$items[1]['item_id'];

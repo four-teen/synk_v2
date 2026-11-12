@@ -53,6 +53,7 @@ try {
     $check($scheme['status']===200,'Unable to create the tagged grading setup.');$scheme=$scheme['data']['scheme'];
     $r=$bookCall('save_item',['grading_period'=>'midterm','version'=>0,'scheme_version'=>$scheme['version'],'component_id'=>$scheme['components'][0]['component_id'],'entry_kind'=>'score','title'=>$tag.' Written exam','max_points'=>50]);
     $check($r['status']===200,'Actual endpoint failed to create a manual exam: '.json_encode($r));$data=$r['data'];$exam=$data['periods']['midterm']['items'][0]['item_id'];
+    $check(($data['saved_item_id']??null)===$exam,'The actual endpoint must return the created entry ID for direct score encoding.');
     $revision=static function(array $data,string $period='midterm'):array {$b=$data['periods'][$period];return ['grading_period'=>$period,'version'=>$b['version'],'scheme_version'=>$b['scheme']['version']];};
     $r=$bookCall('save_item',$revision($data)+['component_id'=>$scheme['components'][1]['component_id'],'entry_kind'=>'attendance','title'=>$tag.' Attendance','max_points'=>1]);$check($r['status']===200,'Attendance session creation failed.');$data=$r['data'];$attendance=$data['periods']['midterm']['items'][1]['item_id'];
     $stale=$revision($data);$r=$bookCall('save_scores',$revision($data)+['item_id'=>$exam,'scores'=>[['student_id'=>$session['student_id'],'points'=>'40.00']]]);$check($r['status']===200,'Actual endpoint failed to save exam points.');$data=$r['data'];
