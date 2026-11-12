@@ -9,7 +9,7 @@
   const hasScore=value=>Number.isFinite(Number(value))&&Number(value)>0;
   const valueCell=(value,content,classes='')=>`<td class="${classes}${hasScore(value)?' gb-has-score':''}">${content}</td>`;
   const labels={midterm:'Midterm',final:'Final',summary:'Semester summary'},fold=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-  const state={data:null,period:'midterm',busy:false,syncing:false,item:null,preview:null,editingItem:null,editPeriod:null,assignment:null,drafts:new Map(),changed:new Set(),loaded:false,returnToWork:false};
+  const state={data:null,period:'midterm',busy:false,requestFailed:false,syncing:false,item:null,preview:null,editingItem:null,editPeriod:null,assignment:null,drafts:new Map(),originals:new Map(),changed:new Set(),loaded:false,returnToWork:false,afterItemClose:null,paste:null};
   const dirty=()=>state.changed.size>0;
   const book=(period=state.period)=>state.data.periods[period];
   const modal=bootstrap.Modal.getOrCreateInstance($('gbItemModal'));
@@ -20,7 +20,7 @@
   function afterWorkClosed(callback){const node=$('gbWorkModal');if(!node.classList.contains('show')){callback();return;}node.addEventListener('hidden.bs.modal',callback,{once:true});if(workModalReady)workModal.hide();else node.addEventListener('shown.bs.modal',()=>workModal.hide(),{once:true});}
   let itemModalReady=false;
   $('gbItemModal').addEventListener('shown.bs.modal',()=>{itemModalReady=true;});
-  $('gbItemModal').addEventListener('hidden.bs.modal',()=>{itemModalReady=false;if(state.returnToWork){state.returnToWork=false;openWork();}});
+  $('gbItemModal').addEventListener('hidden.bs.modal',()=>{itemModalReady=false;const next=state.afterItemClose;state.afterItemClose=null;if(next){state.returnToWork=false;next();}else if(state.returnToWork){state.returnToWork=false;openWork();}});
   function closeItemModal(){if(itemModalReady)modal.hide();else $('gbItemModal').addEventListener('shown.bs.modal',()=>modal.hide(),{once:true});}
   async function api(action,payload={}){
     let response;try{response=await fetch(config.endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action,payload,context:config.context,csrf_token:config.csrf_token})});}catch{throw Error('The connection was interrupted. Your unsaved entries are still on this page. Try saving again.');}
@@ -29,9 +29,9 @@
     return data;
   }
   async function task(callback){
-    if(state.busy)return;state.busy=true;root.setAttribute('aria-busy','true');
-    root.querySelectorAll('button,input,select').forEach(node=>{node.dataset.gbDisabled=String(node.disabled);node.disabled=true;});
-    try{await callback();}catch(error){await feedback.error(error.message,'Grade Book');}
+    if(state.busy)return;state.busy=true;state.requestFailed=false;root.setAttribute('aria-busy','true');
+    root.querySelectorAll('button,input,select,textarea').forEach(node=>{node.dataset.gbDisabled=String(node.disabled);node.disabled=true;});updateSaveState();
+    try{await callback();}catch(error){state.requestFailed=true;updateSaveState();await feedback.error(error.message,'Grade Book');}
     finally{state.busy=false;root.removeAttribute('aria-busy');root.querySelectorAll('[data-gb-disabled]').forEach(node=>{node.disabled=node.dataset.gbDisabled==='true';delete node.dataset.gbDisabled;});updateSaveState();}
   }
   function revision(period=state.period){const b=book(period);return {grading_period:period,version:b.version,scheme_version:b.scheme.version};}
@@ -63,7 +63,7 @@
     root.querySelectorAll('[data-gb-period]').forEach(button=>{const active=button.dataset.gbPeriod===state.period;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);});
     const summary=state.period==='summary';$('gbPeriodTitle').textContent=summary?'Semester summary':labels[state.period]+' gradebook';
     $('gbResultsTitle').textContent=summary?'Midterm, Final & semester grade':'Student grades';
-    $('gbAdd').hidden=summary;
+    $('gbAdd').hidden=summary;$('gbAddManual').hidden=summary;
     const notice=$('gbSchemeNotice');notice.hidden=true;notice.innerHTML='';
     if(!summary){
       const b=book(),scheme=b.scheme,ready=scheme.components.length&&scheme.total_weight===100;
@@ -121,15 +121,22 @@
     }).join('');
     $('gbResultsTable').innerHTML=`<table class="gb-table"><caption class="visually-hidden">${escape(labels[state.period])} student grades</caption><thead><tr><th scope="col">Student</th>${headers}</tr></thead><tbody>${rows||`<tr><td colspan="${summary?6:(b.scheme.components.length+3)}">${state.data.roster.length?'No matching students.':'No students are listed for this class.'}</td></tr>`}</tbody></table>`;
   }
-  function editItem(id=0,period=state.period){
-    const b=book(period),item=b.items.find(i=>i.item_id===id);state.editingItem=item||null;state.editPeriod=period;state.returnToWork=true;
-    $('gbItemForm').reset();$('gbItemTitle').textContent=item?'Edit gradebook entry':'Add '+labels[period]+' entry';
+  function itemPeriodFields(period){
+    const b=book(period),item=state.editingItem;state.editPeriod=period;
     $('gbItemComponent').innerHTML='<option value="">Choose grading component</option>'+b.scheme.components.map(c=>`<option value="${c.component_id}">${escape(c.name)} · ${number(c.weight)}%</option>`).join('');
-    $('gbItemKind').disabled=!!item;$('gbItemKind').value=item?.entry_kind||'score';$('gbItemName').value=item?.title||'';$('gbItemMax').value=item?.max_points||100;$('gbItemDate').value=item?.recorded_date||'';
     if(item)$('gbItemComponent').value=item.component_id;
     const available=new Set(unlinkedAssessments().map(a=>a.assessment_id));
     $('gbItemAssessment').innerHTML='<option value="">Choose an assessment</option>'+state.data.assessments.filter(a=>a.grading_period===period&&(available.has(a.assessment_id)||item?.assessment_id===a.assessment_id)).map(a=>`<option value="${a.assessment_id}">${escape(a.title)} · ${number(a.total_points)} pts</option>`).join('');
     if(item?.assessment_id)$('gbItemAssessment').value=item.assessment_id;
+  }
+  function editItem(id=0,period=state.period,manualOnly=false,fromWork=true){
+    const b=book(period),item=b.items.find(i=>i.item_id===id);state.editingItem=item||null;state.editPeriod=period;state.returnToWork=fromWork;state.afterItemClose=null;
+    $('gbItemForm').reset();$('gbItemForm').classList.remove('was-validated');$('gbItemTitle').textContent=item?'Edit gradebook entry':manualOnly?'Add manual entry':'Add '+labels[period]+' entry';
+    $('gbItemIntro').textContent=item?'Update this entry. Its recorded scores are kept.':'Record face-to-face work under any grading component. After creating the entry, enter scores using the class roster.';
+    $('gbItemPeriod').value=period;$('gbItemPeriod').disabled=!!item;
+    [...$('gbItemPeriod').options].forEach(option=>{const scheme=book(option.value).scheme;option.disabled=!scheme.components.length||scheme.total_weight!==100;});
+    $('gbItemKindField').hidden=manualOnly;$('gbItemKind').disabled=!!item;$('gbItemKind').value=item?.entry_kind||'score';$('gbItemName').value=item?.title||'';$('gbItemMax').value=item?.max_points||100;$('gbItemDate').value=item?.recorded_date||'';
+    itemPeriodFields(period);
     updateItemType();modal.show();
   }
   function updateItemType(){
@@ -139,39 +146,136 @@
     if(attendance)$('gbItemMax').value=1;
     if(lms&&!state.editingItem){const a=state.data.assessments.find(a=>a.assessment_id===Number($('gbItemAssessment').value));if(a){$('gbItemName').value=a.title;$('gbItemMax').value=a.total_points;}}
     $('gbItemHelp').textContent=lms?'Scores come from the LMS. Unrecorded scores count as zero.':attendance?'Present = 1. Absent or unrecorded = 0.':'Use this for handwritten exams, quizzes, activities or other classroom work. Unrecorded scores count as zero.';
+    $('gbItemSubmit').textContent=state.editingItem?'Save entry':lms?'Link assessment':'Create and enter scores';
   }
   async function saveItem(event){
     event.preventDefault();if(state.busy||!$('gbItemForm').reportValidity())return;
     const payload={...revision(state.editPeriod),item_id:state.editingItem?.item_id||0,component_id:Number($('gbItemComponent').value),entry_kind:$('gbItemKind').value,title:$('gbItemName').value,max_points:$('gbItemMax').value,recorded_date:$('gbItemDate').value,assessment_id:$('gbItemAssessment').value?Number($('gbItemAssessment').value):null};
-    await task(async()=>{state.data=await api('save_item',payload);closeItemModal();renderOverview();feedback.toast('Gradebook entry saved.');});
+    await task(async()=>{
+      const data=await api('save_item',payload);state.data=data;
+      if(!state.editingItem&&payload.entry_kind!=='lms'){
+        const id=data.saved_item_id;if(!book(state.editPeriod).items.some(item=>item.item_id===id))throw Error('The entry was saved. Open graded work to enter its scores.');
+        const period=state.editPeriod;state.returnToWork=false;state.afterItemClose=()=>{state.period=period;renderOverview();openScores(id,period,true);};
+      }
+      closeItemModal();renderOverview();feedback.toast('Gradebook entry saved.');
+    });
   }
-  function openScores(id,period=state.period){
-    const b=book(period),item=b.items.find(i=>i.item_id===id);if(!item)return;state.item=item;state.editPeriod=period;state.drafts.clear();state.changed.clear();
+  function openScores(id,period=state.period,focusFirst=false){
+    const b=book(period),item=b.items.find(i=>i.item_id===id);if(!item)return;state.item=item;state.editPeriod=period;state.drafts.clear();state.originals.clear();state.changed.clear();closePaste();
     $('gbOverview').hidden=true;$('gbScoreEditor').hidden=false;$('gbScoreTitle').textContent=item.title;
     const component=b.scheme.components.find(c=>c.component_id===item.component_id);
-    $('gbScoreHelp').textContent=`${labels[period]} · ${component.name} (${number(component.weight)}%) · ${number(item.max_points)} max points. `+(item.entry_kind==='lms'?'Blank overrides use the LMS score. A manual override requires a note.':'Unrecorded scores count as zero.');
-    $('gbScoreSearch').value='';$('gbMarkPresent').hidden=item.entry_kind!=='attendance';
-    $('gbScoreTable').innerHTML=`<table class="gb-table gb-score-table"><caption class="visually-hidden">Scores for ${escape(item.title)}</caption><thead><tr><th>Student</th><th>${item.entry_kind==='attendance'?'Attendance':item.entry_kind==='lms'?'Manual total override':'Score'}</th><th>Note ${item.entry_kind==='lms'?'(required for an override)':'(optional)'}</th></tr></thead><tbody>${state.data.roster.map(student=>{
-      const saved=b.scores[item.item_id]?.[student.student_id],manual=saved?.source==='manual',draft={student_id:student.student_id,points:manual?saved.points:'',remark:manual?saved.remark:''};state.drafts.set(student.student_id,draft);
+    $('gbScoreHelp').textContent=`${labels[period]} · ${component.name} (${number(component.weight)}%) · ${number(item.max_points)} max points. `+(item.entry_kind==='lms'?'Blank overrides use the LMS score. A manual override requires a note.':'Blank = unrecorded; enter 0 for a recorded zero. Unrecorded scores count as zero in grades.');
+    $('gbScoreSearch').value='';$('gbMarkPresent').hidden=item.entry_kind!=='attendance';$('gbPasteScores').hidden=item.entry_kind!=='score';
+    $('gbScoreTable').innerHTML=`<table class="gb-table gb-score-table"><caption class="visually-hidden">Scores for ${escape(item.title)}</caption><thead><tr><th>Student</th><th>${item.entry_kind==='attendance'?'Attendance':item.entry_kind==='lms'?'Manual total override':'Score'}${item.entry_kind==='score'?' / '+number(item.max_points):''}</th><th>Recording status</th><th>Note ${item.entry_kind==='lms'?'(required for an override)':'(optional)'}</th></tr></thead><tbody>${state.data.roster.map(student=>{
+      const saved=b.scores[item.item_id]?.[student.student_id],manual=saved?.source==='manual',draft={student_id:student.student_id,points:manual?saved.points:'',remark:manual?saved.remark:''};state.drafts.set(student.student_id,draft);state.originals.set(student.student_id,{...draft});
       const automatic=item.entry_kind==='lms'?(saved?.automatic_points??(saved?.source==='lms'?saved.points:0)):0;
-      const input=item.entry_kind==='attendance'?`<select class="form-select" data-gb-input="${student.student_id}" aria-label="Attendance for ${escape(student.full_name)}"><option value="">Unrecorded (0)</option><option value="1"${String(draft.points)==='1'?' selected':''}>Present (1)</option><option value="0"${String(draft.points)==='0'?' selected':''}>Absent (0)</option></select>`:`<input type="number" class="form-control" data-gb-input="${student.student_id}" data-gb-auto-points="${automatic}" value="${escape(draft.points)}" min="0" max="${item.max_points}" step="0.01" placeholder="${item.entry_kind==='lms'?'LMS: '+number(automatic):'0'}" aria-label="Score for ${escape(student.full_name)}">`;
-      return `<tr data-gb-student="${student.student_id}" data-search="${escape(fold(student.full_name+' '+student.student_number))}"><th scope="row">${person(student)}</th>${valueCell(draft.points===''?automatic:draft.points,input)}<td><input type="text" class="form-control" data-gb-note="${student.student_id}" maxlength="1000" value="${escape(draft.remark)}" aria-label="Score note for ${escape(student.full_name)}"></td></tr>`;
-    }).join('')||'<tr><td colspan="3">No students are listed for this class.</td></tr>'}</tbody></table>`;
-    updateSaveState();$('gbScoreTitle').focus();
+      const description=`aria-describedby="gbScoreError-${student.student_id}"`;
+      const input=item.entry_kind==='attendance'?`<select class="form-select" data-gb-input="${student.student_id}" ${description} aria-label="Attendance for ${escape(student.full_name)}"><option value="">Unrecorded</option><option value="1"${String(draft.points)==='1'?' selected':''}>Present (1)</option><option value="0"${String(draft.points)==='0'?' selected':''}>Absent (0)</option></select>`:`<input type="number" class="form-control" data-gb-input="${student.student_id}" data-gb-auto-points="${automatic}" value="${escape(draft.points)}" min="0" max="${item.max_points}" step="0.01" inputmode="decimal" placeholder="${item.entry_kind==='lms'?'LMS: '+number(automatic):'Unrecorded'}" ${description} aria-label="Score for ${escape(student.full_name)}">`;
+      return `<tr data-gb-student="${student.student_id}" data-search="${escape(fold(student.full_name+' '+student.student_number))}"><th scope="row">${person(student)}</th>${valueCell(draft.points===''?automatic:draft.points,input+`<small id="gbScoreError-${student.student_id}" class="gb-input-error" hidden></small>`)}<td><span data-gb-status="${student.student_id}" class="gb-record-status"></span></td><td><details class="gb-score-note"${draft.remark?' open':''}><summary>${item.entry_kind==='lms'?'Override note':'Add / view note'}</summary><input type="text" class="form-control" data-gb-note="${student.student_id}" maxlength="1000" value="${escape(draft.remark)}" aria-label="Score note for ${escape(student.full_name)}"></details></td></tr>`;
+    }).join('')||'<tr><td colspan="4">No students are listed for this class.</td></tr>'}</tbody></table>`;
+    $('gbPasteStart').innerHTML=state.data.roster.map(student=>`<option value="${student.student_id}">${escape(student.full_name)} · ${escape(student.student_number)}</option>`).join('');
+    state.data.roster.forEach(student=>updateScoreStatus(student.student_id));filterScores();updateSaveState();
+    if(focusFirst)$('gbScoreTable').querySelector('[data-gb-input]')?.focus();else $('gbScoreTitle').focus();
   }
-  function updateSaveState(){if(!$('gbSaveScores'))return;$('gbSaveScores').disabled=state.busy||!dirty();$('gbSaveState').textContent=dirty()?state.changed.size+' unsaved '+(state.changed.size===1?'student':'students'):'All changes saved';if(state.data&&state.period!=='summary')$('gbAdd').disabled=state.busy||!book().scheme.components.length||book().scheme.total_weight!==100;}
-  async function leaveScores(reopen=true){if(dirty()&&!await feedback.confirm({title:'Discard unsaved scores?',text:'Your latest score changes have not been saved.',confirmText:'Discard changes',cancelText:'Keep editing'}))return false;state.changed.clear();state.item=null;$('gbScoreEditor').hidden=true;$('gbOverview').hidden=false;updateSaveState();if(reopen)openWork();return true;}
+  function scoreError(value,badInput=false){
+    if(badInput)return 'Enter a valid score.';
+    if(value==='')return '';
+    if(!/^(?:0|[1-9][0-9]{0,4})(?:\.[0-9]{1,2})?$/.test(String(value))||Number(value)>state.item.max_points)return 'Use 0 to '+number(state.item.max_points)+', with up to two decimals.';
+    if(state.item.entry_kind==='attendance'&&Number(value)!==0&&Number(value)!==1)return 'Choose present (1) or absent (0).';
+    return '';
+  }
+  function scoreRecorded(id){const d=state.drafts.get(id),saved=book(state.editPeriod).scores[state.item.item_id]?.[id];return String(d.points)!==''||(state.item.entry_kind==='lms'&&(saved?.source==='lms'||saved?.automatic_points!==undefined));}
+  function updateScoreStatus(id){
+    const input=$('gbScoreTable').querySelector(`[data-gb-input="${id}"]`),error=scoreError(input.value,input.validity.badInput);
+    input.setCustomValidity(error);input.setAttribute('aria-invalid',String(!!error));
+    const help=$('gbScoreError-'+id);help.textContent=error;help.hidden=!error;
+    const status=$('gbScoreTable').querySelector(`[data-gb-status="${id}"]`),recorded=scoreRecorded(id);
+    status.textContent=error?'Check score':!recorded?'Unrecorded':input.value===''?'LMS score':Number(input.value)===0?'Recorded zero':'Recorded';
+    status.classList.toggle('is-recorded',recorded&&!error);status.classList.toggle('is-invalid',!!error);
+  }
+  function changedDraft(id){
+    const d=state.drafts.get(id),original=state.originals.get(id),input=$('gbScoreTable').querySelector(`[data-gb-input="${id}"]`);
+    const samePoints=String(d.points)===String(original.points)||(d.points!==''&&original.points!==''&&!scoreError(d.points)&&Number(d.points)===Number(original.points));
+    if(samePoints&&d.remark===original.remark&&!input.validity.badInput)state.changed.delete(id);else state.changed.add(id);
+    updateScoreHighlight(input);updateScoreStatus(id);
+  }
+  function filterScores(){
+    const words=fold($('gbScoreSearch').value.trim()).split(/\s+/).filter(Boolean);let shown=0;
+    $('gbScoreTable').querySelectorAll('[data-gb-student]').forEach(row=>{row.hidden=!words.every(word=>row.dataset.search.includes(word));if(!row.hidden)shown++;});
+    $('gbScoreFilterState').textContent=words.length?shown+' of '+state.data.roster.length+' students shown. Recording progress includes the whole class.':'';
+    $('gbScoreEmpty').hidden=shown>0||state.data.roster.length===0;
+  }
+  function updateSaveState(){
+    if(!$('gbSaveScores'))return;
+    const invalid=$('gbScoreTable').querySelectorAll('[data-gb-input][aria-invalid="true"]').length;
+    $('gbSaveScores').disabled=state.busy||!dirty()||!!invalid;
+    $('gbSaveState').textContent=state.busy&&state.item&&!state.requestFailed?'Saving changes…':dirty()?state.changed.size+' unsaved '+(state.changed.size===1?'student':'students'):'All changes saved';
+    if(state.item){const recorded=[...state.drafts.keys()].filter(id=>scoreRecorded(id)).length,total=state.drafts.size;$('gbScoreProgress').textContent=recorded+' of '+total+' recorded · '+(total-recorded)+' unrecorded'+(invalid?' · '+invalid+' to correct':'');}
+    if(state.data){const ready=state.period!=='summary'&&book().scheme.components.length&&book().scheme.total_weight===100;$('gbAdd').disabled=$('gbAddManual').disabled=state.busy||!ready;}
+  }
+  async function leaveScores(reopen=true){if(dirty()&&!await feedback.confirm({title:'Discard unsaved scores?',text:'Your latest score changes have not been saved.',confirmText:'Discard changes',cancelText:'Keep editing'}))return false;closePaste();state.changed.clear();state.item=null;$('gbScoreEditor').hidden=true;$('gbOverview').hidden=false;updateSaveState();if(reopen)openWork();return true;}
   async function saveScores(){
     if(state.busy||!dirty())return;
+    if(!$('gbPastePanel').hidden&&$('gbPasteText').value.trim())return feedback.error('Apply the pasted scores to the table first, or close the paste panel before saving.');
     const scores=[...state.changed].map(id=>{const d=state.drafts.get(id);return {...d,points:d.points===''?null:d.points};});
     for(const score of scores){if(score.points!==null&&(!/^(?:0|[1-9][0-9]{0,4})(?:\.[0-9]{1,2})?$/.test(String(score.points))||Number(score.points)>state.item.max_points))return feedback.error('Use a score from 0 to '+number(state.item.max_points)+', with up to two decimal places.');if(score.points!==null&&state.item.entry_kind==='lms'&&!score.remark.trim())return feedback.error('Add a note for each manually reviewed LMS total or override.');}
     await task(async()=>{const id=state.item.item_id,period=state.editPeriod;state.data=await api('save_scores',{...revision(period),item_id:id,scores});state.changed.clear();renderOverview();openScores(id,period);feedback.toast('Scores saved. Grades recalculated.');});
   }
   root.addEventListener('input',event=>{
     const input=event.target;
-    if(input.matches('[data-gb-input],[data-gb-note]')){const id=Number(input.dataset.gbInput||input.dataset.gbNote),draft=state.drafts.get(id);draft[input.dataset.gbInput?'points':'remark']=input.value;state.changed.add(id);if(input.dataset.gbInput)updateScoreHighlight(input);updateSaveState();}
+    if(input.matches('[data-gb-input],[data-gb-note]')){if(state.paste)resetPastePreview();const id=Number(input.dataset.gbInput||input.dataset.gbNote),draft=state.drafts.get(id);draft[input.dataset.gbInput?'points':'remark']=input.value;changedDraft(id);if(state.item.entry_kind==='lms'&&draft.points!==''&&!draft.remark.trim())$('gbScoreTable').querySelector(`[data-gb-note="${id}"]`).closest('details').open=true;updateSaveState();}
   });
   function updateScoreHighlight(input){input.closest('td').classList.toggle('gb-has-score',hasScore(input.value===''?input.dataset.gbAutoPoints??0:input.value));}
+  function resetPastePreview(){state.paste=null;$('gbPasteTable').hidden=true;$('gbPasteTable').replaceChildren();$('gbPasteState').textContent='';$('gbPasteApply').disabled=true;}
+  function closePaste(){resetPastePreview();$('gbPastePanel').hidden=true;$('gbPasteScores').setAttribute('aria-expanded','false');$('gbPasteText').value='';}
+  function openPaste(studentId=null,text=null){
+    if(state.busy||state.item?.entry_kind!=='score')return;
+    resetPastePreview();$('gbPastePanel').hidden=false;$('gbPasteScores').setAttribute('aria-expanded','true');
+    if(studentId)$('gbPasteStart').value=String(studentId);
+    if(text!==null){$('gbPasteText').value=text;previewPaste();}else $('gbPasteText').focus();
+  }
+  function previewPaste(){
+    if(state.busy||state.item?.entry_kind!=='score')return;resetPastePreview();
+    const raw=$('gbPasteText').value.replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').replace(/\n$/,''),start=state.data.roster.findIndex(student=>student.student_id===Number($('gbPasteStart').value));
+    if(raw.length>20000){$('gbPasteState').textContent='Paste up to 20,000 characters at a time. No scores have been applied.';return;}
+    if(!raw.trim()){$('gbPasteState').textContent='Paste at least one score before previewing.';return;}
+    const lines=raw.split('\n');
+    if(start<0||lines.length>state.data.roster.length-start||lines.length>1000){$('gbPasteState').textContent='There are more pasted rows than students from the selected starting student. No scores have been applied.';return;}
+    let invalid=0,updates=0,replacements=0;
+    const rows=lines.map((line,index)=>{
+      const student=state.data.roster[start+index],points=line.trim(),current=state.drafts.get(student.student_id).points;
+      const error=line.includes('\t')?'Paste one score column only.':scoreError(points);
+      if(error)invalid++;else if(points!==''){updates++;if(current!=='')replacements++;}
+      return {student,points,current,error};
+    });
+    $('gbPasteTable').innerHTML=`<table class="gb-table"><caption class="visually-hidden">Review students and scores before applying</caption><thead><tr><th>Student</th><th>Current score</th><th>Pasted score</th><th>Preview</th></tr></thead><tbody>${rows.map(row=>`<tr><th scope="row">${person(row.student)}</th><td>${row.current===''?'Unrecorded':number(row.current)}</td><td>${escape(row.points)||'Blank'}</td><td class="${row.error?'gb-input-error':''}">${escape(row.error|| (row.points===''?'Keep current score':row.current!==''?'Replace current score':'Record score'))}</td></tr>`).join('')}</tbody></table>`;
+    $('gbPasteTable').hidden=false;
+    $('gbPasteState').textContent=invalid?invalid+' invalid '+(invalid===1?'score':'scores')+'. Correct the pasted column and preview again. No scores have been applied.':updates+' scores ready · '+replacements+' current scores will be replaced. Apply to the score table, then use Save scores to record them.';
+    if(!invalid&&updates){state.paste={rows,itemId:state.item.item_id,period:state.editPeriod};$('gbPasteApply').disabled=false;}
+  }
+  function applyPaste(){
+    if(state.busy||!state.paste||state.paste.itemId!==state.item?.item_id||state.paste.period!==state.editPeriod)return;
+    const rows=state.paste.rows.filter(row=>row.points!=='');
+    for(const row of rows){const id=row.student.student_id,input=$('gbScoreTable').querySelector(`[data-gb-input="${id}"]`);state.drafts.get(id).points=row.points;input.value=row.points;changedDraft(id);}
+    closePaste();updateSaveState();
+    const first=rows.find(row=>!$('gbScoreTable').querySelector(`[data-gb-student="${row.student.student_id}"]`).hidden);
+    if(first)$('gbScoreTable').querySelector(`[data-gb-input="${first.student.student_id}"]`).focus();
+    feedback.toast(rows.length+' pasted scores applied to the table. Save scores to record them.');
+  }
+  $('gbScoreTable').addEventListener('keydown',event=>{
+    const input=event.target;if(state.busy||event.isComposing||event.key!=='Enter'||!input.matches('[data-gb-input]'))return;
+    event.preventDefault();if(!input.reportValidity())return;
+    const inputs=[...$('gbScoreTable').querySelectorAll('[data-gb-input]')].filter(node=>!node.closest('[data-gb-student]').hidden&&!node.disabled),index=inputs.indexOf(input),next=inputs[index+(event.shiftKey?-1:1)];
+    if(next){next.focus();if(next.select)next.select();}else if(!event.shiftKey&&!$('gbSaveScores').disabled)$('gbSaveScores').focus();
+  });
+  $('gbScoreTable').addEventListener('paste',event=>{
+    if(state.busy||state.item?.entry_kind!=='score'||!event.target.matches('[data-gb-input]'))return;
+    const text=event.clipboardData?.getData('text/plain')??'';
+    if(/[\r\n\t]/.test(text)){event.preventDefault();openPaste(Number(event.target.dataset.gbInput),text);}
+  });
+  $('gbPasteScores').addEventListener('click',()=>openPaste());$('gbPasteClose').addEventListener('click',closePaste);
+  $('gbPasteText').addEventListener('input',resetPastePreview);$('gbPasteStart').addEventListener('change',resetPastePreview);
+  $('gbPastePreview').addEventListener('click',previewPaste);$('gbPasteApply').addEventListener('click',applyPaste);
   $('gbItemForm').addEventListener('submit',saveItem);feedback.validation($('gbItemForm'));
   root.addEventListener('click',async event=>{
     if(state.busy)return;const period=event.target.closest('[data-gb-period]');
@@ -189,13 +293,16 @@
   });
   $('gbPreviewBack').addEventListener('click',()=>closePreview());$('gbPreviewLink').addEventListener('click',()=>{if(state.preview)linkAssessment(state.preview.assessment_id);});
   $('gbItemKind').addEventListener('change',updateItemType);$('gbItemAssessment').addEventListener('change',updateItemType);
+  $('gbItemPeriod').addEventListener('change',()=>{itemPeriodFields($('gbItemPeriod').value);updateItemType();});
+  $('gbAddManual').addEventListener('click',()=>{if(!state.busy&&state.period!=='summary')editItem(0,state.period,true,false);});
   $('gbOpenWork').addEventListener('click',openWork);$('gbAdd').addEventListener('click',()=>afterWorkClosed(()=>editItem()));$('gbReload').addEventListener('click',load);$('gbRetry').addEventListener('click',load);
   $('gbAssignmentForm').addEventListener('submit',saveAssignment);feedback.validation($('gbAssignmentForm'));
   $('gbAssignmentCancel').addEventListener('click',()=>{state.assignment=null;$('gbAssignmentForm').hidden=true;});$('gbWorkSearch').addEventListener('input',renderWork);
   $('gbStudentSearch').addEventListener('input',renderResults);
-  $('gbScoreSearch').addEventListener('input',()=>{const words=fold($('gbScoreSearch').value.trim()).split(/\s+/).filter(Boolean);$('gbScoreTable').querySelectorAll('[data-gb-student]').forEach(row=>{row.hidden=!words.every(word=>row.dataset.search.includes(word));});});
+  $('gbPrintGradesheet')?.addEventListener('click',event=>{if(dirty()||state.busy){event.preventDefault();feedback.error(dirty()?'Save your unsaved scores before printing the grade sheet.':'Wait for the current gradebook request to finish before printing.','Print grade sheet');}});
+  $('gbScoreSearch').addEventListener('input',filterScores);
   $('gbScoreBack').addEventListener('click',()=>leaveScores());$('gbSaveScores').addEventListener('click',saveScores);
-  $('gbMarkPresent').addEventListener('click',async()=>{const unmarked=[...state.drafts.values()].filter(d=>String(d.points)==='');if(!unmarked.length)return;if(!await feedback.confirm({title:'Mark unrecorded students present?',text:`This will mark ${unmarked.length} unrecorded students present across the whole roster. Recorded absences stay unchanged. Save scores to record these changes.`,confirmText:'Mark present',cancelText:'Cancel'}))return;unmarked.forEach(d=>{d.points='1';state.changed.add(d.student_id);const input=$('gbScoreTable').querySelector(`[data-gb-input="${d.student_id}"]`);input.value='1';updateScoreHighlight(input);});updateSaveState();});
+  $('gbMarkPresent').addEventListener('click',async()=>{const unmarked=[...state.drafts.values()].filter(d=>String(d.points)==='');if(!unmarked.length)return;if(!await feedback.confirm({title:'Mark unrecorded students present?',text:`This will mark ${unmarked.length} unrecorded students present across the whole roster. Recorded absences stay unchanged. Save scores to record these changes.`,confirmText:'Mark present',cancelText:'Cancel'}))return;unmarked.forEach(d=>{d.points='1';const input=$('gbScoreTable').querySelector(`[data-gb-input="${d.student_id}"]`);input.value='1';changedDraft(d.student_id);});updateSaveState();});
   feedback.guardNavigation(dirty,()=>state.changed.clear(),'Your unsaved scores will be discarded. Save scores before leaving.');
   window.addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault();event.returnValue='';}});
   window.addEventListener('focus',syncAvailableWork);

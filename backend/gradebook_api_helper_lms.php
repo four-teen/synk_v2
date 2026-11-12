@@ -3,7 +3,7 @@ require_once __DIR__.'/db_lms.php';
 require_once __DIR__.'/professor_class_helper_lms.php';
 require_once __DIR__.'/gradebook_helper_lms.php';
 
-function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, string $action, array $payload, int $actor): void
+function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, string $action, array $payload, int $actor): array
 {
     $period=synk_grading_period_lms($payload['grading_period']??null);
     $book=synk_gradebook_period_lms($lms,$context,$period,true);
@@ -94,6 +94,7 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
     $version=$book['version']+1;
     synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_periods SET version=?,updated_at=? WHERE book_id=?','isi',[$version,$now,$book['book_id']]);
     synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_logs (book_id,actor_user_id,version,action,details_json,recorded_at) VALUES (?,?,?,?,?,?)','iiisss',[$book['book_id'],$actor,$version,$action,json_encode($details,JSON_UNESCAPED_UNICODE),$now]);
+    return $action==='save_item'?['saved_item_id'=>$id]:[];
 }
 function synk_gradebook_request_lms(mysqli $core, array $input): array
 {
@@ -110,8 +111,8 @@ function synk_gradebook_request_lms(mysqli $core, array $input): array
     if (!is_array($payload) || array_diff(array_keys($payload),$fields[$action])) throw new DomainException('Enter valid gradebook details.',400);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin the gradebook request.');
     try {
-        if ($action!=='get') synk_gradebook_mutate_lms($core,$lms,$context,$action,$payload,(int)$_SESSION['user_id']);
-        $data=synk_gradebook_workspace_lms($core,$lms,$context);
+        $mutation=$action==='get'?[]:synk_gradebook_mutate_lms($core,$lms,$context,$action,$payload,(int)$_SESSION['user_id']);
+        $data=synk_gradebook_workspace_lms($core,$lms,$context)+$mutation;
         if (!$lms->commit()) throw new RuntimeException('Unable to complete the gradebook request.');
         return $data;
     } catch (Throwable $error) {
