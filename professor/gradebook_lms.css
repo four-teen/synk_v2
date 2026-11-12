@@ -116,6 +116,47 @@
 #gbItemModal .modal-header,#gbItemModal .modal-footer{padding:16px 20px}
 #gbItemModal .btn-close{min-width:44px;min-height:44px;padding:0;margin:0}
 #gbItemModal input,#gbItemModal select{font-size:14px;min-height:44px}
+#gbOverview>.gb-section-heading{flex-wrap:wrap}
+#gbOverview>.gb-section-heading>.gb-actions{flex:1 1 600px;min-width:0}
+#gbAttendanceModal .modal-dialog{width:calc(100% - 48px);max-width:1180px}
+#gbAttendanceModal .modal-header,#gbAttendanceModal .modal-footer{padding:18px 24px}
+#gbAttendanceModal .modal-body{padding:22px 24px}
+#gbAttendanceModal .modal-title{font-size:22px;margin:0}
+#gbAttendanceModal .gb-eyebrow{font-size:11px;font-weight:600;letter-spacing:.06em;color:#6558b5;margin:0 0 5px}
+#gbAttendanceModal .btn-close{width:44px;height:44px;box-sizing:border-box;padding:0;margin:0;flex-shrink:0}
+.gb-attendance-tabs{display:flex;flex-shrink:0;gap:8px;padding:0 24px;border-bottom:1px solid var(--gb-line)}
+.gb-attendance-tabs button{min-height:52px;padding:12px 16px;border:0;border-bottom:3px solid transparent;background:transparent;color:var(--gb-muted);font-size:13px;font-weight:600}
+.gb-attendance-tabs button[aria-selected="true"]{color:#594bb6;border-bottom-color:#6558d5}
+#gbAttendanceHistoryCount{display:inline-block;margin-left:5px;padding:1px 6px;background:#efedfa;font-size:11px}
+.gb-attendance-fields{display:grid;grid-template-columns:1.2fr .8fr 1fr;gap:16px}
+.gb-attendance-fields>div{min-width:0}.gb-attendance-fields .form-label{display:block;font-size:12px;margin-bottom:7px}
+#gbAttendanceModal .form-control,#gbAttendanceModal .form-select{font-size:14px;min-height:44px}
+.gb-attendance-help{margin:14px 0 20px}
+.gb-attendance-roster{border:1px solid var(--gb-line);max-height:430px;overflow:auto}
+.gb-attendance-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 18px;border-bottom:1px solid var(--gb-line);background:#fff;min-height:68px}
+.gb-attendance-row:last-child{border-bottom:0}.gb-attendance-row>div{min-width:0}
+.gb-attendance-row strong{display:block;font-size:13px;font-weight:600;color:var(--gb-ink);overflow-wrap:anywhere}
+.gb-attendance-row small{display:block;font-size:12px;color:var(--gb-muted);margin-top:3px}
+.gb-attendance-row:has(input:checked){background:#f0f8f2}
+.gb-attendance-check{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:10px 12px;border:1px solid #dce2ed;font-size:13px;color:var(--gb-ink);cursor:pointer;flex-shrink:0;margin:0}
+.gb-attendance-check:has(input:checked){border-color:#aed3b8;background:#e6f5e9;color:#245a36}
+.gb-attendance-check .form-check-input{width:20px;height:20px;margin:0;float:none;cursor:pointer;flex-shrink:0}
+.gb-attendance-check .form-check-input:checked{background-color:#427d51;border-color:#427d51}
+.gb-attendance-check .form-check-input:focus-visible{outline:3px solid #b6b8ff;outline-offset:3px;box-shadow:none}
+#gbAttendanceFilterState:empty{display:none}#gbAttendanceFilterState{margin:0 0 12px}
+.gb-attendance-no-roster{padding:24px;margin:0;font-size:13px;color:var(--gb-muted)}
+.gb-attendance-footer{display:flex;justify-content:space-between;gap:16px;background:#fafbfe}
+.gb-attendance-footer>div:first-child{min-width:0;flex:1 1 240px}
+.gb-attendance-footer strong{display:block;font-size:13px;color:var(--gb-ink);font-variant-numeric:tabular-nums}
+.gb-attendance-footer span{display:block;font-size:12px;color:var(--gb-muted);margin-top:5px}
+.gb-attendance-history-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:20px}
+.gb-attendance-history-heading>div{flex:1 1 300px;min-width:0}.gb-attendance-history-heading h4{font-size:18px;margin:0 0 6px}
+.gb-attendance-history-heading .gb-help{margin:0}.gb-attendance-history-heading .gb-filter{flex:0 1 250px}
+.gb-attendance-history-table th:not(:first-child),.gb-attendance-history-table td{text-align:center;min-width:100px}
+.gb-attendance-history-table thead .gb-text-button{display:inline-flex;flex-direction:column;gap:2px;line-height:1.5;text-decoration:underline;white-space:nowrap}
+.gb-attendance-history-table thead small{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.gb-attendance-mark{display:inline-block;min-width:28px;padding:4px 6px;font-size:12px;font-weight:600;color:var(--gb-muted)}
+.gb-attendance-mark.is-present{background:#e6f5e9;color:#245a36}.gb-attendance-mark.is-absent{background:#fff0f0;color:#ae3037}
 @media(max-width:767.98px){
   #gbWorkModal .modal-dialog{width:calc(100% - 24px);margin:12px auto}
   #gbWorkModal .modal-header,#gbWorkModal .modal-footer,#gbWorkModal .modal-body{padding:16px}
@@ -136,5 +177,14 @@
   .gb-score-progress{padding:12px}.gb-editor-toolbar>.gb-actions{width:100%;justify-content:flex-start;flex-wrap:wrap}.gb-paste-panel{padding:14px}.gb-paste-panel .gb-section-heading{flex-direction:row}.gb-paste-panel .form-select,.gb-paste-panel textarea{font-size:16px}
   .gb-score-table td:last-child{min-width:210px}.gb-table-hint{padding:12px 16px}
   .gb-item-fields{grid-template-columns:1fr}
+  #gbOverview>.gb-section-heading>.gb-actions{flex-basis:auto}
+  #gbAttendanceModal .modal-dialog{width:calc(100% - 24px);margin:12px auto}
+  #gbAttendanceModal .modal-header,#gbAttendanceModal .modal-body,#gbAttendanceModal .modal-footer{padding:16px}
+  #gbAttendanceModal .modal-title{font-size:20px}.gb-attendance-tabs{padding:0 8px;gap:0}.gb-attendance-tabs button{padding:12px 10px;font-size:12px}
+  .gb-attendance-fields{grid-template-columns:1fr 1fr;gap:14px}.gb-attendance-fields>div:first-child{grid-column:1/-1}
+  #gbAttendanceModal .form-control,#gbAttendanceModal .form-select{font-size:16px}
+  .gb-attendance-row{padding:12px;gap:10px}.gb-attendance-check{padding:10px;gap:8px}
+  .gb-attendance-footer>.gb-actions{width:100%}.gb-attendance-history-heading .gb-filter{flex:1 1 250px;max-width:none}
 }
 @media(max-width:575.98px){#gbWorkModal .modal-dialog{width:100%;height:100%;margin:0}#gbWorkModal .modal-content{height:100%;border:0;border-radius:0}#gbWorkModal .modal-footer{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}}
+@media(max-width:575.98px){#gbAttendanceModal .modal-dialog{width:100%;height:100%;margin:0}#gbAttendanceModal .modal-content{height:100%;border:0;border-radius:0}#gbAttendanceModal .modal-footer{padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}.gb-attendance-fields{grid-template-columns:1fr}.gb-attendance-roster{max-height:none}}
