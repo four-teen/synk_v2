@@ -3,7 +3,10 @@ session_start();
 ob_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/student_dashboard_helper.php';
+require_once __DIR__ . '/../backend/db_lms.php';
+require_once __DIR__ . '/../backend/announcement_helper_lms.php';
 synk_student_require_login($conn, true);
+header('Cache-Control: no-store, private');
 $isPreview = synk_student_is_staff_preview_mode();
 $studentId = $isPreview ? synk_student_preview_student_id_from_request() : (int)$_SESSION['student_id'];
 $student = synk_student_fetch_directory_record_by_student_id($conn, $studentId);
@@ -24,6 +27,18 @@ $studentPortalPreviewMode = $isPreview;
 $studentPortalBackUrl = $isPreview ? synk_student_preview_back_url() : '';
 $studentPortalViewTerm = $viewTerm;
 $firstName = trim($student['first_name']) ?: 'Student';
+$announcements = []; $announcementError = ''; $announcementReadsReady = false;
+if (!$isPreview) {
+    try {
+        $lmsConn = synk_database_connection_lms($conn);
+        $announcementReadsReady = synk_announcement_ready_lms($lmsConn);
+        $announcements = synk_student_announcement_feed_lms($conn,$lmsConn,$studentId);
+        if (empty($_SESSION['student_announcement_csrf'])) $_SESSION['student_announcement_csrf'] = bin2hex(random_bytes(32));
+    } catch (Throwable $error) {
+        error_log('Student LMS announcements are temporarily unavailable.');
+        $announcementError = 'Class updates are temporarily unavailable. Please try again later.';
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
@@ -37,6 +52,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
   <link rel="stylesheet" href="../assets/css/demo.css">
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
+  <?php if (!$isPreview): ?><link rel="stylesheet" href="announcements_lms.css?v=<?= (int)filemtime(__DIR__.'/announcements_lms.css') ?>"><?php endif; ?>
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body class="student-portal student-dashboard">
@@ -61,10 +77,7 @@ $firstName = trim($student['first_name']) ?: 'Student';
         <p class="student-workload-note">Units and weekly lecture/laboratory contact hours for <?= synk_student_h($viewTerm['term_text']) ?>.</p>
         <?php if (empty($viewTerm['is_current'])): ?><div class="student-term-notice" role="status"><i class="bx bx-history" aria-hidden="true"></i><span>You’re viewing <?= synk_student_h($viewTerm['term_text']) ?>. The current term is <?= synk_student_h($currentTerm['term_text']) ?>.</span></div><?php endif; ?>
         <?php if (!$isPreview): ?>
-        <section class="card student-announcement-panel" aria-labelledby="announcements-title">
-          <div class="student-subject-toolbar"><div><h2 id="announcements-title">Announcements</h2><p>Keep up with notices and reminders.</p></div><span class="student-announcement-icon" aria-hidden="true"><i class="bx bx-bell"></i></span></div>
-          <div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-bell" aria-hidden="true"></i></span><h3>No announcements yet</h3><p>This space is reserved for announcements. Open Activities &amp; assessments to find your subjects and classwork.</p><a class="btn btn-outline-primary" href="assessments_lms.php">View my subjects</a></div>
-        </section>
+        <?php require __DIR__.'/announcements_view_lms.php'; ?>
         <?php else: ?>
         <section class="card student-subject-panel" aria-labelledby="subjects-title">
           <div class="student-subject-toolbar"><div><h2 id="subjects-title">My subjects <span class="badge bg-label-primary"><?= count($subjects) ?></span></h2><p><?= synk_student_h($viewTerm['term_text']) ?></p></div>
@@ -98,4 +111,5 @@ $firstName = trim($student['first_name']) ?: 'Student';
 </div></div></div><?php endif; ?>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
 <script src="dashboard.js?v=<?= (int)filemtime(__DIR__.'/dashboard.js') ?>" defer></script>
+<?php if (!$isPreview && $announcementReadsReady && $announcements): ?><script src="announcements_lms.js?v=<?= (int)filemtime(__DIR__.'/announcements_lms.js') ?>" defer></script><?php endif; ?>
 </body></html>

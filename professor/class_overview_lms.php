@@ -6,7 +6,7 @@ $classTools = [
     ['key'=>'grading','title'=>'Manage Grading System','icon'=>'bx-slider-alt','status'=>'Available','view'=>'grading','purpose'=>'Set the grading components and percentage weights for each period.'],
     ['key'=>'gradebook','title'=>'Grade Book','icon'=>'bx-spreadsheet','status'=>'Available','view'=>'gradebook','purpose'=>'Record scores and calculate grades using your grading components.'],
     ['key'=>'materials','title'=>'Learning materials','icon'=>'bx-folder-open','status'=>'Planned','view'=>null,'purpose'=>'Organize modules, lesson notes, and learning resources.'],
-    ['key'=>'announcements','title'=>'Announcements','icon'=>'bx-bell','status'=>'Planned','view'=>null,'purpose'=>'Post class updates, reminders, and important notices.']
+    ['key'=>'announcements','title'=>'Announcements','icon'=>'bx-bell','status'=>'Available','view'=>'announcements','purpose'=>'Post class updates, reminders, and important notices.']
 ];
 ?>
 <section class="class-lms-tools" aria-labelledby="class-lms-tools-title">
