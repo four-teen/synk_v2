@@ -180,5 +180,13 @@
   }
   window.addEventListener('beforeunload',event=>{if(state.dirty){event.preventDefault();event.returnValue='';}});
   setInterval(()=>{if(state.dirty&&document.visibilityState==='visible')save();},15000);setInterval(tick,1000);
-  task(refresh);
+  task(async()=>{
+    await refresh();
+    const target=new URLSearchParams(window.location.search).get('assessment_id');
+    if(!target||!/^[1-9][0-9]{0,9}$/.test(target))return;
+    const row=state.rows.find(item=>item.assessment_id===Number(target));
+    if(!row){feedback.info('This activity is no longer available in your enrolled subjects.','Activity unavailable');return;}
+    openSubject(row.subject_key);state.period=row.grading_period;renderList();
+    render(await api('detail',{assessment_id:row.assessment_id}));
+  });
 })();

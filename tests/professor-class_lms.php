@@ -107,7 +107,7 @@ $token=bin2hex(random_bytes(24));
 $route=__DIR__.'/../tmp/professor-class-'.bin2hex(random_bytes(8)).'_lms.php';
 file_put_contents($route,'<?php define("SYNK_PROFESSOR_LMS_QA",'.var_export($token,true).');require '.var_export(__DIR__.'/fixtures/professor-class-request_lms.php',true).';');
 try {
-    foreach(['class'=>200,'students'=>200,'assessments'=>200,'grading'=>200,'gradebook'=>200,'workload'=>200,'forged_identity'=>200,'foreign'=>403,'foreign_signed'=>404,
+    foreach(['class'=>200,'students'=>200,'assessments'=>200,'grading'=>200,'gradebook'=>200,'announcements'=>200,'workload'=>200,'forged_identity'=>200,'foreign'=>403,'foreign_signed'=>404,
         'bad_id'=>400,'wrong_term'=>403,'wrong_semester'=>400,'edited_semester'=>403,'edited_assigned_class'=>403,'edited_view'=>403,
         'unsigned'=>403,'bad_signature'=>403,'array_signature'=>403,'missing_state'=>403,'rotated_secret'=>403,'regenerated'=>403,
         'copied_link'=>403,'relinked'=>403,'inactive'=>403,'revoked'=>403,'inactive_faculty'=>403,'unlinked'=>403,
@@ -131,6 +131,7 @@ try {
         if($case==='assessments')$check(strpos($body,'id="assessmentWorkspace"')!==false&&strpos($body,'id="assessmentConfig"')!==false&&strpos($body,'Midterm')!==false&&strpos($body,'Final')!==false,'The professor assessment builder is unavailable.');
         if($case==='grading'||$case==='navigate_grading')$check(strpos($body,'id="gradingWorkspace"')!==false&&strpos($body,'id="gradingConfig"')!==false&&strpos($body,'Save Midterm')!==false&&strpos($body,'Save Final')!==false,'The grading card must open its signed workspace with both periods.');
         if($case==='gradebook')$check(strpos($body,'id="gradebookWorkspace"')!==false&&strpos($body,'id="gradebookConfig"')!==false&&strpos($body,'Semester summary')!==false,'The gradebook view must open with signed context and separate period controls.');
+        if($case==='announcements')$check(strpos($body,'id="professorAnnouncements"')!==false&&strpos($body,'id="announcementConfig"')!==false,'The announcement card must open its signed class editor.');
         if($case==='students'||$case==='navigate_students')$check(strpos($body,'Jos')!==false&&strpos($body,'Foreign Test Student')===false&&strpos($body,'3 listed')!==false,'The class roster includes unrelated students or loses its named members.');
         if($case==='navigate_class'||$case==='navigate_back')$check(strpos($body,'CLASS WORKSPACE')!==false&&strpos($body,'Manage this subject')!==false,
             'Following the real workload and tab links did not reach the signed class overview.');
@@ -144,7 +145,7 @@ try {
         if($case==='workload'){
             $dom=new DOMDocument();@$dom->loadHTML($body);$xpath=new DOMXPath($dom);
             $check($xpath->query('//footer[contains(@class,"workload-class-footer")]//a[contains(@class,"workload-manage-class-lms")]')->length===2,'Each responsive subject card must include Manage Class in its footer.');
-            $check($xpath->query('//footer[contains(@class,"workload-class-footer")]//button[contains(@class,"workload-show-students")]')->length===2,'Each responsive subject card must include Show Students in its footer.');
+            $check($xpath->query('//button[contains(@class,"workload-show-students")]')->length===0,'Students must be accessed through Manage Class instead of a duplicate workload action.');
             foreach($xpath->query('//a[contains(@class,"workload-manage-class-lms")]') as $link){
                 $query=[];parse_str((string)parse_url($link->getAttribute('href'),PHP_URL_QUERY),$query);
                 $check(isset($query['offering_id'],$query['ay_id'],$query['semester'],$query['signature'])

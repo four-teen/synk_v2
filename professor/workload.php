@@ -4,6 +4,7 @@ ob_start();
 require_once __DIR__ . '/../backend/db.php';
 require_once '../backend/professor_workload_view_helper.php';
 require_once '../backend/professor_workload_students_helper.php';
+require_once __DIR__ . '/../backend/professor_workload_summary_helper_lms.php';
 synk_professor_require_login($conn);
 header('Cache-Control: no-store, private');
 
@@ -26,8 +27,12 @@ $workloadRows = $selectedAyId > 0 && $selectedSemester > 0
     : [];
 $totalEnrollments = array_sum(array_column($workloadRows, 'student_count'));
 $studentActivity = synk_professor_workload_student_summary($conn, $workloadRows, $selectedAyId, $selectedSemester);
+$workloadSummaries = !empty($portal['faculty_is_active'])
+    ? synk_professor_workload_summaries_lms($conn, $facultyId, $workloadRows, $selectedAyId, $selectedSemester)
+    : [];
 foreach ($workloadRows as &$workloadRow) {
     $workloadRow['activity'] = $studentActivity['classes'][$workloadRow['offering_id']] ?? ['active'=>0, 'inactive'=>0, 'students'=>0];
+    $workloadRow['lms_summary'] = $workloadSummaries[$workloadRow['offering_id']] ?? null;
 }
 unset($workloadRow);
 $semesterGroups = synk_professor_group_subject_rows_by_semester($workloadRows);
@@ -113,10 +118,17 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
                   <section class="workload-semester-group" data-semester-group aria-label="<?php echo synk_professor_h($group['semester_label']); ?> classes">
                     <div class="workload-class-grid">
                       <?php foreach ($group['subjects'] as $row):
+                          $headerThemes = ['indigo', 'teal', 'blue', 'lavender'];
+                          $subjectColorKey = preg_replace('/\s+/u', '', strtoupper(trim($row['subject_code'])));
+                          $headerTheme = $headerThemes[hexdec(substr(hash('sha256', $subjectColorKey ?: $row['descriptive_title']), 0, 2)) % count($headerThemes)];
                           $searchText = implode(' ', array_map('strval', [$row['subject_code'], $row['descriptive_title'], $row['section_display'], $row['program_label'], $row['schedule_text'], $row['room_name'], $row['campus_name']]));
                           foreach ($row['meetings'] as $meeting) { $searchText .= ' ' . $meeting['days'] . ' ' . $meeting['type_label']; }
                       ?>
                         <article class="card workload-class" data-workload-class data-workload-key="<?php echo (int)$row['semester'] . '-' . (int)$row['offering_id']; ?>" data-search="<?php echo synk_professor_h($searchText); ?>" aria-label="<?php echo synk_professor_h($row['subject_code'] . ' - ' . $row['section_display']); ?>">
+                          <header class="workload-class-header workload-theme-<?= $headerTheme ?>">
+                            <h3 class="workload-class-title"><span class="workload-class-code"><?= synk_professor_h($row['subject_code'] ?: 'Subject') ?></span>: <?= implode('/<wbr>', array_map('synk_professor_h', explode('/', $row['descriptive_title'] ?: 'Subject title unavailable'))) ?></h3>
+                            <p class="workload-class-course"><?= synk_professor_h($row['program_label'] ?: 'Course pending') ?> <strong class="workload-class-section">(<?= synk_professor_h($row['section_display'] ?: 'Section pending') ?>)</strong></p>
+                          </header>
                           <div class="workload-class-body">
                             <?php require __DIR__ . '/workload-subject-summary.php'; ?>
                             <dl class="workload-class-stats" aria-label="Student counts">
@@ -126,10 +138,23 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
                             </dl>
                             <?php if ($studentActivity['available']): ?><p class="workload-card-roster-note">Sign-in activity for <?= (int)$row['activity']['students'] ?> listed students</p><?php endif; ?>
                           </div>
-                          <footer class="workload-class-footer"><div class="workload-actions-lms">
-                            <button type="button" class="btn workload-show-students" data-bs-toggle="modal" data-bs-target="#workload-students-modal" data-offering-id="<?= (int)$row['offering_id'] ?>" data-ay-id="<?= (int)$row['ay_id'] ?>" data-semester="<?= (int)$row['semester'] ?>" data-class-title="<?= synk_professor_h($row['descriptive_title']) ?>" data-class-label="<?= synk_professor_h($row['subject_code'] . ' · ' . $row['section_display']) ?>" aria-label="<?= synk_professor_h('Show Students for ' . $row['subject_code'] . ' ' . $row['section_display']) ?>"><i class="bx bx-group" aria-hidden="true"></i>Show Students</button>
-                            <?php require __DIR__ . '/workload-action_lms.php'; ?>
-                          </div></footer>
+                          <footer class="workload-class-footer">
+                            <div class="workload-class-summary-lms">
+                              <?php if ($row['lms_summary'] !== null): $classSummary = $row['lms_summary']; ?>
+                                <p><strong><?= $classSummary['activity_count'] ?></strong> <?= $classSummary['activity_count'] === 1 ? 'activity' : 'activities' ?> &middot; <strong><?= $classSummary['draft_count'] ?></strong> <?= $classSummary['draft_count'] === 1 ? 'draft' : 'drafts' ?></p>
+                                <p>Next deadline: <?php if ($classSummary['next_deadline'] !== null):
+                                    $deadline = $classSummary['next_deadline'];
+                                    $deadlineDate = new DateTimeImmutable($deadline['due_at'], new DateTimeZone('Asia/Manila'));
+                                ?><?= synk_professor_h($deadline['title']) ?> &middot; <time datetime="<?= synk_professor_h($deadlineDate->format(DateTimeInterface::ATOM)) ?>" title="<?= synk_professor_h($deadlineDate->format('M j, Y g:i A') . ' (Philippine time)') ?>"><?= synk_professor_h($deadlineDate->format('M j')) ?></time><?php else: ?>None scheduled<?php endif; ?></p>
+                              <?php else: ?>
+                                <p>Activity summary unavailable</p>
+                                <p>Next deadline: Unavailable</p>
+                              <?php endif; ?>
+                            </div>
+                            <div class="workload-actions-lms">
+                              <?php require __DIR__ . '/workload-action_lms.php'; ?>
+                            </div>
+                          </footer>
                         </article>
                       <?php endforeach; ?>
                     </div>
@@ -140,24 +165,6 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
               <p class="workload-enrollment-note">Enrolled retains the recorded total for each class. Active / Inactive counts use the named student roster, which may differ from that total. A student taking several classes contributes to each class's enrollments.</p>
             <?php endif; ?>
           </main>
-          <div class="modal fade workload-students-modal" id="workload-students-modal" tabindex="-1" aria-labelledby="workload-students-title" aria-describedby="workload-students-help" data-roster-url="workload-students.php">
-            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down"><div class="modal-content">
-              <div class="modal-header"><div><span class="workload-eyebrow">CLASS ROSTER</span><h2 class="modal-title" id="workload-students-title">Class students</h2><p id="workload-students-class"></p></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close student list"></button></div>
-              <div class="modal-body">
-                <p id="workload-students-help">Active students have signed in successfully at least once. Inactive students have no successful sign-in recorded.</p>
-                <div id="workload-students-status" role="status" aria-live="polite"></div>
-                <button type="button" class="btn btn-outline-primary" id="workload-students-retry" hidden>Try again</button>
-                <div id="workload-students-content" hidden>
-                  <div class="workload-roster-toolbar"><p id="workload-roster-count"></p><div class="workload-search"><label class="visually-hidden" for="workload-student-search">Search students</label><i class="bx bx-search" aria-hidden="true"></i><input type="search" id="workload-student-search" class="form-control" placeholder="Search name or student number" autocomplete="off"></div></div>
-                  <div class="workload-roster-groups">
-                    <section class="workload-roster-group is-inactive" aria-labelledby="workload-roster-inactive-title"><h3 id="workload-roster-inactive-title"><span><i class="bx bx-user" aria-hidden="true"></i>Inactive students</span><span id="workload-roster-inactive-count">0</span></h3><p>No successful sign-in recorded</p><ul id="workload-roster-inactive"></ul><p class="workload-roster-empty" id="workload-roster-inactive-empty" hidden></p></section>
-                    <section class="workload-roster-group is-active" aria-labelledby="workload-roster-active-title"><h3 id="workload-roster-active-title"><span><i class="bx bx-user-check" aria-hidden="true"></i>Active students</span><span id="workload-roster-active-count">0</span></h3><p>Signed in to the Student portal</p><ul id="workload-roster-active"></ul><p class="workload-roster-empty" id="workload-roster-active-empty" hidden></p></section>
-                  </div>
-                </div>
-              </div>
-              <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
-            </div></div>
-          </div>
           <?php include '../footer.php'; ?>
         </div>
       </div>

@@ -1,15 +1,10 @@
 <?php
-// Workload-only subject details inside each responsive class card.
+// Workload-only meeting details inside each responsive class card.
 if (!isset($row) || !is_array($row)) return;
 $classMeetings = $row['meetings'] ?? [];
 $meetingCount = count($classMeetings);
 ?>
 <div class="workload-subject-overview">
-  <div class="workload-class-reference">
-    <span class="workload-class-code"><?= synk_professor_h($row['subject_code'] ?: 'Subject') ?></span>
-    <span class="workload-class-section"><span class="visually-hidden">Section: </span><?= synk_professor_h($row['section_display'] ?: 'Section pending') ?></span>
-  </div>
-  <h3 class="workload-class-title"><?= implode('/<wbr>', array_map('synk_professor_h', explode('/', $row['descriptive_title'] ?: 'Subject title unavailable'))) ?></h3>
   <details class="workload-meeting-details">
     <summary aria-label="<?= synk_professor_h('Schedule & rooms for '.$row['subject_code'].' '.$row['section_display']) ?>">
       <i class="bx bx-time-five" aria-hidden="true"></i><span>Schedule &amp; rooms</span>

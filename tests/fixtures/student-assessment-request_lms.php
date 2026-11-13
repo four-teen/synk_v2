@@ -12,6 +12,14 @@ register_shutdown_function(static function()use($conn,$tables,$before,&$photo):v
     header('X-QA-Core-Unchanged: '.($conn->query('CHECKSUM TABLE '.$tables)->fetch_all(MYSQLI_ASSOC)===$before?'yes':'no'));
 });
 $fixture=professor_students_fixtures($conn,true);$id=$fixture['students']['active'];
+if (defined('SYNK_STUDENT_ANNOUNCEMENTS_QA')) {
+    require_once $root.'/backend/db_lms.php';require_once $root.'/backend/announcement_helper_lms.php';
+    $lms=synk_database_connection_lms($conn);$lms->begin_transaction();
+    register_shutdown_function(static function()use($lms):void{$lms->rollback();});
+    $context=['portal'=>['faculty_id'=>$fixture['faculty_id']],'class'=>array_replace($fixture['offerings'][0],['ay_id'=>$fixture['term']['ay_id'],'semester'=>$fixture['term']['semester']])];
+    synk_announcement_write_lms($lms,$context,'save',['title'=>'Class reminder <img src=x onerror=alert(1)>','body'=>"Bring your notes.\nLiteral <script>code</script> stays text."],$fixture['user_id']);
+    synk_assessment_publish_lms($lms,$context,['grading_period'=>'final','assessment_type'=>'assignment','title'=>'New class project','instructions'=>'Write your response.','total_points'=>100,'opens_at'=>'2099-01-01T08:00','due_at'=>'2099-01-02T17:00'],$fixture['user_id']);
+}
 $student=synk_student_fetch_directory_record_by_student_id($conn,$id);
 session_save_path($root.'/temp');session_id('studentlmsqa'.bin2hex(random_bytes(10)));session_start();
 synk_complete_student_login($student['email_address'],'Student LMS QA','qa-lms-'.bin2hex(random_bytes(12)));$_SESSION['student_id']=$id;
