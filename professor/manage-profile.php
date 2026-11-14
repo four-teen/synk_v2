@@ -4,6 +4,8 @@ require_once __DIR__ . '/../backend/professor_portal_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_crop_helper.php';
+require_once __DIR__ . '/../backend/faculty_profile_degrees_helper.php';
+require_once __DIR__ . '/../backend/faculty_profile_research_helper.php';
 synk_professor_require_login();
 
 header('Cache-Control: no-store, private');
@@ -44,6 +46,10 @@ try {
     $profile = $storedProfile ?? synk_faculty_profile_defaults($account, $facultyLink, $classification);
     $fields = synk_faculty_profile_fields($ranks, $storedProfile ?? [], $locations);
     $profile['salary_grade'] = synk_faculty_profile_salary((string)$profile['faculty_rank'], $ranks, $storedProfile ?? []);
+    synk_faculty_profile_degrees_ensure($conn);
+    $additionalDegrees = synk_faculty_profile_degrees_fetch($conn,synk_faculty_profile_owner($userId,(int)$portal['faculty_id'],$storedProfile));
+    synk_faculty_profile_research_ensure($conn);
+    $researchRecords = synk_faculty_profile_research_records($conn,synk_faculty_profile_owner($userId,(int)$portal['faculty_id'],$storedProfile));
 } catch (Throwable $exception) {
     error_log('Faculty profile load failed: ' . $exception->getMessage());
     http_response_code(503);
@@ -55,9 +61,17 @@ if (empty($_SESSION['faculty_profile_csrf'])) {
     $_SESSION['faculty_profile_csrf'] = bin2hex(random_bytes(32));
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+require __DIR__ . '/../backend/faculty_profile_research_controller.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isResearchPost) {
     $savedNotice = '';
     [$submitted, $errors] = synk_faculty_profile_validate($_POST, $today, $ranks, $storedProfile ?? [], $eligibilities, $locations);
+    $saveAdditionalDegrees = array_key_exists('additional_degrees_present',$_POST);
+    if ($saveAdditionalDegrees) {
+        [$additionalDegrees,$degreeErrors] = synk_faculty_profile_degrees_validate($_POST['additional_degrees'] ?? []);
+        $errors = array_merge($errors,$degreeErrors);
+        if ($_POST['additional_degrees_present'] !== '1') $errors['additional-degrees'] = 'Reload the profile before updating additional degrees.';
+    }
     $profile = array_merge($profile, $submitted);
     $token = $_POST['csrf_token'] ?? null;
     $revision = $_POST['revision'] ?? null;
@@ -112,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 // Account identity and the linked faculty record ID stay session-owned.
                 if (synk_faculty_profile_save($conn, $userId, $submitted, (int)$revision)) {
+                    if ($saveAdditionalDegrees) synk_faculty_profile_degrees_save($conn,$profileOwner,$additionalDegrees);
                     if ($stagedImage !== null) {
                         $imageReplacement = synk_faculty_profile_publish_image($stagedImage,
                             ($storedProfile['_storage'] ?? '') === 'faculty' ? 0 : $userId, (int)$portal['faculty_id']);
@@ -170,5 +185,10 @@ foreach (array_slice(preg_split('/\s+/', trim($profile['full_name'])) ?: [], 0, 
     $initials .= function_exists('mb_substr') ? mb_substr($namePart, 0, 1, 'UTF-8') : substr($namePart, 0, 1);
 }
 
-$profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner], 'photo_crop_enabled'=>true];
+$profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner], 'photo_crop_enabled'=>true,
+    'show_profile_tabs'=>true, 'additional_degrees'=>$additionalDegrees,
+    'research_state'=>$researchState, 'active_tab'=>$activeProfileTab,
+    'extra_styles'=>['manage-profile.css?v='.filemtime(__DIR__.'/manage-profile.css')],
+    'extra_scripts'=>['manage-profile.js?v='.filemtime(__DIR__.'/manage-profile.js'),
+        'profile-researches.js?v='.filemtime(__DIR__.'/profile-researches.js')]];
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';

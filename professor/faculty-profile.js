@@ -211,7 +211,8 @@
       markDirty({target: eligibility});
     });
 
-    document.querySelectorAll('input[data-education-type]').forEach(function (input) {
+    function initializeEducationInputs(root) {
+    root.querySelectorAll('input[data-education-type]').forEach(function (input) {
       // Keep ordinary text inputs usable if Select2 does not load.
       const select = document.createElement('select');
       ['id', 'name', 'aria-describedby', 'aria-invalid', 'data-education-type', 'data-field-label'].forEach(function (name) {
@@ -233,7 +234,7 @@
         if (event.key === 'Escape') pendingEntry = '';
       }
       function commitEntry() {
-        if (!pendingEntry || choosingResult) return;
+        if (!select.isConnected || !pendingEntry || choosingResult) return;
         const value = pendingEntry;
         pendingEntry = '';
         const existing = Array.from(select.options).find(option => normalizeEntry(option.value).toLowerCase() === value.toLowerCase());
@@ -296,6 +297,11 @@
       // Keep newly typed text when moving to another field or clicking Save.
       $select.on('select2:closing', commitEntry);
       $select.on('select2:close', function () { pendingEntry = ''; choosingResult = false; });
+    });
+    }
+    initializeEducationInputs(document);
+    form.addEventListener('faculty-profile:degree-added', function (event) {
+      if (event.detail?.row) initializeEducationInputs(event.detail.row);
     });
   } else {
     rank.addEventListener('change', updateSalary);

@@ -28,7 +28,7 @@ function synk_professor_class_link_signature_lms(array $ids, string $view, int $
 // Called only for class rows loaded by the server from the professor's own workload.
 function synk_professor_class_url_lms(array $class, string $view = 'overview'): string
 {
-    if (!in_array($view, ['overview', 'students', 'assessments', 'grading', 'gradebook', 'announcements'], true)) throw new DomainException('Choose an available class view.', 400);
+    if (!in_array($view, ['overview', 'students', 'assessments', 'grading', 'gradebook', 'announcements', 'materials'], true)) throw new DomainException('Choose an available class view.', 400);
     $facultyId = (int)($class['faculty_id'] ?? 0);
     $secret = synk_professor_class_link_secret_lms($facultyId, true);
     if ($secret === null) throw new DomainException('Open this class from your workload.', 403);

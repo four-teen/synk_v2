@@ -28,7 +28,7 @@ function synk_professor_class_context_lms(mysqli $coreConnection, array $input):
     }
     if (!in_array($ids['semester'], [1, 2, 3], true)) throw new DomainException('Choose a valid academic semester.', 400);
     $view = $input['view'] ?? 'overview';
-    if (!is_string($view) || !in_array($view, ['overview', 'students', 'assessments', 'grading', 'gradebook', 'announcements'], true)) throw new DomainException('Choose an available class view.', 400);
+    if (!is_string($view) || !in_array($view, ['overview', 'students', 'assessments', 'grading', 'gradebook', 'announcements', 'materials'], true)) throw new DomainException('Choose an available class view.', 400);
     synk_professor_require_class_link_lms($input, $ids, $view, (int)$portal['faculty_id']);
 
     $classes = synk_professor_fetch_subject_rows_by_academic_year($coreConnection, (int)$portal['faculty_id'], $ids['ay_id'], $ids['semester']);

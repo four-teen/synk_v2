@@ -1,5 +1,67 @@
 # Faculty profile storage
 
+The professor editor now has Profile, Researches, and Trainings tabs. Profile is
+the default; Trainings remains blank. Researches holds manually maintained
+research records. Switching tabs retains
+unsaved entries. These tabs are opt-in for this professor page, leaving the
+shared Dean and Program Chair editor configuration intact.
+
+The Researches tab records a research title, Local/International scope,
+Funded/Personal funding, conference name and date, publisher, publisher publication
+link, and Scopus publication link. Title, scope and funding are required;
+conference and publication details are optional until available. Conference dates
+must be real calendar dates from 1900 onward, and may be in the future. A date
+requires its conference name. Publication URLs must use HTTP or HTTPS, without
+embedded credentials; Scopus links must be on scopus.com or its subdomains.
+Recording a Scopus link does not certify indexing or verify the publication.
+Saved research appears in one table with a shared uppercase header and an Actions
+column for Edit/Remove. Research titles display in uppercase. Conference name
+and date share a cell, with the date on the second line; stacked cell content has
+compact spacing. Small screens scroll the table horizontally within its panel.
+
+`faculty_profile_researches.sql` creates `tbl_faculty_profile_researches` in the
+existing profile database, initialized by the professor page if needed. Each
+research is a separate row owned by the server-resolved account/faculty profile,
+with its own revision and timestamps. Add, edit and remove use independent POST
+forms with CSRF and ownership checks; update/delete compare the saved revision
+and reject stale or foreign records. The account link is locked and rechecked
+inside the save transaction. Research saves do not require saving a personal
+profile and do not change its fields, completion, revision or additional degrees.
+Successful saves redirect back to Researches; validation preserves the draft.
+
+Research checks: `php tests/faculty-profile-researches.php`,
+`php tests/faculty-profile-researches-http.php`, and
+`node tests/faculty-profile-researches-browser.cjs`. Database fixture writes roll
+back. Browser checks cover Add/Edit/Cancel/Remove, independent form submission,
+draft retention across tabs, and layouts from 320px through desktop.
+
+Educational attainment retains the original Bachelor’s, Master’s, and Doctoral
+fields. Each degree-level heading has its own **+ Add Degree** button. It appends
+another entry directly within that Bachelor’s, Master’s, or Doctoral section,
+with the level already assigned. Entries are numbered within their level (for
+example, Bachelor’s degree 2 and Doctoral degree 2). Previously saved additional
+degrees appear automatically in their corresponding section. Each entry has its
+own study status, program, institution, address, and specialization. Status and program are required
+for an additional entry; school details can be completed later. The existing
+profile completion rules continue to use the original fields.
+
+`faculty_profile_additional_degrees.sql` creates the additive
+`tbl_faculty_profile_additional_degrees` table, initialized by the professor page
+if needed. Rows use the existing server-resolved `account:<id>` or `faculty:<id>`
+profile owner. Additional degrees and shared suggestions save within the existing
+profile transaction, after its CSRF, ownership, and revision checks. Invalid or
+stale submissions change neither the profile nor its degrees. Submissions from
+older forms without `additional_degrees_present` leave this list untouched.
+Removing an additional entry takes effect when **Save profile** succeeds.
+The original education columns, profile exports, and completion rules are retained.
+
+Checks: `php tests/faculty-profile-degrees.php`,
+`php tests/faculty-profile-degrees-http.php`, `node tests/faculty-profile-degrees-browser.cjs`,
+`php tests/faculty-profile.php --database`, and `php tests/college-dean-profile-http.php`.
+Database fixtures roll back. Browser checks cover per-level Add/Remove, searchable
+fields, two Bachelor's plus two Doctoral degrees in one form, mobile layout, and
+plain-input fallback when Select2 is unavailable.
+
 `professor/manage-profile.php` adds a single profile per authenticated professor
 account using the fields in `FACULTY-PROFILE-NEW-TEMPLATE-.xlsx` (Sheet1,
 A10:O11, with education detail labels in L13:L16). Sample faculty rows are not

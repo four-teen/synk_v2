@@ -14,7 +14,7 @@ function faculty_profile_input(string $key, array $fields, array $profile, array
     }
     $error = $errors[$key] ?? '';
     $inputClass = isset($field['options']) ? 'form-select' : 'form-control';
-    $attributes = ' id="' . $key . '" name="' . $key . '" class="' . $inputClass . ($error !== '' ? ' is-invalid' : '') . '"';
+    $attributes = ' id="' . $key . '" name="' . synk_faculty_profile_h($field['name'] ?? $key) . '" class="' . $inputClass . ($error !== '' ? ' is-invalid' : '') . '"';
     if (isset($field['education_type'])) {
         $attributes .= ' data-education-type="' . $field['education_type'] . '" data-field-label="' . synk_faculty_profile_h($field['label']) . '"';
         $help = 'Select a saved entry or type a new one and press Enter.';

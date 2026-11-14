@@ -107,7 +107,7 @@ $token=bin2hex(random_bytes(24));
 $route=__DIR__.'/../tmp/professor-class-'.bin2hex(random_bytes(8)).'_lms.php';
 file_put_contents($route,'<?php define("SYNK_PROFESSOR_LMS_QA",'.var_export($token,true).');require '.var_export(__DIR__.'/fixtures/professor-class-request_lms.php',true).';');
 try {
-    foreach(['class'=>200,'students'=>200,'assessments'=>200,'grading'=>200,'gradebook'=>200,'announcements'=>200,'workload'=>200,'forged_identity'=>200,'foreign'=>403,'foreign_signed'=>404,
+    foreach(['class'=>200,'students'=>200,'assessments'=>200,'grading'=>200,'gradebook'=>200,'announcements'=>200,'materials'=>200,'workload'=>200,'forged_identity'=>200,'foreign'=>403,'foreign_signed'=>404,
         'bad_id'=>400,'wrong_term'=>403,'wrong_semester'=>400,'edited_semester'=>403,'edited_assigned_class'=>403,'edited_view'=>403,
         'unsigned'=>403,'bad_signature'=>403,'array_signature'=>403,'missing_state'=>403,'rotated_secret'=>403,'regenerated'=>403,
         'copied_link'=>403,'relinked'=>403,'inactive'=>403,'revoked'=>403,'inactive_faculty'=>403,'unlinked'=>403,
@@ -120,20 +120,21 @@ try {
         $check($actual===$status,'Unexpected class page response for '.$case.': '.$actual);
         $check(strpos($headers,'X-QA-Core-Unchanged: yes')!==false,'Rendering a class page changed core records: '.$case);
         $check(!preg_match('/Fatal error|Parse error|xdebug-error|Warning(?:<\/b>)?:/i',$body),'PHP errors appeared in the class page: '.$case);
-        if($status>=400)$check(strpos($body,'CLASS WORKSPACE')===false&&strpos($body,'class-lms-students"')===false,
+        if($status>=400)$check(strpos($body,'class="card class-lms-hero"')===false&&strpos($body,'class-lms-students"')===false,
             'A rejected class link exposed protected class or student content: '.$case);
         if(in_array($case,['foreign','wrong_term','edited_semester','edited_assigned_class','edited_view','unsigned','bad_signature',
             'array_signature','missing_state','rotated_secret','regenerated','copied_link','relinked'],true)){
             $check(strpos($body,'Invalid class link. Please open this class from your workload.')!==false,
                 'A tampered or stale link did not explain how to reopen the class: '.$case);
         }
-        if($case==='class')$check(strpos($body,'CLASS WORKSPACE')!==false&&strpos($body,'Class details')===false&&strpos($body,'Class meetings')===false&&strpos($body,'data-class-tool="students"')!==false&&strpos($body,'Grade Book')!==false,'The class overview must retain its tools and add Grade Book without the removed reference cards.');
+        if($case==='class')$check(strpos($body,'class="card class-lms-hero"')!==false&&strpos($body,'Class details')===false&&strpos($body,'Class meetings')===false&&strpos($body,'data-class-tool="students"')!==false&&strpos($body,'Grade Book')!==false,'The class overview must retain its tools and add Grade Book without the removed reference cards.');
         if($case==='assessments')$check(strpos($body,'id="assessmentWorkspace"')!==false&&strpos($body,'id="assessmentConfig"')!==false&&strpos($body,'Midterm')!==false&&strpos($body,'Final')!==false,'The professor assessment builder is unavailable.');
         if($case==='grading'||$case==='navigate_grading')$check(strpos($body,'id="gradingWorkspace"')!==false&&strpos($body,'id="gradingConfig"')!==false&&strpos($body,'Save Midterm')!==false&&strpos($body,'Save Final')!==false,'The grading card must open its signed workspace with both periods.');
         if($case==='gradebook')$check(strpos($body,'id="gradebookWorkspace"')!==false&&strpos($body,'id="gradebookConfig"')!==false&&strpos($body,'Semester summary')!==false,'The gradebook view must open with signed context and separate period controls.');
         if($case==='announcements')$check(strpos($body,'id="professorAnnouncements"')!==false&&strpos($body,'id="announcementConfig"')!==false,'The announcement card must open its signed class editor.');
+        if($case==='materials')$check(strpos($body,'id="learningMaterials"')!==false&&strpos($body,'id="materialConfig"')!==false,'The learning material card must open its signed upload workspace.');
         if($case==='students'||$case==='navigate_students')$check(strpos($body,'Jos')!==false&&strpos($body,'Foreign Test Student')===false&&strpos($body,'3 listed')!==false,'The class roster includes unrelated students or loses its named members.');
-        if($case==='navigate_class'||$case==='navigate_back')$check(strpos($body,'CLASS WORKSPACE')!==false&&strpos($body,'Manage this subject')!==false,
+        if($case==='navigate_class'||$case==='navigate_back')$check(strpos($body,'class="card class-lms-hero"')!==false&&strpos($body,'Manage this subject')!==false,
             'Following the real workload and tab links did not reach the signed class overview.');
         if(in_array($case,['class','students','grading','navigate_class','navigate_students','navigate_back','navigate_grading'],true)){
             $dom=new DOMDocument();@$dom->loadHTML($body);$xpath=new DOMXPath($dom);

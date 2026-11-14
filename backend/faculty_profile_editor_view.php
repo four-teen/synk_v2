@@ -15,6 +15,8 @@ $profileEditor = array_merge([
     'csrf_token' => (string)($_SESSION['faculty_profile_csrf'] ?? ''), 'hidden_fields' => [],
     'photo_crop_enabled' => false, 'photo_crop_field' => 'profile_photo_crop',
     'read_only' => false,
+    'show_profile_tabs' => false, 'additional_degrees' => null,
+    'research_state' => null, 'active_tab' => 'profile',
 ], $profileEditor ?? []);
 ?>
 <!DOCTYPE html>
@@ -63,6 +65,14 @@ $profileEditor = array_merge([
               <?php endif; ?>
             </div>
 
+            <?php if ($profileEditor['show_profile_tabs']): ?>
+              <nav class="profile-page-tabs" role="tablist" aria-label="Faculty profile tabs">
+                <?php foreach (['profile'=>['Profile','bx-user'], 'researches'=>['Researches','bx-book-open'], 'trainings'=>['Trainings','bx-briefcase-alt']] as $tabKey=>$tabInfo): $tabActive=$profileEditor['active_tab']===$tabKey; ?>
+                <button type="button" id="faculty-tab-<?= $tabKey ?>" role="tab" aria-controls="faculty-panel-<?= $tabKey ?>" aria-selected="<?= $tabActive?'true':'false' ?>" tabindex="<?= $tabActive?'0':'-1' ?>" data-profile-tab="<?= $tabKey ?>"><i class="bx <?= $tabInfo[1] ?>" aria-hidden="true"></i><?= $tabInfo[0] ?></button>
+                <?php endforeach; ?>
+              </nav>
+              <div id="faculty-panel-profile" role="tabpanel" aria-labelledby="faculty-tab-profile"<?= $profileEditor['active_tab']!=='profile'?' hidden':'' ?>>
+            <?php endif; ?>
             <?php if ($savedNotice !== ''): ?>
               <div class="alert alert-success" role="status"><?php echo synk_faculty_profile_h($savedNotice); ?></div>
             <?php endif; ?>
@@ -203,9 +213,15 @@ $profileEditor = array_merge([
 
                 <section class="card profile-section" id="education" aria-labelledby="education-title">
                   <div class="profile-section-heading"><span class="profile-section-icon education"><i class="bx bxs-graduation" aria-hidden="true"></i></span><div><h2 id="education-title">Educational attainment</h2><p>Search shared entries or add your own. New degrees, schools, school addresses, and specializations become available to other professors when you save your profile.</p></div></div>
+                  <?php if ($profileEditor['additional_degrees'] !== null): require __DIR__.'/faculty_profile_degrees_view.php'; ?>
+                    <input type="hidden" name="additional_degrees_present" value="1">
+                    <div id="additional-degrees">
+                      <?php if(isset($errors['additional-degrees'])): ?><p class="alert alert-danger" role="alert"><?= synk_faculty_profile_h($errors['additional-degrees']) ?></p><?php endif; ?>
+                  <?php endif; ?>
                   <?php foreach ($educationLevels as $level => $label): ?>
+                    <?php if ($profileEditor['additional_degrees'] !== null): ?><div class="profile-degree-group" data-degree-level="<?= $level ?>"><?php endif; ?>
                     <fieldset class="profile-education-level">
-                      <legend><span class="profile-degree-dot <?php echo $level; ?>"></span><?php echo synk_faculty_profile_h($label); ?></legend>
+                      <legend><span class="profile-degree-dot <?php echo $level; ?>"></span><?php echo synk_faculty_profile_h($label); ?><?php if ($profileEditor['additional_degrees'] !== null): ?><button type="button" class="btn btn-outline-primary profile-add-degree" data-add-degree="<?= $level ?>" data-degree-label="<?= synk_faculty_profile_h($label) ?>" aria-label="<?= synk_faculty_profile_h('Add another '.$label) ?>"><i class="bx bx-plus" aria-hidden="true"></i>Add Degree</button><?php endif; ?></legend>
                       <div class="row g-4">
                         <div class="col-md-6"><?php faculty_profile_input($level . '_status', $fields, $profile, $errors, $today->format('Y-m-d'), 'Choose Not applicable if you have no studies at this level.'); ?></div>
                         <div class="col-12"><?php faculty_profile_input($level . '_degree', $fields, $profile, $errors, $today->format('Y-m-d')); ?></div>
@@ -214,7 +230,16 @@ $profileEditor = array_merge([
                         <div class="col-12"><?php faculty_profile_input($level . '_specialization', $fields, $profile, $errors, $today->format('Y-m-d')); ?></div>
                       </div>
                     </fieldset>
+                    <?php if ($profileEditor['additional_degrees'] !== null): ?>
+                      <div class="profile-degree-list" data-degree-list="<?= $level ?>">
+                        <?php $degreeNumber=2; foreach ($profileEditor['additional_degrees'] as $degreeIndex=>$degreeRow):
+                          $rowLevel=in_array($degreeRow['level']??'',array_keys($educationLevels),true)?$degreeRow['level']:'bachelor';
+                          if($rowLevel===$level) faculty_profile_additional_degree((string)$degreeIndex,$degreeRow,$errors,$today->format('Y-m-d'),$degreeNumber++);
+                        endforeach; ?>
+                      </div>
+                    </div><?php endif; ?>
                   <?php endforeach; ?>
+                  <?php if ($profileEditor['additional_degrees'] !== null): ?></div><template id="additional-degree-template"><?php faculty_profile_additional_degree('__INDEX__',['level'=>'__LEVEL__'],[],$today->format('Y-m-d')); ?></template><?php endif; ?>
                 </section>
 
                 <?php if (!$profileEditor['read_only']): ?><div class="profile-save-bar">
@@ -225,6 +250,11 @@ $profileEditor = array_merge([
                 <?php if ($profileEditor['read_only']): ?></fieldset><?php endif; ?>
               </form>
             </div>
+            <?php if ($profileEditor['show_profile_tabs']): ?>
+              </div>
+              <section id="faculty-panel-researches" role="tabpanel" aria-labelledby="faculty-tab-researches" tabindex="0"<?= $profileEditor['active_tab']!=='researches'?' hidden':'' ?>><?php if ($profileEditor['research_state'] !== null) require __DIR__.'/faculty_profile_research_view.php'; ?></section>
+              <section class="card profile-blank-panel" id="faculty-panel-trainings" role="tabpanel" aria-labelledby="faculty-tab-trainings" tabindex="0"<?= $profileEditor['active_tab']!=='trainings'?' hidden':'' ?>></section>
+            <?php endif; ?>
           </main>
           <?php include __DIR__ . '/../footer.php'; ?>
         </div>
