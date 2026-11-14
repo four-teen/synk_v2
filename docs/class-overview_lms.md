@@ -15,6 +15,12 @@ view through `aria-current="page"`. Focus outlines and reduced motion remain
 available. The class-page header keeps the academic-term badge and profile
 controls while omitting the Professor Portal and Manage Class badges.
 
+The page content shares the top navbar's outer edges. A compact toolbar places
+the workload back button on the left and the tightly spaced, right-aligned page
+title and subtitle on the right. The subject header shows the subject and section/
+program only; the duplicate term badge, enrollment total, and workspace label are
+removed. The enrollment count remains in the Students card.
+
 Manage Class shows six cards, with three columns on desktop, two on tablet, and
 one on phones. Students, Activities & assessments, Manage Grading System and Grade Book open
 their existing signed class views. The entire card is clickable and keyboard
@@ -28,8 +34,10 @@ are read from the separate LMS database, scoped to professor, offering, academic
 year, and semester. Aggregate queries do not load questions or answer keys. Missing
 or unavailable storage uses purpose text in place of invented zero counts.
 
+All six overview cards use pastel headers with a colored top border, following
+the workload cards. Their white bodies retain the existing metrics and descriptions.
 Grade Book has a purpose footer with no invented count and opens the signed
-[gradebook workspace](gradebook_lms.md). Learning materials and Announcements are
-planned tools; clicking their cards explains the feature using the existing
-SweetAlert2 style. The overview does not write core academic, scheduling,
-workload, or Management records.
+[gradebook workspace](gradebook_lms.md). Announcements opens its signed class editor.
+Learning materials opens the signed [upload workspace](learning-materials_lms.md)
+and displays its current file count out of two. The overview does not write core
+academic, scheduling, workload, or Management records.

@@ -5,7 +5,7 @@ $classTools = [
     ['key'=>'activities','title'=>'Activities & assessments','icon'=>'bx-task','status'=>'Draft builder','view'=>'assessments','purpose'=>'Prepare quizzes, exams, assignments, and answer keys.'],
     ['key'=>'grading','title'=>'Manage Grading System','icon'=>'bx-slider-alt','status'=>'Available','view'=>'grading','purpose'=>'Set the grading components and percentage weights for each period.'],
     ['key'=>'gradebook','title'=>'Grade Book','icon'=>'bx-spreadsheet','status'=>'Available','view'=>'gradebook','purpose'=>'Record scores and calculate grades using your grading components.'],
-    ['key'=>'materials','title'=>'Learning materials','icon'=>'bx-folder-open','status'=>'Planned','view'=>null,'purpose'=>'Organize modules, lesson notes, and learning resources.'],
+    ['key'=>'materials','title'=>'Learning materials','icon'=>'bx-folder-open','status'=>'Available','view'=>'materials','purpose'=>'Upload your syllabus and learning resources as PDF or PowerPoint. Maximum two files per subject.'],
     ['key'=>'announcements','title'=>'Announcements','icon'=>'bx-bell','status'=>'Available','view'=>'announcements','purpose'=>'Post class updates, reminders, and important notices.']
 ];
 ?>
@@ -14,6 +14,7 @@ $classTools = [
   <div class="class-lms-tool-grid">
     <?php foreach ($classTools as $tool): $toolId = 'class-tool-' . $tool['key']; ?>
       <article class="card class-lms-tool class-lms-tool-<?= $tool['key'] ?>" data-class-tool="<?= $tool['key'] ?>">
+        <header class="class-lms-tool-header">
         <div class="class-lms-tool-top"><span class="class-lms-card-icon class-lms-icon-<?= $tool['key'] ?>"><i class="bx <?= $tool['icon'] ?>" aria-hidden="true"></i></span><span class="class-lms-tool-status<?= $tool['view'] ? ' class-lms-tool-available' : '' ?>"><?= $tool['status'] ?></span></div>
         <h3 id="<?= $toolId ?>">
           <?php if ($tool['view']): ?>
@@ -23,9 +24,12 @@ $classTools = [
           <?php endif; ?>
           <i class="bx <?= $tool['view'] ? 'bx-right-arrow-alt' : 'bx-info-circle' ?> class-lms-tool-direction" aria-hidden="true"></i>
         </h3>
+        </header>
         <div class="class-lms-tool-footer" id="<?= $toolId ?>-footer">
           <?php if ($tool['key'] === 'students'): ?>
             <span class="class-lms-tool-metric"><strong><?= number_format((int)$class['student_count']) ?></strong><span>enrolled <?= (int)$class['student_count'] === 1 ? 'student' : 'students' ?></span></span>
+          <?php elseif ($tool['key'] === 'materials' && ($materialsCount ?? null) !== null): ?>
+            <span class="class-lms-tool-metric"><strong><?= (int)$materialsCount ?> / 2</strong><span>files uploaded · PDF / PowerPoint</span></span>
           <?php elseif ($tool['key'] === 'activities' && $overviewSummary['assessment_count'] !== null): ?>
             <span class="class-lms-tool-metric"><strong><?= number_format($overviewSummary['assessment_count']) ?></strong><span><?= $overviewSummary['assessment_count'] === 1 ? 'assessment' : 'assessments' ?> created</span></span>
           <?php elseif ($tool['key'] === 'grading' && $overviewSummary['grading_periods'] !== null): ?>

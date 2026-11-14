@@ -11,6 +11,8 @@ require_once $root . '/backend/college_dean_profile_helper.php';
 require_once $root . '/backend/faculty_directory_helper.php';
 require_once $root . '/backend/di_profile_analytics_helper.php';
 require_once $root . '/backend/faculty_profile_excel_helper.php';
+if (defined('SYNK_DEGREE_QA')) require_once $root.'/backend/faculty_profile_degrees_helper.php';
+if (defined('SYNK_RESEARCH_QA')) require_once $root.'/backend/faculty_profile_research_helper.php';
 class DeanProfileQAConnection extends mysqli
 {
     public $requestMode = false;
@@ -82,6 +84,7 @@ $seed=synk_faculty_profile_defaults(['username'=>'Maria QA Linked','campus_name'
 synk_faculty_profile_save($conn,$accountId,$seed,0);
 $targetId=$faculty['record'];
 $owner='faculty:' . $targetId;
+if ($scenario==='professor_account') {$targetId=$faculty['linked'];$owner='account:'.$accountId;}
 if (strpos($scenario,'linked_')===0) {$targetId=$faculty['linked'];$owner='account:' . $accountId;}
 if (in_array($scenario,['record_update','stale','record_linked','professor_get','professor_save','professor_owner'],true)) {
     $seed['full_name']='José QA Record';
@@ -104,20 +107,39 @@ if ($scenario==='revoked') $conn->query("UPDATE tbl_useraccount_roles SET status
 if ($scenario==='inactive') $conn->query("UPDATE tbl_useraccount SET status='inactive' WHERE user_id={$actorId}");
 if ($scenario==='reassigned') $conn->query("UPDATE tbl_useraccount SET college_dean_college_id={$foreignCollege} WHERE user_id={$actorId}");
 $_GET['faculty_id']=$scenario==='bad_id' ? ['malformed'] : (string)$targetId;
+if (defined('SYNK_DEGREE_QA')) synk_faculty_profile_degrees_save($conn,$owner,[['level'=>'bachelor','status'=>'Completed','degree'=>'Previously saved second degree','institution'=>'','address'=>'','specialization'=>'']]);
+if (defined('SYNK_RESEARCH_QA')) {
+    $researchSeed=['research_title'=>'Community learning and sustainable agriculture','research_scope'=>'International','funding_type'=>'Funded',
+        'conference_name'=>'International Conference on Community Research','conference_date'=>'2026-10-15','publisher'=>'Research Journal',
+        'publisher_link'=>'https://publisher.example/articles/community-learning','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=2-s2.0-123456789'];
+    synk_faculty_profile_research_save($conn,$owner,$researchSeed,0,0);
+    $researchFixtureId=(int)$conn->insert_id;
+    synk_faculty_profile_research_save($conn,'faculty:'.$faculty['foreign'],array_replace($researchSeed,['research_title'=>'Foreign private research']),0,0);
+    $foreignResearchId=(int)$conn->insert_id;
+    if (($_POST['research_id']??'')==='record') $_POST['research_id']=(string)$researchFixtureId;
+    if (($_POST['research_id']??'')==='foreign') $_POST['research_id']=(string)$foreignResearchId;
+    if (($_GET['research']??'')==='record') $_GET['research']=(string)$researchFixtureId;
+    if (($_GET['research']??'')==='foreign') $_GET['research']=(string)$foreignResearchId;
+}
 $uploaded=$_SERVER['REQUEST_METHOD']==='POST';
 if ($uploaded) {
     $_POST['profile_owner']=in_array($scenario,['bad_owner','professor_owner'],true) ? 'faculty:999999' : $owner;
     if ($scenario==='bad_csrf') $_POST['csrf_token']='invalid';
 }
 $tables=['tbl_faculty_record_profiles','tbl_faculty_profiles','tbl_faculty_profile_eligibilities','tbl_faculty_education_options'];
+if (defined('SYNK_DEGREE_QA')) $tables[]='tbl_faculty_profile_additional_degrees';
+if (defined('SYNK_RESEARCH_QA')) $tables[]='tbl_faculty_profile_researches';
 $snapshot=static function() use($conn,$tables):array {
     $rows=[];foreach($tables as $table)$rows[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));return $rows;
 };
 $before=$snapshot();
 $imagePath=synk_faculty_record_image_path($targetId);
 $userImage=synk_faculty_profile_image_path($accountId);
-ob_start(static function($html) {return strpos($html,'<head>')!==false ? str_replace('<head>','<head><base href="http://localhost/synk/college-dean/">',$html) : $html;});
-register_shutdown_function(static function() use($conn,$snapshot,$before,$targetId,$accountId,$actorId,$faculty,$imagePath,$userImage,$root):void {
+ob_start(static function($html) use($scenario) {
+    $area=strpos($scenario,'professor_')===0?'professor':'college-dean';
+    return strpos($html,'<head>')!==false ? str_replace('<head>','<head><base href="http://localhost/synk/'.$area.'/">',$html) : $html;
+});
+register_shutdown_function(static function() use($conn,$snapshot,$before,$targetId,$accountId,$actorId,$faculty,$imagePath,$userImage,$root,$owner):void {
     try {
         $row=synk_faculty_record_profile_fetch($conn,$targetId);
         $account=synk_faculty_profile_fetch($conn,$accountId);
@@ -126,6 +148,17 @@ register_shutdown_function(static function() use($conn,$snapshot,$before,$target
         $progress=synk_di_faculty_profile_completion_by_faculty($conn,$directory);
         $labels=synk_faculty_excel_eligibilities($conn,[$record]);
         header('X-QA-Changed: '.($snapshot()===$before ? 'no' : 'yes'));
+        if(defined('SYNK_DEGREE_QA')) {
+            $savedDegrees=synk_faculty_profile_degrees_fetch($conn,$owner);
+            header('X-QA-Additional-Degrees: '.count($savedDegrees));
+            header('X-QA-Additional-Degree-Levels: '.implode(',',array_column($savedDegrees,'level')));
+        }
+        if(defined('SYNK_RESEARCH_QA')) {
+            $savedResearches=synk_faculty_profile_research_records($conn,$owner);
+            header('X-QA-Researches: '.count($savedResearches));
+            header('X-QA-Research-Title: '.rawurlencode($savedResearches[0]['research_title']??''));
+            header('X-QA-Research-Revision: '.(int)($savedResearches[0]['revision']??0));
+        }
         header('X-QA-Record-Revision: '.(int)($row['revision'] ?? 0));
         header('X-QA-Account-Revision: '.(int)($account['revision'] ?? 0));
         header('X-QA-Account-Storage: '.($account['_storage'] ?? 'account'));
