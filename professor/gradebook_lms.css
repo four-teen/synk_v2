@@ -12,6 +12,17 @@
 .gb-periods button+button{margin-left:-1px}
 .gb-periods .is-active{background:#efedfe;color:#5147b8;border-bottom-color:#6558d5}
 .gb-periods [data-gb-waiting-count]{display:inline-block;margin-left:5px;padding:1px 5px;background:#f8eacb;color:#865b17;font-size:11px;font-weight:600}
+.gb-visibility{margin-bottom:24px;padding:20px;border:1px solid var(--gb-line);background:#fff}
+.gb-visibility-heading h3{font-size:17px;margin:0 0 6px}
+.gb-visibility-heading>p{max-width:940px;font-size:12px;line-height:1.7;color:var(--gb-muted);margin:0 0 16px}
+.gb-visibility-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.gb-visibility-option{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:16px;border:1px solid var(--gb-line);min-width:0}
+.gb-visibility-option h4{font-size:14px;margin:0 0 5px}
+.gb-visibility-option p{font-size:11px;line-height:1.6;color:var(--gb-muted);margin:0}
+.gb-visibility-status{font-size:11px;line-height:1.5;padding:4px 8px;background:#f0f2f6;color:#647184}
+.gb-visibility-status.is-visible{background:#e4f3e9;color:#2c6942}
+.gb-visibility-option .btn{margin-top:auto}
+@media(max-width:767.98px){.gb-visibility{padding:16px}.gb-visibility-options{grid-template-columns:minmax(0,1fr)}}
 .gb-unlinked-panel{margin-top:24px;padding:0 18px 18px;border:1px solid #dedbf2;border-left:3px solid #8a80d9;background:#faf9ff;border-radius:8px}
 .gb-unlinked-panel .gb-section-heading{margin-top:18px}
 .gb-unlinked-panel .gb-entry{border-radius:8px}

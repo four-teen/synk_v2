@@ -229,7 +229,9 @@ if (isset($_POST['login'])) {
 
     <style>
       :root {
-        --login-bg: linear-gradient(135deg, #f3f6fb 0%, #f8fafc 46%, #edf7f1 100%);
+        --login-bg:
+          radial-gradient(ellipse at 50% 46%, rgba(255, 255, 255, 0.9), transparent 66%),
+          linear-gradient(135deg, #edf5fc 0%, #f9fbfe 52%, #eef6fc 100%);
         --synk-login-intro-background: var(--login-bg);
         --synk-login-intro-wordmark: var(--login-title);
         --login-card-border: #d9e2ef;
@@ -255,8 +257,43 @@ if (isset($_POST['login'])) {
         min-height: 100dvh;
         padding: 2rem 1rem;
         position: relative;
+        isolation: isolate;
         overflow-x: hidden;
         overflow-y: auto;
+      }
+
+      /* Static CSS dot fields: no image downloads or animation loop. */
+      .login-background {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+
+      .login-background::before,
+      .login-background::after {
+        content: "";
+        position: absolute;
+        background-repeat: repeat;
+      }
+
+      .login-background::before {
+        inset: -24% -18%;
+        background-image: radial-gradient(circle, rgba(83, 145, 201, 0.3) 1.15px, transparent 1.8px);
+        background-size: 20px 20px;
+        transform: perspective(1100px) rotateY(-30deg) rotateZ(-15deg);
+        -webkit-mask-image: radial-gradient(ellipse 52% 64% at 30% 55%, #000 20%, transparent 76%);
+        mask-image: radial-gradient(ellipse 52% 64% at 30% 55%, #000 20%, transparent 76%);
+      }
+
+      .login-background::after {
+        inset: -20% -14%;
+        background-image: radial-gradient(circle, rgba(102, 159, 209, 0.2) 1px, transparent 1.55px);
+        background-size: 14px 14px;
+        transform: perspective(900px) rotateY(30deg) rotateZ(20deg);
+        -webkit-mask-image: radial-gradient(ellipse 45% 65% at 82% 30%, #000 12%, transparent 75%);
+        mask-image: radial-gradient(ellipse 45% 65% at 82% 30%, #000 12%, transparent 75%);
       }
 
       .login-stage {
@@ -269,48 +306,6 @@ if (isset($_POST['login'])) {
         justify-content: center;
         position: relative;
         z-index: 1;
-      }
-
-      .login-dot-grid {
-        position: absolute;
-        width: 176px;
-        height: 176px;
-        background-image: radial-gradient(rgba(105, 108, 255, 0.36) 2px, transparent 2px);
-        background-size: 18px 18px;
-        pointer-events: none;
-      }
-
-      .login-dot-grid-left {
-        left: 16%;
-        bottom: 9%;
-        opacity: 0.55;
-      }
-
-      .login-dot-grid-right {
-        right: 14%;
-        top: 10%;
-      }
-
-      .login-plate {
-        position: absolute;
-        border: 1px solid rgba(67, 89, 113, 0.14);
-        border-radius: 0.9rem;
-        background: rgba(255, 255, 255, 0.28);
-        pointer-events: none;
-      }
-
-      .login-plate-left {
-        left: 19%;
-        bottom: 5%;
-        width: 140px;
-        height: 210px;
-      }
-
-      .login-plate-right {
-        right: 22%;
-        top: 17%;
-        width: 120px;
-        height: 120px;
       }
 
       .login-panel {
@@ -773,18 +768,13 @@ if (isset($_POST['login'])) {
           line-height: 1.45;
         }
 
-        .login-dot-grid-right,
-        .login-plate-right {
-          display: none;
+        .login-background::before {
+          background-size: 22px 22px;
         }
 
-        .login-dot-grid-left {
-          left: 6%;
-          bottom: 8%;
-        }
-
-        .login-plate-left {
-          left: 8%;
+        .login-background::after {
+          background-size: 18px 18px;
+          opacity: 0.65;
         }
 
         .swal2-popup.role-choice-swal {
@@ -831,12 +821,8 @@ if (isset($_POST['login'])) {
       </div>
     </div>
     <div class="login-shell">
+      <div class="login-background" aria-hidden="true"></div>
       <div class="login-stage" data-synk-login-content>
-        <div class="login-dot-grid login-dot-grid-left"></div>
-        <div class="login-dot-grid login-dot-grid-right"></div>
-        <div class="login-plate login-plate-left"></div>
-        <div class="login-plate login-plate-right"></div>
-
         <div class="login-panel">
           <div class="login-emblem">
             <img

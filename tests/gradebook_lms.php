@@ -10,7 +10,7 @@ $check=static function(bool $ok,string $message)use(&$checks):void{if(!$ok)throw
 $denied=static function(callable $call,int $status)use($check):void{try{$call();$check(false,'Invalid gradebook operation accepted.');}catch(DomainException $e){$check($e->getCode()===$status,'Unexpected rejection: '.$e->getMessage());}};
 $snapshot=static function(mysqli $db,string $tables):array{return $db->query('CHECKSUM TABLE '.$tables)->fetch_all(MYSQLI_ASSOC);};
 $coreTables='tbl_class_schedule,tbl_faculty_workload_sched,tbl_academic_settings,tbl_student_management,tbl_student_management_enrolled_subjects,tbl_useraccount,tbl_useraccount_roles,tbl_useraccount_faculty_links,tbl_faculty';
-$lmsTables='tbl_lms_gradebook_periods,tbl_lms_gradebook_items,tbl_lms_gradebook_scores,tbl_lms_gradebook_logs,tbl_lms_grading_schemes,tbl_lms_grading_components,tbl_lms_grading_logs,tbl_lms_assessments,tbl_lms_assessment_questions,tbl_lms_assessment_logs,tbl_lms_assessment_attempts';
+$lmsTables='tbl_lms_gradebook_periods,tbl_lms_gradebook_items,tbl_lms_gradebook_scores,tbl_lms_gradebook_logs,tbl_lms_gradebook_visibility,tbl_lms_gradebook_visibility_logs,tbl_lms_grading_schemes,tbl_lms_grading_components,tbl_lms_grading_logs,tbl_lms_assessments,tbl_lms_assessment_questions,tbl_lms_assessment_logs,tbl_lms_assessment_attempts';
 $lms=synk_database_connection_lms($conn);$check(synk_gradebook_ready_lms($lms),'Install LMS gradebook storage before running tests.');
 $coreBefore=$snapshot($conn,$coreTables);$lmsBefore=$snapshot($lms,$lmsTables);$tablesBefore=$lms->query('SHOW TABLES')->fetch_all(MYSQLI_NUM);$originalSession=$_SESSION??[];
 $check($conn->query("SHOW TABLES LIKE 'tbl_lms_gradebook_%'")->num_rows===0,'Gradebook tables must not be installed in core storage.');
@@ -31,6 +31,19 @@ try {
     $context=synk_professor_class_context_lms($conn,$params);$student=(int)$fixture['students']['active'];$other=(int)$fixture['students']['failed'];
     $workspace=synk_gradebook_workspace_lms($conn,$lms,$context);
     $check(count($workspace['roster'])===3 && $workspace['periods']['midterm']['book_id']===0,'Gradebook must use the exact named roster and not initialize empty periods.');
+    $check($workspace['visibility']===['ready'=>true,'version'=>0,'midterm'=>false,'final'=>false,'overall'=>false],'A class must default to all grades hidden without creating a visibility record.');
+    $visibilitySave=static function(array $payload)use($conn,$lms,$context,$actor):array{return synk_gradebook_mutate_lms($conn,$lms,$context,'set_visibility',$payload,$actor);};
+    $visibilitySave(['version'=>0,'grade_part'=>'midterm','visible'=>true]);
+    $shown=synk_gradebook_visibility_lms($lms,$context);
+    $check($shown['midterm']&&!$shown['final']&&!$shown['overall']&&$shown['version']===1,'Each visibility change must update only the selected result and its revision.');
+    $check(synk_gradebook_period_lms($lms,$context,'midterm')['book_id']===0,'Visibility controls must not freeze a grading scheme or create a score book.');
+    $denied(static function()use($visibilitySave){$visibilitySave(['version'=>0,'grade_part'=>'final','visible'=>true]);},409);
+    foreach([['grade_part'=>'summary','visible'=>true],['grade_part'=>'final','visible'=>'1'],['grade_part'=>'final','visible'=>1],['grade_part'=>'final','visible'=>null]] as $invalid)$denied(static function()use($visibilitySave,$invalid){$visibilitySave(['version'=>1]+$invalid);},422);
+    $check(synk_gradebook_visibility_lms($lms,$context)===$shown,'Stale or malformed release requests must leave every flag unchanged.');
+    $visibilitySave(['version'=>1,'grade_part'=>'midterm','visible'=>false]);$initialVisibility=synk_gradebook_visibility_lms($lms,$context);
+    foreach([['portal'=>['faculty_id'=>$fixture['faculty_id']+1000000],'class'=>$context['class']],['portal'=>$context['portal'],'class'=>array_replace($context['class'],['offering_id'=>$fixture['offerings'][1]['offering_id']])],['portal'=>$context['portal'],'class'=>array_replace($context['class'],['semester'=>2])],['portal'=>$context['portal'],'class'=>array_replace($context['class'],['ay_id'=>$fixture['term']['ay_id']+1000000])]] as $unrelated)$check(synk_gradebook_visibility_lms($lms,$unrelated)['version']===0,'Visibility must be isolated by professor, offering, academic year and semester.');
+    $visibilityLogs=synk_grading_query_lms($lms,'SELECT l.* FROM tbl_lms_gradebook_visibility_logs l JOIN tbl_lms_gradebook_visibility v ON v.visibility_id=l.visibility_id WHERE v.faculty_id=?','i',[$fixture['faculty_id']]);
+    $check(count($visibilityLogs)===2&&(int)$visibilityLogs[0]['was_visible']===0&&(int)$visibilityLogs[0]['is_visible']===1&&(int)$visibilityLogs[1]['is_visible']===0&&(int)$visibilityLogs[0]['actor_user_id']===$actor,'Showing and hiding must retain the actor, old/new state and revision in the LMS audit history.');
     $save=static function(string $action,array $payload)use($conn,$lms,$context,$actor):array{return synk_gradebook_mutate_lms($conn,$lms,$context,$action,$payload,$actor);};
     $revision=static function(string $period='midterm')use($lms,$context):array{$b=synk_gradebook_period_lms($lms,$context,$period);return ['grading_period'=>$period,'version'=>$b['version'],'scheme_version'=>$b['scheme']['version']];};
     $manual=['item_id'=>0,'entry_kind'=>'score','title'=>'Handwritten exam','max_points'=>'60','recorded_date'=>'2026-11-11'];
@@ -152,11 +165,17 @@ try {
     $discovered=array_column(synk_gradebook_available_assessments_lms($lms,$context,synk_gradebook_roster_lms($conn,$context)),null,'assessment_id');
     $check($discovered[$assessment['assessment_id']]['link_status']==='archived','Archived LMS entries must not reappear as unlinked work and invite double counting.');
     $request=['action'=>'get','context'=>$params,'csrf_token'=>$_SESSION['lms_gradebook_csrf']];
+    $releaseRequest=$request;$releaseRequest['action']='set_visibility';$releaseRequest['payload']=['version'=>$initialVisibility['version'],'grade_part'=>'overall','visible'=>true];
+    foreach([['csrf_token'=>'bad'],['context'=>array_diff_key($params,['signature'=>true])],['context'=>array_replace($params,['offering_id'=>$fixture['offerings'][1]['offering_id']])]] as $bad)$denied(static function()use($conn,$releaseRequest,$bad){synk_gradebook_request_lms($conn,array_replace($releaseRequest,$bad));},403);
+    $withSelector=$releaseRequest;$withSelector['payload']['student_id']=$student;$denied(static function()use($conn,$withSelector){synk_gradebook_request_lms($conn,$withSelector);},400);
+    $professorSession=$_SESSION;foreach(['student','admin',''] as $role){$_SESSION=['role'=>$role,'user_id'=>$actor];$denied(static function()use($conn,$releaseRequest){synk_gradebook_request_lms($conn,$releaseRequest);},401);}$_SESSION=$professorSession;
+    $check(synk_gradebook_visibility_lms($lms,$context)===$initialVisibility,'Score entry, archiving and grading revision changes must not release any grades.');
     foreach ([['csrf_token'=>'bad'],['context'=>array_replace($params,['view'=>'grading'])],['context'=>array_diff_key($params,['signature'=>true])]] as $bad)$denied(static function()use($conn,$request,$bad){synk_gradebook_request_lms($conn,array_replace($request,$bad));},403);
     $denied(static function()use($conn,$request){synk_gradebook_request_lms($conn,$request+['faculty_id'=>1]);},400);
     $denied(static function()use($conn,$request){synk_gradebook_request_lms($conn,array_replace($request,['payload'=>['student_id'=>1]]));},400);
     $conn->query('DELETE FROM tbl_faculty_workload_sched WHERE faculty_id='.$fixture['faculty_id']);
     $denied(static function()use($conn,$request){synk_gradebook_request_lms($conn,$request);},404);
+    $denied(static function()use($conn,$releaseRequest){synk_gradebook_request_lms($conn,$releaseRequest);},404);
     $logs=synk_grading_query_lms($lms,'SELECT action,details_json FROM tbl_lms_gradebook_logs WHERE book_id=?','i',[$book['book_id']]);
     $check(count($logs)>10 && json_decode($logs[0]['details_json'],true)['after']['title']==='Handwritten exam','Mutations must retain auditable before/after details.');
     $check($lms->query('SHOW TABLES')->fetch_all(MYSQLI_NUM)===$tablesBefore,'Gradebook requests must not create or alter tables.');
@@ -168,6 +187,7 @@ class GradebookAuditFailureLms extends mysqli
     #[\ReturnTypeWillChange]
     public function prepare($sql) {
         if (strpos($sql,'INSERT INTO tbl_lms_gradebook_logs')===0) throw new RuntimeException('Simulated gradebook audit failure.');
+        if (strpos($sql,'INSERT INTO tbl_lms_gradebook_visibility_logs')===0) throw new RuntimeException('Simulated visibility audit failure.');
         return parent::prepare($sql);
     }
 }
@@ -178,6 +198,12 @@ try {
     synk_gradebook_mutate_lms($conn,$failure,$fake,'save_item',['grading_period'=>'midterm','version'=>0,'scheme_version'=>1,'entry_kind'=>'score','title'=>'Audit failure entry','max_points'=>100,'component_id'=>$testScheme['components'][0]['component_id']],2147483000);
     $check(false,'A failed gradebook audit must fail the whole operation.');
 } catch(RuntimeException $error) {$check($error->getMessage()==='Simulated gradebook audit failure.','Unexpected audit failure check error.');}
+finally {$failure->rollback();}
+try {
+    $failure->begin_transaction();
+    synk_gradebook_mutate_lms($conn,$failure,$fake,'set_visibility',['version'=>0,'grade_part'=>'overall','visible'=>true],2147483000);
+    $check(false,'A failed visibility audit must fail the release.');
+} catch(RuntimeException $error){$check($error->getMessage()==='Simulated visibility audit failure.','Unexpected visibility audit failure check error.');}
 finally {$failure->rollback();$failure->close();}
 $check($snapshot($lms,$lmsTables)===$lmsBefore,'Late audit failures must roll back period and entry writes.');
 echo 'LMS gradebook: ',$checks,' checks passed. All fixtures rolled back.',PHP_EOL;

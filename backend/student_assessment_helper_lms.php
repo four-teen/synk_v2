@@ -84,7 +84,8 @@ function synk_student_assessment_answers_lms(array $record,array $questions,$inp
 function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentId): array
 {
     $term=synk_fetch_current_academic_term($core);
-    $rows=synk_assessment_query_lms($lms,"SELECT assessment_id,faculty_id,offering_id,ay_id,semester,grading_period,assessment_type,title,status,total_points,opens_at,due_at,time_limit_minutes
+    $rows=synk_assessment_query_lms($lms,"SELECT assessment_id,faculty_id,offering_id,ay_id,semester,grading_period,assessment_type,title,status,total_points,opens_at,due_at,time_limit_minutes,
+        (SELECT COUNT(*) FROM tbl_lms_assessment_questions q WHERE q.assessment_id=tbl_lms_assessments.assessment_id) AS question_count
         FROM tbl_lms_assessments WHERE ay_id=? AND semester=? AND status IN ('published','closed') ORDER BY assessment_id DESC",'ii',[(int)$term['ay_id'],(int)$term['semester']]);
     $result=[];$classes=[];$members=[];$finished=[];
     foreach ($rows as $row) {
@@ -102,6 +103,8 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
         $row=synk_assessment_attempt_record_lms($row,$attempt[0]??null);
         $item=array_intersect_key($row,array_flip(['assessment_id','grading_period','assessment_type','title','status','total_points','opens_at','due_at','time_limit_minutes']));
         $item['assessment_id']=(int)$item['assessment_id'];$item['subject_label']=$class['subject_code'].': '.$class['descriptive_title'];
+        // Display metadata only: started attempts retain their original item count.
+        $item['question_count']=isset($row['questions'])?count($row['questions']):(int)$row['question_count'];
         $item['subject_key']=synk_student_subject_key_lms($facultyId,$class['subject_code'],$class['descriptive_title']);
         $item['attempt_status']=$attempt?$attempt[0]['status']:null;
         if ($item['attempt_status']==='in_progress' && $attempt[0]['deadline_at']!==null && $attempt[0]['deadline_at']<=synk_assessment_now_lms()) $item['attempt_status']='expired';

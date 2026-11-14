@@ -16,15 +16,19 @@ $announcementDate = static function(?string $date): string {
     <div class="student-update-list">
       <?php foreach ($announcements as $notice): ?>
       <article class="student-update<?= $notice['unread'] ? ' is-unread' : '' ?>" data-notice-key="<?= synk_student_h($notice['event_key']) ?>">
+        <header class="student-update-card-header">
         <div class="student-update-meta"><span class="badge <?= $notice['kind']==='announcement'?'bg-label-primary':'bg-label-success' ?>"><?= $notice['kind']==='announcement'?'Class notice':synk_student_h(ucfirst($notice['kind']).' published') ?></span><span class="student-update-new"<?= !$notice['unread']?' hidden':'' ?>>New</span><time datetime="<?= synk_student_h(str_replace(' ','T',$notice['event_at']).'+08:00') ?>"><?= synk_student_h($announcementDate($notice['event_at'])) ?></time></div>
-        <p class="student-update-subject"><?= synk_student_h($notice['subject_label']) ?> <span>· <?= synk_student_h($notice['faculty_name']) ?></span></p>
         <h3><?= synk_student_h($notice['title']) ?></h3>
+        </header>
+        <div class="student-update-card-body">
+        <p class="student-update-subject"><?= synk_student_h($notice['subject_label']) ?> <span>· <?= synk_student_h($notice['faculty_name']) ?></span></p>
         <?php if ($notice['kind']==='announcement'): ?><p class="student-update-message"><?= synk_student_h($notice['body']) ?></p>
         <?php else: ?><p>Your professor published a new <?= synk_student_h($notice['kind']) ?> for this class.</p>
         <?php if ($notice['opens_at'] !== null): ?><p class="student-update-schedule">Opens <?= synk_student_h($announcementDate($notice['opens_at'])) ?></p><?php endif; ?>
         <?php if ($notice['due_at'] !== null): ?><p class="student-update-schedule">Due <?= synk_student_h($announcementDate($notice['due_at'])) ?></p><?php endif; ?>
         <?php if ($notice['status']==='closed'): ?><p class="student-update-schedule">This activity is now closed.</p><?php endif; ?>
         <a class="btn btn-sm btn-outline-primary mt-2" href="<?= synk_student_h($notice['url']) ?>">View activity <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a><?php endif; ?>
+        </div>
       </article>
       <?php endforeach; ?>
     </div>

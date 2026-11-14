@@ -1,0 +1,84 @@
+/* Student dashboard presentation. All counts, periods and announcements stay server-owned. */
+.student-portal.student-dashboard{position:relative;isolation:isolate;min-height:100vh;min-height:100dvh;background:radial-gradient(ellipse at 50% 46%,#ffffffe6,transparent 66%),linear-gradient(135deg,#edf5fc 0%,#f9fbfe 52%,#eef6fc 100%)}
+.student-dashboard-background{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.student-dashboard-background::before,.student-dashboard-background::after{content:'';position:absolute;background-repeat:repeat}
+.student-dashboard-background::before{inset:-24% -18%;background-image:radial-gradient(circle,#5391c94d 1.15px,transparent 1.8px);background-size:20px 20px;transform:perspective(1100px) rotateY(-30deg) rotateZ(-15deg);-webkit-mask-image:radial-gradient(ellipse 52% 64% at 30% 55%,#000 20%,transparent 76%);mask-image:radial-gradient(ellipse 52% 64% at 30% 55%,#000 20%,transparent 76%)}
+.student-dashboard-background::after{inset:-20% -14%;background-image:radial-gradient(circle,#669fd133 1px,transparent 1.55px);background-size:14px 14px;transform:perspective(900px) rotateY(30deg) rotateZ(20deg);-webkit-mask-image:radial-gradient(ellipse 45% 65% at 82% 30%,#000 12%,transparent 75%);mask-image:radial-gradient(ellipse 45% 65% at 82% 30%,#000 12%,transparent 75%)}
+.student-dashboard #layout-navbar{background:#d7e8ed!important}
+.student-dashboard .student-welcome{padding:0 0 24px;align-items:center}
+.student-dashboard .student-eyebrow{margin-bottom:7px}
+.student-dashboard .student-welcome h1{font-size:34px;line-height:1.15;margin-bottom:8px;letter-spacing:-1.2px}
+.student-dashboard .student-welcome-program{padding:11px 14px;border:1px solid #dce8ee;border-radius:15px;background:#ffffffb3}
+.student-dashboard .student-welcome-program>.bx{border-color:#cee5ed;background:#e3f3f9;color:#3c7b96}
+.student-dashboard .student-overview-panel{margin-bottom:24px;overflow:hidden;border-color:#d9e6ed}
+.student-dashboard .student-overview-panel .student-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0;padding:6px}
+.student-dashboard .student-overview-panel .student-summary-card{flex-direction:row;align-items:center;gap:14px;min-width:0;min-height:142px;padding:24px 18px;border:0;border-right:1px solid #e5edf1;border-radius:0;background:transparent;box-shadow:none}
+.student-dashboard .student-overview-panel .student-summary-card:last-child{border-right:0}
+.student-dashboard .student-overview-panel .student-summary-value{display:block;align-self:center;flex:0 0 auto;min-width:32px;font-size:52px;font-weight:500;line-height:1;letter-spacing:-2px;font-variant-numeric:tabular-nums;color:#2d434d}
+.student-summary-detail{flex:1;min-width:0}
+.student-dashboard .student-summary-card .student-summary-detail>span{display:block;margin:0 0 6px;font-size:12px;font-weight:600;line-height:1.4;color:#3e5965}
+.student-summary-detail>small{display:block;font-size:10.5px;line-height:1.65;color:#647985;overflow-wrap:anywhere}
+.student-summary-detail .student-summary-context{margin-top:4px;font-size:10px;color:#788b95}
+.student-summary-detail .student-hours{margin-top:0;font-size:10.5px}
+.student-summary-detail .student-units-pending{font-size:10px;margin-top:4px;line-height:1.55}
+.student-dashboard .student-announcement-panel{border-color:#d9e6ed}
+.student-dashboard .student-announcement-panel>.student-subject-toolbar{padding:20px 22px;background:#9ed3e8;border-color:#91c5da}
+.student-dashboard .student-announcement-panel>.student-subject-toolbar h2{margin-bottom:4px}
+.student-dashboard .student-announcement-panel>.student-subject-toolbar p{color:#436471;font-size:11px}
+.student-dashboard .student-announcement-panel .student-announcement-icon{width:38px;height:38px;flex-basis:38px;border:1px solid #ffffff9c;background:#ffffff80;color:#3e7187;border-radius:12px;font-size:21px}
+.student-dashboard .student-announcement-panel .student-update-toolbar{padding:16px 22px 0}
+.student-dashboard .student-update-toolbar p{font-size:11px}
+.student-dashboard .student-update-status:empty{margin:0}
+.student-dashboard .student-update-list{padding:16px 22px 22px;gap:16px}
+.student-dashboard .student-update{padding:0;border:1px solid #dce7ed;border-radius:17px;background:#fff;overflow:hidden}
+.student-dashboard .student-update.is-unread{border:1px solid #c3dfe9;background:#fff}
+.student-update-card-header{padding:17px 20px 15px;background:#f2f8fb;border-bottom:1px solid #e2edf2}
+.student-dashboard .student-update.is-unread .student-update-card-header{background:#eaf5fa}
+.student-dashboard .student-update-meta{gap:7px;margin-bottom:10px}
+.student-dashboard .student-update-meta .badge{font-size:9px;font-weight:500;padding:5px 7px;line-height:1.4}
+.student-dashboard .student-update-meta .bg-label-primary{background:#d9edf6!important;color:#386779!important}
+.student-dashboard .student-update-meta .bg-label-success{background:#dff1e5!important;color:#36674a!important}
+.student-dashboard .student-update-new{display:inline-flex;align-items:center;gap:5px;color:#35748e;font-size:9px}
+.student-dashboard .student-update-new::before{content:'';width:5px;height:5px;background:#4c94b1;border-radius:50%}
+.student-dashboard .student-update-meta time{font-size:10px;color:#6b818d}
+.student-dashboard .student-update-card-header h3{margin:0;font-size:17px;font-weight:500;line-height:1.45;letter-spacing:-.3px}
+.student-update-card-body{padding:17px 20px 20px}
+.student-dashboard .student-update-subject{margin-bottom:10px;font-size:11px;line-height:1.7;color:#375563}
+.student-dashboard .student-update-subject span{color:#788791}
+.student-dashboard .student-update-message,.student-dashboard .student-update-card-body>p{font-size:12px;line-height:1.8}
+.student-dashboard .student-update-card-body>p:last-child{margin-bottom:0}
+.student-dashboard .student-update-schedule{color:#71818b;font-size:11px!important;margin-bottom:3px}
+.student-dashboard .student-update-card-body .btn{display:inline-flex;align-items:center;gap:7px;border-color:#bddbe8;background:#edf7fb;color:#36677b}
+.student-dashboard .student-update-card-body .btn:hover{border-color:#a4ccdd;background:#e0f1f8}
+.student-dashboard .student-empty-state{padding-top:38px;padding-bottom:40px}
+.student-dashboard .student-empty-icon{background:#e7f4fa;color:#49839b;border:1px solid #d4eaf3}
+@media(max-width:991.98px){
+ .student-dashboard .student-overview-panel .student-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:4px}
+ .student-dashboard .student-overview-panel .student-summary-card:nth-child(2){border-right:0}
+ .student-dashboard .student-overview-panel .student-summary-card:nth-child(-n+2){border-bottom:1px solid #e5edf1}
+}
+@media(max-width:767.98px){
+ .student-dashboard .student-welcome{align-items:flex-start;gap:16px;padding-bottom:22px}
+ .student-dashboard .student-welcome h1{font-size:29px;letter-spacing:-1px}
+ .student-dashboard .student-welcome-program{width:100%;max-width:none;padding:11px 13px}
+ .student-dashboard .student-overview-panel{margin-bottom:20px}
+ .student-dashboard .student-overview-panel .student-summary-card{padding:20px 13px;flex-direction:row;gap:11px;min-height:140px}
+ .student-dashboard .student-overview-panel .student-summary-value{font-size:44px;letter-spacing:-1.5px;min-width:28px}
+ .student-dashboard .student-summary-card .student-summary-detail>span{font-size:11px}
+ .student-dashboard .student-announcement-panel>.student-subject-toolbar{padding:18px}
+ .student-dashboard .student-announcement-panel .student-update-toolbar{padding:14px 18px 0;gap:10px}
+ .student-dashboard .student-update-list{padding:14px 14px 18px}
+ .student-update-card-header{padding:15px 16px}
+ .student-update-card-body{padding:15px 16px 17px}
+ .student-dashboard .student-update-card-header h3{font-size:16px}
+ .student-dashboard .student-update-meta time{width:100%;margin-left:0}
+ .student-dashboard-background::before{background-size:22px 22px}
+ .student-dashboard-background::after{background-size:18px 18px;opacity:.65}
+}
+@media(max-width:359.98px){
+ .student-dashboard .student-overview-panel .student-summary-grid{grid-template-columns:minmax(0,1fr)}
+ .student-dashboard .student-overview-panel .student-summary-card{min-height:110px;padding:20px 18px;gap:18px;border-right:0}
+ .student-dashboard .student-overview-panel .student-summary-card:not(:last-child){border-bottom:1px solid #e5edf1}
+ .student-dashboard .student-overview-panel .student-summary-value{font-size:48px;min-width:44px}
+ .student-dashboard .student-summary-card .student-summary-detail>span{font-size:12px}
+}

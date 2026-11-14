@@ -38,6 +38,7 @@ try{
     $check($published['status']==='published'&&$published['version']===2,'Publish saves and advances the draft in the same operation.');
     $check(count(synk_student_assessment_list_lms($conn,$lms,$sid))===1,'An enrolled student sees the published assessment.');
     $visible=synk_student_assessment_list_lms($conn,$lms,$sid);
+    $check($visible[0]['question_count']===4&&strpos(json_encode($visible),'answer_key')===false&&!isset($visible[0]['questions']),'Assessment cards expose the item count without disclosing questions or answer keys.');
     $check(in_array($visible[0]['subject_key'],array_column($subjectCards,'subject_key'),true),'Published work must map to the enrolled faculty subject card.');
     $check(count(synk_student_assessment_list_lms($conn,$lms,$f['students']['inactive']))===1,'Legacy enrollment matching works for student delivery.');
     foreach(['foreign','withdrawn','wrong_term']as$key){

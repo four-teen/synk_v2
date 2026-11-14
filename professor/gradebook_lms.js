@@ -61,6 +61,7 @@
     return rows.filter(row=>state.period==='summary'||row.period===state.period);
   }
   function renderOverview(){
+    renderVisibility();
     root.querySelectorAll('[data-gb-period]').forEach(button=>{const active=button.dataset.gbPeriod===state.period;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);});
     const summary=state.period==='summary';$('gbPeriodTitle').textContent=summary?'Semester summary':labels[state.period]+' gradebook';
     $('gbResultsTitle').textContent=summary?'Midterm, Final & semester grade':'Student grades';
@@ -73,6 +74,26 @@
     }
     $('gbWorkCount').textContent=workRows().length;
     renderWork();renderResults();
+  }
+  function renderVisibility(){
+    const visibility=state.data.visibility||{ready:false},names={midterm:'Midterm',final:'Final term',overall:'Overall final grade'};
+    $('gbVisibilityUnavailable').hidden=!!visibility.ready;
+    root.querySelectorAll('[data-gb-visibility]').forEach(button=>{
+      const part=button.dataset.gbVisibility,visible=!!visibility[part],status=root.querySelector(`[data-gb-visibility-status="${part}"]`);
+      status.textContent=visible?'Shown to students':'Hidden from students';status.classList.toggle('is-visible',visible);
+      button.textContent=visible?'Hide from students':'Show to students';button.setAttribute('aria-label',`${visible?'Hide':'Show'} ${names[part].toLowerCase()} ${visible?'from':'to'} students`);
+      button.classList.toggle('btn-outline-primary',!visible);button.classList.toggle('btn-outline-secondary',visible);
+      button.disabled=state.busy||!visibility.ready;
+      if(button.hasAttribute('data-gb-disabled'))button.dataset.gbDisabled=String(!visibility.ready);
+    });
+  }
+  async function setVisibility(part){
+    const visibility=state.data?.visibility;if(!visibility?.ready||state.busy)return;
+    const visible=!visibility[part];
+    await task(async()=>{
+      state.data=await api('set_visibility',{version:visibility.version,grade_part:part,visible});renderOverview();
+      feedback.toast(`${part==='overall'?'Overall final grade':part==='final'?'Final term':'Midterm'} ${visible?'shown to':'hidden from'} students.`);
+    });
   }
   function renderWork(){
     const summary=state.period==='summary',words=fold($('gbWorkSearch').value.trim()).split(/\s+/).filter(Boolean);
@@ -350,7 +371,9 @@
   $('gbPastePreview').addEventListener('click',previewPaste);$('gbPasteApply').addEventListener('click',applyPaste);
   $('gbItemForm').addEventListener('submit',saveItem);feedback.validation($('gbItemForm'));
   root.addEventListener('click',async event=>{
-    if(state.busy)return;const period=event.target.closest('[data-gb-period]');
+    if(state.busy)return;
+    const visibility=event.target.closest('[data-gb-visibility]');if(visibility){await setVisibility(visibility.dataset.gbVisibility);return;}
+    const period=event.target.closest('[data-gb-period]');
     if(period){if(state.item&&!await leaveScores(false))return;if(state.preview)closePreview(false);state.period=period.dataset.gbPeriod;renderOverview();syncAvailableWork();return;}
     const action=event.target.closest('[data-assign-work],[data-score-work],[data-edit-work],[data-archive-work],[data-preview-work]');
     if(action){

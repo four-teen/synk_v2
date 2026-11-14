@@ -18,4 +18,4 @@ do {
     if (!$lms->more_results()) break;
     $lms->next_result();
 } while (true);
-echo 'Four gradebook tables are ready in the separate LMS database.', PHP_EOL;
+echo 'Six gradebook tables, including student grade visibility and its audit history, are ready in the separate LMS database.', PHP_EOL;

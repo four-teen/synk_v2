@@ -1,0 +1,101 @@
+.student-gradebook-container{max-width:1560px}
+.student-gradebook-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:8px 0 22px}
+.student-gradebook-heading h1{font-size:30px;font-weight:500;line-height:1.2;letter-spacing:-1px;margin:0 0 7px}
+.student-gradebook-heading .student-eyebrow{margin-bottom:7px}
+.student-gradebook-heading p:last-child{font-size:13px;margin:0;color:var(--student-text);line-height:1.6}
+.student-gradebook-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.student-gradebook-actions .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.student-gradebook-actions .bx{font-size:18px}
+.student-gradebook-notice{display:flex;align-items:flex-start;gap:10px;padding:15px 18px;background:#eff7fb;border:1px solid #d5e8f0;border-radius:15px;margin-bottom:22px}
+.student-gradebook-notice>.bx{font-size:21px;color:#477f98;flex-shrink:0;margin-top:2px}
+.student-gradebook-notice p{font-size:11px;line-height:1.8;margin:0;color:#57717d}
+.student-gradebook-notice strong{color:#365b6b;font-weight:600}
+.student-gradebook-summary{overflow:hidden}
+.student-gradebook-summary>header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:21px 24px;background:#9ed3e8;border-bottom:1px solid #8bc5db}
+.student-gradebook-summary h2{font-size:18px;font-weight:500;letter-spacing:-.3px;margin:0 0 6px}
+.student-gradebook-summary h2 span{display:inline-block;font-size:10px;letter-spacing:0;margin-left:7px;background:#ffffff80;padding:4px 7px;border-radius:6px;vertical-align:middle}
+.student-gradebook-summary header p{font-size:11px;color:#446979;margin:0}
+.student-gradebook-summary>header>.bx{display:grid;place-items:center;width:39px;height:39px;border-radius:12px;background:#ffffff75;color:#3c748c;font-size:23px}
+.student-gradebook-table-help{font-size:11px;line-height:1.7;color:#6d828c;margin:0;padding:15px 24px;border-bottom:1px solid #e2edf2}
+.student-gradebook-table-scroll,.student-gradebook-component-scroll{overflow-x:auto;overscroll-behavior-x:contain}
+.student-gradebook-page :is(a,summary,.student-gradebook-table-scroll,.student-gradebook-component-scroll):focus-visible{outline:3px solid var(--student-focus,#4a859e);outline-offset:-3px}
+.student-gradebook-table{width:100%;min-width:900px;border-collapse:collapse;table-layout:fixed}
+.student-gradebook-table th,.student-gradebook-table td{padding:18px 12px;border-right:1px solid #e1ebf0;border-bottom:1px solid #e1ebf0;vertical-align:middle;font-size:12px;line-height:1.6;text-align:center;color:#405b67}
+.student-gradebook-table tr>:last-child{border-right:0}
+.student-gradebook-table tbody tr:last-child>*{border-bottom:0}
+.student-gradebook-table thead th{background:#edf7fb;font-size:11px;font-weight:600;color:#375e70}
+.student-gradebook-table thead th:first-child{width:24%}
+.student-gradebook-table thead th:nth-child(2){width:17%}
+.student-gradebook-table tbody th{font-weight:400;text-align:left;padding-left:24px}
+.student-gradebook-table a{display:block;color:#2e566a;text-decoration:none}
+.student-gradebook-table a>strong,.student-gradebook-table a>span{display:block;overflow-wrap:anywhere}
+.student-gradebook-table a>strong{font-size:12px;font-weight:600;margin-bottom:2px}
+.student-gradebook-table a>span{font-size:11px;line-height:1.6}
+.student-gradebook-table a>small{display:inline-flex;align-items:center;gap:5px;margin-top:7px;color:#4a859e;font-size:10px}
+.student-gradebook-table a:hover>small{text-decoration:underline}
+.student-gradebook-section{display:block;font-size:10px;color:#84949c;margin-top:5px;overflow-wrap:anywhere}
+.student-gradebook-table .student-gradebook-instructor{font-size:11px;overflow-wrap:anywhere}
+.student-gradebook-hidden{font-size:10px!important;font-weight:400!important;color:#788b96!important}
+.student-gradebook-table .student-gradebook-average{font-weight:600;font-variant-numeric:tabular-nums;background:#f7fbfd}
+.student-gradebook-remark{display:inline-block;border-radius:999px;padding:5px 8px;font-size:10px;line-height:1.4;white-space:normal}
+.student-gradebook-remark.is-passed{color:#2f7048;background:#e3f3e8}
+.student-gradebook-remark.is-conditional{color:#855e22;background:#fff0ce}
+.student-gradebook-remark.is-failed{color:#983c3a;background:#fbe8e6}
+.student-gradebook-remark.is-pending{color:#697d87;background:#edf2f5}
+.student-gradebook-summary-note{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 20px;padding:14px 24px;border-top:1px solid #e1ebf0;background:#f8fbfd;font-size:10px;line-height:1.7;color:#728792}
+.student-gradebook-breakdowns{margin-top:27px}
+.student-gradebook-details-heading{margin-bottom:15px}
+.student-gradebook-details-heading h2{font-size:19px;font-weight:500;margin:0 0 5px}
+.student-gradebook-details-heading p{margin:0;font-size:12px;color:#788b95}
+.student-gradebook-subject{margin-bottom:14px;overflow:hidden;scroll-margin-top:20px}
+.student-gradebook-subject>summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:21px 24px;list-style:none;cursor:pointer;background:#fff}
+.student-gradebook-subject>summary::-webkit-details-marker,.student-gradebook-entries>summary::-webkit-details-marker{display:none}
+.student-gradebook-subject>summary>span{min-width:0}
+.student-gradebook-subject>summary strong{display:block;font-size:14px;font-weight:500;line-height:1.6;color:#355b6e;overflow-wrap:anywhere}
+.student-gradebook-subject>summary small{display:block;margin-top:4px;color:#7d8f98;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.student-gradebook-subject>summary>.bx{font-size:22px;color:#6c919f;flex-shrink:0;transition:transform .15s}
+.student-gradebook-subject[open]>summary{background:#eaf5fa;border-bottom:1px solid #d9eaf1}
+.student-gradebook-subject[open]>summary>.bx{transform:rotate(180deg)}
+.student-gradebook-subject-body{padding:22px 24px}
+.student-gradebook-class-details{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin:0 0 20px}
+.student-gradebook-class-details dt{font-size:10px;font-weight:500;color:#7c919c;margin-bottom:5px}
+.student-gradebook-class-details dd{font-size:12px;line-height:1.8;color:#526e7b;margin:0;white-space:pre-line;overflow-wrap:anywhere}
+.student-gradebook-periods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.student-gradebook-period{border:1px solid #dce9ef;border-radius:15px;overflow:hidden;min-width:0}
+.student-gradebook-period>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;background:#e4f3e9;border-bottom:1px solid #cee5d7}
+.student-gradebook-period:nth-child(2)>header{background:#fff0d0;border-color:#edddb9}
+.student-gradebook-period h3{display:flex;align-items:center;gap:7px;margin:0;font-size:13px;font-weight:500}
+.student-gradebook-period h3 .bx{font-size:18px}
+.student-gradebook-period header>strong{font-size:18px;font-weight:500;color:#365a49;font-variant-numeric:tabular-nums}
+.student-gradebook-period:nth-child(2) header>strong{color:#795b28}
+.student-gradebook-components,.student-gradebook-work{width:100%;border-collapse:collapse;min-width:385px}
+.student-gradebook-components th,.student-gradebook-components td,.student-gradebook-work th,.student-gradebook-work td{padding:13px 12px;border-bottom:1px solid #e5eef2;font-size:10.5px;line-height:1.6;text-align:right;vertical-align:top;color:#4e6977}
+.student-gradebook-components thead th,.student-gradebook-work thead th{font-size:9px;font-weight:600;background:#f8fbfd;color:#6f8794}
+.student-gradebook-components tr>:first-child,.student-gradebook-work tr>:first-child{text-align:left;font-weight:500}
+.student-gradebook-components small,.student-gradebook-work small{display:block;font-size:9px;color:#82959f;margin-top:4px;font-weight:400;line-height:1.6}
+.student-gradebook-components tfoot>*{background:#f3f9fc;font-weight:600}
+.student-gradebook-components tfoot th{font-weight:600}
+.student-gradebook-record-count,.student-gradebook-unavailable{font-size:11px;line-height:1.8;color:#7a8e98;padding:15px 17px;margin:0}
+.student-gradebook-entries{border-top:1px solid #e1ebf0}
+.student-gradebook-entries>summary{display:flex;align-items:center;gap:8px;min-height:46px;padding:12px 17px;font-size:11px;list-style:none;cursor:pointer;color:#3e748b}
+.student-gradebook-entries>summary span{font-size:10px;color:#8398a3;margin-left:auto}
+.student-gradebook-entries>summary>.bx{font-size:18px}
+.student-gradebook-work{min-width:410px}
+.student-gradebook-work tr>:last-child{text-align:left;max-width:140px}
+.student-gradebook-guidance{margin:20px 2px 0;font-size:10px;line-height:1.8;color:#7a8e98}
+@media(max-width:1100px){.student-gradebook-periods{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:767.98px){
+ .student-gradebook-heading{align-items:stretch;flex-direction:column;gap:15px;margin-top:3px}
+ .student-gradebook-heading h1{font-size:27px}
+ .student-gradebook-actions{justify-content:flex-start;flex-wrap:wrap}
+ .student-gradebook-actions .btn{font-size:11px;padding:10px 14px}
+ .student-gradebook-notice{padding:13px 14px}
+ .student-gradebook-summary>header{padding:18px}
+ .student-gradebook-summary h2{font-size:17px}
+ .student-gradebook-summary h2 span{margin:6px 0 0;display:table}
+ .student-gradebook-table-help,.student-gradebook-summary-note{padding:13px 18px}
+ .student-gradebook-subject>summary{padding:18px}
+ .student-gradebook-subject-body{padding:18px 14px}
+ .student-gradebook-class-details{grid-template-columns:minmax(0,1fr);gap:12px}
+}
+@media(prefers-reduced-motion:reduce){.student-gradebook-subject>summary>.bx{transition:none}}

@@ -51,6 +51,7 @@ try {
     $completed=synk_student_assessment_action_lms($conn,$lms,$second,'detail',['assessment_id'=>$id]);
     $check($completed['result']===$submitted['result']&&$completed['attempt']['answers']===$answers,'Submitted answers and automatic results must stay on the original answer keys.');
     $listed=array_column(synk_student_assessment_list_lms($conn,$lms,$second),null,'assessment_id');
+    $check($listed[$id]['question_count']===4,'A started assessment card retains its original item count after questions are edited.');
     $check($listed[$id]['title']==='Original quiz'&&$listed[$id]['grading_period']==='midterm'&&$listed[$id]['result']===$submitted['result'],'Student list cards must use the attempt version, including its grading period and result.');
     $check(strpos(json_encode($listed),'answer_key')===false&&strpos(json_encode($listed),'assessment_snapshot_json')===false,'List cards must not leak snapshot questions or answer keys.');
     $review=synk_assessment_submissions_lms($conn,$lms,$context,$id);
