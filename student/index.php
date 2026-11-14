@@ -16,9 +16,10 @@ $viewTerm = synk_student_dashboard_view_term($studentId, $terms, $isPreview);
 $subjects = synk_student_dashboard_subjects($conn, $studentId, $viewTerm);
 $studentWorkload = synk_student_dashboard_workload($conn, $subjects);
 $currentTerm = synk_fetch_current_academic_term($conn);
-$instructors = []; $sections = [];
+$instructors = []; $sections = []; $instructorNames = [];
 foreach ($subjects as $subject) {
     if ((int)$subject['faculty_id'] > 0) $instructors[(int)$subject['faculty_id']] = true;
+    if ((int)$subject['faculty_id'] > 0 && trim($subject['faculty_name']) !== '') $instructorNames[(int)$subject['faculty_id']] = trim($subject['faculty_name']);
     if (trim($subject['section_display']) !== '') $sections[$subject['section_display']] = true;
 }
 $studentPortalDisplayName = synk_student_directory_display_name($student);
@@ -53,9 +54,11 @@ if (!$isPreview) {
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
   <?php if (!$isPreview): ?><link rel="stylesheet" href="announcements_lms.css?v=<?= (int)filemtime(__DIR__.'/announcements_lms.css') ?>"><?php endif; ?>
+  <link rel="stylesheet" href="dashboard.css?v=<?= (int)filemtime(__DIR__.'/dashboard.css') ?>">
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body class="student-portal student-dashboard">
+<div class="student-dashboard-background" aria-hidden="true"></div>
 <div class="layout-wrapper layout-content-navbar"><div class="layout-container">
   <?php include __DIR__.'/sidebar.php'; ?>
   <div class="layout-page">
@@ -67,14 +70,14 @@ if (!$isPreview) {
           <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1>Welcome, <?= synk_student_h($firstName) ?>.</h1><p><?= $isPreview ? 'Your subjects and class details, at a glance.' : 'Your announcements and student updates, at a glance.' ?></p></div>
           <div class="student-welcome-program"><i class="bx bx-book-reader" aria-hidden="true"></i><div><strong><?= synk_student_h($student['source_program_name'] ?: 'Student record') ?></strong><span><?= synk_student_h($student['campus_name']) ?><?= (int)$student['year_level'] > 0 ? ' · Year '.(int)$student['year_level'] : '' ?></span></div></div>
         </section>
-        <?php if (!$isPreview): ?><div class="mb-3"><a class="btn btn-outline-primary" href="assessments_lms.php"><i class="bx bx-task me-1" aria-hidden="true"></i>Activities &amp; assessments</a></div><?php endif; ?>
+        <section class="card student-overview-panel" aria-label="At a glance">
         <div class="student-summary-grid" aria-label="Subjects overview">
-          <div class="card student-summary-card"><span class="student-stat-icon bg-label-primary"><i class="bx bx-book-open" aria-hidden="true"></i></span><div><span>Subjects</span><strong><?= count($subjects) ?></strong></div></div>
-          <div class="card student-summary-card"><span class="student-stat-icon bg-label-success"><i class="bx bx-user-voice" aria-hidden="true"></i></span><div><span>Instructors</span><strong><?= count($instructors) ?></strong></div></div>
-          <div class="card student-summary-card"><span class="student-stat-icon bg-label-info"><i class="bx bx-group" aria-hidden="true"></i></span><div><span>Sections</span><strong><?= count($sections) ?></strong></div></div>
-          <div class="card student-summary-card student-units-card"><span class="student-stat-icon bg-label-warning"><i class="bx bx-time-five" aria-hidden="true"></i></span><div><span>Total units / hours</span><strong id="studentTotalUnits"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? '&mdash;' : synk_student_workload_number($studentWorkload['units']) ?><small> units<?= $studentWorkload['pending_subjects']>0 && $studentWorkload['pending_subjects']<$studentWorkload['subjects'] ? ' confirmed' : '' ?></small></strong><small class="student-hours" id="studentWeeklyHours"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? 'Hours pending' : synk_student_workload_number($studentWorkload['weekly_hours']).' contact hrs / week' ?></small><?php if ($studentWorkload['pending_subjects']>0): ?><small class="student-units-pending"><?= $studentWorkload['pending_subjects'] ?> subject<?= $studentWorkload['pending_subjects']===1?'':'s' ?> awaiting unit details</small><?php endif; ?></div></div>
+          <div class="card student-summary-card"><strong class="student-summary-value"><?= count($subjects) ?></strong><div class="student-summary-detail"><span>Subjects</span><small>Enrolled this semester</small><small class="student-summary-context"><?= synk_student_h($viewTerm['term_text']) ?></small></div></div>
+          <div class="card student-summary-card"><strong class="student-summary-value"><?= count($instructors) ?></strong><div class="student-summary-detail"><span>Instructors</span><small><?= $instructorNames ? synk_student_h(implode(' · ',array_slice(array_values($instructorNames),0,2))) : 'Names not yet available' ?><?= count($instructorNames)>2 ? ' +'.(count($instructorNames)-2).' more' : '' ?></small><small class="student-summary-context">Across <?= count($subjects) ?> subject<?= count($subjects)===1?'':'s' ?></small></div></div>
+          <div class="card student-summary-card"><strong class="student-summary-value"><?= count($sections) ?></strong><div class="student-summary-detail"><span>Sections</span><small><?= $sections ? synk_student_h(implode(' · ',array_slice(array_keys($sections),0,2))) : 'No section details yet' ?><?= count($sections)>2 ? ' +'.(count($sections)-2).' more' : '' ?></small><small class="student-summary-context">Assigned class groups</small></div></div>
+          <div class="card student-summary-card student-units-card"><strong class="student-summary-value" id="studentTotalUnits"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? '&mdash;' : synk_student_workload_number($studentWorkload['units']) ?></strong><div class="student-summary-detail"><span>Total units<?= $studentWorkload['pending_subjects']>0 && $studentWorkload['pending_subjects']<$studentWorkload['subjects'] ? ' confirmed' : '' ?></span><small class="student-hours" id="studentWeeklyHours"><?= $studentWorkload['pending_subjects']===$studentWorkload['subjects'] && $studentWorkload['subjects']>0 ? 'Hours pending' : synk_student_workload_number($studentWorkload['weekly_hours']).' contact hrs / week' ?></small><?php if ($studentWorkload['pending_subjects']<$studentWorkload['subjects']): ?><small class="student-summary-context"><?= synk_student_workload_number($studentWorkload['lecture_hours']) ?> lecture · <?= synk_student_workload_number($studentWorkload['lab_hours']) ?> lab hrs / week</small><?php endif; ?><?php if ($studentWorkload['pending_subjects']>0): ?><small class="student-units-pending"><?= $studentWorkload['pending_subjects'] ?> subject<?= $studentWorkload['pending_subjects']===1?'':'s' ?> awaiting unit details</small><?php endif; ?></div></div>
         </div>
-        <p class="student-workload-note">Units and weekly lecture/laboratory contact hours for <?= synk_student_h($viewTerm['term_text']) ?>.</p>
+        </section>
         <?php if (empty($viewTerm['is_current'])): ?><div class="student-term-notice" role="status"><i class="bx bx-history" aria-hidden="true"></i><span>You’re viewing <?= synk_student_h($viewTerm['term_text']) ?>. The current term is <?= synk_student_h($currentTerm['term_text']) ?>.</span></div><?php endif; ?>
         <?php if (!$isPreview): ?>
         <?php require __DIR__.'/announcements_view_lms.php'; ?>

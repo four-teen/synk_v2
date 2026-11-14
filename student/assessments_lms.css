@@ -1,16 +1,28 @@
 /* Student LMS only: calm cards, readable text and touch-sized actions. */
+.student-portal.student-assessment-page{position:relative;isolation:isolate;min-height:100vh;min-height:100dvh;background:radial-gradient(ellipse at 50% 46%,#ffffffe6,transparent 66%),linear-gradient(135deg,#edf5fc 0%,#f9fbfe 52%,#eef6fc 100%)}
+/* The login page's static dot fields stay behind content and never capture input. */
+.student-assessment-background{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+.student-assessment-background::before,.student-assessment-background::after{content:'';position:absolute;background-repeat:repeat}
+.student-assessment-background::before{inset:-24% -18%;background-image:radial-gradient(circle,#5391c94d 1.15px,transparent 1.8px);background-size:20px 20px;transform:perspective(1100px) rotateY(-30deg) rotateZ(-15deg);-webkit-mask-image:radial-gradient(ellipse 52% 64% at 30% 55%,#000 20%,transparent 76%);mask-image:radial-gradient(ellipse 52% 64% at 30% 55%,#000 20%,transparent 76%)}
+.student-assessment-background::after{inset:-20% -14%;background-image:radial-gradient(circle,#669fd133 1px,transparent 1.55px);background-size:14px 14px;transform:perspective(900px) rotateY(30deg) rotateZ(20deg);-webkit-mask-image:radial-gradient(ellipse 45% 65% at 82% 30%,#000 12%,transparent 75%);mask-image:radial-gradient(ellipse 45% 65% at 82% 30%,#000 12%,transparent 75%)}
 .student-assessment-container{max-width:1560px}
-.student-assessment-page #layout-navbar{width:calc(100% - 52px);max-width:1508px;margin-left:auto;margin-right:auto}
+.student-assessment-page #layout-navbar{width:calc(100% - 52px);max-width:1508px;margin-left:auto;margin-right:auto;background:#d7e8ed!important}
 .student-assessments{margin:12px auto 0;max-width:none;--classwork-ink:#34465e;--classwork-muted:#68778b;--classwork-line:#e2e7ef;--classwork-accent:#514acb}
 .student-assessments [hidden]{display:none!important}
-.student-assessments h1{font-size:28px;line-height:1.25;letter-spacing:-.5px;margin:0 0 10px;color:var(--classwork-ink)}
+.student-assessments h1{font-size:28px;line-height:1.15;letter-spacing:-.5px;margin:0 0 4px;color:var(--classwork-ink)}
 .student-assessments button:focus-visible,.student-class-details summary:focus-visible,.student-result-explanation summary:focus-visible{outline:3px solid #a6a4ed;outline-offset:3px}
-.student-assessments>.assessment-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:20px;margin-bottom:32px}
-.student-assessments>.assessment-heading p{font-size:14px;line-height:1.6;color:var(--classwork-muted)}
-.student-assessments .assessment-eyebrow{color:var(--classwork-accent);margin-bottom:10px!important}
+.student-assessments>.assessment-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:16px;margin-bottom:20px}
+.student-assessments>.assessment-heading>div{min-width:0}
+.student-assessments>.assessment-heading p{font-size:13px;line-height:1.4;color:var(--classwork-muted)}
+.student-assessments .assessment-eyebrow{color:var(--classwork-accent);line-height:1.1!important;margin:0 0 4px!important}
 .student-assessments[data-view="activities"]>.assessment-heading,.student-assessments[data-view="assessment"]>.assessment-heading{align-items:center;margin-bottom:12px}
-.student-assessments[data-view="activities"]>.assessment-heading p,.student-assessments[data-view="assessment"]>.assessment-heading p{display:none}
-.student-assessments[data-view="activities"]>.assessment-heading h1,.student-assessments[data-view="assessment"]>.assessment-heading h1{font-size:22px;margin-bottom:0}
+.student-assessments[data-view="activities"]>.assessment-heading :is(.assessment-eyebrow,.student-assessment-intro),.student-assessments[data-view="assessment"]>.assessment-heading :is(.assessment-eyebrow,.student-assessment-intro){display:none}
+.student-assessments[data-view="activities"]>.assessment-heading h1,.student-assessments[data-view="assessment"]>.assessment-heading h1{font-size:13px;font-weight:400;line-height:1.3;letter-spacing:0;margin:0 0 3px;color:var(--classwork-muted)}
+.student-workspace-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.student-workspace-actions .student-subject-back{display:none;align-items:center;gap:6px;white-space:nowrap}
+.student-assessments[data-view="activities"] .student-subject-back{display:inline-flex}
+.student-assessments>.assessment-heading .student-selected-faculty{display:none;margin:0;color:#c4470c;font-size:12px;line-height:1.3;font-weight:600}
+.student-assessments[data-view="activities"]>.assessment-heading .student-selected-faculty,.student-assessments[data-view="assessment"]>.assessment-heading .student-selected-faculty{display:block}
 .student-assessment-refresh{display:flex;align-items:center;gap:6px;min-height:44px;padding:9px 14px;font-size:13px;border-color:#d8dce8;color:var(--classwork-accent);background:#fff;box-shadow:none}
 .student-assessment-refresh .bx{font-size:20px}
 .student-assessments .assessment-text-button{min-height:44px;font-size:13px;color:var(--classwork-accent);margin-bottom:16px}
@@ -18,6 +30,9 @@
 .student-class-toolbar h2{font-size:19px;margin:0 0 6px;color:var(--classwork-ink)}
 .student-class-toolbar h2 .badge{font-size:11px;vertical-align:middle;margin-left:6px}
 .student-class-toolbar p{font-size:13px;color:var(--classwork-muted);margin:0}
+.student-class-tools{display:flex;align-items:center;gap:10px;min-width:0}
+.student-portal .student-gradebook-link{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:46px;white-space:nowrap;background:#e3f3f9;border-color:#b9dcea;color:#365e70}
+.student-gradebook-link .bx{font-size:19px}
 .student-assessments .student-search{width:320px}
 .student-assessments .student-search input{min-height:46px;font-size:13px}
 .student-assessments .student-search>.bx{top:14px}
@@ -28,11 +43,16 @@
 .student-subject-title .student-class-code{flex-shrink:0;font:inherit;letter-spacing:inherit;color:inherit}
 .student-subject-title .student-class-description{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .student-class-card h3{font-size:19px;line-height:1.4;font-weight:600;margin:0 0 20px;color:var(--classwork-ink);overflow-wrap:anywhere}
+.student-class-card-header{display:flex;align-items:center;min-height:100px;padding:24px;background:#9ed3e8;border-bottom:1px solid #0000000a}
+.student-class-card-header[data-header-color="green"]{background:#b8d8a5}
+.student-class-card-header[data-header-color="yellow"]{background:#f3d97b}
+.student-class-card-header[data-header-color="sky"]{background:#d7e8ed}
+.student-class-card .student-class-card-header h3{width:100%;margin:0;color:#27332f}
 .student-class-faculty{display:flex;align-items:center;gap:10px;margin:0 0 4px}
 .student-class-faculty>div:last-child{min-width:0}
 .student-class-faculty .student-professor-photo{width:36px;height:36px;flex:0 0 36px}
 .student-class-faculty .student-professor-photo>.bx{font-size:22px}
-.student-class-label{display:block;font-size:11px;color:var(--classwork-muted);margin-bottom:2px}
+.student-class-label{display:block;font-size:11px;color:var(--classwork-muted);margin-top:2px}
 .student-class-faculty .student-professor-name{font-size:12px;font-weight:700;line-height:1.5;margin:0;letter-spacing:0;color:#f06400}
 .student-class-details{margin-top:10px}
 .student-class-details summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;list-style:none;cursor:pointer;color:var(--classwork-muted);font-size:12px}
@@ -55,35 +75,59 @@
 .has-pending .needs-attention .student-count-badge{color:#946000}
 .has-pending .needs-attention{background:#fff8e8}
 .student-class-search-result{font-size:12px;color:var(--classwork-muted);margin:18px 0}
-.student-class-heading{margin-bottom:26px;padding-bottom:24px;border-bottom:1px solid var(--classwork-line)}
-.student-class-heading h2{font-size:25px;line-height:1.35;letter-spacing:-.3px;margin:0 0 10px;color:var(--classwork-ink);overflow-wrap:anywhere}
+.student-class-heading{display:none;min-width:0;margin:0;padding:0;border:0}
+.student-assessments[data-view="activities"] .student-class-heading,.student-assessments[data-view="assessment"] .student-class-heading{display:block}
+.student-class-heading h2{font-size:27px;font-weight:500;line-height:1.2;letter-spacing:-.7px;margin:0 0 5px;color:var(--classwork-ink);overflow-wrap:anywhere}
 .student-class-heading p{font-size:13px;line-height:1.5;color:var(--classwork-muted);margin:0}
 .student-class-heading #studentClassFaculty{color:#f06400;font-weight:700}
 .student-class-heading h2:focus{outline:none}
-.student-period-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 16px;margin-bottom:12px}
+.student-period-toolbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:20px}
+.student-period-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 7px;min-width:0;margin:0}
 .student-period-heading h3{font-size:14px;font-weight:600;color:var(--classwork-ink);margin:0}
 .student-period-heading p{font-size:12px;color:var(--classwork-muted);margin:0}
+.student-period-divider{color:var(--classwork-muted);font-size:12px}
 
-/* Both periods share the same treatment. The active period has a persistent underline. */
-.student-assessments .assessment-periods{display:grid;grid-template-columns:repeat(2,minmax(0,230px));gap:0;margin-bottom:24px}
-.student-assessments .assessment-periods button{min-width:0;min-height:56px;padding:14px 18px;gap:14px;border:1px solid #d9ddea;border-bottom:3px solid #d9ddea;border-radius:0;background:#fff;color:#58667b;font-size:14px;box-shadow:none}
-.student-assessments .assessment-periods button+button{margin-left:-1px}
-.student-assessments .assessment-periods button:hover{background:#f6f5fd;color:var(--classwork-accent);box-shadow:none}
-.student-assessments .assessment-periods button.is-active{position:relative;z-index:1;border-color:#b9b5e5;border-bottom-color:var(--classwork-accent);background:#eeedfc;color:#443caf;box-shadow:none}
-.student-period-total{white-space:nowrap;font-size:11px;font-weight:400}
-.student-period-total strong{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-right:3px}
+/* Flat, color-coded controls apply only to LMS grading periods. */
+.student-portal .student-assessments .assessment-periods{display:flex;flex-shrink:0;gap:8px;margin:0 0 0 auto}
+.student-portal .student-assessments .assessment-periods button{--period-tint:#e8f5eb;--period-active:#bde9c8;--period-border:#8ab99a;--period-color:#315d3e;min-width:0;min-height:40px;padding:8px 12px;gap:10px;border:1px solid var(--period-border);border-radius:999px;background:var(--period-tint);color:var(--period-color);font-size:12px;font-weight:500;box-shadow:none;transition:background-color .15s}
+.student-portal .student-assessments .assessment-periods button[data-student-period="final"]{--period-tint:#fff4de;--period-active:#f9dda2;--period-border:#c7a05c;--period-color:#775016}
+.student-portal .student-assessments .assessment-periods button+button{margin-left:0}
+.student-portal .student-assessments .assessment-periods button:hover,.student-portal .student-assessments .assessment-periods button.is-active{border-color:var(--period-border);background:var(--period-active);color:var(--period-color);box-shadow:none}
+.student-portal .student-assessments .assessment-periods button.is-active{outline:1px solid var(--period-border);outline-offset:-3px}
+.student-portal .student-assessments .assessment-periods button:focus-visible{outline:3px solid var(--student-focus);outline-offset:3px}
+.student-period-label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.student-period-label .bx{font-size:17px}
+.student-period-total{white-space:nowrap;font-size:10px;font-weight:400;background:#ffffff80;border-radius:999px;padding:3px 7px}
+.student-period-total strong{font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;margin-right:2px}
 .student-assessments .assessment-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}
-.student-assessments .assessment-list-card{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:24px;border:1px solid var(--classwork-line);border-radius:9px;min-width:0;box-shadow:0 2px 6px #34465e04}
-.student-assessment-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.student-assessments .assessment-list-card{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden;border:1px solid var(--classwork-line);border-radius:20px;min-width:0;background:#fff;box-shadow:none}
+.student-assessment-card-header{padding:20px 22px;background:#9ed3e8;border-bottom:1px solid #00000008}
+.student-assessment-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .student-assessment-type{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--classwork-muted)}
 .student-assessments .student-assessment-card-top>.badge{font-size:11px;padding:6px 8px;line-height:1.3;white-space:normal;text-align:left}
+.student-assessments .student-assessment-card-top>.bg-label-success{background:#e6f2e8!important;color:#315d3e!important}
+.student-assessments .student-assessment-card-top>.bg-label-warning{background:#fff3d7!important;color:#80591e!important}
+.student-assessments .student-assessment-card-top>[data-availability="available"]{background:#d9f2df!important;color:#285e38!important}
+.student-assessments .student-assessment-card-top>[data-availability="unavailable"]{background:#fde5e4!important;color:#963d36!important}
 .student-assessments [data-assessment-status]{font-variant-numeric:tabular-nums}
-.student-assessments .student-assessment-list-title{font-size:19px;line-height:1.4;margin:0 0 12px;color:var(--classwork-ink);overflow-wrap:anywhere}
-.student-assessments .assessment-list-card .assessment-preview-meta{font-size:13px;line-height:1.65;gap:4px 16px;margin:0 0 22px;color:var(--classwork-muted)}
-.student-assessments .assessment-list-card.is-submitted{background:#f8fcf9;border:1px solid #d7e7dc;border-left:3px solid #5c9b71}
-.student-assessments .assessment-list-card.is-expired{background:#fffdf8;border:1px solid #ecdfc8;border-left:3px solid #bb944f}
-.student-assessment-card-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;margin-top:auto;padding-top:16px;border-top:1px solid #e8ebf1}
-.student-assessment-card-footer>.btn{min-height:44px;padding:10px 14px;font-size:13px;flex-shrink:0;margin-left:auto}
+.student-assessments .student-assessment-list-title{font-size:19px;font-weight:500;line-height:1.35;margin:0;color:var(--classwork-ink);overflow-wrap:anywhere}
+.student-assessment-card-body{padding:20px 22px 18px}
+.student-assessment-card-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.student-assessment-card-stats>div{min-width:0}
+.student-assessment-card-stats dt{font-size:10.5px;font-weight:400;color:var(--classwork-muted);line-height:1.4}
+.student-assessment-card-stats dd{font-size:24px;font-weight:500;line-height:1.2;color:var(--classwork-ink);margin:7px 0 4px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.student-assessment-card-stats dd small{font-size:12px}
+.student-card-score-pending{font-size:18px;letter-spacing:-.3px;white-space:nowrap}
+.student-assessment-card-stats>div>small{display:block;font-size:10px;color:var(--classwork-muted);line-height:1.5}
+.student-card-review-note{display:flex;align-items:center;gap:6px;font-size:11px;color:#806027;margin:0 0 14px}
+.student-card-review-note .bx{font-size:16px;flex-shrink:0}
+.student-assessments .assessment-list-card .assessment-preview-meta{display:grid;font-size:11px;line-height:1.5;gap:7px;margin:0;color:var(--classwork-muted)}
+.student-assessments .assessment-list-card .assessment-preview-meta>span{display:flex;align-items:baseline;gap:7px}
+.student-assessments .assessment-list-card .assessment-preview-meta .bx{font-size:15px;flex-shrink:0;align-self:center}
+.student-assessments .assessment-list-card.is-submitted{border-color:#b6cfbd}
+.student-assessments .assessment-list-card.is-expired{border-color:#dbc69e}
+.student-assessment-card-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-top:auto;padding:15px 22px;border-top:1px solid var(--classwork-line)}
+.student-assessment-card-footer>.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:9px 14px;font-size:12px;flex-shrink:0;margin-left:auto}
 .student-list-result{min-width:0}
 .student-list-result h4{font-size:11px;font-weight:600;margin:0 0 7px;color:var(--classwork-muted)}
 .student-result-totals{display:flex;flex-wrap:wrap;gap:6px}
@@ -126,30 +170,40 @@
   .student-assessment-page #layout-navbar{width:calc(100% - 32px)}
   .student-assessment-container{padding-left:16px!important;padding-right:16px!important}
   .student-assessments{margin-top:4px}
-  .student-assessments h1{font-size:23px;line-height:1.3}
-  .student-assessments>.assessment-heading{gap:12px;margin-bottom:26px}
+  .student-assessments h1{font-size:22px;line-height:1.15}
+  .student-assessments>.assessment-heading{gap:10px;margin-bottom:18px}
   .student-assessments>.assessment-heading p{font-size:13px}
   .student-assessment-refresh{width:44px;padding:0;justify-content:center}
   .student-assessment-refresh span{display:none}
   .student-class-grid{grid-template-columns:minmax(0,1fr);gap:16px}
+  .student-class-card-header{min-height:86px;padding:20px}
   .student-class-toolbar{align-items:stretch;flex-direction:column;gap:16px;margin-bottom:16px}
   .student-class-toolbar .student-search{width:100%}
+  .student-class-tools{width:100%;flex-wrap:wrap}
+  .student-class-tools .student-search{flex:1 1 170px;width:auto;min-width:0}
   .student-class-card-body{padding:20px 20px 0}
   .student-class-card h3{font-size:18px;margin-bottom:16px}
   .student-class-card-footer{padding:0 20px 18px;gap:14px}
-  .student-class-heading{margin-bottom:22px;padding-bottom:20px}
+  .student-class-heading{margin:0;padding:0}
   .student-class-heading h2{font-size:22px}
-  .student-period-heading{display:block}
-  .student-period-heading p{margin-top:5px}
-  .student-assessments .assessment-periods{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:20px}
-  .student-assessments .assessment-periods button{padding:12px;gap:6px;flex-wrap:wrap;min-height:64px}
+  .student-assessments[data-view="activities"]>.assessment-heading,.student-assessments[data-view="assessment"]>.assessment-heading{grid-template-columns:minmax(0,1fr)}
+  .student-assessments[data-view="activities"] .student-workspace-actions{justify-content:flex-start}
+  .student-period-toolbar{gap:12px}
+  .student-portal .student-assessments .assessment-periods{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+  .student-portal .student-assessments .assessment-periods button{padding:8px 10px;gap:4px 8px;flex-wrap:wrap;min-height:44px;justify-content:flex-start}
   .student-assessments .assessment-list{gap:16px}
-  .student-assessments .assessment-list-card{padding:20px}
+  .student-assessments .assessment-list-card{padding:0}
+  .student-assessment-card-header{padding:18px}
+  .student-assessment-card-body{padding:18px}
+  .student-assessment-card-stats{gap:10px}
+  .student-assessment-card-stats dd{font-size:22px}
   .student-assessments .student-assessment-list-title{font-size:18px}
-  .student-assessment-card-footer{gap:12px}
+  .student-assessment-card-footer{gap:12px;padding:14px 18px}
+  .student-assessment-card-footer>.btn{width:100%;margin-left:0}
   .student-assessment-paper{padding:18px}
   .student-assessment-paper h2{font-size:21px}
   .student-assessment-actions button{flex:1}
   .student-assessment-result{padding:12px}
 }
+@media(max-width:767.98px){.student-assessment-background::before{background-size:22px 22px}.student-assessment-background::after{background-size:18px 18px;opacity:.65}}
 @media(prefers-reduced-motion:reduce){.student-class-details summary .bx{transition:none}}

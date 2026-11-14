@@ -10,6 +10,15 @@ if (!isset($class,$gradebookReady) || $view!=='gradebook' || ($_SESSION['role']?
     <div id="gbContent" hidden>
       <nav class="gb-periods" aria-label="Gradebook period"><button type="button" data-gb-period="midterm" aria-pressed="true">Midterm</button><button type="button" data-gb-period="final" aria-pressed="false">Final</button><button type="button" data-gb-period="summary" aria-pressed="false">Semester summary</button></nav>
       <div id="gbOverview">
+        <section class="gb-visibility" aria-labelledby="gbVisibilityTitle">
+          <div class="gb-visibility-heading"><h3 id="gbVisibilityTitle">Student grade visibility</h3><p>Choose when this class sees each result. Showing a period includes its score breakdown. The overall final grade includes the semester average, rating, and remarks. Shown grades reflect your latest saved scores.</p></div>
+          <p id="gbVisibilityUnavailable" class="gb-help" role="status" hidden>Student visibility controls need an LMS gradebook update. All student grades stay hidden until it is ready.</p>
+          <div class="gb-visibility-options">
+            <?php foreach(['midterm'=>['Midterm','Period grade and score breakdown'],'final'=>['Final term','Period grade and score breakdown'],'overall'=>['Overall final grade','Semester average, rating and remarks']] as $gradePart=>$visibilityLabels): ?>
+            <div class="gb-visibility-option"><div><h4><?= $visibilityLabels[0] ?></h4><p><?= $visibilityLabels[1] ?></p></div><span class="gb-visibility-status" data-gb-visibility-status="<?= $gradePart ?>" role="status">Hidden from students</span><button type="button" class="btn btn-outline-primary" data-gb-visibility="<?= $gradePart ?>" aria-label="Show <?= strtolower($visibilityLabels[0]) ?> to students" disabled>Show to students</button></div>
+            <?php endforeach; ?>
+          </div>
+        </section>
         <div id="gbSchemeNotice" class="gb-notice" role="status" hidden></div>
         <div class="gb-section-heading"><h3 id="gbPeriodTitle">Midterm gradebook</h3><div class="gb-actions"><button type="button" id="gbReload" class="btn btn-outline-secondary"><i class="bx bx-refresh" aria-hidden="true"></i>Refresh</button><button type="button" id="gbOpenWork" class="btn btn-outline-primary"><i class="bx bx-list-ul" aria-hidden="true"></i>Open graded work <span id="gbWorkCount" class="gb-work-count">0</span></button><button type="button" id="gbAddAttendance" class="btn btn-outline-primary"><i class="bx bx-check-square" aria-hidden="true"></i>Add attendance entry</button><button type="button" id="gbAddManual" class="btn btn-primary"><i class="bx bx-plus" aria-hidden="true"></i>Add manual entry</button></div></div>
         <section class="card gb-results" aria-labelledby="gbResultsTitle"><div class="gb-results-heading"><h3 id="gbResultsTitle">Student grades</h3><label class="gb-search"><span class="visually-hidden">Search students</span><input type="search" id="gbStudentSearch" class="form-control" placeholder="Search student name or number"></label></div><div id="gbResultsTable" class="gb-table-scroll" tabindex="0" aria-label="Student grades table"></div></section>

@@ -27,6 +27,7 @@
       const text=availabilityLabel(row,current),waiting=!!waitingToOpen(row,current);
       if(label.textContent!==text)label.textContent=text;
       label.parentElement.title=waiting?'Opens '+date(row.opens_at):'';
+      label.parentElement.dataset.availability=text==='Available'||text==='In progress'?'available':text==='Submitted'?'submitted':'unavailable';
       if(waiting){label.setAttribute('role','timer');label.setAttribute('aria-live','off');}
       else{label.removeAttribute('role');label.removeAttribute('aria-live');}
     });
@@ -38,6 +39,12 @@
     if(data.server_time)state.clock=time(data.server_time)-performance.now();return data;
   }
   async function task(callback){if(state.busy)return;state.busy=true;root.querySelectorAll('button').forEach(button=>{button.dataset.wasDisabled=String(button.disabled);button.disabled=true;});try{await callback();}catch(error){feedback.error(error.message,'Assessment workspace');}finally{state.busy=false;root.querySelectorAll('[data-was-disabled]').forEach(button=>{button.disabled=button.dataset.wasDisabled==='true';delete button.dataset.wasDisabled;});updateActions();}}
+  function assessmentCardStats(row,result){
+    const checked=result?.checked_count||0,pending=result?.pending_review_count||0;
+    const items=row.assessment_type==='assignment'?1:Number.isInteger(row.question_count)?row.question_count:result?checked+pending:null;
+    const score=result?(checked?`${escape(result.correct_count)}<small> / ${escape(checked)}</small>`:'<span class="student-card-score-pending">Pending</span>'):'—';
+    return `<dl class="student-assessment-card-stats"><div><dt>Item score</dt><dd>${score}</dd><small>${result?(checked?'Automatically checked':'Professor review'):'After submission'}</small></div><div><dt>Total items</dt><dd>${items===null?'—':escape(items)}</dd><small>${row.assessment_type==='assignment'?'Written response':'Questions'}</small></div><div><dt>Available points</dt><dd>${escape(row.total_points)}</dd><small>Assessment total</small></div></dl>${pending?`<p class="student-card-review-note"><i class="bx bx-time-five" aria-hidden="true"></i>${escape(pending)} ${pending===1?'item awaits':'items await'} professor review.</p>`:''}`;
+  }
   function renderList(){
     const subjectRows=state.rows.filter(row=>row.subject_key===state.subject?.subject_key);
     root.querySelectorAll('[data-student-period]').forEach(button=>{
@@ -51,7 +58,7 @@
     $('studentAssessmentList').innerHTML=rows.length?rows.map(row=>{
       const submitted=row.attempt_status==='submitted',expired=row.attempt_status==='expired',result=submitted||expired?row.result:null;
       const label=availabilityLabel(row);
-      return `<article class="card assessment-list-card${submitted?' is-submitted':expired?' is-expired':''}" data-assessment-card="${row.assessment_id}"><div class="student-assessment-card-top"><span class="student-assessment-type">${escape(row.assessment_type)}</span><span class="badge ${submitted?'bg-label-success':expired?'bg-label-warning':'bg-label-primary'}">${submitted?'<i class="bx bx-check-circle" aria-hidden="true"></i> ':expired?'<i class="bx bx-time-five" aria-hidden="true"></i> ':''}<span data-assessment-status="${row.assessment_id}">${escape(label)}</span></span></div><h3 class="student-assessment-list-title">${escape(row.title)}</h3><div class="assessment-preview-meta"><span>${escape(row.total_points)} points</span><span>${row.due_at?'Due '+escape(date(row.due_at)):'No deadline'}</span>${row.time_limit_minutes?`<span>${escape(row.time_limit_minutes)} min time limit</span>`:''}</div><div class="student-assessment-card-footer">${result?`<section class="student-list-result" aria-label="Assessment result"><h4>Results</h4>${resultTotals(result,true)}</section>`:''}<button class="btn btn-outline-primary" type="button" data-open="${row.assessment_id}">${result?'View results':row.attempt_status==='in_progress'?'Continue assessment':'Open assessment'}</button></div></article>`;
+      return `<article class="card assessment-list-card${submitted?' is-submitted':expired?' is-expired':''}" data-assessment-card="${row.assessment_id}"><header class="student-assessment-card-header" data-card-period="${escape(row.grading_period)}"><div class="student-assessment-card-top"><span class="student-assessment-type">${escape(row.assessment_type)}</span><span class="badge ${submitted?'bg-label-success':expired?'bg-label-warning':'bg-label-primary'}">${submitted?'<i class="bx bx-check-circle" aria-hidden="true"></i> ':expired?'<i class="bx bx-time-five" aria-hidden="true"></i> ':''}<span data-assessment-status="${row.assessment_id}">${escape(label)}</span></span></div><h3 class="student-assessment-list-title">${escape(row.title)}</h3></header><div class="student-assessment-card-body">${assessmentCardStats(row,result)}<div class="assessment-preview-meta"><span><i class="bx bx-calendar" aria-hidden="true"></i>${row.due_at?'Due '+escape(date(row.due_at)):'No deadline'}</span><span><i class="bx bx-time-five" aria-hidden="true"></i>${row.time_limit_minutes?escape(row.time_limit_minutes)+' min time limit':'No time limit'}</span></div></div><div class="student-assessment-card-footer">${result?`<section class="student-list-result" aria-label="Assessment result"><h4>Results</h4>${resultTotals(result,true)}</section>`:''}<button class="btn btn-outline-primary" type="button" data-open="${row.assessment_id}">${result?'View results':row.attempt_status==='in_progress'?'Continue assessment':'Open assessment'}<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button></div></article>`;
     }).join(''):`<div class="card assessment-empty"><i class="bx bx-book-open" aria-hidden="true"></i><h3>No ${periodLabel} activities yet</h3><p>Your professor's published activities for this period will appear here.</p></div>`;
     updateAvailability();
   }

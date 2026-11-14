@@ -1,6 +1,6 @@
-/* Student Portal: the Dean module's palette and application shell. */
-:root{--student-primary:#696cff;--student-heading:#566a7f;--student-text:#697a8d;--student-muted:#8592a3;--student-border:#e5e8ed}
-body{color:var(--student-text);background:#f5f5f9}
+/* Student Portal: warm neutrals and a quiet, focused workspace. */
+:root{--student-primary:#302e2b;--student-heading:#292824;--student-text:#65635e;--student-muted:#76736d;--student-border:#e5e3de;--student-canvas:#f5f4f1;--student-soft:#f1f0ec;--student-focus:#947451}
+body{color:var(--student-text);background:var(--student-canvas)}
 h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 .student-dashboard .card,.student-profile .card{border:0;box-shadow:0 .125rem .25rem #43597113;border-radius:9px}
 .student-welcome{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:4px 0 25px}
@@ -314,4 +314,210 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
  #finalEvaluationReviewModal .modal-body{padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px))}
  #finalEvaluationReviewModal .modal-footer{padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
  #finalEvaluationReviewModal .modal-footer>.btn:last-child{flex:1 1 auto}
+}
+
+/* Symmetry-inspired presentation, scoped to the student workspace. */
+.student-portal{font-family:'Public Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased}
+.student-portal :is(h1,h2,h3,h4,h5,h6){color:var(--student-heading)}
+.student-portal a{color:var(--student-primary)}
+.student-portal .text-muted{color:var(--student-muted)!important}
+.student-portal .text-primary{color:var(--student-primary)!important}
+.student-portal .bg-label-primary{background:var(--student-soft)!important;color:var(--student-heading)!important}
+.student-portal .alert-primary{background:#f3f1ea;border-color:#e5dfd2;color:#625a4c}
+.student-portal :is(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--student-focus);outline-offset:3px}
+.student-portal .card{border:1px solid var(--student-border);border-radius:20px;box-shadow:0 2px 3px #302e2b03}
+.student-portal .content-wrapper>.container-xxl{padding-top:36px;padding-bottom:32px}
+.student-portal .content-footer{font-size:12px;color:var(--student-muted)}
+
+/* Flat navigation keeps the current page easy to find. */
+.student-portal #layout-menu{background:#fbfaf8!important;border-right:1px solid var(--student-border);box-shadow:none}
+.student-portal #layout-menu .app-brand{height:96px;padding:0 26px}
+.student-portal #layout-menu .app-brand-logo img{width:34px;height:34px}
+.student-portal #layout-menu .synk-wordmark-role{font-size:11px;font-weight:500;color:var(--student-muted)}
+.student-portal #layout-menu .menu-inner-shadow{display:none}
+.student-portal #layout-menu .menu-header{margin:14px 0 10px!important;padding:0 28px;color:var(--student-muted);font-size:10px;letter-spacing:.12em}
+.student-portal #layout-menu .menu-item.active::before{display:none}
+.student-portal #layout-menu .student-menu-card{display:flex;align-items:center;gap:12px;margin:3px 6px;padding:11px 12px;border:1px solid transparent;border-radius:12px;background:transparent;white-space:normal;text-decoration:none;transition:background-color .15s,border-color .15s}
+.student-portal #layout-menu .student-menu-card::before{display:none}
+.student-portal #layout-menu .student-menu-card:hover{background:var(--student-soft)!important;border-color:transparent;box-shadow:none;transform:none}
+.student-portal #layout-menu .student-menu-card.active{background:#eae8e2!important;border-color:#e4e1da;box-shadow:none}
+.student-portal #layout-menu .student-menu-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:9px;background:transparent!important;color:#77736b!important;font-size:21px}
+.student-portal #layout-menu .active .student-menu-icon{color:#a55728!important}
+.student-portal #layout-menu .student-menu-content{min-width:0}
+.student-portal #layout-menu .student-menu-title{font-size:13px;font-weight:500;line-height:1.5;color:var(--student-heading)}
+.student-portal #layout-menu .student-menu-desc{display:none}
+.student-portal #layout-navbar{min-height:72px;height:auto;margin-top:20px;padding:12px 22px;border:1px solid var(--student-border);border-radius:18px;background:#fbfaf8!important;box-shadow:none}
+.student-portal .student-header-badge{padding:7px 10px;border-radius:6px;font-weight:500;letter-spacing:.06em}
+.student-portal .student-header-term{font-size:11px;color:var(--student-text)}
+.student-portal .student-navbar .fw-semibold{font-size:12px;color:var(--student-heading)}
+.student-portal .student-navbar .text-muted{font-size:11px}
+.student-portal .student-navbar .avatar img{border:1px solid var(--student-border)}
+.student-portal .student-term-toggle{border-radius:50%;border-color:var(--student-border)}
+
+/* Clear action hierarchy, with no lift or glow on hover. */
+.student-portal .btn{min-height:42px;padding:10px 18px;border-radius:999px;font-size:12px;font-weight:500;line-height:1.5;box-shadow:none;transition:background-color .15s,border-color .15s,color .15s;white-space:normal}
+.student-portal .btn:hover,.student-portal .btn:focus{transform:none;box-shadow:none}
+.student-portal .btn.btn-sm{min-height:34px;padding:7px 13px;font-size:11px}
+.student-portal .btn.btn-primary,.student-portal .faculty-final-review-button.is-ready{color:#fff;background:var(--student-primary);border-color:var(--student-primary);box-shadow:none}
+.student-portal .btn.btn-primary:hover,.student-portal .btn.btn-primary:focus,.student-portal .faculty-final-review-button.is-ready:hover,.student-portal .faculty-final-review-button.is-ready:focus{color:#fff!important;background:#45423d!important;border-color:#45423d!important}
+.student-portal .btn.btn-primary:disabled,.student-portal .btn.btn-primary.disabled{color:#fff;background:#5c5953;border-color:#5c5953}
+.student-portal :is(.btn-outline-primary,.btn-outline-secondary){color:var(--student-heading);background:#fff;border-color:#d9d6cf}
+.student-portal :is(.btn-outline-primary,.btn-outline-secondary):hover,.student-portal :is(.btn-outline-primary,.btn-outline-secondary):focus{color:var(--student-heading)!important;background:#eeece7!important;border-color:#c8c3b9!important}
+.student-portal .faculty-final-review-button,.student-portal .faculty-final-review-button .bx{animation:none}
+.student-portal .btn.faculty-evaluate-button.is-draft-saved{background:#f4ead9;border-color:#e7d5b6;color:#855710}
+.student-portal :is(.form-control,.form-select){min-height:44px;border:1px solid #dcd9d2;border-radius:11px;color:var(--student-heading);background-color:#fff;box-shadow:none}
+.student-portal :is(.form-control,.form-select):focus{border-color:#9f9688;box-shadow:0 0 0 3px #94745118}
+.student-portal :is(.form-check-input:checked,option:checked){background-color:var(--student-primary);border-color:var(--student-primary)}
+.student-portal .form-label{color:var(--student-text)}
+
+/* Dashboard and the existing content cards. */
+.student-portal .student-welcome{gap:28px;padding:8px 0 26px}
+.student-portal .student-eyebrow{font-size:10px;font-weight:500;letter-spacing:.14em;margin-bottom:13px}
+.student-portal .student-welcome h1{font-size:clamp(28px,2.7vw,40px);line-height:1.15;font-weight:500;letter-spacing:-1.5px;margin-bottom:13px}
+.student-portal .student-welcome>div>p:last-child{font-size:13px;line-height:1.7}
+.student-portal .student-welcome-program>.bx{width:40px;height:40px;flex-basis:40px;border:1px solid var(--student-border);border-radius:12px;background:#fff;color:#797369;font-size:21px}
+.student-portal .student-welcome-program strong{font-size:11px;font-weight:500}
+.student-portal .student-welcome-program span{color:var(--student-muted)}
+.student-portal .student-summary-grid{gap:14px;margin-top:26px}
+.student-portal .student-summary-card{padding:24px 20px;gap:14px;align-items:flex-start}
+.student-portal .student-stat-icon{width:36px;height:36px;flex-basis:36px;font-size:21px;border-radius:11px;background:#f2f1ed!important;color:#787166!important}
+.student-portal .student-summary-card>div{min-width:0}
+.student-portal .student-summary-card>div>span{font-size:11px;margin:0 0 10px;color:var(--student-text)}
+.student-portal .student-summary-card strong{font-size:30px;font-weight:500;letter-spacing:-1px}
+.student-portal .student-summary-card strong small{letter-spacing:0}
+.student-portal .student-workload-note{margin-top:13px;margin-bottom:28px;line-height:1.7}
+.student-portal .student-subject-toolbar{padding:24px 26px;border-color:var(--student-border)}
+.student-portal .student-subject-toolbar h2{font-size:18px;font-weight:500;letter-spacing:-.4px}
+.student-portal .student-subject-toolbar p{line-height:1.65}
+.student-portal :is(.student-announcement-icon,.student-empty-icon){background:var(--student-soft);color:#787166}
+.student-portal .student-empty-icon{border-radius:18px;width:58px;height:58px;font-size:26px}
+.student-portal .student-empty-state{padding-top:48px;padding-bottom:48px}
+.student-portal .student-empty-state h3{font-size:18px;letter-spacing:-.4px}
+.student-portal .student-empty-state p{font-size:12px;line-height:1.8}
+.student-portal .student-update{border-color:var(--student-border);border-radius:16px;padding:22px;background:#fff}
+.student-portal .student-update.is-unread{border:1px solid #d8d3c8;border-left:3px solid #9e8c6b;background:#faf9f6}
+.student-portal .student-update-new{color:#766344;font-size:10px;font-weight:600}
+.student-portal .student-update h3{font-weight:500;letter-spacing:-.3px}
+.student-portal .student-update-meta time,.student-portal .student-update-subject span,.student-portal .student-update-toolbar p{color:var(--student-muted)}
+.student-portal .student-update-message{font-size:13px;line-height:1.8}
+.student-portal .student-update-alert-list{gap:10px}
+.student-portal .student-update-alert-list li{padding:15px 16px;border-color:var(--student-border);border-radius:14px;background:#faf9f6}
+.student-portal .student-update-alert-list strong{font-size:13px;font-weight:500;color:var(--student-heading)}
+.student-portal .student-update-alert-list :is(span,small){color:var(--student-muted)}
+.student-portal .student-subject-item{border-color:var(--student-border);border-radius:16px;box-shadow:none}
+.student-portal .student-subject-item:hover{border-color:#c8c3b9}
+.student-portal .student-subject-help{background:#faf9f6;border-color:var(--student-border)}
+.student-portal .student-profile-workspace h1{font-weight:500;letter-spacing:-.8px}
+.student-portal .student-profile-photo{border-color:#eae6dd;background:var(--student-soft)}
+.student-portal .student-sheet-card{background:#fff;border-color:var(--student-border);box-shadow:none}
+.student-portal .student-sheet-head{border-color:var(--student-border)}
+.student-portal .student-sheet-meta-pill{background:var(--student-soft);color:var(--student-text)}
+.student-portal .faculty-evaluation-action{background:#f7f6f2;border-color:var(--student-border);border-radius:14px}
+.student-portal .faculty-page-notice{background:#f7f6f2;border-color:var(--student-border)}
+.student-portal .faculty-page-notice strong{color:var(--student-heading)}
+.student-portal .student-evaluation-prompt-progress,.student-portal .student-photo-required-note{background:#f3f1eb;color:#5b5141;border-radius:12px}
+
+/* LMS presentation only; its grading periods retain their own data and behavior. */
+.student-portal .student-assessments{--classwork-ink:var(--student-heading);--classwork-muted:var(--student-text);--classwork-line:var(--student-border);--classwork-accent:var(--student-primary)}
+.student-portal .student-assessments h1{font-weight:500;letter-spacing:-1px}
+.student-portal .student-class-card{border-radius:20px;box-shadow:none}
+.student-portal .student-class-card:hover{border-color:#c8c3b9;box-shadow:none;transform:none}
+.student-portal .student-class-card-footer .btn{background:#fff;border-color:#d9d6cf;color:var(--student-heading)}
+.student-portal .student-class-card-footer .btn:hover{background:var(--student-soft);border-color:#c8c3b9}
+.student-portal .student-assessments .assessment-periods{gap:10px}
+.student-portal .student-assessments .assessment-periods button{border-radius:14px;border-color:var(--student-border);background:#fff;color:var(--student-text);box-shadow:none}
+.student-portal .student-assessments .assessment-periods button+button{margin-left:0}
+.student-portal .student-assessments .assessment-periods button.is-active{border-color:#ada598;background:#eae7df;color:var(--student-heading);box-shadow:none}
+.student-portal .student-assessments .assessment-list-card,.student-portal .student-assessment-paper{border-color:var(--student-border);border-radius:20px;box-shadow:none}
+.student-portal .student-assessment-result{background:#f7f6f2;border-color:var(--student-border);border-radius:14px}
+
+/* Financial presentation stays within the student view of Management. */
+.student-portal .student-finance-heading h1{font-weight:500;color:var(--student-heading);letter-spacing:-.8px}
+.student-portal .student-finance-links>a{border-radius:999px;border-color:var(--student-border);color:var(--student-heading)}
+.student-portal .student-finance-links>a:hover{background:var(--student-soft);color:var(--student-heading)}
+.student-portal .student-finance-panel-heading{border-color:var(--student-border)}
+.student-portal .student-finance-panel-heading h2{color:var(--student-heading);font-weight:500}
+.student-portal .student-finance-panel-heading i,.student-portal .student-finance-stat>span>i{color:#787166}
+
+/* Floating panels use the same surface and action language. */
+.student-portal .dropdown-menu{padding:8px;border:1px solid var(--student-border);border-radius:18px;box-shadow:0 12px 36px #302e2b14}
+.student-portal .dropdown-item{padding:10px 12px;border-radius:10px;font-size:12px;color:var(--student-heading);white-space:normal;overflow-wrap:anywhere}
+.student-portal .dropdown-item:hover,.student-portal .dropdown-item:focus{background:var(--student-soft);color:var(--student-heading)}
+.student-portal .dropdown-divider{border-color:var(--student-border);margin:6px 0}
+.student-portal :is(.modal-backdrop,.offcanvas-backdrop){background:#292824}
+.student-portal .modal-content{border:1px solid #e5e1d9;border-radius:24px;box-shadow:0 24px 80px #29282426;background:#fff}
+.student-portal .modal-header{align-items:center;gap:16px;padding:24px 26px 18px;border-bottom:1px solid var(--student-border)}
+.student-portal .modal-title{font-size:19px;font-weight:500;letter-spacing:-.5px;line-height:1.4}
+.student-portal .modal-header .btn-close{position:static;margin:0 0 0 auto!important;transform:none!important;flex:0 0 36px;width:36px;height:36px;box-sizing:border-box;padding:10px;border:1px solid var(--student-border);border-radius:50%;background-color:var(--student-soft);background-size:10px;box-shadow:none;opacity:.8}
+.student-portal .modal-header .btn-close:hover{background-color:#e8e5de;opacity:1}
+.student-portal .modal-body{padding:22px 26px;font-size:13px;line-height:1.75}
+.student-portal .modal-footer{gap:8px;padding:16px 26px 20px;border-top:1px solid var(--student-border);background:#faf9f6;border-radius:0 0 24px 24px}
+.student-portal .modal-footer>.btn{margin:0;min-height:44px}
+.student-portal .swal2-popup,.student-portal .swal2-popup.lms-feedback-popup{padding:28px;border:1px solid var(--student-border);border-radius:24px;box-shadow:0 24px 80px #29282426;color:var(--student-text)}
+.student-portal .swal2-popup .swal2-title{font-size:24px;font-weight:500;letter-spacing:-.6px;line-height:1.3;color:var(--student-heading)}
+.student-portal .swal2-popup .swal2-html-container{font-size:14px;line-height:1.75;color:var(--student-text)}
+.student-portal .swal2-actions{gap:8px}
+.student-portal .swal2-styled{min-height:44px;margin:0;padding:11px 20px;border-radius:999px;font-size:13px;font-weight:500;box-shadow:none!important}
+.student-portal .swal2-styled.swal2-confirm{background:var(--student-primary)!important;color:#fff}
+.student-portal .swal2-styled.swal2-cancel{background:var(--student-soft)!important;color:var(--student-heading)}
+.student-portal .lms-feedback-container .btn:focus-visible{outline-color:var(--student-focus)}
+.student-portal .swal2-popup.lms-feedback-toast{padding:14px 16px;border-radius:14px}
+.student-portal .lms-feedback-toast .swal2-title{font-size:13px;letter-spacing:0}
+
+@media(max-width:1199.98px){
+ .student-portal .layout-page .content-wrapper{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))!important}
+ .student-portal .student-bottom-nav{padding-top:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));border-color:#d8e9ef;background:#faffffed;backdrop-filter:blur(12px);box-shadow:0 -3px 18px #3d7a9208}
+ .student-portal .student-bottom-link,.student-portal .student-mobile-more nav a{--student-nav-tile:#e0f2fb;--student-nav-edge:#bbdfef;--student-nav-ink:#247fad}
+ .student-portal .student-bottom-link:nth-child(odd),.student-portal .student-mobile-more nav a:nth-child(odd){--student-nav-tile:#dcf2e2;--student-nav-edge:#b7e0c5;--student-nav-ink:#2f8a58}
+ .student-portal .student-bottom-link{min-height:68px;gap:5px;padding:4px 2px;border:1px solid transparent;border-radius:15px;color:#536d79;font-size:10px;font-weight:500}
+ .student-portal .student-bottom-icon,.student-portal .student-mobile-menu-icon{position:relative;isolation:isolate;display:grid;place-items:center;width:48px;height:38px;flex-shrink:0;background:transparent!important;border-radius:0;overflow:visible}
+ .student-portal .student-bottom-icon::before,.student-portal .student-mobile-menu-icon::before{content:'';position:absolute;width:30px;height:30px;border:2px solid #fff;border-radius:8px;background:var(--student-nav-tile);box-shadow:0 0 0 1px var(--student-nav-edge),0 3px 5px #39768b0b;transform:rotate(45deg) skew(-10deg,-10deg);z-index:-1}
+ .student-portal .student-bottom-nav .student-bottom-icon .bx,.student-portal .student-mobile-more nav .bx{color:var(--student-nav-ink)!important;font-size:21px}
+ .student-portal .student-bottom-link.active,.student-portal .student-bottom-link[aria-expanded="true"]{border-color:#cce7d7;background:#f0faf4;color:#2c684b;font-weight:600}
+ .student-portal .student-bottom-link.active .student-bottom-icon::before,.student-portal .student-bottom-link[aria-expanded="true"] .student-bottom-icon::before{background:#c7ead3;box-shadow:0 0 0 1px #9bd2b0,0 3px 5px #39768b0b}
+ .student-portal .student-bottom-nav .student-bottom-link.active .bx{color:#24724a!important}
+ .student-portal .student-bottom-link:hover{background:#f1f8fb;color:#365f70}
+ .student-portal .student-bottom-link:focus-visible{outline:3px solid #7bb6cc;outline-offset:-2px}
+ .student-portal .student-mobile-more{border:1px solid #d8e9ef;border-radius:24px 24px 0 0;background:#fff;box-shadow:0 -12px 48px #2c617d1a}
+ .student-portal .student-mobile-more .offcanvas-header{background:#f5fafc;border-radius:24px 24px 0 0;padding-bottom:16px}
+ .student-portal .student-mobile-more .offcanvas-body{padding-top:16px}
+ .student-portal .student-mobile-more nav{gap:12px}
+ .student-portal .student-mobile-more nav a{min-height:104px;padding:12px 6px;gap:10px;border-color:#deebf1;border-radius:16px;background:#fbfdfe;color:#405f6c;font-size:11px;line-height:1.4}
+ .student-portal .student-mobile-menu-icon{width:52px;height:42px}
+ .student-portal .student-mobile-menu-icon::before{width:34px;height:34px;border-radius:9px}
+ .student-portal .student-mobile-more nav .bx{font-size:23px}
+ .student-portal .student-mobile-more nav [aria-current="page"]{background:#eff9f3;border-color:#abd8bd;color:#2e6e4d}
+ .student-portal .student-mobile-more nav a:hover{background:#f0f8fc;border-color:#bdddea}
+ .student-portal .student-mobile-more .btn-close{border-radius:50%;background-color:#e7f3f8;background-size:11px}
+}
+@media(max-width:991.98px){
+ .student-portal .modal-fullscreen-lg-down .modal-content{border:0;border-radius:0;box-shadow:none}
+ .student-portal .modal-fullscreen-lg-down .modal-footer{border-radius:0}
+ .student-portal .student-summary-card{padding:22px}
+}
+@media(max-width:767.98px){
+ .student-portal .content-wrapper>.container-xxl{padding-top:26px}
+ .student-portal #layout-navbar{margin-top:16px;padding:12px 16px;border-radius:15px;min-height:62px}
+ .student-portal .student-welcome{gap:18px;padding-top:4px;padding-bottom:22px}
+ .student-portal .student-welcome h1{font-size:30px;letter-spacing:-1px}
+ .student-portal .student-assessment-refresh{width:44px;padding:0;justify-content:center}
+ .student-portal .student-summary-grid{gap:10px;margin-top:22px}
+ .student-portal .student-summary-card{padding:18px 16px;gap:12px;border-radius:16px}
+ .student-portal .student-summary-card strong{font-size:27px}
+ .student-portal .student-subject-toolbar{padding:20px}
+ .student-portal .modal-header{padding:20px 18px 16px}
+ .student-portal .modal-body{padding:18px}
+ .student-portal .modal-footer{padding:14px 18px 18px}
+ .student-portal .swal2-popup,.student-portal .swal2-popup.lms-feedback-popup{padding:22px 16px}
+ .student-portal .swal2-popup.lms-feedback-toast{padding:13px}
+}
+@media(max-width:420px){
+ .student-portal .student-summary-card{padding:17px 14px;gap:12px}
+ .student-portal .student-stat-icon{width:32px;height:32px;flex-basis:32px;font-size:19px}
+ .student-portal .student-summary-card>div>span{margin-bottom:8px}
+ .student-portal .modal-dialog:not(.modal-fullscreen-lg-down){margin:.6rem}
+ .student-portal .modal-title{font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){
+ .student-portal #layout-menu .student-menu-card,.student-portal .btn{transition:none}
 }

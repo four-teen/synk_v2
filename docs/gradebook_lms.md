@@ -183,8 +183,70 @@ The user-provided legend supersedes the earlier spreadsheet rating formulas:
 Ratings use the minimum threshold of each band, without rounding a grade up
 into the next band: 98.99 remains 1.25 and 99.00 becomes 1.00; 72.99 remains
 5.00 and 73.00 becomes 4.00. Percentage display uses two decimals. Ratings up to
-3.00 are Passed, 4.00 Conditional and 5.00 Failed. These are professor working grades, not automatically
-published to students, shared academic reports or official transcripts.
+3.00 are Passed, 4.00 Conditional and 5.00 Failed. The student gradebook displays
+these only when released by the professor. They do not update shared academic reports or
+official transcripts.
+
+## Student gradebook
+
+Open **Activities & assessments → Gradebook**, beside **Search subject or
+professor**. The separate student page lists the signed-in student's current
+enrolled subjects in seven columns: subject, instructor, Midterm percentage,
+Final term percentage, overall final grade (semester average), numerical rating
+and remarks. Selecting a subject opens the released periods' component weights,
+earned/possible points, weighted contributions and individual manual or linked
+LMS scores.
+
+Grades use the same frozen grading setup, point-weighted component calculation,
+50/50 semester average and unrounded rating thresholds as the professor
+gradebook. Unconfigured periods remain blank. Configured periods retain the
+existing missing-score-as-zero rule, while individual unrecorded entries stay
+visibly distinct from recorded zeros. Manual LMS overrides take precedence over
+automatic points; staff notes, assessment answers and answer keys are excluded.
+
+In the professor's **Grade Book → Student grade visibility**, three independent
+controls show or hide **Midterm**, **Final term**, and **Overall final grade** for
+the whole class. Every existing and new class starts with all three hidden.
+Showing a period releases its grade, components and score entries. Showing the
+overall final grade releases only the semester average, rating and remarks;
+it does not show either hidden period's breakdown. Unconfigured released grades
+stay blank. These controls apply to the student gradebook; they do not change
+assessment submission feedback or the professor's gradebook/printed grade sheet.
+
+Hidden values are omitted on the server, including component totals, entry
+scores, period ratings and timestamps. They never appear in student page source.
+Students see **Not released**, distinct from an incomplete grading setup or a
+recorded zero. The page labels results **Instructor-released LMS grades** and
+explains that released grades reflect the latest saved scores and are not an
+official transcript. A release is a visibility setting, not a frozen publication
+snapshot; subsequent score saves update any shown results without releasing
+other hidden grades.
+
+The student page checks the server every 30 seconds while visible, when returning
+to the tab, and after restoration from browser history. It updates releases and
+withdrawals while retaining open subject details and table scroll position. A
+failed refresh removes stale grade tables until the connection recovers. Manual
+**Refresh** also reloads the latest visibility and saved scores.
+
+Visibility is stored separately per professor, offering, academic year and
+semester in LMS. Saves use the existing active professor/assignment checks,
+signed class context and CSRF, plus a locked visibility revision to reject stale
+updates. Each show/hide records the actor, selected result, old/new state, time
+and revision in the LMS audit history. Score edits do not change visibility.
+
+The page validates the existing student login and resolves active enrollment
+against live class assignments and merged memberships for the shared current
+academic year/semester. URL parameters cannot select another student, class or
+term. Gradebook reads use read-only transactions, select only this student's
+score rows/attempts and never create tables or write grades. LMS grading periods
+remain independent of Management financial periods and shared academic settings.
+
+Validation: `php tests/student-gradebook_lms.php` checks professor/student grade
+parity, all eight release combinations, hiding after release, frozen revisions,
+manual overrides, archived work, blank/zero handling, private data exclusion,
+enrollment/access boundaries, rendered states and fixture
+rollback. Add `--render` to generate `.tmp/student-gradebook_lms.html` with
+synthetic fixture data for local visual review. All database fixtures roll back.
 
 ## Revision history and data boundaries
 
@@ -198,17 +260,23 @@ or be archived. Scores are preserved.
 Requests check active professor account/role/faculty link, live workload
 ownership, session-signed gradebook view and CSRF. Score entry is restricted to
 the exact current named class roster, including existing merged memberships.
-Every mutation checks the book and scheme revisions, runs transactionally, and
+Score mutations check the book and scheme revisions; visibility mutations check
+the class visibility revision. Each runs transactionally and
 records an audit event. Failed/stale saves retain local edits. All changes in a
 score batch are validated before any write; any failure rolls back the request.
 
 Run `php backend/install_gradebook_lms.php` once (safe to rerun). It creates only
-these four tables in the **separate LMS database**:
+these six tables in the **separate LMS database**. Rerun the installer to add
+visibility storage to an existing installation; it does not change recorded
+grades or release any results. Missing visibility storage keeps student results
+hidden:
 
 - `tbl_lms_gradebook_periods`
 - `tbl_lms_gradebook_items`
 - `tbl_lms_gradebook_scores`
 - `tbl_lms_gradebook_logs`
+- `tbl_lms_gradebook_visibility`
+- `tbl_lms_gradebook_visibility_logs`
 
 Web requests do not install or alter tables. Core academic settings, scheduling,
 workloads, shared student profiles, and Management financial settings/history

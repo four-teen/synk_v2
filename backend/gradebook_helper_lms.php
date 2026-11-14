@@ -2,6 +2,7 @@
 require_once __DIR__.'/grading_helper_lms.php';
 require_once __DIR__.'/assessment_delivery_helper_lms.php';
 require_once __DIR__.'/assessment_result_helper_lms.php';
+require_once __DIR__.'/gradebook_visibility_helper_lms.php';
 
 function synk_gradebook_ready_lms(mysqli $lms): bool
 {
@@ -142,6 +143,13 @@ function synk_gradebook_calculate_lms(array $scheme, array $items, array $scores
     }
     return ['components'=>$components,'graded_count'=>$graded,'item_count'=>$total,'complete'=>$complete,'percent'=>$complete?$grade:null,'rating'=>$complete?synk_gradebook_rating_lms($grade)['rating']:null];
 }
+function synk_gradebook_semester_result_lms(array $midterm, array $final): array
+{
+    $average=$midterm['complete']&&$final['complete']?($midterm['percent']+$final['percent'])/2:null;
+    $rated=$average===null?null:synk_gradebook_rating_lms($average);
+    return ['midterm'=>$midterm['percent'],'final'=>$final['percent'],'average'=>$average,
+        'rating'=>$rated===null?null:$rated['rating'],'remark'=>$rated===null?'—':$rated['remark']];
+}
 function synk_gradebook_workspace_lms(mysqli $core, mysqli $lms, array $context): array
 {
     $roster=synk_gradebook_roster_lms($core,$context);$periods=[];
@@ -156,9 +164,8 @@ function synk_gradebook_workspace_lms(mysqli $core, mysqli $lms, array $context)
     $midtermResults=(array)$periods['midterm']['results'];$finalResults=(array)$periods['final']['results'];$summary=[];
     foreach ($roster as $student) {
         $id=(int)$student['student_id'];$mid=$midtermResults[$id];$fin=$finalResults[$id];
-        $average=$mid['complete']&&$fin['complete']?($mid['percent']+$fin['percent'])/2:null;
-        $summary[$id]=['midterm'=>$mid['percent'],'final'=>$fin['percent'],'average'=>$average,'rating'=>$average===null?null:synk_gradebook_rating_lms($average)['rating'],'remark'=>$average===null?'—':synk_gradebook_rating_lms($average)['remark']];
+        $summary[$id]=synk_gradebook_semester_result_lms($mid,$fin);
     }
     $assessments=synk_gradebook_available_assessments_lms($lms,$context,$roster);
-    return ['roster'=>$roster,'periods'=>$periods,'summary'=>(object)$summary,'assessments'=>$assessments];
+    return ['roster'=>$roster,'periods'=>$periods,'summary'=>(object)$summary,'assessments'=>$assessments,'visibility'=>synk_gradebook_visibility_lms($lms,$context)];
 }

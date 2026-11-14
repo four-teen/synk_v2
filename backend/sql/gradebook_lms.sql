@@ -16,6 +16,38 @@ CREATE TABLE IF NOT EXISTS tbl_lms_gradebook_periods (
   UNIQUE KEY uq_lms_gradebook_period (faculty_id,offering_id,ay_id,semester,grading_period)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Student grade release is independent for each professor/class/academic term.
+-- Existing and new classes stay hidden until their professor explicitly shows them.
+CREATE TABLE IF NOT EXISTS tbl_lms_gradebook_visibility (
+  visibility_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  faculty_id INT UNSIGNED NOT NULL,
+  offering_id INT UNSIGNED NOT NULL,
+  ay_id INT UNSIGNED NOT NULL,
+  semester TINYINT UNSIGNED NOT NULL,
+  midterm_visible TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  final_visible TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  overall_visible TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  updated_by INT UNSIGNED NULL,
+  updated_at DATETIME NULL,
+  PRIMARY KEY (visibility_id),
+  UNIQUE KEY uq_lms_gradebook_visibility (faculty_id,offering_id,ay_id,semester)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tbl_lms_gradebook_visibility_logs (
+  log_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  visibility_id INT UNSIGNED NOT NULL,
+  actor_user_id INT UNSIGNED NOT NULL,
+  version INT UNSIGNED NOT NULL,
+  grade_part ENUM('midterm','final','overall') NOT NULL,
+  was_visible TINYINT UNSIGNED NOT NULL,
+  is_visible TINYINT UNSIGNED NOT NULL,
+  recorded_at DATETIME NOT NULL,
+  PRIMARY KEY (log_id),
+  UNIQUE KEY uq_lms_gradebook_visibility_log (visibility_id,version),
+  CONSTRAINT fk_lms_gradebook_visibility_log FOREIGN KEY (visibility_id) REFERENCES tbl_lms_gradebook_visibility (visibility_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS tbl_lms_gradebook_items (
   item_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
   book_id INT UNSIGNED NOT NULL,

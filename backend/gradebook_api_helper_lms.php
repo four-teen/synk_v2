@@ -35,6 +35,7 @@ function synk_gradebook_write_scores_lms(mysqli $lms, int $itemId, array $entrie
 
 function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, string $action, array $payload, int $actor): array
 {
+    if($action==='set_visibility')return synk_gradebook_set_visibility_lms($lms,$context,$payload,$actor);
     $period=synk_grading_period_lms($payload['grading_period']??null);
     $book=synk_gradebook_period_lms($lms,$context,$period,true);
     if (synk_grading_integer_lms($payload['version']??null)!==$book['version'] || synk_grading_integer_lms($payload['scheme_version']??null)!==$book['scheme']['version']) throw new DomainException('This gradebook changed in another tab. Reload before saving; your entries are kept on this page.',409);
@@ -129,12 +130,13 @@ function synk_gradebook_request_lms(mysqli $core, array $input): array
     if (array_diff(array_keys($input),['action','context','payload','csrf_token'])) throw new DomainException('This request contains unsupported gradebook fields.',400);
     if (!is_array($input['context']??null) || ($input['context']['view']??'')!=='gradebook') throw new DomainException('Open Grade Book from your class workspace.',403);
     $action=$input['action']??null;
-    if (!is_string($action) || !in_array($action,['get','save_item','save_attendance','archive_item','save_scores','use_latest_scheme'],true)) throw new DomainException('Choose an available gradebook action.',400);
+    if (!is_string($action) || !in_array($action,['get','save_item','save_attendance','archive_item','save_scores','use_latest_scheme','set_visibility'],true)) throw new DomainException('Choose an available gradebook action.',400);
     $context=synk_professor_class_context_lms($core,$input['context']);$lms=synk_database_connection_lms($core);
     if (!synk_gradebook_ready_lms($lms)) throw new DomainException('The gradebook storage is not ready yet. Contact your administrator.',503);
     $payload=$input['payload']??[];
     $fields=['get'=>[],'save_item'=>['grading_period','version','scheme_version','item_id','component_id','title','entry_kind','assessment_id','max_points','recorded_date'],'archive_item'=>['grading_period','version','scheme_version','item_id'],'save_scores'=>['grading_period','version','scheme_version','item_id','scores'],'use_latest_scheme'=>['grading_period','version','scheme_version']];
     $fields['save_attendance']=['grading_period','version','scheme_version','item_id','component_id','title','recorded_date','scores'];
+    $fields['set_visibility']=['version','grade_part','visible'];
     if (!is_array($payload) || array_diff(array_keys($payload),$fields[$action])) throw new DomainException('Enter valid gradebook details.',400);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin the gradebook request.');
     try {
