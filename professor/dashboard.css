@@ -5,6 +5,7 @@
 .dashboard-welcome p { margin: 0; color: #75828f; font-size: .82rem; line-height: 1.7; }
 .dashboard-secondary-link { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; flex-shrink: 0; padding: .7rem 1rem; border: 1px solid #dce3e9; border-radius: 9px; color: #4b5c6d; background: #fff; font-size: .75rem; font-weight: 600; }
 .dashboard-secondary-link:hover { color: #237b62; border-color: #a5caba; }
+.dashboard-link-arrow { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; color: #fff; background: #278268; box-shadow: 0 3px 8px #237b6226; font-size: 1rem; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
 .dashboard-metric { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 1.25rem 1.2rem; border: 1px solid #e2e8ed; border-radius: 14px; background: #fff; box-shadow: 0 4px 14px #283c5003; transition: border-color .15s, box-shadow .15s; }
 .dashboard-metric:hover { border-color: #bbcbc3; box-shadow: 0 5px 18px #283c5009; }
@@ -134,5 +135,13 @@
 .professor-dashboard-page [hidden] { display: none !important; }
 .professor-dashboard-page a:focus-visible, .professor-dashboard-page button:focus-visible { outline: 2px solid #59997e; outline-offset: 4px; }
 @media (max-width: 991.98px) { .dashboard-columns { grid-template-columns: 1fr; } .dashboard-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
-@media (max-width: 767.98px) { .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; } .dashboard-welcome { flex-direction: column; align-items: flex-start; padding-top: .4rem; } .dashboard-aside { grid-template-columns: 1fr; } }
+@media (max-width: 767.98px) {
+  .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+  .dashboard-welcome { flex-direction: column; align-items: flex-start; padding-top: .4rem; }
+  .dashboard-welcome .dashboard-secondary-link { width: 100%; justify-content: flex-start; }
+  .dashboard-secondary-link .dashboard-link-label { flex: 1; }
+  .dashboard-metric-label { min-height: 3em; }
+  .dashboard-metric-label-line { display: block; }
+  .dashboard-aside { grid-template-columns: 1fr; }
+}
 @media (max-width: 575.98px) { .dashboard-research, .dashboard-teaching, .dashboard-attention { padding: 1.1rem; } .dashboard-metric { padding: 1rem; } .dashboard-metric-label { font-size: .69rem; } .dashboard-metric-note { font-size: .61rem; } .dashboard-metric > strong { font-size: 1.6rem; } .dashboard-record-icon { width: 29px; height: 34px; border-radius: 8px; font-size: 1rem; } .dashboard-research-record { grid-template-columns: 29px minmax(0, 1fr) 17px; gap: .65rem; } .dashboard-record-open { width: 17px; } .dashboard-research-record h3 { font-size: .8rem !important; } .dashboard-role-pill { padding: .35rem .45rem; font-size: .63rem; } }

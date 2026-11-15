@@ -1,4 +1,7 @@
 .professor-bottom-nav{display:none}
+.professor-navbar .professor-term-labels{flex-direction:column;align-items:flex-start;gap:2px;min-width:0;line-height:1.15}
+.professor-navbar .professor-term-semester{color:#3b4f64;font-size:.95rem;font-weight:600}
+.professor-navbar .professor-term-year{color:#7a8794;font-size:.75rem;font-style:italic}
 @media screen and (max-width:1199.98px){
  #layout-menu,#layout-navbar>.layout-menu-toggle,.layout-overlay{display:none!important}
  .layout-menu-expanded body:not(.modal-open){overflow:auto!important}

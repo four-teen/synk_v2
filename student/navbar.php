@@ -8,8 +8,14 @@ $studentName = trim((string)($studentPortalDisplayName ?? ucfirst((string)($_SES
 $studentEmail = trim((string)($studentPortalDisplayEmail ?? (string)($_SESSION['email'] ?? '')));
 $studentPreviewMode = !empty($studentPortalPreviewMode);
 $studentBackUrl = trim((string)($studentPortalBackUrl ?? ''));
-$studentPortalBadge = $studentPreviewMode ? 'Student Preview' : 'Student Portal';
 $studentRoleLabel = $studentPreviewMode ? synk_student_preview_label().' · Read only' : 'Student';
+$studentHeaderRecord = $student ?? $studentDirectoryRecord ?? $studentRecord ?? [];
+$studentHeaderRecord = is_array($studentHeaderRecord) ? $studentHeaderRecord : [];
+$studentHeaderProgram = trim((string)($studentHeaderRecord['source_program_name'] ?? ''));
+$studentHeaderCampusLine = trim((string)($studentHeaderRecord['campus_name'] ?? ''));
+if ((int)($studentHeaderRecord['year_level'] ?? 0) > 0) {
+    $studentHeaderCampusLine .= ($studentHeaderCampusLine !== '' ? ' · ' : '') . 'Year ' . (int)$studentHeaderRecord['year_level'];
+}
 $studentAvatarFallback = '../student/profile-placeholder.svg';
 $studentPhotoId=$studentPreviewMode ? synk_student_preview_student_id_from_request() : (int)($_SESSION['student_id'] ?? 0);
 $studentUploadedPhotoUrl=synk_student_profile_image_url($studentPhotoId);
@@ -28,8 +34,14 @@ $studentAvatarUrl = $studentUploadedPhotoUrl ?: $studentAvatarFallback;
 
   <div class="navbar-nav-right d-flex align-items-center justify-content-between gap-3 w-100" id="navbar-collapse">
     <div class="d-flex align-items-center gap-2 student-header-cluster<?php echo $studentPreviewMode ? ' flex-wrap' : ''; ?>">
-      <span class="badge bg-label-primary text-uppercase student-header-badge"><?php echo htmlspecialchars($studentPortalBadge, ENT_QUOTES, 'UTF-8'); ?></span>
-      <span class="student-header-term"><?php echo htmlspecialchars($studentTermText, ENT_QUOTES, 'UTF-8'); ?></span>
+      <?php if ($studentPreviewMode): ?><span class="badge bg-label-primary text-uppercase student-header-badge">Student Preview</span><?php endif; ?>
+      <div class="student-header-details">
+        <span class="student-header-term"><?php echo htmlspecialchars($studentTermText, ENT_QUOTES, 'UTF-8'); ?></span>
+        <?php if ($studentHeaderRecord): ?>
+          <strong class="student-header-program"><?php echo htmlspecialchars($studentHeaderProgram !== '' ? $studentHeaderProgram : 'Student record', ENT_QUOTES, 'UTF-8'); ?></strong>
+          <?php if ($studentHeaderCampusLine !== ''): ?><span class="student-header-campus"><?php echo htmlspecialchars($studentHeaderCampusLine, ENT_QUOTES, 'UTF-8'); ?></span><?php endif; ?>
+        <?php endif; ?>
+      </div>
       <?php if ($studentPreviewMode && !empty($terms)): ?><button class="student-term-toggle" type="button" data-bs-toggle="modal" data-bs-target="#studentTermModal" aria-label="Choose academic year and semester" title="Choose academic year and semester"><i class="bx bx-cog" aria-hidden="true"></i></button><?php endif; ?>
       <?php if ($studentPreviewMode && $studentBackUrl !== ''): ?>
         <a href="<?php echo htmlspecialchars($studentBackUrl, ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-sm btn-outline-primary">

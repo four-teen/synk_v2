@@ -3,31 +3,31 @@
   <header class="dashboard-welcome">
     <div>
       <span class="dashboard-eyebrow">YOUR FACULTY WORKSPACE</span>
-      <h1>Welcome, <?php echo synk_professor_h($facultyName); ?>.</h1>
+      <h1><span class="d-none d-md-inline">Welcome, </span><span class="d-block d-md-none">Welcome!</span><?php echo synk_professor_h($facultyName); ?><span class="d-none d-md-inline">.</span></h1>
       <p>A clear view of your teaching, research, and what needs your attention.</p>
     </div>
-    <a href="<?php echo synk_professor_h($workloadUrl); ?>" class="dashboard-secondary-link"><i class="bx bx-calendar" aria-hidden="true"></i>View my workload<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
+    <a href="<?php echo synk_professor_h($workloadUrl); ?>" class="dashboard-secondary-link"><i class="bx bx-calendar" aria-hidden="true"></i><span class="dashboard-link-label">View my workload</span><span class="dashboard-link-arrow" aria-hidden="true"><i class="bx bx-right-arrow-alt"></i></span></a>
   </header>
 
   <section class="dashboard-metrics" aria-label="Teaching and research summary">
     <a class="dashboard-metric" href="<?php echo synk_professor_h($workloadUrl); ?>">
       <span class="dashboard-metric-icon"><i class="bx bx-book-open" aria-hidden="true"></i></span>
-      <span class="dashboard-metric-label">Assigned classes</span><strong><?php echo number_format($teachingSummary['subjects']); ?></strong>
+      <span class="dashboard-metric-label">Assigned <span class="dashboard-metric-label-line">classes</span></span><strong><?php echo number_format($teachingSummary['subjects']); ?></strong>
       <span class="dashboard-metric-note">Current academic term</span>
     </a>
     <a class="dashboard-metric" href="<?php echo synk_professor_h($workloadUrl); ?>">
       <span class="dashboard-metric-icon is-blue"><i class="bx bx-group" aria-hidden="true"></i></span>
-      <span class="dashboard-metric-label">Student enrollments</span><strong><?php echo number_format($teachingSummary['enrollments']); ?></strong>
+      <span class="dashboard-metric-label">Student <span class="dashboard-metric-label-line">enrollments</span></span><strong><?php echo number_format($teachingSummary['enrollments']); ?></strong>
       <span class="dashboard-metric-note">Across your assigned classes</span>
     </a>
     <a class="dashboard-metric" href="oracle-research.php">
       <span class="dashboard-metric-icon is-green"><i class="bx bx-library" aria-hidden="true"></i></span>
-      <span class="dashboard-metric-label">My researches</span><strong data-research-total aria-label="Research count is loading">&mdash;</strong>
+      <span class="dashboard-metric-label">My <span class="dashboard-metric-label-line">researches</span></span><strong data-research-total aria-label="Research count is loading">&mdash;</strong>
       <span class="dashboard-metric-note" data-research-total-note>Loading from Oracle</span>
     </a>
     <a class="dashboard-metric" href="oracle-research.php">
       <span class="dashboard-metric-icon is-amber"><i class="bx bx-check-shield" aria-hidden="true"></i></span>
-      <span class="dashboard-metric-label">Published researches</span><strong data-research-published aria-label="Published count is loading">&mdash;</strong>
+      <span class="dashboard-metric-label">Published <span class="dashboard-metric-label-line">researches</span></span><strong data-research-published aria-label="Published count is loading">&mdash;</strong>
       <span class="dashboard-metric-note" data-research-published-note>Within your research portfolio</span>
     </a>
   </section>

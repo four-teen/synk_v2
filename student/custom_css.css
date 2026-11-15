@@ -184,10 +184,8 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 
 /* The same authorized menu becomes a bottom bar on phones and tablets. */
 .student-bottom-nav{display:none}
-.student-portal .student-nav .student-menu-icon,
 .student-portal .student-bottom-icon .bx,
 .student-portal .student-mobile-more nav .bx{color:#ff6a00!important}
-.student-portal .student-nav .student-menu-icon{background:#fff0e4!important}
 @media screen and (max-width:1199.98px){
   .student-portal #layout-menu,
   .student-portal .layout-navbar>.layout-menu-toggle,
@@ -329,24 +327,44 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 .student-portal .content-wrapper>.container-xxl{padding-top:36px;padding-bottom:32px}
 .student-portal .content-footer{font-size:12px;color:var(--student-muted)}
 
-/* Flat navigation keeps the current page easy to find. */
-.student-portal #layout-menu{background:#fbfaf8!important;border-right:1px solid var(--student-border);box-shadow:none}
-.student-portal #layout-menu .app-brand{height:96px;padding:0 26px}
-.student-portal #layout-menu .app-brand-logo img{width:34px;height:34px}
+/* Match the professor sidebar's cards while retaining the student menu and routing. */
+.student-portal #layout-menu{background:#fff!important}
 .student-portal #layout-menu .synk-wordmark-role{font-size:11px;font-weight:500;color:var(--student-muted)}
-.student-portal #layout-menu .menu-inner-shadow{display:none}
-.student-portal #layout-menu .menu-header{margin:14px 0 10px!important;padding:0 28px;color:var(--student-muted);font-size:10px;letter-spacing:.12em}
-.student-portal #layout-menu .menu-item.active::before{display:none}
-.student-portal #layout-menu .student-menu-card{display:flex;align-items:center;gap:12px;margin:3px 6px;padding:11px 12px;border:1px solid transparent;border-radius:12px;background:transparent;white-space:normal;text-decoration:none;transition:background-color .15s,border-color .15s}
-.student-portal #layout-menu .student-menu-card::before{display:none}
-.student-portal #layout-menu .student-menu-card:hover{background:var(--student-soft)!important;border-color:transparent;box-shadow:none;transform:none}
-.student-portal #layout-menu .student-menu-card.active{background:#eae8e2!important;border-color:#e4e1da;box-shadow:none}
-.student-portal #layout-menu .student-menu-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:9px;background:transparent!important;color:#77736b!important;font-size:21px}
-.student-portal #layout-menu .active .student-menu-icon{color:#a55728!important}
+.student-portal #layout-menu .student-menu-card{
+ --student-card-radius:.78rem;
+ position:relative;display:flex;align-items:center;gap:.65rem;
+ padding:.78rem .82rem;margin:.42rem .2rem;
+ border:1px solid #e4e8f0;border-radius:var(--student-card-radius);background:#fff;
+ transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease;
+ white-space:normal;overflow:visible;isolation:isolate;text-decoration:none!important;
+}
+.student-portal #layout-menu .student-menu-card::before{
+ content:'';position:absolute;top:0;left:0;width:.34rem;height:.34rem;border-radius:999px;
+ background:radial-gradient(circle,rgba(255,221,186,.98) 0%,rgba(244,149,63,.96) 38%,rgba(179,83,15,.88) 62%,rgba(179,83,15,0) 100%);
+ box-shadow:0 0 4px rgba(201,104,28,.8),0 0 8px rgba(201,104,28,.3);
+ opacity:0;offset-anchor:center;offset-path:inset(.5px round calc(var(--student-card-radius) - .5px));offset-distance:0%;
+ animation:student-sidebar-border-orbit 4s linear infinite paused;
+ transition:opacity .2s ease;pointer-events:none;z-index:3;
+}
+.student-portal #layout-menu .student-menu-card:hover::before{opacity:1;animation-play-state:running}
+.student-portal #layout-menu .student-menu-card>*{position:relative;z-index:2}
+.student-portal #layout-menu .student-menu-card:hover{border-color:#d7b693;box-shadow:0 6px 14px rgba(51,71,103,.09);transform:translateY(-1px)}
+.student-portal #layout-menu .student-menu-card.active{border-color:#696cff;background:#f6f7ff;box-shadow:0 6px 14px rgba(105,108,255,.12)}
+.student-portal #layout-menu .student-menu-card:focus-visible{outline:2px solid #696cff;outline-offset:3px}
+.student-portal #layout-menu .student-menu-icon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;font-size:1rem}
+.student-portal #layout-menu .student-menu-icon.bg-label-primary{background:#e7e7ff!important;color:#696cff!important}
 .student-portal #layout-menu .student-menu-content{min-width:0}
-.student-portal #layout-menu .student-menu-title{font-size:13px;font-weight:500;line-height:1.5;color:var(--student-heading)}
-.student-portal #layout-menu .student-menu-desc{display:none}
-.student-portal #layout-navbar{min-height:72px;height:auto;margin-top:20px;padding:12px 22px;border:1px solid var(--student-border);border-radius:18px;background:#fbfaf8!important;box-shadow:none}
+.student-portal #layout-menu .student-menu-title{font-size:.87rem;font-weight:600;line-height:1.08rem;color:#364152}
+.student-portal #layout-menu .student-menu-desc{display:block;margin-top:.14rem;font-size:.72rem;line-height:.92rem;color:#8391a7}
+@keyframes student-sidebar-border-orbit{to{offset-distance:100%}}
+.student-portal #layout-navbar{min-height:72px;height:auto;margin-top:20px;padding:12px 22px;border:1px solid var(--student-border);border-radius:0;background:#fbfaf8!important;box-shadow:none}
+.student-portal .student-navbar .navbar-nav-right,.student-portal .student-header-cluster{min-width:0}
+.student-portal .student-header-cluster{flex:1}
+.student-portal .student-navbar .navbar-nav{flex-shrink:0}
+.student-portal .student-header-details{display:grid;gap:2px;min-width:0;line-height:1.25;overflow-wrap:anywhere}
+.student-portal .student-header-details .student-header-term{font-size:11px;line-height:1.25}
+.student-portal .student-header-program{font-size:11px;font-weight:700;color:#334f5d;text-transform:uppercase}
+.student-portal .student-header-campus{font-size:11px;color:#647985}
 .student-portal .student-header-badge{padding:7px 10px;border-radius:6px;font-weight:500;letter-spacing:.06em}
 .student-portal .student-header-term{font-size:11px;color:var(--student-text)}
 .student-portal .student-navbar .fw-semibold{font-size:12px;color:var(--student-heading)}
@@ -497,7 +515,7 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 }
 @media(max-width:767.98px){
  .student-portal .content-wrapper>.container-xxl{padding-top:26px}
- .student-portal #layout-navbar{margin-top:16px;padding:12px 16px;border-radius:15px;min-height:62px}
+ .student-portal #layout-navbar{margin-top:16px;padding:12px 16px;border-radius:0;min-height:62px}
  .student-portal .student-welcome{gap:18px;padding-top:4px;padding-bottom:22px}
  .student-portal .student-welcome h1{font-size:30px;letter-spacing:-1px}
  .student-portal .student-assessment-refresh{width:44px;padding:0;justify-content:center}
@@ -520,4 +538,6 @@ h1,h2,h3,h4,h5,h6{color:var(--student-heading)}
 }
 @media(prefers-reduced-motion:reduce){
  .student-portal #layout-menu .student-menu-card,.student-portal .btn{transition:none}
+ .student-portal #layout-menu .student-menu-card::before{animation:none;transition:none}
+ .student-portal #layout-menu .student-menu-card:hover{transform:none}
 }

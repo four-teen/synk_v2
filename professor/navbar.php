@@ -4,10 +4,10 @@ require_once '../backend/academic_term_helper.php';
 require_once '../backend/user_avatar_helper.php';
 
 $professorCurrentTerm = synk_fetch_current_academic_term($conn);
-$professorTermText = trim((string)($professorCurrentTerm['term_text'] ?? 'Current academic term'));
+$professorAcademicYear = trim((string)($professorCurrentTerm['ay_label'] ?? ''));
+$professorSemester = trim((string)($professorCurrentTerm['semester_label'] ?? ''));
 $professorName = trim((string)($professorPortalDisplayName ?? ucfirst((string)($_SESSION['username'] ?? 'Professor'))));
 $professorEmail = trim((string)($professorPortalDisplayEmail ?? (string)($_SESSION['email'] ?? '')));
-$professorStatusLabel = trim((string)($professorPortalFacultyStatusLabel ?? 'Professor Portal'));
 $professorAvatarFallback = synk_default_user_avatar_path();
 $professorAvatarUrl = synk_resolve_user_avatar_url($professorEmail, (string)($_SESSION['user_avatar_url'] ?? ''), 80);
 ?>
@@ -23,10 +23,9 @@ $professorAvatarUrl = synk_resolve_user_avatar_url($professorEmail, (string)($_S
   </div>
 
   <div class="navbar-nav-right d-flex align-items-center justify-content-between gap-3 w-100" id="navbar-collapse">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <?php if (empty($professorPortalCompactHeader)): ?><span class="badge bg-label-primary text-uppercase">Professor Portal</span><?php endif; ?>
-      <span class="badge bg-label-info"><?php echo htmlspecialchars($professorTermText, ENT_QUOTES, 'UTF-8'); ?></span>
-      <?php if (empty($professorPortalCompactHeader)): ?><span class="badge bg-label-secondary"><?php echo htmlspecialchars($professorStatusLabel, ENT_QUOTES, 'UTF-8'); ?></span><?php endif; ?>
+    <div class="d-flex professor-term-labels" aria-label="Current academic term">
+      <span class="professor-term-semester"><?php echo htmlspecialchars($professorSemester !== '' ? $professorSemester : 'Semester not set', ENT_QUOTES, 'UTF-8'); ?></span>
+      <span class="professor-term-year"><?php echo htmlspecialchars($professorAcademicYear !== '' ? $professorAcademicYear : 'Academic year not set', ENT_QUOTES, 'UTF-8'); ?></span>
     </div>
 
     <ul class="navbar-nav flex-row align-items-center ms-auto">

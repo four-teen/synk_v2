@@ -6,7 +6,7 @@ $announcementDate = static function(?string $date): string {
 };
 ?>
 <section class="card student-announcement-panel" aria-labelledby="announcements-title" id="studentAnnouncements">
-  <div class="student-subject-toolbar"><div><h2 id="announcements-title" tabindex="-1">Announcements <span class="badge bg-label-primary" id="announcementUnreadCount"<?= !$unreadAnnouncements ? ' hidden' : '' ?>><?= count($unreadAnnouncements) ?> new</span></h2><p>Class notices and automatically posted activity updates. Times are Philippine time.</p></div><span class="student-announcement-icon" aria-hidden="true"><i class="bx bx-bell"></i></span></div>
+  <div class="student-subject-toolbar"><div><h2 id="announcements-title" tabindex="-1">Announcements <span class="badge bg-label-primary" id="announcementUnreadCount"<?= !$unreadAnnouncements ? ' hidden' : '' ?>><?= count($unreadAnnouncements) ?> new</span></h2></div><span class="student-announcement-icon" aria-hidden="true"><i class="bx bx-bell"></i></span></div>
   <?php if ($announcementError !== ''): ?><p class="alert alert-info m-3" role="status"><?= synk_student_h($announcementError) ?></p>
   <?php elseif (!$announcements): ?>
     <div class="student-empty-state"><span class="student-empty-icon"><i class="bx bx-bell" aria-hidden="true"></i></span><h3>No announcements yet</h3><p>Your professors' notices and published activities will appear here.</p><a class="btn btn-outline-primary" href="assessments_lms.php">View my subjects</a></div>
@@ -16,18 +16,24 @@ $announcementDate = static function(?string $date): string {
     <div class="student-update-list">
       <?php foreach ($announcements as $notice): ?>
       <article class="student-update<?= $notice['unread'] ? ' is-unread' : '' ?>" data-notice-key="<?= synk_student_h($notice['event_key']) ?>">
-        <header class="student-update-card-header">
-        <div class="student-update-meta"><span class="badge <?= $notice['kind']==='announcement'?'bg-label-primary':'bg-label-success' ?>"><?= $notice['kind']==='announcement'?'Class notice':synk_student_h(ucfirst($notice['kind']).' published') ?></span><span class="student-update-new"<?= !$notice['unread']?' hidden':'' ?>>New</span><time datetime="<?= synk_student_h(str_replace(' ','T',$notice['event_at']).'+08:00') ?>"><?= synk_student_h($announcementDate($notice['event_at'])) ?></time></div>
-        <h3><?= synk_student_h($notice['title']) ?></h3>
+        <span class="student-update-symbol<?= $notice['kind']==='announcement'?' is-notice':'' ?>" aria-hidden="true"><i class="bx <?= $notice['kind']==='announcement'?'bx-bell':'bx-task' ?>"></i></span>
+        <header class="student-update-heading">
+          <div class="student-update-meta"><span class="student-update-kind<?= $notice['kind']==='announcement'?' is-notice':'' ?>"><?= $notice['kind']==='announcement'?'Class notice':synk_student_h(ucfirst($notice['kind']).' published') ?></span><span class="student-update-new"<?= !$notice['unread']?' hidden':'' ?>>New</span><time datetime="<?= synk_student_h(str_replace(' ','T',$notice['event_at']).'+08:00') ?>"><?= synk_student_h($announcementDate($notice['event_at'])) ?></time></div>
+          <h3><?= synk_student_h($notice['title']) ?></h3>
+          <p class="student-update-subject"><?= synk_student_h($notice['subject_label']) ?> <span>· <?= synk_student_h($notice['faculty_name']) ?></span></p>
         </header>
-        <div class="student-update-card-body">
-        <p class="student-update-subject"><?= synk_student_h($notice['subject_label']) ?> <span>· <?= synk_student_h($notice['faculty_name']) ?></span></p>
-        <?php if ($notice['kind']==='announcement'): ?><p class="student-update-message"><?= synk_student_h($notice['body']) ?></p>
-        <?php else: ?><p>Your professor published a new <?= synk_student_h($notice['kind']) ?> for this class.</p>
-        <?php if ($notice['opens_at'] !== null): ?><p class="student-update-schedule">Opens <?= synk_student_h($announcementDate($notice['opens_at'])) ?></p><?php endif; ?>
-        <?php if ($notice['due_at'] !== null): ?><p class="student-update-schedule">Due <?= synk_student_h($announcementDate($notice['due_at'])) ?></p><?php endif; ?>
-        <?php if ($notice['status']==='closed'): ?><p class="student-update-schedule">This activity is now closed.</p><?php endif; ?>
-        <a class="btn btn-sm btn-outline-primary mt-2" href="<?= synk_student_h($notice['url']) ?>">View activity <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a><?php endif; ?>
+        <div class="student-update-details">
+          <?php if ($notice['kind']==='announcement'): ?><p class="student-update-message"><?= synk_student_h($notice['body']) ?></p>
+          <?php else: ?>
+            <div class="student-update-footer">
+              <div class="student-update-schedule">
+                <?php if ($notice['opens_at'] !== null): ?><p><span>Opens</span> <?= synk_student_h($announcementDate($notice['opens_at'])) ?></p><?php endif; ?>
+                <?php if ($notice['due_at'] !== null): ?><p><span>Due</span> <?= synk_student_h($announcementDate($notice['due_at'])) ?></p><?php endif; ?>
+                <?php if ($notice['status']==='closed'): ?><p class="student-update-closed">This activity is now closed.</p><?php endif; ?>
+              </div>
+              <a class="btn btn-sm btn-outline-primary student-update-activity" href="<?= synk_student_h($notice['url']) ?>"><span>View activity</span><span class="student-update-activity-arrow" aria-hidden="true"><i class="bx bx-right-arrow-alt"></i></span></a>
+            </div>
+          <?php endif; ?>
         </div>
       </article>
       <?php endforeach; ?>
