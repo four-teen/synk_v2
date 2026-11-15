@@ -201,7 +201,7 @@ if (isset($_POST['login'])) {
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
 
     <title>SKSU synQ</title>
@@ -706,66 +706,111 @@ if (isset($_POST['login'])) {
         }
       }
 
-      @media (max-width: 767.98px) {
+      /* Use the available screen height to tighten spacing on smaller devices. */
+      @media (max-width: 767.98px), (max-height: 600px) {
         .login-shell {
-          min-height: 100dvh;
-          padding: 1rem 0.85rem 1.15rem;
+          --login-edge-y: clamp(0.75rem, 2dvh, 1.5rem);
+          --login-edge-x: clamp(0.75rem, 3vw, 1.5rem);
+          --login-card-inset: clamp(0.875rem, 3vw, 1.25rem);
+          display: flex;
+          flex-direction: column;
+          padding:
+            max(var(--login-edge-y), env(safe-area-inset-top, 0px))
+            max(var(--login-edge-x), env(safe-area-inset-right, 0px))
+            max(var(--login-edge-y), env(safe-area-inset-bottom, 0px))
+            max(var(--login-edge-x), env(safe-area-inset-left, 0px));
         }
 
         .login-stage {
-          min-height: auto;
-          align-items: flex-start;
-          padding: 0.35rem 0 0.85rem;
+          flex: 1;
+          width: 100%;
+          min-height: 0;
+          align-items: center;
+          padding: 0;
         }
 
         .login-panel {
-          max-width: 100%;
-          padding-top: 1.35rem;
+          max-width: 400px;
+          min-width: 0;
+          padding-top: clamp(1rem, 3dvh, 1.5rem);
         }
 
         .login-emblem {
-          width: 72px;
-          height: 72px;
+          width: clamp(56px, 12dvh, 72px);
+          height: clamp(56px, 12dvh, 72px);
           border-width: 6px;
         }
 
         .login-card {
-          margin-top: 0.8rem;
+          margin-top: 0.65rem;
         }
 
         .login-card .card-body {
-          padding: 2.85rem 1rem 1rem;
+          padding: clamp(2.1rem, 6dvh, 2.85rem) var(--login-card-inset) var(--login-card-inset);
         }
 
         .login-footer {
-          margin: 1.1rem -1rem -1rem;
-          padding: 1rem 1rem 1.05rem;
+          margin: clamp(0.65rem, 2dvh, 1.1rem) calc(-1 * var(--login-card-inset)) calc(-1 * var(--login-card-inset));
+          padding: clamp(0.75rem, 2dvh, 1rem) var(--login-card-inset);
+        }
+
+        .login-footer .login-divider {
+          margin-bottom: clamp(0.5rem, 1.5dvh, 0.9rem);
+          line-height: 1.4;
+        }
+
+        .login-divider span {
+          font-size: 0.72rem;
+          letter-spacing: 0.06em;
+        }
+
+        .login-footer .login-google-wrap {
+          max-width: 100%;
+          margin-bottom: clamp(0.6rem, 1.8dvh, 0.95rem);
+        }
+
+        .btn-google-login {
+          min-height: 44px;
+          padding: 0.6rem 0.65rem;
+          font-size: 0.86rem;
         }
 
         .login-brand {
-          font-size: 1.34rem;
+          font-size: clamp(1.2rem, 3.2dvh, 1.34rem);
         }
 
         .login-title {
           max-width: 248px;
+          margin: clamp(0.45rem, 1.4dvh, 0.85rem) auto 0.35rem;
           font-size: 0.92rem;
+          line-height: 1.3;
         }
 
         .login-subtitle {
-          margin-bottom: 0.95rem;
+          margin-bottom: clamp(0.6rem, 2dvh, 0.95rem);
           font-size: 0.9rem;
           line-height: 1.45;
         }
 
+        .login-subtitle small {
+          margin-top: 0.2rem;
+          font-size: 0.8rem;
+        }
+
         .login-alert {
-          margin-bottom: 0.85rem;
-          padding: 0.8rem 0.9rem;
+          margin-bottom: clamp(0.5rem, 1.5dvh, 0.85rem);
+          padding: clamp(0.6rem, 1.6dvh, 0.8rem) clamp(0.7rem, 2.5vw, 0.9rem);
           font-size: 0.86rem;
+          line-height: 1.4;
         }
 
         .login-footnote {
           font-size: 0.82rem;
-          line-height: 1.45;
+          line-height: 1.4;
+        }
+
+        .login-project-note {
+          margin-top: 0.35rem;
         }
 
         .login-background::before {
@@ -776,7 +821,9 @@ if (isset($_POST['login'])) {
           background-size: 14px 14px;
           opacity: 0.85;
         }
+      }
 
+      @media (max-width: 767.98px) {
         .swal2-popup.role-choice-swal {
           width: calc(100vw - 1.5rem) !important;
           padding: 1.2rem 1rem 1rem;
@@ -792,11 +839,59 @@ if (isset($_POST['login'])) {
         }
       }
 
-      @media (max-height: 820px) {
-        .login-stage {
-          min-height: auto;
-          align-items: flex-start;
-          padding: 0.35rem 0 1rem;
+      /* In phone landscape, place sign-in beside the introduction to keep both visible. */
+      @media (min-width: 568px) and (max-height: 500px) {
+        .login-panel:has(.login-footer) {
+          max-width: 680px;
+          padding-top: 1rem;
+        }
+
+        .login-panel:has(.login-footer) .login-emblem {
+          left: 25%;
+          width: 56px;
+          height: 56px;
+          border-width: 4px;
+        }
+
+        .login-card .card-body:has(> .login-footer) {
+          display: grid;
+          grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+          column-gap: 1rem;
+          padding: 2.25rem 1rem 1rem;
+        }
+
+        .login-card .card-body > * {
+          grid-column: 1;
+          min-width: 0;
+        }
+
+        .login-card .card-body > .login-footer {
+          grid-column: 2;
+          grid-row: 1 / span 7;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          margin: -2.25rem -1rem -1rem 0;
+          padding: 1.25rem 0.875rem;
+          border-top: 0;
+          border-left: 1px solid var(--login-footer-border);
+          border-radius: 0 16px 16px 0;
+        }
+
+        .login-title {
+          max-width: none;
+          margin: 0.45rem auto 0.25rem;
+        }
+
+        .login-subtitle {
+          margin-bottom: 0.5rem;
+        }
+
+        .login-alert {
+          max-width: 100%;
+          margin-bottom: 0.5rem;
+          padding: 0.5rem 0.625rem;
+          font-size: 0.8rem;
         }
       }
     </style>
@@ -850,7 +945,6 @@ if (isset($_POST['login'])) {
               <?php else: ?>
               <h1 class="login-title">Centralized Academic Management Platform</h1>
               <p class="login-subtitle">
-                One Institution. One Connected Ecosystem.
                 <small>Sultan Kudarat State University</small>
               </p>
 
@@ -934,7 +1028,7 @@ if (isset($_POST['login'])) {
                 <?php endif; ?>
 
                 <div class="login-footnote">
-                  Access is limited to approved synQ administrator, scheduler, professor, program chair, college dean, registrar, VPAA, and DI accounts.
+                  One Institution. One Connected Ecosystem.
                 </div>
 
                 <div class="login-project-note"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> 2026</div>

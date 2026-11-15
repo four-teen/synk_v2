@@ -27,7 +27,12 @@ $studentPortalDisplayEmail = (string)$student['email_address'];
 $studentPortalPreviewMode = $isPreview;
 $studentPortalBackUrl = $isPreview ? synk_student_preview_back_url() : '';
 $studentPortalViewTerm = $viewTerm;
-$firstName = trim($student['first_name']) ?: 'Student';
+$studentWelcomeName = implode(' ', array_filter(array_map('trim', [
+    (string)($student['first_name'] ?? ''),
+    (string)($student['middle_name'] ?? ''),
+    (string)($student['last_name'] ?? ''),
+    (string)($student['suffix_name'] ?? ''),
+]))) ?: 'Student';
 $announcements = []; $announcementError = ''; $announcementReadsReady = false;
 if (!$isPreview) {
     try {
@@ -67,8 +72,7 @@ if (!$isPreview) {
       <div class="container-xxl flex-grow-1 container-p-y">
         <?php if ($isPreview): ?><div class="alert alert-info student-preview-notice" role="status"><i class="bx bx-show-alt" aria-hidden="true"></i><div><strong><?= synk_student_h(synk_student_preview_label()) ?> · Read only</strong><br>You are viewing <?= synk_student_h($studentPortalDisplayName) ?>’s subjects<?= ($_SESSION['role'] ?? '')==='college_dean' ? ' for your college' : '' ?>.</div></div><?php endif; ?>
         <section class="student-welcome">
-          <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1>Welcome, <?= synk_student_h($firstName) ?>.</h1><p><?= $isPreview ? 'Your subjects and class details, at a glance.' : 'Your announcements and student updates, at a glance.' ?></p></div>
-          <div class="student-welcome-program"><i class="bx bx-book-reader" aria-hidden="true"></i><div><strong><?= synk_student_h($student['source_program_name'] ?: 'Student record') ?></strong><span><?= synk_student_h($student['campus_name']) ?><?= (int)$student['year_level'] > 0 ? ' · Year '.(int)$student['year_level'] : '' ?></span></div></div>
+          <div><p class="student-eyebrow">STUDENT WORKSPACE</p><h1><span>Welcome!</span><span class="student-welcome-name"><?= synk_student_h($studentWelcomeName) ?></span></h1><p><?= $isPreview ? 'Your subjects and class details, at a glance.' : 'Your announcements and student updates, at a glance.' ?></p></div>
         </section>
         <section class="card student-overview-panel" aria-label="At a glance">
         <div class="student-summary-grid" aria-label="Subjects overview">
