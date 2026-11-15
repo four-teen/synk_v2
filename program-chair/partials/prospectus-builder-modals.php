@@ -46,7 +46,7 @@
           <div class="mb-3">
             <label for="copy_target_program" class="form-label">Destination Program</label>
             <select id="copy_target_program" class="form-select" required><option value="">Select Destination Program</option></select>
-            <small class="text-muted">Choose this program or another program in your college.</small>
+            <small class="text-muted"><?= $curriculumIsDi ? 'Choose this program or another program across campuses and colleges.' : 'Choose this program or another program in your college.' ?></small>
           </div>
           <div class="mb-3">
             <label for="copy_cmo_no" class="form-label">CMO Number</label>

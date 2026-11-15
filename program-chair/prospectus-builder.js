@@ -213,6 +213,7 @@
                     let label = program.program_name;
                     if (program.major) label += ` major in ${program.major}`;
                     label += ` (${program.program_code})`;
+                    if (config.showCampus && program.campus_code) label = `${program.campus_code} - ${label}`;
                     const destinationId = id(program.program_id);
                     select.append(new Option(label, destinationId));
                     if (!$('#program_id option').toArray().some(option => option.value === destinationId)) {

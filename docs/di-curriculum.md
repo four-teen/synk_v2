@@ -5,6 +5,29 @@ Prospectus Builder, and Prospectus Browser from the DI sidebar. Prospectus and
 subject pages reuse the Administrator forms and curriculum data. No new schema or role assignment is
 required for an existing active DI account.
 
+The DI Prospectus Builder follows the Program Chair's program-first workflow:
+choose a program, browse its versions with subject/unit totals, then load a version
+or create one in a modal. The loaded version's CMO and effectivity stay visible
+above its year/semester structure. Copy Prospectus uses that loaded version as
+the source and opens the new copy after saving. Versions sort by newest effectivity
+first, and `?pid=` links load the requested version. DI retains its university-wide
+program list and DI API routes, including campus labels for copy destinations.
+
+DI's Year & Semester Structure groups saved semesters by year. First and Second
+Semester appear side by side on desktop; an existing Summer spans the next row.
+All groups start expanded and can collapse independently or through Expand all /
+Collapse all. Smaller screens use one column. Each semester header combines its
+name and subject count on one line, with Add Subject beside it. There is no extra
+semester footer; the subject table retains its existing totals row. Subject cells
+are vertically centered and have no row numbers.
+Subject code and title share a cell,
+with prerequisites beneath; lecture/lab hours, unit values, totals, and subject
+order retain the existing reader's values. Add and Edit retain the existing forms.
+Each subject has vertically stacked Edit and Remove icons; removal uses the same
+confirmation and safeguards for referenced curriculum. DI cannot remove year/semester
+groups: the control is absent and direct API requests are rejected. This is
+DI-specific behavior; it creates no missing semesters or database records.
+
 DI pages retain DI navigation and use dedicated `query_di_*` routes. Every request
 checks the active account and DI role. Writes also require the session CSRF token,
 validate their input, and commit only successful responses. The session role,
@@ -28,6 +51,7 @@ Validation commands:
 
 ```text
 php tests/di-curriculum.php
+node tests/prospectus-builder-ui.cjs --di
 node tests/di-curriculum-browser.cjs
 php tests/program-chair-curriculum.php
 php tests/professor-workload.php --database

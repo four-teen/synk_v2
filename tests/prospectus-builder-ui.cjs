@@ -1,11 +1,14 @@
 // Run: node tests/prospectus-builder-ui.cjs
-// Run the actual Chair controller against the rendered page with controlled AJAX responses.
+// Run: node tests/prospectus-builder-ui.cjs --di
+// Run the shared controller against a real rendered page with controlled AJAX responses.
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const {execFileSync} = require('node:child_process');
 const root = path.resolve(__dirname, '..');
+const isDi = process.argv.includes('--di');
 const fixture = JSON.parse(execFileSync(process.env.PHP_BINARY || 'C:/xampp/php/php.exe',
-    [path.join(root,'tests/fixtures/program-chair-curriculum-request.php'),'page_builder'],{encoding:'utf8'}));
-const html = fixture.response;
+    [path.join(root,'tests/fixtures',isDi?'di-curriculum-request.php':'program-chair-curriculum-request.php'),isDi?'page_manage-prospectus':'page_builder'],{encoding:'utf8'}));
+const html = isDi ? fixture.body : fixture.response;
+fixture.own_program ??= fixture.program;
 const config = JSON.parse(html.match(/window\.chairProspectusConfig = (\{[^\n]+\});/)[1]);
 const decode = text => text.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#0?39;/g,"'");
 const attributes = text => Object.fromEntries([...text.matchAll(/([\w-]+)=(?:"([^"]*)"|'([^']*)')/g)].map(match=>[match[1],decode(match[2]??match[3])]));
@@ -60,7 +63,7 @@ $.post=(endpoint,data,success)=>{
         reject(message){this.failed.forEach(callback=>callback({responseText:message},'error'));this.finished.forEach(callback=>callback());}};
     requests.push(request);return request;
 };
-const window={chairProspectusConfig:config,location:{href:'http://localhost/synk/program-chair/manage-prospectus.php'},history:{replaceState(state,title,url){window.location.href=new URL(url,window.location.href).href;}},loadYearSem:(...args)=>structureLoads.push(args)};
+const window={chairProspectusConfig:config,location:{href:`http://localhost/synk/${isDi?'di':'program-chair'}/manage-prospectus.php`},history:{replaceState(state,title,url){window.location.href=new URL(url,window.location.href).href;}},loadYearSem:(...args)=>structureLoads.push(args)};
 const context=vm.createContext({$,jQuery:$,window,document,Option,URL,Swal:{fire(...args){alerts.push(args);const result={isConfirmed:confirmNext};confirmNext=false;return Promise.resolve(result);}}});
 vm.runInContext(fs.readFileSync(path.join(root,'program-chair/prospectus-builder.js'),'utf8'),context);
 const last=()=>requests.at(-1), element=id=>elements.get(id);
@@ -72,8 +75,18 @@ const newer={prospectus_id:900001,cmo_no:'Newer <img src=x onerror=alert(1)>',ef
 const header=(pid,program,cmo,sy)=>{check(last().data.load_header===1&&String(last().data.prospectus_id)===String(pid),'Loaded the wrong prospectus ID.');last().respond(`OK|${program}|${cmo}|${sy}|`);};
 
 async function main(){
-    check(html.includes('id="btnCreateProspectus"')&&!html.includes('id="btnSaveHeader"')&&!html.includes('id="btnLoadHeader"'),'Chair still has the old create/load controls.');
+    check(html.includes('id="btnCreateProspectus"')&&!html.includes('id="btnSaveHeader"')&&!html.includes('id="btnLoadHeader"'),'Builder still has the old create/load controls.');
     check(!html.includes('id="copy_source_prospectus"')&&html.includes('id="copy_source_label"'),'Copy source is still a separate prospectus selector.');
+    if(isDi){
+        check([config.headerEndpoint,config.listEndpoint,config.copyEndpoint].every(endpoint=>endpoint.includes('/query_di_')),'DI builder used another role\'s endpoints.');
+        check(html.includes('../program-chair/prospectus-builder.js?') && html.toLowerCase().includes((fixture.tag+' Other Program').toLowerCase()),'DI lost the shared controller or university-wide program scope.');
+        check(config.initialProspectusId===fixture.header,'The DI deep link was not passed to the controller.');
+    }
+    if(config.initialProspectusId){
+        header(fixture.header,fixture.own_program,'Older CMO','2024-2025');list([original]);
+        check(element('prospectus_id').value===String(fixture.header)&&structureLoads.at(-1)[0]===String(fixture.header),'The deep link did not load its prospectus structure.');
+        $('#program_id').val('').trigger('change');requests.length=0;
+    }
     check(requests.length===0&&element('btnCreateProspectus').disabled,'A program was not required before creation.');
     $('#program_id').val(fixture.own_program).trigger('change');
     check(String(last().data.program_id)===String(fixture.own_program)&&last().endpoint===config.listEndpoint,'Version list was not restricted to the selected program.');
@@ -110,8 +123,9 @@ async function main(){
     header(900002,fixture.target_program,'New CMO','2027-2028');list([created]);
     $('#btnCopyProspectus').trigger('click');
     check(last().data.load_programs===1&&element('copy_source_label').value.includes('New CMO'),'Copy did not use the loaded source.');
-    last().respond([{program_id:fixture.own_program,program_name:'Own Program',program_code:'OWN',major:''},{program_id:fixture.target_program,program_name:'Target Program',program_code:'TARGET',major:''}]);
+    last().respond([{program_id:fixture.own_program,program_name:'Own Program',program_code:'OWN',major:'',campus_code:'NORTH'},{program_id:fixture.target_program,program_name:'Target Program',program_code:'TARGET',major:'',campus_code:'SOUTH'}]);
     check(element('copyProspectusModal').visible&&element('copy_target_program').value===String(fixture.target_program),'Copy destination did not default to the source program.');
+    check(element('copy_target_program').options.some(option=>option.text==='SOUTH - Target Program (TARGET)')===isDi,'Copy destination campus labels did not follow the portal.');
     $('#copy_target_program').val(fixture.own_program);$('#copy_cmo_no').val('Copied CMO');$('#copy_effective_sy').val('2028-2029');
     submit('copyProspectusForm');
     check(last().data.copy_prospectus===1&&last().data.source_prospectus_id==='900002'&&String(last().data.target_program_id)===String(fixture.own_program),'Copy sent the wrong source or destination.');
@@ -135,13 +149,13 @@ async function main(){
     const sharedScript=[...html.matchAll(/<script(?:\s[^>]*)?>(.*?)<\/script>/gs)].map(match=>match[1]).find(script=>script.includes('function loadYearSem('));
     const helperStart=sharedScript.indexOf('function loadYearSem(prospectus_id, refreshVersionCounts = true)');
     const helperEnd=sharedScript.indexOf('// DOCUMENT READY',helperStart);
-    vm.runInContext('const PROGRAM_CHAIR_BUILDER=true; let yearSemRequestVersion=0; let lastOpenedPys=null;\n'+sharedScript.slice(helperStart,helperEnd),context);
+    vm.runInContext('const PROSPECTUS_VERSION_BUILDER=true; let yearSemRequestVersion=0; let lastOpenedPys=null;\n'+sharedScript.slice(helperStart,helperEnd),context);
     $('#prospectus_id').val('900002');
     context.loadYearSem('900002');const oldStructure=last();
     context.loadYearSem('900002');last().respond('<p>Latest structure</p>');oldStructure.respond('<p>Old structure</p>');
     check(element('yearSemAccordion').html==='<p>Latest structure</p>','An older subject structure response replaced the latest one.');
     context.loadYearSem('900002');const abandoned=last();$('#prospectus_id').val('');abandoned.respond('<p>Abandoned program</p>');
     check(element('yearSemAccordion').html==='<p>Latest structure</p>','A structure response ignored the cleared prospectus selection.');
-    console.log(`Prospectus builder UI logic: ${checks} checks passed using the real rendered Chair page and controller.`);
+    console.log(`Prospectus builder UI logic: ${checks} checks passed using the real rendered ${isDi?'DI':'Chair'} page and shared controller.`);
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
