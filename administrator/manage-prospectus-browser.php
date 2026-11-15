@@ -5,6 +5,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/program_chair_curriculum_helper.php';
 $collegeDeanPortalContext = synk_chair_curriculum_prepare_view($conn);
 $curriculumIsChair = $collegeDeanPortalContext!==null;
+$curriculumIsDi = defined('SYNK_DI_CURRICULUM_VIEW');
 
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../index.php");
@@ -18,7 +19,7 @@ if (empty($_SESSION['csrf_token'])) {
 $role = $_SESSION['role'];
 $collegeId = $_SESSION['college_id'] ?? 0;
 $csrfToken = (string)$_SESSION['csrf_token'];
-$isAdmin = ($role === 'admin');
+$isAdmin = ($role === 'admin' || $curriculumIsDi);
 $canManageCurriculum = $isAdmin || $curriculumIsChair;
 require_once __DIR__ . '/../backend/prospectus_browser_helper.php';
 try {
@@ -148,10 +149,10 @@ try {
 <div class="layout-wrapper layout-content-navbar">
 <div class="layout-container">
 
-<?php include $curriculumIsChair ? __DIR__ . '/../program-chair/sidebar.php' : __DIR__ . '/sidebar.php'; ?>
+<?php include $curriculumIsDi ? __DIR__ . '/../di/sidebar.php' : ($curriculumIsChair ? __DIR__ . '/../program-chair/sidebar.php' : __DIR__ . '/sidebar.php'); ?>
 
 <div class="layout-page">
-<?php include $curriculumIsChair ? __DIR__ . '/../program-chair/navbar.php' : __DIR__ . '/navbar.php'; ?>
+<?php include $curriculumIsDi ? __DIR__ . '/../di/navbar.php' : ($curriculumIsChair ? __DIR__ . '/../program-chair/navbar.php' : __DIR__ . '/navbar.php'); ?>
 
 <div class="content-wrapper">
 <div class="container-xxl flex-grow-1 container-p-y">

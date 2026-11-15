@@ -1,5 +1,5 @@
 <?php
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 require_once 'db.php';
 require_once __DIR__ . '/schedule_block_helper.php';
 
@@ -12,9 +12,13 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 }
 
 $role = $_SESSION['role'];
+if ($role === 'DI' || defined('SYNK_DI_CURRICULUM_API')) {
+    require_once __DIR__ . '/di_curriculum_helper.php';
+    synk_di_curriculum_authorize($conn, 'view');
+}
 $myCollege = (int)($_SESSION['college_id'] ?? 0);
 
-if (!in_array($role, ['admin', 'scheduler', 'program_chair', 'college_dean'], true)) {
+if (!in_array($role, ['admin', 'scheduler', 'program_chair', 'college_dean', 'DI'], true)) {
     http_response_code(403);
     echo json_encode(["error" => "Unauthorized"]);
     exit;

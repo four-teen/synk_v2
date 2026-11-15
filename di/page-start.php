@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css') ?>">
   <link rel="stylesheet" href="directory.css?v=<?= filemtime(__DIR__ . '/directory.css') ?>">
+  <?php foreach ($pageStyles ?? [] as $stylesheet): ?><link rel="stylesheet" href="<?= synk_leadership_h($stylesheet) ?>"><?php endforeach; ?>
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body><div class="layout-wrapper layout-content-navbar"><div class="layout-container">

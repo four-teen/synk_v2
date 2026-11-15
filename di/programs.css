@@ -1,0 +1,30 @@
+.di-program-filters { display:grid; grid-template-columns:1fr 1.6fr; gap:1rem; }
+.di-program-filters .form-label { font-size:.78rem; font-weight:600; }
+.di-program-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1rem; }
+.di-program-metric-label { display:flex; justify-content:space-between; align-items:center; gap:.5rem; color:#718096; font-size:.8rem; }
+.di-program-metric-icon { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:.6rem; font-size:1.1rem; flex-shrink:0; }
+.di-program-metrics strong { display:block; font-size:1.9rem; line-height:1.25; color:#364152; margin:.45rem 0; }
+.di-program-metrics small { display:block; font-size:.74rem; color:#8592a3; line-height:1.5; }
+.di-program-table-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+.di-program-search { width:260px; max-width:100%; }
+.di-program-table th { font-size:.7rem; background:#fafbfe; white-space:nowrap; }
+.di-program-table td { font-size:.84rem; padding-top:1rem; padding-bottom:1rem; }
+.di-program-table .di-program-name { min-width:240px; max-width:460px; white-space:normal; overflow-wrap:anywhere; }
+.di-program-code { display:block; font-weight:700; color:#364152; margin-bottom:.2rem; }
+.di-program-description { display:block; color:#718096; font-size:.8rem; line-height:1.5; }
+.di-program-major { max-width:240px; white-space:normal; overflow-wrap:anywhere; }
+.di-program-actions { display:flex; justify-content:flex-end; gap:.45rem; white-space:nowrap; }
+#programModal .form-label { font-size:.8rem; }
+.swal2-container { z-index:20000 !important; }
+@media(max-width:1199.98px) { .di-program-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:575.98px) {
+  .di-directory-heading { align-items:flex-start; flex-direction:column; }
+  .di-directory-heading>.btn { width:100%; }
+  .di-program-filters { grid-template-columns:1fr; }
+  .di-program-metrics { gap:.75rem; }
+  .di-program-metrics .card-body { padding:1rem; }
+  .di-program-metric-label { align-items:flex-start; font-size:.73rem; }
+  .di-program-metric-icon { width:26px; height:26px; font-size:1rem; }
+  .di-program-metrics strong { font-size:1.6rem; }
+  .di-program-search { width:100%; }
+}

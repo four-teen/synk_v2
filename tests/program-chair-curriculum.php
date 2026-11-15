@@ -112,6 +112,9 @@ foreach(['save_header','save_year_sem','save_prospectus_subject','update_prospec
 $r=$request('admin_load_programs');
 $check(in_array($r['foreign_program'],array_map('intval',array_column($r['response'],'program_id')),true),'The administrator program list was incorrectly restricted.');
 $r=$request('scheduler_write');
-$check($r['unchanged']&&strpos($r['response'],'ERROR|')===0,'Scheduler gained curriculum write access.');
+$schedulerDenied = is_array($r['response'])
+    ? $r['http_status']===403 && ($r['response']['status'] ?? '')==='error'
+    : strpos($r['response'],'ERROR|')===0;
+$check($r['unchanged'] && $schedulerDenied,'Scheduler gained curriculum write access.');
 $check($before===$snapshot(),'Curriculum fixtures changed real curriculum, account, schedule, or workload records.');
 echo 'Program Chair curriculum ', $http?'HTTP':'CLI', ': ',$checks,' checks passed. All fixture records rolled back.',PHP_EOL;

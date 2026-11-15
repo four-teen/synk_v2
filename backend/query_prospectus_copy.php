@@ -1,6 +1,11 @@
 <?php
 if (session_status()!==PHP_SESSION_ACTIVE) session_start();
 require_once __DIR__ . '/db.php';
+$isDi = ($_SESSION['role'] ?? '') === 'DI';
+if ($isDi || defined('SYNK_DI_CURRICULUM_API')) {
+    require_once __DIR__ . '/di_curriculum_helper.php';
+    synk_di_curriculum_authorize($conn, 'copy');
+}
 $isProgramChair = ($_SESSION['role'] ?? '')==='program_chair';
 $myCollege = 0;
 if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
@@ -8,7 +13,7 @@ if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
     $myCollege = synk_chair_curriculum_authorize($conn,'copy');
 }
 
-if (!isset($_SESSION['user_id']) || (!in_array((string)($_SESSION['role'] ?? ''),['admin','program_chair'],true))) {
+if (!isset($_SESSION['user_id']) || (!in_array((string)($_SESSION['role'] ?? ''),['admin','program_chair','DI'],true))) {
     if (isset($_POST['load_programs'])) {
         header('Content-Type: application/json');
         echo json_encode([]);

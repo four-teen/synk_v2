@@ -1,4 +1,8 @@
 <?php
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+if (($_SESSION['role'] ?? '') === 'DI') {
+    http_response_code(403); exit('ERROR|Use the DI curriculum portal.');
+}
 include '../backend/db.php';
 
 /* ============================================

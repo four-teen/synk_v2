@@ -5,6 +5,7 @@
     require_once __DIR__ . '/../backend/program_chair_curriculum_helper.php';
     $collegeDeanPortalContext = synk_chair_curriculum_prepare_view($conn);
     $curriculumIsChair = $collegeDeanPortalContext!==null;
+    $curriculumIsDi = defined('SYNK_DI_CURRICULUM_VIEW');
 
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -167,11 +168,11 @@
 <div class="layout-wrapper layout-content-navbar">
   <div class="layout-container">
 
-    <?php include $curriculumIsChair ? __DIR__ . '/../program-chair/sidebar.php' : __DIR__ . '/sidebar.php'; ?>
+    <?php include $curriculumIsDi ? __DIR__ . '/../di/sidebar.php' : ($curriculumIsChair ? __DIR__ . '/../program-chair/sidebar.php' : __DIR__ . '/sidebar.php'); ?>
 
     <div class="layout-page">
 
-      <?php include $curriculumIsChair ? __DIR__ . '/../program-chair/navbar.php' : __DIR__ . '/navbar.php'; ?>
+      <?php include $curriculumIsDi ? __DIR__ . '/../di/navbar.php' : ($curriculumIsChair ? __DIR__ . '/../program-chair/navbar.php' : __DIR__ . '/navbar.php'); ?>
 
       <div class="content-wrapper">
 
@@ -211,10 +212,10 @@
 
                     <?php
                       $role = $_SESSION['role'];
-                      $myCollege = $_SESSION['college_id'];
+                      $myCollege = $_SESSION['college_id'] ?? 0;
 
                       // ADMIN → can see ALL programs
-                      if ($role === 'admin') {
+                      if ($role === 'admin' || $curriculumIsDi) {
 
 $prog = $conn->query("
   SELECT 
@@ -263,7 +264,7 @@ $prog = $conn->query("
                           }
 
                           // ADMIN includes CAMPUS CODE
-                          if ($role === 'admin') {
+                          if ($role === 'admin' || $curriculumIsDi) {
                               $label = $r['campus_code'] . ' - ' . $baseLabel;
                           } else {
                               $label = $baseLabel;

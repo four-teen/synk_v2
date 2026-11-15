@@ -3,13 +3,19 @@ require __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../backend/faculty_profile_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
 $directory = synk_faculty_directory_records($conn);
+$returnCampusId = synk_faculty_directory_id($_GET['campus_id'] ?? null) ?? 0;
+$returnCollegeId = synk_faculty_directory_id($_GET['college_id'] ?? null) ?? 0;
+$fromCampus = isset($directory['campuses'][$returnCampusId]);
+if (!isset($directory['colleges'][$returnCollegeId]) || (int)$directory['colleges'][$returnCollegeId]['campus_id'] !== $returnCampusId) $returnCollegeId = 0;
+$returnFilters = $fromCampus ? ['campus_id' => $returnCampusId, 'college_id' => $returnCollegeId] : [];
+$returnUrl = $fromCampus ? 'campus-faculty.php?' . http_build_query($returnFilters) : 'professors.php';
 $facultyId = synk_faculty_directory_id($_GET['faculty_id'] ?? null) ?? 0;
 $record = $directory['faculty'][$facultyId] ?? null;
 $pageTitle = 'Review Faculty';
 if (!$record) {
     http_response_code(404);
     include __DIR__ . '/page-start.php';
-    echo '<div class="alert alert-warning">This faculty record was not found.</div><a class="btn btn-outline-primary" href="professors.php">Back to professors</a>';
+    echo '<div class="alert alert-warning">This faculty record was not found.</div><a class="btn btn-outline-primary" href="' . synk_leadership_h($returnUrl) . '">Back to faculty list</a>';
     include __DIR__ . '/page-end.php';
     exit;
 }
@@ -29,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if (synk_faculty_directory_save($conn, $facultyId, $revision, (int)$moduleAccount['user_id'], $formValues)) {
                 $_SESSION['di_faculty_flash'] = $facultyId;
-                header('Location: faculty-profile.php?faculty_id=' . $facultyId);
+                header('Location: faculty-profile.php?' . http_build_query(['faculty_id' => $facultyId] + $returnFilters));
                 exit;
             }
             http_response_code(409);
@@ -65,7 +71,7 @@ if ($profile && ($profile['_storage'] ?? '') === 'faculty' && synk_table_exists(
 }
 include __DIR__ . '/page-start.php';
 ?>
-<div class="di-directory-heading"><div><span class="di-eyebrow">DI / List of Professors</span><h1>Review faculty</h1><p>Review the saved profile and maintain the faculty record.</p></div><a class="btn btn-outline-secondary" href="professors.php"><i class="bx bx-arrow-back me-1"></i>Back to list</a></div>
+<div class="di-directory-heading"><div><span class="di-eyebrow">DI / <?= $fromCampus ? 'Faculty by Campus' : 'List of Professors' ?></span><h1>Review faculty</h1><p>Review the saved profile and maintain the faculty record.</p></div><a class="btn btn-outline-secondary" href="<?= synk_leadership_h($returnUrl) ?>"><i class="bx bx-arrow-back me-1"></i><?= $fromCampus ? 'Back to campus faculty' : 'Back to list' ?></a></div>
 <?php if ($saved): ?><div class="alert alert-success" role="status">Faculty status, affiliation, and remarks saved.</div><?php endif; ?>
 <?php if ($errors): ?><div class="alert alert-danger di-form-errors" role="alert"><strong>Please check the review form.</strong><ul class="mb-0 mt-2"><?php foreach ($errors as $error): ?><li><?= synk_leadership_h($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
 <div class="di-review-grid">

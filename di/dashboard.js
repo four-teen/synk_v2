@@ -31,7 +31,7 @@
       document.getElementById('profileEmptyRow').hidden = matches.length > 0;
       const start = matches.length ? currentPage * pageSize + 1 : 0;
       const end = Math.min((currentPage + 1) * pageSize, matches.length);
-      document.getElementById('profileTableCount').textContent = 'Showing ' + start + '–' + end + ' of ' + matches.length + ' professor accounts';
+      document.getElementById('profileTableCount').textContent = 'Showing ' + start + '–' + end + ' of ' + matches.length + ' teaching faculty';
       document.getElementById('profilePage').textContent = 'Page ' + (currentPage + 1) + ' of ' + pages;
       previous.disabled = currentPage === 0;
       next.disabled = currentPage + 1 >= pages;
@@ -53,7 +53,7 @@
     let counts = labels.map(function (label) { return Number(values[label]); });
     if (!counts.some(function (count) { return count > 0; })) {
       const text = target.querySelector('.di-chart-empty span');
-      if (text) { text.textContent = id === 'completionChart' ? 'No professor accounts with available profile data in this scope.' : 'No saved profiles in this scope.'; }
+      if (text) { text.textContent = id === 'ongoingChart' ? 'No ongoing studies recorded for this teaching cohort.' : 'No teaching faculty in this scope.'; }
       return;
     }
     target.setAttribute('aria-label', labels.map(function (label, index) { return label + ': ' + counts[index]; }).join('; '));
@@ -66,19 +66,19 @@
     }
     if (horizontal && labels.length > 8) {
       counts = counts.slice(0, 8).concat([counts.slice(8).reduce(function (sum, count) { return sum + count; }, 0)]);
-      labels = labels.slice(0, 8).concat(['Other ranks']);
+      labels = labels.slice(0, 8).concat(['Other']);
     }
     target.replaceChildren();
     const options = {
       chart: { type: horizontal ? 'bar' : 'donut', height: horizontal ? Math.max(275, labels.length * 35 + 50) : 275, fontFamily: 'Public Sans, sans-serif', toolbar: { show: false } },
-      colors: id === 'completionChart' ? ['#71dd37', '#696cff', '#ffab00', '#8592a3', '#ff3e1d'] : colors,
-      series: horizontal ? [{ name: 'Profiles', data: counts }] : counts,
+      colors: colors,
+      series: horizontal ? [{ name: 'Faculty', data: counts }] : counts,
       labels: labels,
       stroke: { width: horizontal ? 0 : 3, colors: ['#fff'] },
       legend: { position: 'bottom', fontSize: '12px', labels: { colors: '#566a7f' } },
       dataLabels: { enabled: !horizontal, formatter: function (value) { return Math.round(value) + '%'; } },
-      tooltip: { y: { formatter: function (value) { return value + (id === 'completionChart' ? ' accounts' : ' profiles'); } } },
-      plotOptions: horizontal ? { bar: { horizontal: true, borderRadius: 4, barHeight: '55%' } } : { pie: { donut: { size: '70%', labels: { show: true, total: { show: true, label: id === 'completionChart' ? 'Accounts' : 'Profiles', formatter: function () { return String(counts.reduce(function (sum, count) { return sum + count; }, 0)); } } } } } },
+      tooltip: { y: { formatter: function (value) { return value + ' faculty'; } } },
+      plotOptions: horizontal ? { bar: { horizontal: true, borderRadius: 4, barHeight: '55%' } } : { pie: { donut: { size: '70%', labels: { show: true, total: { show: true, label: 'Faculty', formatter: function () { return String(counts.reduce(function (sum, count) { return sum + count; }, 0)); } } } } } },
       xaxis: { categories: labels, labels: { style: { colors: '#8592a3' } }, tickAmount: Math.min(4, Math.max.apply(null, counts)), decimalsInFloat: 0 },
       yaxis: { labels: { maxWidth: 190, style: { colors: '#566a7f', fontSize: '12px' } } },
       grid: { borderColor: '#eef0f4' },
@@ -91,8 +91,8 @@
       target.replaceChildren(fallback);
     });
   }
-  chart('completionChart', data.completion, false);
   chart('educationChart', data.education, false);
   chart('employmentChart', data.employment, false);
   chart('rankChart', data.ranks, true);
+  chart('ongoingChart', data.ongoing, true);
 })();

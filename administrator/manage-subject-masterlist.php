@@ -1,7 +1,8 @@
 <?php 
-    session_start();
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
     ob_start();
-    include '../backend/db.php';
+    require_once __DIR__ . '/../backend/db.php';
+    $curriculumIsDi = defined('SYNK_DI_CURRICULUM_VIEW');
 ?>
 <!DOCTYPE html>
 
@@ -56,14 +57,14 @@
   <div class="layout-container">
 
     <!-- Sidebar -->
-    <?php include 'sidebar.php'; ?>
+    <?php include $curriculumIsDi ? __DIR__ . '/../di/sidebar.php' : __DIR__ . '/sidebar.php'; ?>
     <!-- /Sidebar -->
 
     <!-- Layout container -->
     <div class="layout-page">
 
       <!-- Navbar -->
-      <?php include 'navbar.php'; ?>
+      <?php include $curriculumIsDi ? __DIR__ . '/../di/navbar.php' : __DIR__ . '/navbar.php'; ?>
       <!-- / Navbar -->
 
       <!-- Content wrapper -->
