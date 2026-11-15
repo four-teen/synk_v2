@@ -1,15 +1,51 @@
 /* Standalone login styles: no shared dashboard CSS or icon font is needed. */
-:root{--student-primary:#696cff;--student-heading:#566a7f;--student-text:#697a8d;--student-orange:#b94d14;--student-login-background:radial-gradient(ellipse at 25% 20%,#efefff 0,transparent 52%),#f5f5f9;--synk-login-intro-background:var(--student-login-background)}
+:root{--student-primary:#696cff;--student-heading:#566a7f;--student-text:#697a8d;--student-orange:#b94d14;--student-login-background:radial-gradient(ellipse at 50% 46%,rgba(255,255,255,.9),transparent 66%),linear-gradient(135deg,#edf5fc 0%,#f9fbfe 52%,#eef6fc 100%);--synk-login-intro-background:var(--student-login-background)}
 *,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:#f5f5f9;color:var(--student-text);font:400 15px/1.53 'Public Sans',system-ui,-apple-system,sans-serif;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--student-login-background);color:var(--student-text);font:400 15px/1.53 'Public Sans',system-ui,-apple-system,sans-serif;-webkit-text-size-adjust:100%}
 button{font:inherit}
 svg{display:block;flex-shrink:0}
-.student-login-shell{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:40px 20px;background:var(--student-login-background)}
-.student-login-wrap{width:100%;max-width:460px}
+.student-login-shell{min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:40px 20px;background:var(--student-login-background);position:relative;isolation:isolate}
+.student-login-wrap{width:100%;max-width:460px;position:relative;z-index:1}
+/* Softer version of the main sign-in page's static green dot fields. */
+.student-login-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.student-login-background::before,
+.student-login-background::after {
+  content: "";
+  position: absolute;
+  background-repeat: repeat;
+}
+.student-login-background::before {
+  inset: -24% -18%;
+  background-image: radial-gradient(circle, rgba(35, 133, 81, 0.38) 1.45px, transparent 1.95px);
+  background-size: 18px 18px;
+  transform: perspective(1100px) rotateY(-30deg) rotateZ(-15deg);
+  -webkit-mask-image: radial-gradient(ellipse 55% 68% at 30% 55%, #000 26%, transparent 84%);
+  mask-image: radial-gradient(ellipse 55% 68% at 30% 55%, #000 26%, transparent 84%);
+}
+.student-login-background::after {
+  inset: -20% -14%;
+  background-image: radial-gradient(circle, rgba(55, 153, 95, 0.26) 1.2px, transparent 1.7px);
+  background-size: 12px 12px;
+  transform: perspective(900px) rotateY(30deg) rotateZ(20deg);
+  -webkit-mask-image: radial-gradient(ellipse 50% 68% at 82% 30%, #000 18%, transparent 82%);
+  mask-image: radial-gradient(ellipse 50% 68% at 82% 30%, #000 18%, transparent 82%);
+}
+@media (max-width: 767.98px) {
+  .student-login-background::after {
+    background-size: 14px 14px;
+    opacity: 0.85;
+  }
+}
 .student-login-brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:26px;text-decoration:none;color:var(--student-heading);font-size:29px;font-weight:700;letter-spacing:-1px}
 .student-login-brand img{object-fit:contain}
 .student-login-badge{margin-left:5px;padding:5px 7px;border-radius:4px;background:#e7e7ff;color:var(--student-primary);font-size:11px;line-height:1;font-weight:500;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
-.student-login-card{display:flex;min-height:548px;background:#fff;border:0;border-radius:12px;box-shadow:0 4px 20px #43597112}
+.student-login-card{display:flex;min-height:548px;background:#fff;border:1px solid #dce5eb;border-radius:12px;box-shadow:0 3px 8px rgba(31,53,82,.06),0 8px 20px rgba(31,53,82,.08)}
 .student-login-card .card-body{display:flex;flex:1;flex-direction:column;min-width:0;padding:34px}
 .student-login-card h1{line-height:1.15;color:var(--student-heading);font-weight:600;letter-spacing:-.6px;margin:0 0 16px}
 .student-login-title-lead{display:block;font-size:22px;line-height:1.4;margin-bottom:2px}

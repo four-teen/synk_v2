@@ -234,8 +234,8 @@ if (isset($_POST['login'])) {
           linear-gradient(135deg, #edf5fc 0%, #f9fbfe 52%, #eef6fc 100%);
         --synk-login-intro-background: var(--login-bg);
         --synk-login-intro-wordmark: var(--login-title);
-        --login-card-border: #d9e2ef;
-        --login-card-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        --login-card-border: #dce5eb;
+        --login-card-shadow: 0 3px 8px rgba(31, 53, 82, 0.06), 0 8px 20px rgba(31, 53, 82, 0.08);
         --login-title: #1f3552;
         --login-subtitle: #1f5c3f;
         --login-note-bg: #edf5ff;
@@ -280,20 +280,20 @@ if (isset($_POST['login'])) {
 
       .login-background::before {
         inset: -24% -18%;
-        background-image: radial-gradient(circle, rgba(83, 145, 201, 0.3) 1.15px, transparent 1.8px);
-        background-size: 20px 20px;
+        background-image: radial-gradient(circle, rgba(35, 133, 81, 0.38) 1.45px, transparent 1.95px);
+        background-size: 18px 18px;
         transform: perspective(1100px) rotateY(-30deg) rotateZ(-15deg);
-        -webkit-mask-image: radial-gradient(ellipse 52% 64% at 30% 55%, #000 20%, transparent 76%);
-        mask-image: radial-gradient(ellipse 52% 64% at 30% 55%, #000 20%, transparent 76%);
+        -webkit-mask-image: radial-gradient(ellipse 55% 68% at 30% 55%, #000 26%, transparent 84%);
+        mask-image: radial-gradient(ellipse 55% 68% at 30% 55%, #000 26%, transparent 84%);
       }
 
       .login-background::after {
         inset: -20% -14%;
-        background-image: radial-gradient(circle, rgba(102, 159, 209, 0.2) 1px, transparent 1.55px);
-        background-size: 14px 14px;
+        background-image: radial-gradient(circle, rgba(55, 153, 95, 0.26) 1.2px, transparent 1.7px);
+        background-size: 12px 12px;
         transform: perspective(900px) rotateY(30deg) rotateZ(20deg);
-        -webkit-mask-image: radial-gradient(ellipse 45% 65% at 82% 30%, #000 12%, transparent 75%);
-        mask-image: radial-gradient(ellipse 45% 65% at 82% 30%, #000 12%, transparent 75%);
+        -webkit-mask-image: radial-gradient(ellipse 50% 68% at 82% 30%, #000 18%, transparent 82%);
+        mask-image: radial-gradient(ellipse 50% 68% at 82% 30%, #000 18%, transparent 82%);
       }
 
       .login-stage {
@@ -769,12 +769,12 @@ if (isset($_POST['login'])) {
         }
 
         .login-background::before {
-          background-size: 22px 22px;
+          background-size: 18px 18px;
         }
 
         .login-background::after {
-          background-size: 18px 18px;
-          opacity: 0.65;
+          background-size: 14px 14px;
+          opacity: 0.85;
         }
 
         .swal2-popup.role-choice-swal {
