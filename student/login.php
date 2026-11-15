@@ -52,6 +52,7 @@ $h = static function ($value): string { return htmlspecialchars((string)$value, 
     </div>
   </div>
   <main class="student-login-shell">
+    <div class="student-login-background" aria-hidden="true"></div>
     <div class="student-login-wrap" data-synk-login-content>
       <a class="student-login-brand" href="login.php" aria-label="synQ Student Portal"><img src="../assets/img/favicon/synk-icon-login.png" alt="" width="44" height="44"><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span><span class="student-login-badge">Student Portal</span></a>
       <section class="card student-login-card" aria-labelledby="login-title">
