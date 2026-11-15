@@ -1,193 +1,98 @@
 <?php
-require __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/../backend/di_profile_analytics_helper.php';
-
-$moduleIcon = 'bx-book-open';
-$dashboardError = false;
+require __DIR__.'/bootstrap.php';
+require_once __DIR__.'/../backend/di_dashboard_helper.php';
+$dashboardError='';
 try {
-    $dashboard = synk_di_profile_dashboard($conn, $moduleTerm, (int)($_GET['campus_id'] ?? 0), (int)($_GET['college_id'] ?? 0));
+    $dashboard=synk_di_dashboard($conn,$_GET);
+    $moduleTerm=$dashboard['term'];
+    $summary=$dashboard['summary'];
 } catch (Throwable $exception) {
-    error_log('DI faculty analytics failed: ' . $exception->getMessage());
-    http_response_code(503);
-    $dashboardError = true;
+    http_response_code($exception instanceof DomainException ? 422 : 503);
+    $dashboardError=$exception instanceof DomainException ? $exception->getMessage() : 'Dashboard analytics are temporarily unavailable. Please try again.';
+    if (!$exception instanceof DomainException) error_log('DI dashboard: '.$exception->getMessage());
 }
-$statusLabels = ['complete' => 'Complete', 'in_progress' => 'In progress', 'not_started' => 'Not started', 'unavailable' => 'Unavailable'];
-$statusColors = ['complete' => 'success', 'in_progress' => 'warning', 'not_started' => 'secondary', 'unavailable' => 'danger'];
-$chartData = [];
-if (!$dashboardError) {
-    $summary = $dashboard['summary'];
-    $chartData = [
-        'completion' => [
-            'Complete' => $summary['complete'], '25%+ in progress' => $summary['qualified_in_progress'],
-            'Started below 25%' => $summary['started_below_25'], 'Not started' => $summary['not_started'],
-            'Unavailable' => $summary['unavailable'],
-        ],
-        'employment' => $summary['employment'], 'education' => $summary['education'], 'ranks' => $summary['ranks'],
-    ];
-}
+$pageTitle='DI Academic & Faculty Dashboard';
+$pageStyles=['../assets/vendor/libs/apex-charts/apex-charts.css','dashboard.css?v='.filemtime(__DIR__.'/dashboard.css')];
+$pageScripts=['../assets/vendor/libs/apex-charts/apexcharts.js','dashboard.js?v='.filemtime(__DIR__.'/dashboard.js')];
+include __DIR__.'/page-start.php';
 ?>
-<!DOCTYPE html>
-<html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DI Faculty Profile Analytics | Synk</title>
-    <link rel="icon" type="image/png" href="../assets/img/favicon/synk-icon.png" />
-    <link rel="stylesheet" href="../assets/vendor/fonts/boxicons.css" />
-    <link rel="stylesheet" href="../assets/vendor/css/core.css" />
-    <link rel="stylesheet" href="../assets/vendor/css/theme-default.css" />
-    <link rel="stylesheet" href="../assets/css/demo.css" />
-    <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-    <link rel="stylesheet" href="../assets/vendor/libs/apex-charts/apex-charts.css" />
-    <link rel="stylesheet" href="custom_css.css?v=<?= filemtime(__DIR__ . '/custom_css.css') ?>" />
-    <script src="../assets/vendor/js/helpers.js"></script>
-    <script src="../assets/js/config.js"></script>
-  </head>
-  <body>
-    <div class="layout-wrapper layout-content-navbar">
-      <div class="layout-container">
-        <?php include __DIR__ . '/sidebar.php'; ?>
-        <div class="layout-page">
-          <?php include __DIR__ . '/navbar.php'; ?>
-          <div class="content-wrapper">
-            <main class="container-xxl flex-grow-1 container-p-y">
-              <div class="card di-hero mb-4">
-                <div class="card-body d-flex align-items-center justify-content-between gap-3 p-4">
-                  <div class="di-hero-copy">
-                    <span class="badge bg-label-primary mb-3">DI · Director for Instruction</span>
-                    <h1 class="di-page-heading">Faculty Profile Analytics</h1>
-                    <p class="mb-3">Welcome back, <strong><?= synk_leadership_h($moduleAccount['username']) ?></strong>. Monitor faculty profile coverage, academic qualifications, and employment across the university.</p>
-                    <span class="badge bg-label-info"><?= synk_leadership_h($dashboardError ? 'All campuses' : $dashboard['scope_label']) ?></span>
-                    <small class="text-muted d-block mt-2">Profiles reflect the latest information saved by professors.</small>
-                  </div>
-                  <img src="../assets/img/illustrations/man-with-laptop-light.png" alt="" width="165" class="d-none d-lg-block" />
-                </div>
-              </div>
-              <?php if ($dashboardError): ?>
-                <div class="alert alert-warning" role="alert">Faculty profile analytics are temporarily unavailable. Please try again or contact your administrator.</div>
-              <?php else: ?>
-                <?php if (!$dashboard['profiles_available']): ?>
-                  <div class="alert alert-warning" role="alert">Faculty profiles are unavailable. Ask your administrator to check the faculty profile setup.</div>
-                <?php endif; ?>
-                <div class="card mb-4"><div class="card-body">
-                  <form action="index.php" method="get" class="di-filters" aria-label="Filter faculty analytics">
-                    <div class="di-filter-field"><label class="form-label" for="campusFilter">Campus</label>
-                      <select name="campus_id" id="campusFilter" class="form-select"><option value="0">All campuses</option>
-                        <?php foreach ($dashboard['campuses'] as $id => $campus): ?><option value="<?= $id ?>" <?= $dashboard['campus_id'] === $id ? 'selected' : '' ?>><?= synk_leadership_h($campus['campus_name']) ?></option><?php endforeach; ?>
-                      </select>
-                    </div>
-                    <div class="di-filter-field"><label class="form-label" for="collegeFilter">College</label>
-                      <select name="college_id" id="collegeFilter" class="form-select"><option value="0">All colleges</option>
-                        <?php foreach ($dashboard['colleges'] as $id => $college): ?><option value="<?= $id ?>" data-campus="<?= (int)$college['campus_id'] ?>" <?= $dashboard['college_id'] === $id ? 'selected' : '' ?> <?= $dashboard['campus_id'] > 0 && (int)$college['campus_id'] !== $dashboard['campus_id'] ? 'hidden disabled' : '' ?>><?= synk_leadership_h($college['college_code'] . ' - ' . $college['college_name']) ?></option><?php endforeach; ?>
-                      </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary"><i class="bx bx-filter-alt me-1"></i>Apply Filters</button>
-                    <a href="index.php" class="btn btn-outline-secondary">Reset</a>
-                  </form>
-                  <p class="di-scope-note">Analytics use profiles at 25% completion or higher. Started profiles below 25% remain visible in the register. Campus and college filters use recorded affiliations. <a href="professors.php">Browse profiles at 25% or higher</a>.</p>
-                </div></div>
-                <div class="row g-4 mb-4" aria-label="Faculty profile summary">
-                  <?php foreach ([
-                    ['Professor Accounts', $summary['accounts'], $summary['linked'] . ' linked to a faculty record', 'bx-user-voice', 'info'],
-                    ['Profiles at 25%+', $summary['qualified_25'], $summary['coverage_percent'] . '% of active professor accounts meet the coverage threshold', 'bx-id-card', 'success'],
-                    ['Started below 25%', $summary['started_below_25'], 'Shown in the profile register; detailed analytics use the 25%+ cohort', 'bx-user-check', 'warning'],
-                  ] as $metric): ?>
-                    <div class="col-6 col-xl-4"><div class="card di-kpi"><div class="card-body">
-                      <div class="avatar"><span class="avatar-initial rounded bg-label-<?= $metric[4] ?>"><i class="bx <?= $metric[3] ?>"></i></span></div>
-                      <p class="di-kpi-label"><?= synk_leadership_h($metric[0]) ?></p>
-                      <div class="di-kpi-number"><?= number_format($metric[1]) ?></div>
-                      <p class="di-kpi-note"><?= synk_leadership_h($metric[2]) ?></p>
-                    </div></div></div>
-                  <?php endforeach; ?>
-                </div>
-                <section id="coverage" class="row g-4 mb-4" aria-label="Profile coverage">
-                  <div class="col-lg-5"><div class="card h-100">
-                    <div class="card-header"><h2 class="di-section-heading">Profile Completion</h2><small class="text-muted">25%+ profiles, with started profiles shown separately</small></div>
-                    <div id="completionChart" class="di-chart" role="img" aria-label="<?= synk_leadership_h($summary['complete'] . ' complete, ' . $summary['qualified_in_progress'] . ' at 25% or higher in progress, ' . $summary['started_below_25'] . ' started below 25%, ' . $summary['not_started'] . ' not started') ?>"><div class="di-chart-empty"><i class="bx bx-pie-chart-alt-2"></i><span><?= $summary['accounts'] ? 'Loading profile completion' : 'No professor accounts in this scope.' ?></span></div></div>
-                    <div class="di-chart-summary">Average among profiles at 25%+: <strong><?= $summary['average_completion'] ?>%</strong>. <?= $summary['started_below_25'] ?> profile<?= $summary['started_below_25'] === 1 ? ' has' : 's have' ?> started below 25%; <?= $summary['not_started'] ?> account<?= $summary['not_started'] === 1 ? ' has' : 's have' ?> not started.</div>
-                  </div></div>
-                  <div class="col-lg-7"><div class="card h-100">
-                    <div class="card-header"><h2 class="di-section-heading">Profile Fields Recorded</h2><small class="text-muted">Completion follows the professor profile form, including “Not applicable” education choices.</small></div>
-                    <div class="card-body">
-                      <p class="small text-muted mb-3">Based on profiles at 25% completion or higher.</p>
-                      <?php foreach (['personal' => 'Personal Details', 'employment' => 'Employment', 'education' => 'Education'] as $key => $label): $section = $summary['sections'][$key]; $percent = $section['total'] ? (int)round($section['completed'] * 100 / $section['total']) : 0; ?>
-                        <div class="di-completion-row"><div class="d-flex justify-content-between gap-3 mb-2"><span class="fw-semibold"><?= $label ?></span><strong><?= $percent ?>%</strong></div>
-                          <div class="progress di-progress" role="progressbar" aria-label="<?= $label ?> fields recorded" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-primary" style="width:<?= $percent ?>%"></div></div>
-                          <small class="text-muted d-block mt-1"><?= number_format($section['completed']) ?> of <?= number_format($section['total']) ?> applicable fields recorded</small>
-                        </div>
-                      <?php endforeach; ?>
-                      <div class="border-top mt-4 pt-3"><span class="badge bg-label-info me-2"><?= $summary['with_eligibility'] ?></span><span class="small">25%+ profiles with an eligibility, license, or other credential.</span></div>
-                    </div>
-                  </div></div>
-                </section>
-                <section id="qualifications" class="row g-4 mb-4" aria-label="Faculty qualifications">
-                  <?php foreach ([['educationChart', 'Highest Completed Degree', 'Completed studies only; ongoing degrees are excluded.', 'bx-book-reader'], ['employmentChart', 'Employment Classification', 'Employment information recorded in saved profiles.', 'bx-briefcase-alt']] as $chart): ?>
-                    <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h2 class="di-section-heading"><?= $chart[1] ?></h2><small class="text-muted"><?= $chart[2] ?></small></div>
-                      <div id="<?= $chart[0] ?>" class="di-chart" role="img" aria-label="<?= $chart[1] ?> distribution"><div class="di-chart-empty"><i class="bx <?= $chart[3] ?>"></i><span>No saved profiles in this scope.</span></div></div>
-                      <div class="di-chart-summary">Based on <?= $summary['qualified_25'] ?> profile<?= $summary['qualified_25'] === 1 ? '' : 's' ?> at 25% completion or higher.</div>
-                    </div></div>
-                  <?php endforeach; ?>
-                  <div class="col-lg-7"><div class="card h-100"><div class="card-header"><h2 class="di-section-heading">Academic Rank Distribution</h2><small class="text-muted">Ranks recorded in saved faculty profiles</small></div>
-                    <div id="rankChart" class="di-chart" role="img" aria-label="Academic rank distribution"><div class="di-chart-empty"><i class="bx bx-bar-chart-alt-2"></i><span>No saved profiles in this scope.</span></div></div>
-                    <div class="di-chart-summary">Unspecified ranks appear as “Not recorded”.</div>
-                  </div></div>
-                  <div class="col-lg-5"><div class="card h-100"><div class="card-header"><h2 class="di-section-heading">Eligibility &amp; Licenses</h2><small class="text-muted">Most frequently recorded credentials</small></div>
-                    <div class="card-body">
-                      <?php if (!$summary['eligibilities']): ?><p class="text-muted small mb-3">No listed eligibility or license has been selected in these profiles.</p><?php else: ?>
-                        <ul class="di-credential-list"><?php foreach (array_slice($summary['eligibilities'], 0, 5, true) as $label => $count): ?><li><span><?= synk_leadership_h($label) ?></span><span class="badge bg-label-info"><?= $count ?></span></li><?php endforeach; ?></ul>
-                      <?php endif; ?>
-                      <small class="text-muted d-block">A professor may hold several credentials. The summary also includes credentials entered as free text.</small>
-                      <h3 class="h6 mt-4">Gender Profile</h3>
-                      <div class="di-gender-row"><?php if (!$summary['gender']): ?><span class="text-muted small">No saved profiles in this scope.</span><?php endif; ?><?php foreach ($summary['gender'] as $label => $count): ?><span class="badge bg-label-secondary"><?= synk_leadership_h($label) ?> · <?= $count ?></span><?php endforeach; ?></div>
-                    </div>
-                  </div></div>
-                </section>
-                <section class="card mb-4" aria-labelledby="campus-coverage-heading">
-                  <div class="card-header"><h2 class="di-section-heading" id="campus-coverage-heading">Campus Profile Coverage</h2><small class="text-muted">Coverage is the share of active professor accounts with profiles at 25% or higher; started profiles below 25% are shown separately.</small></div>
-                  <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Campus</th><th>Faculty Directory</th><th>Professor Accounts</th><th>Started below 25%</th><th>Profiles at 25%+</th><th>Complete</th><th>25%+ Coverage</th></tr></thead><tbody>
-                    <?php foreach ($dashboard['campus_rows'] as $campusRow): $campusSummary = $campusRow['summary']; ?><tr>
-                      <td class="fw-semibold"><?= synk_leadership_h($campusRow['campus']['campus_name']) ?></td><td><?= $campusRow['faculty_count'] ?></td><td><?= $campusSummary['accounts'] ?></td><td><?= $campusSummary['started_below_25'] ?></td><td><?= $campusSummary['qualified_25'] ?></td><td><?= $campusSummary['complete'] ?></td>
-                      <td><span class="badge bg-label-<?= $campusSummary['accounts'] ? 'primary' : 'secondary' ?>"><?= $campusSummary['accounts'] ? $campusSummary['coverage_percent'] . '%' : 'No accounts' ?></span></td>
-                    </tr><?php endforeach; ?>
-                    <?php if (!$dashboard['campus_rows']): ?><tr><td colspan="7" class="text-muted text-center py-4">No campus records in this scope.</td></tr><?php endif; ?>
-                  </tbody></table></div>
-                  <div class="card-body py-3"><small class="text-muted">Faculty with several recorded campus connections may appear in more than one campus; the university total counts each faculty record once. <?= $dashboard['unassigned_faculty'] ?> faculty records have no recorded campus connection.</small></div>
-                </section>
-                <section id="profiles" class="card" aria-labelledby="profile-register-heading">
-                  <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3">
-                    <div><h2 class="di-section-heading" id="profile-register-heading">Faculty Profile Register</h2><small class="text-muted">Active professor accounts across all profile stages · <?= synk_leadership_h($dashboard['scope_label']) ?></small></div>
-                    <div class="input-group di-table-search"><span class="input-group-text"><i class="bx bx-search"></i></span><input type="search" id="profileSearch" class="form-control" placeholder="Search name, email, or college" aria-label="Search profile register" /></div>
-                  </div>
-                  <div class="table-responsive"><table class="table di-profile-table mb-0"><thead><tr><th>Faculty / Professor</th><th>Campus / College</th><th>Academic Rank</th><th>Highest Degree</th><th>Profile Status</th><th>Completion</th><th>Last Saved</th></tr></thead><tbody>
-                    <?php foreach ($dashboard['accounts'] as $account): ?><tr class="di-profile-row" data-search="<?= synk_leadership_h(implode(' ', [$account['name'], $account['email'], $account['campus_name'], $account['college_name'], $account['analytics_values']['faculty_rank'], $statusLabels[$account['profile_status']]])) ?>">
-                      <td class="di-person"><strong class="d-block"><?= synk_leadership_h($account['name']) ?></strong><small class="text-muted di-email d-block"><?= synk_leadership_h($account['email']) ?></small><?php if ($account['faculty_id'] === 0): ?><span class="badge bg-label-warning mt-1">No faculty link</span><?php endif; ?></td>
-                      <td><?= synk_leadership_h($account['campus_name']) ?><small class="text-muted d-block mt-1"><?= synk_leadership_h($account['college_name']) ?></small></td>
-                      <td><?= synk_leadership_h($account['has_profile'] ? ($account['analytics_values']['faculty_rank'] ?: 'Not recorded') : 'Not recorded') ?></td><td><?= synk_leadership_h($account['highest_degree']) ?></td>
-                      <td><span class="badge bg-label-<?= $statusColors[$account['profile_status']] ?>"><?= $statusLabels[$account['profile_status']] ?></span></td>
-                      <td class="di-progress-cell"><strong class="small"><?= $account['completion']['percent'] ?>%</strong><div class="progress di-progress mt-1" role="progressbar" aria-label="<?= synk_leadership_h($account['name']) ?> profile completion" aria-valuenow="<?= $account['completion']['percent'] ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-<?= $account['profile_status'] === 'complete' ? 'success' : 'primary' ?>" style="width:<?= $account['completion']['percent'] ?>%"></div></div></td>
-                      <td><?= $account['updated_at'] ? synk_leadership_h(date('M j, Y', strtotime($account['updated_at']))) : 'Never saved' ?></td>
-                    </tr><?php endforeach; ?>
-                    <tr id="profileEmptyRow" <?= $dashboard['accounts'] ? 'hidden' : '' ?>><td colspan="7" class="text-center text-muted py-4">No professor accounts match this view.</td></tr>
-                  </tbody></table></div>
-                  <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-3"><span id="profileTableCount" class="di-table-meta" aria-live="polite"><?= count($dashboard['accounts']) ?> professor accounts</span><div class="di-pagination"><button id="profilePrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button><span id="profilePage" class="small text-muted">Page 1</span><button id="profileNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button></div></div>
-                </section>
-              <?php endif; ?>
-            </main>
-            <?php include __DIR__ . '/../footer.php'; ?>
-            <div class="content-backdrop fade"></div>
-          </div>
-        </div>
-      </div>
-      <div class="layout-overlay layout-menu-toggle"></div>
-    </div>
-    <script src="../assets/vendor/libs/jquery/jquery.js"></script>
-    <script src="../assets/vendor/libs/popper/popper.js"></script>
-    <script src="../assets/vendor/js/bootstrap.js"></script>
-    <script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-    <script src="../assets/vendor/js/menu.js"></script>
-    <script src="../assets/js/main.js"></script>
-    <script src="../assets/vendor/libs/apex-charts/apexcharts.js"></script>
-    <script id="diChartData" type="application/json"><?= json_encode($chartData, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
-    <script src="dashboard.js"></script>
-  </body>
-</html>
+<header class="di-dashboard-heading mb-4"><div><span class="di-eyebrow">DI / Director for Instruction</span><h1>Academic &amp; Faculty Dashboard</h1><p>Academic activity, campus faculty, and professor profile statistics for the current academic term.</p></div><div class="di-dashboard-term"><i class="bx bx-calendar" aria-hidden="true"></i><div><small>Reporting Period</small><strong><?= synk_leadership_h($moduleTerm['term_text']) ?></strong></div></div></header>
+<?php if ($dashboardError): ?>
+<div class="alert alert-warning" role="alert"><?= synk_leadership_h($dashboardError) ?> <a href="index.php">Reset filters</a></div>
+<?php else: ?>
+<div class="card mb-4"><div class="card-body">
+  <form action="index.php" method="get" class="di-filters" aria-label="Filter dashboard">
+    <div class="di-filter-field"><label class="form-label" for="campusFilter">Campus</label><select name="campus_id" id="campusFilter" class="form-select"><option value="0">All campuses</option><?php foreach ($dashboard['campuses'] as $id=>$campus): ?><option value="<?= $id ?>"<?= $id===$dashboard['campus_id'] ? ' selected' : '' ?>><?= synk_leadership_h($campus['campus_name']) ?></option><?php endforeach; ?></select></div>
+    <div class="di-filter-field"><label class="form-label" for="collegeFilter">College</label><select name="college_id" id="collegeFilter" class="form-select"><option value="0">All colleges</option><?php foreach ($dashboard['colleges'] as $id=>$college): ?><option value="<?= $id ?>" data-campus="<?= (int)$college['campus_id'] ?>"<?= $id===$dashboard['college_id'] ? ' selected' : '' ?><?= $dashboard['campus_id'] && (int)$college['campus_id']!==$dashboard['campus_id'] ? ' hidden disabled' : '' ?>><?= synk_leadership_h($college['college_code'].' - '.$college['college_name']) ?></option><?php endforeach; ?></select></div>
+    <button type="submit" class="btn btn-primary"><i class="bx bx-filter-alt me-1" aria-hidden="true"></i>Apply Filters</button><a class="btn btn-outline-secondary" href="index.php">Reset</a>
+  </form>
+  <p class="di-scope-note mb-0">Scope: <strong><?= synk_leadership_h($dashboard['scope_label']) ?></strong>. Academic activity and faculty assignments follow the reporting period above. Profile details reflect the latest saved professor profile.</p>
+</div></div>
+<?php if (!$dashboard['term_ready']): ?><div class="alert alert-warning" role="status">Set the current academic year and semester in Academic Settings to view term activity. Active campus and college counts remain available.</div><?php endif; ?>
+<nav class="di-dashboard-jumps mb-4" aria-label="Dashboard sections"><a href="#academic">01 · Academic Overview</a><a href="#campus-faculty">02 · Faculty by Campus</a><a href="#qualifications">03 · Faculty Profile Statistics</a></nav>
+
+<section id="academic" class="mb-5" aria-labelledby="academicHeading">
+  <div class="di-dashboard-group-heading"><div><span class="di-eyebrow">01 / Academic</span><h2 id="academicHeading">Academic Overview</h2><p>Programs, subjects, prospectuses, sections, and classes are counted from valid offerings in the current term. Campus and college counts show active locations in this scope.</p></div></div>
+  <div class="di-dashboard-metrics">
+    <?php foreach ([
+      ['campuses','Campuses',$dashboard['academic']['campuses'],'Active campus locations','bx-buildings','primary'],
+      ['colleges','Colleges',$dashboard['academic']['colleges'],'Active colleges in this scope','bx-building-house','info'],
+      ['programs','Programs Offered',$dashboard['academic']['programs'],'Distinct programs with current-term classes','bx-book-content','success'],
+      ['subjects','Distinct Subjects',$dashboard['academic']['subjects'],'Each subject counted once across programs','bx-book','warning'],
+      ['prospectuses','Prospectuses in Use',$dashboard['academic']['prospectuses'],'Distinct curriculum versions used this term','bx-spreadsheet','primary'],
+      ['sections','Sections',$dashboard['academic']['sections'],'Distinct sections with valid offerings','bx-grid-alt','info'],
+      ['classes','Class Offerings',$dashboard['academic']['classes'],'One count per subject and section','bx-chalkboard','success'],
+      ['faculty','Total Teaching Faculty',$dashboard['faculty_count'],'Distinct active faculty with assigned subjects','bx-user-voice','warning'],
+    ] as $metric): ?>
+    <article class="card di-dashboard-metric"><div class="card-body"><span class="di-dashboard-metric-icon bg-label-<?= $metric[5] ?>"><i class="bx <?= $metric[4] ?>" aria-hidden="true"></i></span><h3><?= $metric[1] ?></h3><strong data-metric="<?= $metric[0] ?>"><?= number_format($metric[2]) ?></strong><p><?= $metric[3] ?></p></div></article>
+    <?php endforeach; ?>
+  </div>
+</section>
+
+<section id="campus-faculty" class="mb-5" aria-labelledby="campusFacultyHeading">
+  <div class="di-dashboard-group-heading"><div><span class="di-eyebrow">02 / Faculty</span><h2 id="campusFacultyHeading">Faculty by Campus</h2><p>Active teaching faculty have at least one assigned subject in the current academic year and semester. A faculty member serving two colleges is counted once within a campus.</p></div><span class="badge bg-label-primary di-dashboard-total"><?= number_format($dashboard['faculty_count']) ?> distinct teaching faculty</span></div>
+  <div class="di-dashboard-roster-note"><i class="bx bx-info-circle" aria-hidden="true"></i><span><strong><?= number_format($dashboard['rostered_count']) ?> distinct active faculty added to college rosters</strong> for this term. Roster counts also include faculty awaiting subject assignments. Faculty teaching across campuses appear in each campus card and once in the university total.</span></div>
+  <div class="di-campus-grid mt-3">
+    <?php foreach ($dashboard['campus_rows'] as $id=>$campusRow): ?>
+    <article class="card di-campus-card" data-campus="<?= $id ?>"><div class="card-body">
+      <div class="di-campus-heading"><div><span class="di-eyebrow"><?= synk_leadership_h($campusRow['campus']['campus_code']) ?></span><h3><?= synk_leadership_h($campusRow['campus']['campus_name']) ?></h3></div><span class="di-dashboard-metric-icon bg-label-info"><i class="bx bx-buildings" aria-hidden="true"></i></span></div>
+      <strong class="di-campus-faculty-count" data-campus-faculty="<?= $id ?>"><?= number_format($campusRow['teaching']) ?></strong><p class="di-campus-caption">Active faculty with subjects</p>
+      <dl class="di-campus-detail"><div><dt>Added to rosters</dt><dd><?= number_format($campusRow['rostered']) ?></dd></div><div><dt>Profiles recorded</dt><dd><?= number_format($campusRow['summary']['saved']) ?> / <?= number_format($campusRow['teaching']) ?></dd></div><div><dt>Programs offered</dt><dd><?= number_format($campusRow['programs']) ?></dd></div><div><dt>Distinct subjects</dt><dd><?= number_format($campusRow['subjects']) ?></dd></div></dl>
+      <a class="di-campus-link stretched-link" href="campus-faculty.php?campus_id=<?= $id ?>" aria-label="View faculty at <?= synk_leadership_h($campusRow['campus']['campus_name']) ?>">View campus faculty <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
+    </div></article>
+    <?php endforeach; ?>
+    <?php if (!$dashboard['campus_rows']): ?><div class="alert alert-info mb-0">No active campuses are recorded in this scope.</div><?php endif; ?>
+  </div>
+</section>
+
+<section id="qualifications" class="mb-4" aria-labelledby="profileStatisticsHeading">
+  <div class="di-dashboard-group-heading"><div><span class="di-eyebrow">03 / Professor Profiles</span><h2 id="profileStatisticsHeading">Faculty Profile Statistics</h2><p>Based on <?= number_format($summary['total']) ?> distinct active teaching faculty in this term. Saved profile details are included at every completion level. Missing or invalid details appear as “Not recorded”.</p></div></div>
+  <div id="coverage" class="di-dashboard-metrics mb-4">
+    <?php foreach ([['Saved Profiles',$summary['saved'],'Of '.$summary['total'].' teaching faculty','bx-id-card','primary'],['Profile Coverage',$summary['coverage_percent'].'%','Faculty with a saved professor profile','bx-pie-chart-alt-2','info'],['Complete Profiles',$summary['complete'],$summary['in_progress'].' in progress · '.$summary['not_started'].' not started','bx-list-check','success'],['With Credentials',$summary['with_eligibility'],'Eligibility, license, or other recorded credential','bx-badge-check','warning']] as $metric): ?>
+    <article class="card di-dashboard-metric"><div class="card-body"><span class="di-dashboard-metric-icon bg-label-<?= $metric[4] ?>"><i class="bx <?= $metric[3] ?>" aria-hidden="true"></i></span><h3><?= $metric[0] ?></h3><strong><?= synk_leadership_h($metric[1]) ?></strong><p><?= synk_leadership_h($metric[2]) ?></p></div></article>
+    <?php endforeach; ?>
+  </div>
+  <div class="row g-4 mb-4">
+    <?php foreach ([['educationChart','Highest Completed Degree','Completed studies only; ongoing degrees are shown separately.','bx-book-reader'],['employmentChart','Employment Classification','Classification recorded in the professor profile.','bx-briefcase-alt'],['rankChart','Academic Rank','Faculty rank recorded in the professor profile.','bx-bar-chart-alt-2'],['ongoingChart','Ongoing Studies','A faculty member may have more than one ongoing degree.','bx-book-open']] as $chart): ?>
+    <div class="col-lg-6"><article class="card h-100"><div class="card-header"><h3 class="di-section-heading"><?= $chart[1] ?></h3><small class="text-muted"><?= $chart[2] ?></small></div><div id="<?= $chart[0] ?>" class="di-chart" role="img" aria-label="<?= $chart[1] ?> statistics"><div class="di-chart-empty"><i class="bx <?= $chart[3] ?>" aria-hidden="true"></i><span>No recorded data in this scope.</span></div></div></article></div>
+    <?php endforeach; ?>
+    <div class="col-lg-5"><article class="card h-100"><div class="card-header"><h3 class="di-section-heading">Eligibility &amp; Licenses</h3><small class="text-muted">Distinct faculty per credential; faculty can hold several.</small></div><div class="card-body"><ul class="di-credential-list"><?php foreach ($summary['eligibilities'] as $label=>$count): ?><li><span><?= synk_leadership_h($label) ?></span><span class="badge bg-label-info"><?= $count ?></span></li><?php endforeach; ?></ul><?php if (!$summary['eligibilities']): ?><p class="small text-muted mb-0">No credentials have been recorded for this teaching cohort.</p><?php endif; ?></div></article></div>
+    <div class="col-lg-7"><article class="card h-100"><div class="card-header"><h3 class="di-section-heading">Profile Details &amp; Completion</h3><small class="text-muted">Average completion across all teaching faculty: <?= $summary['average_completion'] ?>%.</small></div><div class="card-body">
+      <?php foreach (['gender'=>'Gender','civil_status'=>'Civil Status'] as $key=>$label): ?><h4 class="h6"><?= $label ?></h4><div class="di-gender-row mb-4"><?php foreach ($summary[$key] as $value=>$count): ?><span class="badge bg-label-secondary"><?= synk_leadership_h($value) ?> · <?= $count ?></span><?php endforeach; ?><?php if (!$summary[$key]): ?><span class="text-muted small">No teaching faculty in this scope.</span><?php endif; ?></div><?php endforeach; ?>
+      <?php foreach (['personal'=>'Personal Details','employment'=>'Employment','education'=>'Education'] as $key=>$label): $counts=$summary['sections'][$key]; $percent=$counts['total'] ? (int)round(100*$counts['completed']/$counts['total']) : 0; ?><div class="di-completion-row"><div class="d-flex justify-content-between gap-2 mb-2"><span class="small"><?= $label ?></span><strong class="small"><?= $percent ?>%</strong></div><div class="progress di-progress" role="progressbar" aria-label="<?= $label ?> profile fields" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:<?= $percent ?>%"></div></div></div><?php endforeach; ?>
+    </div></article></div>
+  </div>
+  <section id="profiles" class="card" aria-labelledby="profileRegisterHeading">
+    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-3"><div><h3 class="di-section-heading" id="profileRegisterHeading">Teaching Faculty Profile Register</h3><small class="text-muted">One row per faculty member with a current-term subject assignment.</small></div><div class="input-group di-table-search"><span class="input-group-text"><i class="bx bx-search" aria-hidden="true"></i></span><input type="search" id="profileSearch" class="form-control" placeholder="Search faculty or college" aria-label="Search teaching faculty profiles"></div></div>
+    <div class="table-responsive"><table class="table di-profile-table mb-0"><thead><tr><th>Faculty</th><th>Teaching Campus / College</th><th>Academic Rank</th><th>Highest Degree</th><th>Profile Status</th><th>Completion</th><th>Last Saved</th></tr></thead><tbody>
+      <?php foreach ($dashboard['faculty'] as $record): $statusLabel=['complete'=>'Complete','in_progress'=>'In progress','not_started'=>'Not started'][$record['profile_status']]; $statusColor=['complete'=>'success','in_progress'=>'warning','not_started'=>'secondary'][$record['profile_status']]; ?>
+      <tr class="di-profile-row" data-search="<?= synk_leadership_h(implode(' ',[$record['name'],$record['campus_name'],$record['college_name'],$record['analytics_values']['faculty_rank'],$statusLabel])) ?>"><td class="di-person"><a class="fw-semibold" href="faculty-profile.php?faculty_id=<?= $record['faculty_id'] ?>"><?= synk_leadership_h($record['name']) ?></a></td><td><?= synk_leadership_h($record['campus_name']) ?><small class="text-muted d-block mt-1"><?= synk_leadership_h($record['college_name']) ?></small></td><td><?= synk_leadership_h($record['analytics_values']['faculty_rank'] ?: 'Not recorded') ?></td><td><?= synk_leadership_h($record['highest_degree']) ?></td><td><span class="badge bg-label-<?= $statusColor ?>"><?= $statusLabel ?></span></td><td class="di-progress-cell"><strong class="small"><?= $record['completion']['percent'] ?>%</strong><div class="progress di-progress mt-1"><div class="progress-bar" style="width:<?= $record['completion']['percent'] ?>%"></div></div></td><td><?= $record['updated_at'] ? synk_leadership_h(date('M j, Y',strtotime($record['updated_at']))) : 'Never saved' ?></td></tr>
+      <?php endforeach; ?>
+      <tr id="profileEmptyRow"<?= $dashboard['faculty'] ? ' hidden' : '' ?>><td colspan="7" class="text-center text-muted py-4">No teaching faculty match this view.</td></tr>
+    </tbody></table></div>
+    <div class="card-body py-3 d-flex flex-wrap align-items-center justify-content-between gap-3"><span id="profileTableCount" class="di-table-meta" aria-live="polite"><?= count($dashboard['faculty']) ?> teaching faculty</span><div class="di-pagination"><button id="profilePrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>Previous</button><span id="profilePage" class="small text-muted">Page 1</span><button id="profileNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>Next</button></div></div>
+  </section>
+</section>
+<script id="diChartData" type="application/json"><?= json_encode(['education'=>$summary['education'],'employment'=>$summary['employment'],'ranks'=>$summary['ranks'],'ongoing'=>$summary['ongoing']],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<?php endif; ?>
+<?php include __DIR__.'/page-end.php'; ?>

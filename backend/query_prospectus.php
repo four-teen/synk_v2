@@ -14,12 +14,17 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 
 $role = $_SESSION['role'];
 $myCollege = intval($_SESSION['college_id'] ?? 0);
+$isDi = ($_SESSION['role'] ?? '') === 'DI';
+if ($isDi || defined('SYNK_DI_CURRICULUM_API')) {
+    require_once __DIR__ . '/di_curriculum_helper.php';
+    synk_di_curriculum_authorize($conn, 'builder');
+}
 $isProgramChair = $role==='program_chair';
 if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
     require_once __DIR__ . '/program_chair_curriculum_helper.php';
     $myCollege = synk_chair_curriculum_authorize($conn,'builder');
 }
-if (!in_array($role, ['admin', 'scheduler', 'program_chair'], true)) {
+if (!in_array($role, ['admin', 'scheduler', 'program_chair', 'DI'], true)) {
     echo "ERROR|Unauthorized access.";
     exit;
 }
@@ -47,7 +52,7 @@ if ($requires_csrf) {
         exit;
     }
 
-    if ($role !== 'admin' && !$isProgramChair) {
+    if ($role !== 'admin' && !$isProgramChair && !$isDi) {
         echo "ERROR|Administrator access required.";
         exit;
     }
@@ -55,7 +60,7 @@ if ($requires_csrf) {
 
 function can_access_prospectus($conn, $prospectus_id, $role, $myCollege) {
     if ($prospectus_id <= 0) return false;
-    if ($role === 'admin') return true;
+    if ($role === 'admin' || $role === 'DI') return true;
     $sql = "SELECT h.prospectus_id
             FROM tbl_prospectus_header h
             INNER JOIN tbl_program p ON p.program_id = h.program_id
@@ -72,7 +77,7 @@ function can_access_prospectus($conn, $prospectus_id, $role, $myCollege) {
 
 function can_access_pys($conn, $pys_id, $role, $myCollege) {
     if ($pys_id <= 0) return false;
-    if ($role === 'admin') return true;
+    if ($role === 'admin' || $role === 'DI') return true;
     $sql = "SELECT y.pys_id
             FROM tbl_prospectus_year_sem y
             INNER JOIN tbl_prospectus_header h ON h.prospectus_id = y.prospectus_id
@@ -90,7 +95,7 @@ function can_access_pys($conn, $pys_id, $role, $myCollege) {
 
 function can_access_ps($conn, $ps_id, $role, $myCollege) {
     if ($ps_id <= 0) return false;
-    if ($role === 'admin') return true;
+    if ($role === 'admin' || $role === 'DI') return true;
     $sql = "SELECT ps.ps_id
             FROM tbl_prospectus_subjects ps
             INNER JOIN tbl_prospectus_year_sem y ON y.pys_id = ps.pys_id
@@ -216,7 +221,7 @@ if (isset($_POST['delete_year_sem'])) {
 
     global $conn;
 
-    if (!$isProgramChair) $conn->begin_transaction();
+    if (!$isProgramChair && !$isDi) $conn->begin_transaction();
     try {
         // Delete all subject mappings under this PYS
         $sql = "DELETE FROM tbl_prospectus_subjects WHERE pys_id = ?";
@@ -236,10 +241,10 @@ if (isset($_POST['delete_year_sem'])) {
             throw new Exception("Unable to delete Year & Semester.");
         }
 
-        if (!$isProgramChair) $conn->commit();
+        if (!$isProgramChair && !$isDi) $conn->commit();
         echo "OK|Year & Semester removed successfully.";
     } catch (Exception $e) {
-        if (!$isProgramChair) $conn->rollback();
+        if (!$isProgramChair && !$isDi) $conn->rollback();
         echo "ERROR|" . $e->getMessage();
     }
     exit;
@@ -290,7 +295,7 @@ if (isset($_POST['load_prospectus_list'])) {
             FROM tbl_prospectus_header h JOIN tbl_program p ON p.program_id=h.program_id
             JOIN tbl_college c ON c.college_id=p.college_id JOIN tbl_campus ca ON ca.campus_id=c.campus_id
             WHERE p.college_id=? ORDER BY h.prospectus_id DESC";
-    } elseif ($role === 'admin') {
+    } elseif ($role === 'admin' || $role === 'DI') {
 
         $sql = "
             SELECT DISTINCT
@@ -349,7 +354,7 @@ if (isset($_POST['load_prospectus_list'])) {
     // --------------------------------------------------
     // EXECUTE QUERY
     // --------------------------------------------------
-    if ($role === 'admin') {
+    if ($role === 'admin' || $role === 'DI') {
         $stmt = $conn->prepare($sql);
     } else {
         $stmt = $conn->prepare($sql);

@@ -2,15 +2,22 @@
 $diCurrentPage = basename($_SERVER['PHP_SELF'] ?? 'index.php');
 $diSidebarSections = [
     ['label' => 'Overview', 'items' => [
-        ['index.php', 'bx-home-circle', 'Dashboard', 'University-wide faculty profile analytics', 'primary', ['index.php']],
+        ['index.php', 'bx-home-circle', 'Dashboard', 'Current-term academic and faculty analytics', 'primary', ['index.php']],
     ]],
     ['label' => 'Faculty Management', 'items' => [
         ['professors.php', 'bx-user-voice', 'List of Professors', 'Review faculty profiles at 25% completion or more', 'info', ['professors.php', 'faculty-profile.php']],
     ]],
-    ['label' => 'Faculty Insights', 'items' => [
-        ['index.php#coverage', 'bx-list-check', 'Profile Coverage', 'Monitor saved and incomplete profiles', 'warning', []],
-        ['index.php#qualifications', 'bx-book-reader', 'Qualifications', 'Education, ranks, and eligibility', 'primary', []],
-        ['index.php#profiles', 'bx-id-card', 'Profile Register', 'Review professor profile completion', 'info', []],
+    ['label' => 'Curriculum Management', 'items' => [
+        ['manage-programs.php', 'bx-buildings', 'Courses / Programs', 'Manage programs, majors, and college assignments', 'primary', ['manage-programs.php']],
+        ['manage-subject-masterlist.php', 'bx-book', 'Subject Masterlist', 'Manage the university subject catalog', 'info', ['manage-subject-masterlist.php']],
+        ['manage-prospectus.php', 'bx-spreadsheet', 'Prospectus Builder', 'Build curriculum versions, semesters, and subjects', 'success', ['manage-prospectus.php']],
+        ['manage-prospectus-browser.php', 'bx-search-alt', 'Prospectus Browser', 'Browse, view, and manage prospectus versions', 'warning', ['manage-prospectus-browser.php', 'view-prospectus.php']],
+    ]],
+    ['label' => 'Dashboard Insights', 'items' => [
+        ['index.php#academic', 'bx-book-content', 'Academic Overview', 'Campuses, programs, and current-term classes', 'primary', []],
+        ['index.php#campus-faculty', 'bx-user-voice', 'Faculty by Campus', 'Distinct faculty with assigned subjects', 'info', ['campus-faculty.php']],
+        ['index.php#qualifications', 'bx-book-reader', 'Profile Statistics', 'Degrees, employment, ranks, and eligibility', 'warning', []],
+        ['index.php#profiles', 'bx-id-card', 'Profile Register', 'Current teaching faculty and profile completion', 'info', []],
     ]],
 ];
 ?>

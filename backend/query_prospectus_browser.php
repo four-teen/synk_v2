@@ -12,6 +12,11 @@ if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
 
 $role = (string)$_SESSION['role'];
 $myCollege = (int)($_SESSION['college_id'] ?? 0);
+$isDi = ($_SESSION['role'] ?? '') === 'DI';
+if ($isDi || defined('SYNK_DI_CURRICULUM_API')) {
+    require_once __DIR__ . '/di_curriculum_helper.php';
+    synk_di_curriculum_authorize($conn, 'browser');
+}
 $isProgramChair = $role==='program_chair';
 if ($isProgramChair || defined('SYNK_PROGRAM_CHAIR_CURRICULUM_API')) {
     require_once __DIR__ . '/program_chair_curriculum_helper.php';
@@ -34,7 +39,7 @@ foreach ($writeActions as $action) {
         exit;
     }
 
-    if ($role !== 'admin' && !$isProgramChair) {
+    if ($role !== 'admin' && !$isProgramChair && !$isDi) {
         echo "ERROR|Administrator access required.";
         exit;
     }
@@ -46,7 +51,7 @@ function can_access_browser_program(mysqli $conn, int $programId, string $role, 
         return false;
     }
 
-    if ($role === 'admin') {
+    if ($role === 'admin' || $role === 'DI') {
         return true;
     }
 
@@ -71,7 +76,7 @@ function can_access_browser_prospectus(mysqli $conn, int $prospectusId, string $
         return false;
     }
 
-    if ($role === 'admin') {
+    if ($role === 'admin' || $role === 'DI') {
         return true;
     }
 
@@ -374,7 +379,7 @@ if (isset($_POST['delete_prospectus'])) {
         exit;
     }
 
-    if (!$isProgramChair) $conn->begin_transaction();
+    if (!$isProgramChair && !$isDi) $conn->begin_transaction();
 
     try {
         $offeringIds = [];
@@ -545,10 +550,10 @@ if (isset($_POST['delete_prospectus'])) {
         }
         $deleteHeaderStmt->close();
 
-        if (!$isProgramChair) $conn->commit();
+        if (!$isProgramChair && !$isDi) $conn->commit();
         echo "OK|Prospectus removed successfully.|" . trim((string)$header['cmo_no']) . "|" . trim((string)$header['effective_sy']);
     } catch (Throwable $e) {
-        if (!$isProgramChair) $conn->rollback();
+        if (!$isProgramChair && !$isDi) $conn->rollback();
         echo "ERROR|" . $e->getMessage();
     }
     exit;

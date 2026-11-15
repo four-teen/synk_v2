@@ -12,7 +12,7 @@ function synk_prospectus_browser_query(mysqli $conn, string $sql, string $types 
 
 function synk_prospectus_browser_filters(mysqli $conn, string $role, int $assignedCollege): array
 {
-    $admin = $role === 'admin';
+    $admin = ($role === 'admin' || ($role === 'DI' && (defined('SYNK_DI_CURRICULUM_API') || defined('SYNK_DI_CURRICULUM_VIEW'))));
     if (!$admin && $assignedCollege <= 0) throw new DomainException('An assigned college is required.', 403);
     $types = $admin ? '' : 'i';
     $values = $admin ? [] : [$assignedCollege];
@@ -44,7 +44,7 @@ function synk_prospectus_browser_filter_id($value, bool $optional = false): int
 function synk_prospectus_browser_rows(mysqli $conn, string $role, int $assignedCollege, array $filters): array
 {
     $programId = synk_prospectus_browser_filter_id($filters['program_id'] ?? null, true);
-    if ($role === 'admin') {
+    if (($role === 'admin' || ($role === 'DI' && (defined('SYNK_DI_CURRICULUM_API') || defined('SYNK_DI_CURRICULUM_VIEW'))))) {
         $campusId = synk_prospectus_browser_filter_id($filters['campus_id'] ?? null);
         $collegeId = synk_prospectus_browser_filter_id($filters['college_id'] ?? null);
     } else {
