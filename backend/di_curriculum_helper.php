@@ -103,6 +103,9 @@ function synk_di_curriculum_authorize(mysqli $conn, string $route): void
             $conn->begin_transaction(); $transaction = true;
         }
         synk_di_curriculum_account($conn, $writing);
+        if ($action === 'delete_year_sem') {
+            throw new DomainException('Year and semester removal is not available in the DI portal. Remove individual subjects instead.', 403);
+        }
         $target = null;
         if (in_array($action, ['save_header','load_prospectus_by_program'], true)) $target = synk_di_curriculum_target($conn, 'program', $_POST['program_id'] ?? null, $writing);
         if (in_array($action, ['load_header','save_year_sem','load_year_sem','update_prospectus_header','transfer_prospectus','delete_prospectus'], true)) $target = synk_di_curriculum_target($conn, 'header', $_POST['prospectus_id'] ?? null, $writing);

@@ -6,6 +6,7 @@
     $collegeDeanPortalContext = synk_chair_curriculum_prepare_view($conn);
     $curriculumIsChair = $collegeDeanPortalContext!==null;
     $curriculumIsDi = defined('SYNK_DI_CURRICULUM_VIEW');
+    $curriculumVersionBuilder = $curriculumIsChair || $curriculumIsDi;
 
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -41,6 +42,7 @@
       href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
 
     <link rel="stylesheet" type="text/css" href="custom_css.css">
+    <?php if ($curriculumIsDi): ?><link rel="stylesheet" href="prospectus-structure.css?v=<?= filemtime(__DIR__ . '/../di/prospectus-structure.css') ?>"><?php endif; ?>
     <script src="../assets/vendor/js/helpers.js"></script>
     <script src="../assets/js/config.js"></script>
 
@@ -184,9 +186,9 @@
               <i class="bx bx-spreadsheet me-2"></i> Prospectus Builder
             </h4>
           </div>
-          <?php if ($curriculumIsChair): ?>
+          <?php if ($curriculumVersionBuilder): ?>
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-            <p class="mb-0 text-muted">Manage curriculum for <?= htmlspecialchars((string)($_SESSION['college_name'] ?? 'your assigned college'),ENT_QUOTES,'UTF-8') ?>.</p>
+            <p class="mb-0 text-muted"><?= $curriculumIsDi ? 'Manage curriculum across campuses and colleges.' : 'Manage curriculum for ' . htmlspecialchars((string)($_SESSION['college_name'] ?? 'your assigned college'),ENT_QUOTES,'UTF-8') . '.' ?></p>
             <a href="manage-prospectus-browser.php" class="btn btn-outline-primary btn-sm">Curriculum Browser</a>
           </div>
           <?php endif; ?>
@@ -196,8 +198,8 @@
           <!-- ===================== -->
           <div class="card mb-4">
             <div class="card-header">
-              <h5 class="mb-0"><?= $curriculumIsChair ? 'Choose a Program' : 'Prospectus Information' ?></h5>
-              <small class="text-muted"><?= $curriculumIsChair ? 'See every prospectus version, then load one or create a new version.' : 'Select program and define CMO + Effectivity' ?></small>
+              <h5 class="mb-0"><?= $curriculumVersionBuilder ? 'Choose a Program' : 'Prospectus Information' ?></h5>
+              <small class="text-muted"><?= $curriculumVersionBuilder ? 'See every prospectus version, then load one or create a new version.' : 'Select program and define CMO + Effectivity' ?></small>
             </div>
             <div class="card-body">
 
@@ -205,7 +207,7 @@
                 <input type="hidden" id="prospectus_id" name="prospectus_id">
 
                 <!-- Program -->
-                <div class="<?= $curriculumIsChair ? 'col-lg-9' : 'col-md-5' ?>">
+                <div class="<?= $curriculumVersionBuilder ? 'col-lg-9' : 'col-md-5' ?>">
                   <label for="program_id" class="form-label prospectus-header-label">Program</label>
                   <select class="form-select" name="program_id" id="program_id" required>
                     <option value="">Select Program</option>
@@ -279,7 +281,7 @@ $prog = $conn->query("
                 </div>
 
 
-                <?php if ($curriculumIsChair): ?>
+                <?php if ($curriculumVersionBuilder): ?>
                 <div class="col-lg-3">
                   <button type="button" id="btnCreateProspectus" class="btn btn-primary w-100" disabled>
                     <i class="bx bx-plus me-1"></i> Create New Prospectus
@@ -323,15 +325,15 @@ $prog = $conn->query("
             </div>
           </div>
 
-          <?php if ($curriculumIsChair) require __DIR__ . '/../program-chair/partials/prospectus-builder-versions.php'; ?>
+          <?php if ($curriculumVersionBuilder) require __DIR__ . '/../program-chair/partials/prospectus-builder-versions.php'; ?>
           <!-- ===================== -->
           <!-- YEAR / SEM SECTIONS   -->
           <!-- ===================== -->
-          <div class="card" id="yearSemCard" style="display:none;">
-            <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="card<?= $curriculumIsDi ? ' di-yearsem-card' : '' ?>" id="yearSemCard" style="display:none;">
+            <div class="card-header d-flex flex-wrap gap-3 justify-content-between align-items-center">
               <div>
                 <h5 class="mb-0">Year & Semester Structure</h5>
-                <small class="text-muted">Manage subjects per year and semester</small>
+                <small class="text-muted"><?= $curriculumIsDi ? 'Compare semesters by year and manage their subjects.' : 'Manage subjects per year and semester' ?></small>
               </div>
               <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#yearSemModal">
                 <i class="bx bx-plus"></i> Add Year / Semester
@@ -339,6 +341,9 @@ $prog = $conn->query("
             </div>
 
             <div class="card-body">
+              <?php if ($curriculumIsDi): ?>
+              <div class="di-structure-toolbar" aria-label="Semester display controls"><button type="button" class="btn btn-sm btn-outline-secondary" data-di-structure-expand="show">Expand all</button><button type="button" class="btn btn-sm btn-outline-secondary" data-di-structure-expand="hide">Collapse all</button></div>
+              <?php endif; ?>
               <div class="accordion" id="yearSemAccordion">
                 <!-- Dynamic items via AJAX -->
               </div>
@@ -490,7 +495,7 @@ $prog = $conn->query("
 
 
 
-<?php if (!$curriculumIsChair): ?>
+<?php if (!$curriculumVersionBuilder): ?>
 <div class="modal fade" id="loadProspectusModal" tabindex="-1">
   <div class="modal-dialog modal-md modal-dialog-centered">
     <div class="modal-content">
@@ -593,7 +598,7 @@ $prog = $conn->query("
   </div>
 </div>
 
-<?php if ($curriculumIsChair): ?>
+<?php if ($curriculumVersionBuilder): ?>
 <?php require __DIR__ . '/../program-chair/partials/prospectus-builder-modals.php'; ?>
 <?php else: ?>
 <div class="modal fade" id="copyProspectusModal" tabindex="-1">
@@ -700,7 +705,7 @@ $.ajaxPrefilter(function (options) {
 });
 
 const LAB_HOURS_PER_UNIT = 3;
-const PROGRAM_CHAIR_BUILDER = <?= $curriculumIsChair ? 'true' : 'false' ?>;
+const PROSPECTUS_VERSION_BUILDER = <?= $curriculumVersionBuilder ? 'true' : 'false' ?>;
 
 function roundProspectusUnits(value) {
     return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -964,17 +969,17 @@ function loadYearSem(prospectus_id, refreshVersionCounts = true) {
         "../backend/query_prospectus.php",
         { load_year_sem: 1, prospectus_id: prospectus_id },
         function (html) {
-            if (PROGRAM_CHAIR_BUILDER && (requestVersion !== yearSemRequestVersion || String($("#prospectus_id").val()) !== String(prospectus_id))) return;
+            if (PROSPECTUS_VERSION_BUILDER && (requestVersion !== yearSemRequestVersion || String($("#prospectus_id").val()) !== String(prospectus_id))) return;
             $("#yearSemAccordion").html(html);
 
             // Re-open the previously opened section
             if (lastOpenedPys) {
                 $("#" + lastOpenedPys).collapse("show");
             }
-            if (PROGRAM_CHAIR_BUILDER && refreshVersionCounts) $(document).trigger('chair:prospectus-structure-loaded', [prospectus_id]);
+            if (PROSPECTUS_VERSION_BUILDER && refreshVersionCounts) $(document).trigger('chair:prospectus-structure-loaded', [prospectus_id]);
         }
     ).fail(function () {
-        if (PROGRAM_CHAIR_BUILDER && requestVersion === yearSemRequestVersion && String($("#prospectus_id").val()) === String(prospectus_id)) {
+        if (PROSPECTUS_VERSION_BUILDER && requestVersion === yearSemRequestVersion && String($("#prospectus_id").val()) === String(prospectus_id)) {
             $("#yearSemAccordion").html('<p class="text-danger mb-0">Unable to load subjects. Load this prospectus again to retry.</p>');
         }
     });
@@ -1021,7 +1026,7 @@ $('#yearSemModal').on('shown.bs.modal', function () {
 });
 
 
-<?php if (!$curriculumIsChair): ?>
+<?php if (!$curriculumVersionBuilder): ?>
 // Init Select2 for existing prospectus list
 if ($('#existingProspectusList').hasClass('select2-hidden-accessible')) {
     $('#existingProspectusList').select2('destroy');
@@ -1215,7 +1220,7 @@ $('#ps_sub_id').select2({
     window.loadYearSem = loadYearSem;
 
     // -------------------------------------------
-<?php if (!$curriculumIsChair): ?>
+<?php if (!$curriculumVersionBuilder): ?>
     // OPEN MODAL + LOAD PROSPECTUS LIST
     // -------------------------------------------
     $("#btnLoadHeader").click(function () {
@@ -1568,17 +1573,19 @@ formData.push({ name: "save_prospectus_subject", value: 1 });
 
 
 
-<?php if ($curriculumIsChair): ?>
+<?php if ($curriculumVersionBuilder): ?>
 <script>
 window.chairProspectusConfig = <?= json_encode([
-    'headerEndpoint'=>'../backend/query_program_chair_prospectus.php',
-    'listEndpoint'=>'../backend/query_program_chair_prospectus_browser.php',
-    'copyEndpoint'=>'../backend/query_program_chair_prospectus_copy.php',
+    'headerEndpoint'=>$curriculumIsDi ? '../backend/query_di_prospectus.php' : '../backend/query_program_chair_prospectus.php',
+    'listEndpoint'=>$curriculumIsDi ? '../backend/query_di_prospectus_browser.php' : '../backend/query_program_chair_prospectus_browser.php',
+    'copyEndpoint'=>$curriculumIsDi ? '../backend/query_di_prospectus_copy.php' : '../backend/query_program_chair_prospectus_copy.php',
+    'showCampus'=>$curriculumIsDi,
     'csrfToken'=>$csrfToken,
     'initialProspectusId'=>(int)($_GET['pid'] ?? 0),
 ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<script src="prospectus-builder.js?v=<?= filemtime(__DIR__ . '/../program-chair/prospectus-builder.js') ?>"></script>
+<script src="<?= $curriculumIsDi ? '../program-chair/' : '' ?>prospectus-builder.js?v=<?= filemtime(__DIR__ . '/../program-chair/prospectus-builder.js') ?>"></script>
 <?php endif; ?>
+<?php if ($curriculumIsDi): ?><script src="prospectus-structure.js?v=<?= filemtime(__DIR__ . '/../di/prospectus-structure.js') ?>"></script><?php endif; ?>
 </body>
 </html>

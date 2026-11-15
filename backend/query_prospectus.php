@@ -776,7 +776,8 @@ if (isset($_POST['load_year_sem'])) {
         exit;
     }
 
-    // We will echo accordion items
+    $diStructure = [];
+    // Read the same curriculum rows for each portal; DI uses a separate presentation.
     while ($row = $result->fetch_assoc()) {
         $pys_id     = $row['pys_id'];
         $year_level = $row['year_level'];
@@ -808,6 +809,7 @@ if (isset($_POST['load_year_sem'])) {
         $total_lab_sum   = 0;
         $total_units_sum = 0;
         $ctr             = 1;
+        $diSubjectRows   = [];
 
             while ($s = $sub_res->fetch_assoc()) {
                 $lecu   = (float)$s['lec_units'];
@@ -827,6 +829,14 @@ if (isset($_POST['load_year_sem'])) {
                 $code    = htmlspecialchars(strtoupper($s['sub_code']));
                 $title   = htmlspecialchars(strtoupper($s['sub_description']));
                 $prereq  = htmlspecialchars($s['prerequisites']);
+
+                if ($isDi) {
+                    $diSubjectRows[] = [
+                        'ps_id' => (int)$ps_id, 'number' => $ctr,
+                        'code' => $code, 'title' => $title, 'prerequisites' => $prereq,
+                        'lec_hours' => $displayLecHours, 'lab_hours' => $displayLabHours, 'units' => $t_units,
+                    ];
+                }
 
                 $rows_html .= '
                   <tr>
@@ -857,6 +867,15 @@ if (isset($_POST['load_year_sem'])) {
                 ';
             }
         $sub_stmt->close();
+
+        if ($isDi) {
+            $diStructure[(int)$year_level][] = [
+                'pys_id' => (int)$pys_id, 'semester' => (int)$semester, 'label' => $sem_label,
+                'subjects' => $diSubjectRows, 'lec_hours' => $total_lec_sum,
+                'lab_hours' => $total_lab_sum, 'units' => $total_units_sum,
+            ];
+            continue;
+        }
 
         if ($rows_html === '') {
             $rows_html = '
@@ -953,6 +972,7 @@ if (isset($_POST['load_year_sem'])) {
         <?php
     }
 
+    if ($isDi) require __DIR__ . '/di_prospectus_structure_view.php';
     exit;
 }
 

@@ -41,10 +41,22 @@ $subB = $insert("INSERT INTO tbl_subject_masterlist(sub_code,sub_description) VA
 $header = $insert("INSERT INTO tbl_prospectus_header(program_id,cmo_no,effective_sy) VALUES({$program},'{$tag} CMO','2026-2027')");
 $yearSem = $insert("INSERT INTO tbl_prospectus_year_sem(prospectus_id,year_level,semester) VALUES({$header},'1','1')");
 $ps = $insert("INSERT INTO tbl_prospectus_subjects(pys_id,sub_id,lec_units,lab_units,total_units,sort_order) VALUES({$yearSem},{$subA},3,3,4,1)");
+if ($case === 'structure_layout') {
+    $secondSemester = $insert("INSERT INTO tbl_prospectus_year_sem(prospectus_id,year_level,semester) VALUES({$header},1,2)");
+    // A legacy laboratory-credit row must keep the existing display conversion.
+    $insert("INSERT INTO tbl_prospectus_subjects(pys_id,sub_id,lec_units,lab_units,total_units,sort_order) VALUES({$secondSemester},{$subB},3,1,4,1)");
+    $insert("INSERT INTO tbl_prospectus_year_sem(prospectus_id,year_level,semester) VALUES({$header},1,3)");
+    $insert("INSERT INTO tbl_prospectus_year_sem(prospectus_id,year_level,semester) VALUES({$header},3,2)");
+    $conn->query("UPDATE tbl_subject_masterlist SET sub_description='A <script>alert(1)</script> & Title' WHERE sub_id={$subA}");
+    $conn->query("UPDATE tbl_prospectus_subjects SET prerequisites='CS 101 <b>unsafe</b>' WHERE ps_id={$ps}");
+}
+if (in_array($case, ['structure_empty','structure_none'], true)) $conn->query("DELETE FROM tbl_prospectus_subjects WHERE ps_id={$ps}");
+if ($case === 'structure_none') $conn->query("DELETE FROM tbl_prospectus_year_sem WHERE pys_id={$yearSem}");
 session_save_path($root . '/temp'); session_start();
 $_SESSION = ['user_id'=>$actor,'role'=>'DI','college_id'=>0,'csrf_token'=>'di-curriculum-qa','scheduler_working_ay_id'=>991,'scheduler_working_semester'=>2];
 $_GET = []; $_POST = ['csrf_token'=>'di-curriculum-qa']; $_SERVER['REQUEST_METHOD'] = 'POST';
 $action = preg_replace('/^(?:used_|csrf_|direct_|section_subject_|section_|saved_)/', '', $case);
+if (strpos($case, 'structure_') === 0) $action = 'load_year_sem';
 $catalogs = ['program'=>['load_programs','save_program','update_program','delete_program'], 'subject'=>['load_subjects','save_subject','update_subject','delete_subject']];
 $route = 'backend/query_di_prospectus.php';
 foreach ($catalogs as $catalog=>$actions) if (in_array($action, $actions, true)) { $route = 'backend/query_di_catalog.php'; $_GET['catalog'] = $catalog; }

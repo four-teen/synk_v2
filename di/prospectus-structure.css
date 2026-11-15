@@ -1,0 +1,37 @@
+.di-yearsem-card .di-structure-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1.5rem; }
+.di-yearsem-card .di-structure-year + .di-structure-year { margin-top:1.75rem; }
+.di-yearsem-card .di-structure-year-heading { display:flex; align-items:center; gap:1rem; margin-bottom:.9rem; }
+.di-yearsem-card .di-structure-year-heading::after { content:""; height:1px; background:#e4e8f0; flex:1; }
+.di-yearsem-card .di-structure-year-heading h3 { font-size:1rem; font-weight:600; margin:0; }
+.di-yearsem-card .di-structure-semesters { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; align-items:start; }
+.di-yearsem-card .di-semester-1 { grid-column:1; }
+.di-yearsem-card .di-semester-2 { grid-column:2; }
+.di-yearsem-card .di-semester-3 { grid-column:1 / -1; }
+.di-yearsem-card .di-semester-panel { min-width:0; background:#fff; border:1px solid #e0e5ee; border-radius:.6rem; }
+.di-yearsem-card .di-semester-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:.65rem; padding:.85rem; background:#f8f9fc; border-radius:.6rem .6rem 0 0; }
+.di-yearsem-card .di-semester-heading { flex:1 0 auto; margin:0; font-size:.8rem; }
+.di-yearsem-card .di-semester-toggle { display:flex; align-items:center; gap:.35rem; width:100%; border:0; border-radius:.25rem; padding:.25rem 0; background:transparent; color:#364152; text-align:left; font:inherit; }
+.di-yearsem-card .di-semester-toggle:hover { color:#696cff; }
+.di-yearsem-card .di-semester-header .btnAddSubject { flex-shrink:0; margin-left:auto; font-size:.72rem; }
+.di-yearsem-card .di-semester-chevron { font-size:1.1rem; flex-shrink:0; transition:transform .15s; }
+.di-yearsem-card .di-semester-toggle[aria-expanded="true"] .di-semester-chevron { transform:rotate(90deg); }
+.di-yearsem-card .di-semester-label { font-weight:600; line-height:1.5; white-space:nowrap; }
+.di-yearsem-card .di-semester-count { color:#718096; font-weight:400; }
+.di-yearsem-card .di-semester-body { padding:0 .85rem .85rem; border-top:1px solid #e0e5ee; }
+.di-yearsem-card .di-semester-table { table-layout:fixed; width:100%; margin:0; }
+.di-yearsem-card .di-semester-table > :not(caption) > * > * { padding:.7rem .2rem; font-size:.75rem; vertical-align:middle; }
+.di-yearsem-card .di-semester-table thead th { color:#718096; font-size:.64rem; font-weight:600; letter-spacing:0; text-transform:none; vertical-align:middle; }
+.di-yearsem-card .di-semester-table th:first-child, .di-yearsem-card .di-semester-table td:first-child { padding-left:0; overflow-wrap:anywhere; }
+.di-yearsem-card .di-semester-table .di-subject-hours { width:36px; text-align:right; font-variant-numeric:tabular-nums; }
+.di-yearsem-card .di-semester-table .di-subject-actions { width:64px; padding-right:0; text-align:right; }
+.di-yearsem-card .di-subject-code { display:block; color:#696cff; font-size:.73rem; font-weight:600; }
+.di-yearsem-card .di-subject-title { display:block; margin-top:.15rem; font-size:.73rem; line-height:1.5; }
+.di-yearsem-card .di-subject-prerequisites { display:block; margin-top:.35rem; color:#718096; font-size:.68rem; line-height:1.5; }
+.di-yearsem-card .di-subject-action-group { display:flex; flex-direction:column; justify-content:center; align-items:flex-end; gap:.2rem; }
+.di-yearsem-card .di-subject-action-group .btn-icon { width:28px; height:28px; }
+.di-yearsem-card .di-semester-table tfoot { border-top:1px solid #dce2ed; font-weight:600; }
+.di-yearsem-card .di-semester-empty { color:#718096; padding:1.5rem .5rem !important; text-align:center; }
+@media(max-width:991.98px) { .di-yearsem-card .di-structure-semesters { grid-template-columns:1fr; } .di-yearsem-card .di-semester-panel { grid-column:1; } }
+@media(max-width:575.98px) { .di-yearsem-card > .card-header, .di-yearsem-card > .card-body { padding:1rem; } .di-yearsem-card .di-semester-body { padding:0 .65rem .65rem; } .di-yearsem-card .di-semester-header { padding:.65rem; } .di-yearsem-card .di-semester-table .di-subject-hours { width:30px; } .di-yearsem-card .di-semester-table .di-subject-actions { width:56px; } }
+@media(pointer:coarse) { .di-yearsem-card .di-subject-action-group .btn-icon, .di-yearsem-card .di-semester-header .btn, .di-yearsem-card .di-semester-toggle { min-height:44px; } .di-yearsem-card .di-subject-action-group .btn-icon { min-width:44px; } }
+@media(prefers-reduced-motion:reduce) { .di-yearsem-card .di-semester-chevron { transition:none; } }

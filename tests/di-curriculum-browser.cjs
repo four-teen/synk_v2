@@ -12,7 +12,7 @@ function check(value,message){if(!value)throw Error(message);checks++;}
 async function main(){
     fs.mkdirSync(temp,{recursive:true});
     const pages={},headers={};
-    const structure=fixture('load_year_sem').body;
+    const structure=fixture('structure_layout').body;
     for(const name of ['manage-programs','manage-subject-masterlist','manage-prospectus','manage-prospectus-browser']){
         const rendered=fixture('page_'+name);
         headers[name]=rendered.header;
@@ -57,6 +57,7 @@ $.ajaxTransport('+*',function(options){
   if(params.save_program||params.save_subject)body='success';
   if(params.update_program||params.update_subject)body='updated';
   if(params.load_header)body='OK|'+program+'|DI Test CMO|2026-2027|';
+  if(params.load_prospectus_by_program){body=JSON.stringify([{prospectus_id:id,program_id:program,cmo_no:'DI Test CMO',effective_sy:'2026-2027',subject_count:1,total_units:4}]);type='application/json';}
   if(params.load_year_sem)body=${JSON.stringify(structure)};
   if(params.load_prospectus_list){body=JSON.stringify([{prospectus_id:id,cmo_no:'DI Test CMO',effective_sy:'2026-2027',program_name:'DI Course',program_code:'DIQA'}]);type='application/json';}
   if(params.get_all_subjects)body='[]';
@@ -156,9 +157,19 @@ $.ajaxTransport('+*',function(options){
             await evaluate(`Swal.close();window.__diReject=false;jQuery('#edit${kind}Modal').modal('hide');void 0`);
         }
         if(name==='manage-prospectus'){
-            // The fixture's selected version deep link exercises the real Admin builder load path.
+            // The fixture's deep link exercises the shared program-first builder.
             await until('document.getElementById("prospectus_id").value!=="" && !!document.querySelector(".btnAddSubject")','Prospectus version did not load.');
             check(await evaluate('document.getElementById("yearSemCard").style.display!=="none"'),'Builder structure stayed hidden.');
+            await until('!!document.querySelector("#programProspectusRows .btnLoadProgramProspectus")','Program versions did not load.');
+            check(await evaluate('!!document.getElementById("btnCreateProspectus") && !document.getElementById("btnSaveHeader") && document.getElementById("loadedCmo").textContent==="DI Test CMO"'),'DI did not use the program-first version layout.');
+            check(await evaluate('document.querySelectorAll(".di-structure-year").length===2 && document.querySelectorAll(".di-semester-panel .collapse.show").length===4'),'Year groups or initially expanded semester panels are missing.');
+            check(await evaluate('getComputedStyle(document.querySelector(".di-structure-semesters")).gridTemplateColumns.split(" ").length===2'),'Semester layout is not two columns on desktop.');
+            const readsBeforeCollapse=await evaluate('window.__diRequests.length');
+            await evaluate('document.querySelector("[data-di-structure-expand=hide]").click()');
+            await until('document.querySelectorAll(".di-semester-panel .collapse:not(.show)").length===4','Collapse all did not close the panels.');
+            await evaluate('document.querySelector("[data-di-structure-expand=show]").click()');
+            await until('document.querySelectorAll(".di-semester-panel .collapse.show").length===4','Expand all did not open the panels independently.');
+            check(await evaluate(`window.__diRequests.length===${readsBeforeCollapse}`),'Display controls sent a curriculum data request.');
             await evaluate('document.querySelector(".btnAddSubject").click()');
             await until('document.getElementById("subjectModal").classList.contains("show")','Builder subject modal did not open.');
             await evaluate('document.getElementById("ps_lec_units").value="3";document.getElementById("ps_lab_units").value="3";document.getElementById("ps_lab_units").dispatchEvent(new Event("input",{bubbles:true}))');
@@ -171,10 +182,11 @@ $.ajaxTransport('+*',function(options){
         }
         await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:false},session);
         check(await evaluate('document.documentElement.scrollWidth<=innerWidth+2'),'DI page overflows at mobile width: '+name);
+        if(name==='manage-prospectus') check(await evaluate('getComputedStyle(document.querySelector(".di-structure-semesters")).gridTemplateColumns.split(" ").length===1'),'Semester panels did not stack on mobile.');
         check((await evaluate('window.__diErrors')).length===0,'DI browser scripts failed: '+name+' '+JSON.stringify(await evaluate('window.__diErrors')));
         check(await evaluate('window.__diRequests.every(r=>r.url.includes("query_di_"))'),'DI sent an Admin API request.');
-        if(process.argv.includes('--screenshot') && (name==='manage-prospectus-browser'||name==='manage-programs')) {
-            const screenshotName=name==='manage-programs'?'di-programs':'di-curriculum';
+        if(process.argv.includes('--screenshot') && (name==='manage-prospectus-browser'||name==='manage-programs'||name==='manage-prospectus')) {
+            const screenshotName=name==='manage-programs'?'di-programs':name==='manage-prospectus'?'di-prospectus-structure':'di-curriculum';
             const mobile=await call('Page.captureScreenshot',{format:'png'},session);
             fs.writeFileSync(path.join(temp,screenshotName+'-mobile.png'),Buffer.from(mobile.data,'base64'));
             await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false},session);
