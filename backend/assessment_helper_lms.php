@@ -213,6 +213,15 @@ function synk_assessment_log_lms(mysqli $lms, int $id, int $userId, string $acti
         VALUES (?,?,?,?,?)', 'iisss', [$id,$userId,$action,json_encode($details, JSON_UNESCAPED_UNICODE),date('Y-m-d H:i:s')]);
 }
 
+// Call with the assessment row locked, before changing settings or question IDs.
+function synk_assessment_preserve_attempts_lms(mysqli $lms, array $record): void
+{
+    if ($record['status'] === 'draft') return;
+    if (!synk_assessment_snapshots_ready_lms($lms)) throw new DomainException('Assessment version storage needs to be prepared before editing published work.', 503);
+    synk_assessment_query_lms($lms, 'UPDATE tbl_lms_assessment_attempts SET assessment_snapshot_json=?
+        WHERE assessment_id=? AND assessment_snapshot_json IS NULL', 'si', [synk_assessment_snapshot_json_lms($record),$record['assessment_id']]);
+}
+
 // The caller owns the transaction so the header, questions, and audit entry commit together.
 function synk_assessment_save_lms(mysqli $lms, array $context, array $input, int $userId): array
 {
@@ -225,11 +234,9 @@ function synk_assessment_save_lms(mysqli $lms, array $context, array $input, int
         if (synk_assessment_id_lms($input['version'] ?? null) !== $before['version']) throw new DomainException('This assessment changed in another tab. Reopen it before saving.', 409);
         if ($before['status'] !== 'draft') {
             synk_assessment_validate_published_lms($record);
-            if (!synk_assessment_snapshots_ready_lms($lms)) throw new DomainException('Assessment version storage needs to be prepared before editing published work.', 503);
             // Assessment-row lock serializes this with student starts/saves and closing.
             // Preserve pre-upgrade attempts before replacing any question IDs or settings.
-            synk_assessment_query_lms($lms, 'UPDATE tbl_lms_assessment_attempts SET assessment_snapshot_json=?
-                WHERE assessment_id=? AND assessment_snapshot_json IS NULL', 'si', [synk_assessment_snapshot_json_lms($before),$id]);
+            synk_assessment_preserve_attempts_lms($lms, $before);
         }
         $version = $before['version'] + 1;
     }
@@ -258,6 +265,26 @@ function synk_assessment_save_lms(mysqli $lms, array $context, array $input, int
         ['version'=>$version, 'grading_period'=>$record['grading_period'], 'question_count'=>count($record['questions']),
             'status'=>$before['status'] ?? 'draft', 'previous_version'=>$before['version'] ?? null]);
     return synk_assessment_detail_lms($lms, $context, $id);
+}
+
+// Schedule-only updates preserve content, question IDs, status, and started attempts.
+// The caller owns the transaction, just as for a full assessment save.
+function synk_assessment_schedule_lms(mysqli $lms, array $context, array $input, int $userId): array
+{
+    $record = synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($input['assessment_id'] ?? null), true);
+    if (!in_array($record['status'], ['draft','published','closed'], true)) throw new DomainException('This assessment has been archived.', 409);
+    if (synk_assessment_id_lms($input['version'] ?? null) !== $record['version']) throw new DomainException('This assessment changed in another tab. Close the schedule and refresh the list before saving.', 409);
+    if (!array_key_exists('opens_at', $input) || !array_key_exists('due_at', $input)) throw new DomainException('Include both the start and end fields. Leave a field blank to remove its date.', 422);
+    $opens = synk_assessment_date_lms($input['opens_at'], 'start date');
+    $due = synk_assessment_date_lms($input['due_at'], 'end date');
+    if ($opens !== null && $due !== null && $due <= $opens) throw new DomainException('The end must be after the start.', 422);
+    synk_assessment_preserve_attempts_lms($lms, $record);
+    synk_assessment_query_lms($lms, 'UPDATE tbl_lms_assessments SET opens_at=?,due_at=?,version=version+1,updated_at=? WHERE assessment_id=?',
+        'sssi', [$opens,$due,date('Y-m-d H:i:s'),$record['assessment_id']]);
+    synk_assessment_log_lms($lms, $record['assessment_id'], $userId, 'scheduled',
+        ['version'=>$record['version']+1, 'previous_version'=>$record['version'], 'opens_at'=>$opens, 'due_at'=>$due,
+            'previous_opens_at'=>$record['opens_at'], 'previous_due_at'=>$record['due_at']]);
+    return synk_assessment_detail_lms($lms, $context, $record['assessment_id']);
 }
 
 function synk_assessment_duplicate_lms(mysqli $lms, array $context, array $input, int $userId): array

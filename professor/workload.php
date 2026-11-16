@@ -145,7 +145,7 @@ $professorPortalFacultyStatusLabel = !$facultyIsLinked ? 'Needs faculty link'
                                 <p>Next deadline: <?php if ($classSummary['next_deadline'] !== null):
                                     $deadline = $classSummary['next_deadline'];
                                     $deadlineDate = new DateTimeImmutable($deadline['due_at'], new DateTimeZone('Asia/Manila'));
-                                ?><?= synk_professor_h($deadline['title']) ?> &middot; <time datetime="<?= synk_professor_h($deadlineDate->format(DateTimeInterface::ATOM)) ?>" title="<?= synk_professor_h($deadlineDate->format('M j, Y g:i A') . ' (Philippine time)') ?>"><?= synk_professor_h($deadlineDate->format('M j')) ?></time><?php else: ?>None scheduled<?php endif; ?></p>
+                                ?><?= synk_professor_h($deadline['title']) ?> &middot; <time datetime="<?= synk_professor_h($deadlineDate->format(DateTime::ATOM)) ?>" title="<?= synk_professor_h($deadlineDate->format('M j, Y g:i A') . ' (Philippine time)') ?>"><?= synk_professor_h($deadlineDate->format('M j')) ?></time><?php else: ?>None scheduled<?php endif; ?></p>
                               <?php else: ?>
                                 <p>Activity summary unavailable</p>
                                 <p>Next deadline: Unavailable</p>

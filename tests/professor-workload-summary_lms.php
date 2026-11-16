@@ -66,7 +66,9 @@ try {
     $check(synk_professor_workload_summaries_lms($conn, $faculty + 1, $classes, $ay, $semester) === [], 'Rows from another faculty context must be rejected.');
     $check(synk_professor_workload_summaries_lms($conn, $faculty, $classes, $ay + 1, $semester) === [], 'Rows from another academic year must be rejected.');
     $check(synk_professor_workload_summaries_lms($conn, $faculty, $classes, $ay, 4) === [], 'Invalid semester contexts must be rejected.');
-    if (($argv[1] ?? '') === '--render') {
+    // Always render the real page, including a future deadline. Aggregate-only
+    // checks miss runtime failures in the footer (notably on the PHP 7.1 server).
+    $render = static function () use ($conn, $fixture, $ay, $semester): string {
         session_save_path(dirname(__DIR__) . '/.tmp');
         session_id('workloadsummaryqa' . bin2hex(random_bytes(10)));
         session_start();
@@ -77,17 +79,58 @@ try {
         $_SERVER['PHP_SELF'] = '/synk/professor/workload.php';
         $_SERVER['SCRIPT_FILENAME'] = dirname(__DIR__) . '/professor/workload.php';
         $_SERVER['SCRIPT_NAME'] = '/synk/professor/workload.php';
+        $previousDirectory = getcwd();
         chdir(dirname(__DIR__) . '/professor');
         $bufferLevel = ob_get_level();
         ob_start();
-        require 'workload.php';
-        $html = '';
-        while (ob_get_level() > $bufferLevel) $html = ob_get_clean() . $html;
-        if (file_put_contents($argv[2], $html) === false) throw new RuntimeException('Could not write the workload summary preview.');
-        session_destroy();
+        try {
+            require 'workload.php';
+            $html = '';
+            while (ob_get_level() > $bufferLevel) $html = ob_get_clean() . $html;
+            return $html;
+        } finally {
+            while (ob_get_level() > $bufferLevel) ob_end_clean();
+            chdir($previousDirectory);
+        }
+    };
+    $html = $render();
+    $check(!preg_match('/Fatal error|Parse error|xdebug-error|Warning(?:<\/b>)?:/i', $html)
+        && strpos($html, '</html>') !== false, 'The full workload page must render without PHP errors when a class has an upcoming deadline.');
+    $dom = new DOMDocument(); @$dom->loadHTML($html); $xpath = new DOMXPath($dom);
+    $footers = $xpath->query('//footer[contains(@class,"workload-class-footer")]');
+    $check($footers->length === 2, 'An upcoming deadline must not prevent later subject card footers from rendering.');
+    $deadlineNode = $xpath->query('.//time', $footers->item(0))->item(0);
+    $expectedDate = new DateTimeImmutable($expected['next_deadline']['due_at'], new DateTimeZone('Asia/Manila'));
+    $check($deadlineNode !== null && $deadlineNode->getAttribute('datetime') === $expectedDate->format('Y-m-d\TH:i:sP')
+        && $deadlineNode->textContent === $expectedDate->format('M j')
+        && $deadlineNode->getAttribute('title') === $expectedDate->format('M j, Y g:i A') . ' (Philippine time)',
+        'The deadline must retain its Philippine date, full tooltip and ISO timestamp on the deployment PHP version.');
+    $check(strpos($footers->item(0)->textContent, '6 activities') !== false
+        && strpos($footers->item(0)->textContent, '2 drafts') !== false
+        && strpos($footers->item(0)->textContent, 'Next deadline: Assignment 3') !== false,
+        'The footer must preserve scoped counts and the selected published deadline.');
+    $check($xpath->query('.//time', $footers->item(1))->length === 0
+        && strpos($footers->item(1)->textContent, '0 activities') !== false
+        && strpos($footers->item(1)->textContent, '0 drafts') !== false
+        && strpos($footers->item(1)->textContent, 'None scheduled') !== false,
+        'Classes without activities must retain zero counts and the unscheduled footer.');
+    foreach ([$first, $second] as $index => $offering) {
+        $links = $xpath->query('.//a[contains(@class,"workload-manage-class-lms")]', $footers->item($index));
+        $check($links->length === 1, 'Each complete footer must retain its Manage Class link.');
+        $query = []; parse_str((string)parse_url($links->item(0)->getAttribute('href'), PHP_URL_QUERY), $query);
+        $check((int)($query['offering_id'] ?? 0) === $offering && (int)($query['ay_id'] ?? 0) === $ay
+            && (int)($query['semester'] ?? 0) === $semester
+            && preg_match('/^[a-f0-9]{64}$/D', $query['signature'] ?? '') === 1,
+            'Deadline rendering must preserve each class link and its signed term context.');
+        synk_professor_require_class_link_lms($query, $query, 'overview', $faculty);
     }
+    if (($argv[1] ?? '') === '--render'
+        && file_put_contents($argv[2], $html) === false) throw new RuntimeException('Could not write the workload summary preview.');
     $check($lms->query('SHOW TABLES')->fetch_all(MYSQLI_NUM) === $tablesBefore, 'Reading summaries must not create LMS storage.');
-} finally { $lms->rollback(); $conn->rollback(); }
+} finally {
+    if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
+    $lms->rollback(); $conn->rollback();
+}
 $check($conn->query('CHECKSUM TABLE ' . $coreTables)->fetch_all(MYSQLI_ASSOC) === $coreBefore, 'Core academic, student, account, and workload data must be preserved.');
 $check($lms->query('CHECKSUM TABLE tbl_lms_assessments')->fetch_all(MYSQLI_ASSOC) === $lmsBefore, 'LMS activity fixtures must roll back.');
-echo 'Professor workload LMS summaries: ', $checks, ' checks passed. Fixtures rolled back.', PHP_EOL;
+echo 'Professor workload LMS summaries: ', $checks, ' checks passed on PHP ', PHP_VERSION, '. Fixtures rolled back.', PHP_EOL;

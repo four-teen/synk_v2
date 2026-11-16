@@ -21,7 +21,39 @@ async function until(expression) {
   }
   throw Error('Browser condition timed out: ' + expression);
 }
-async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); }
+async function click(selector) {
+  await evaluate(`(() => { const button=document.querySelector(${JSON.stringify(selector)}),menu=button.closest('.assessment-card-menu[hidden]');if(menu)menu.previousElementSibling.click();button.click(); })()`);
+}
+async function mobileCardActions(status) {
+  const viewport=await evaluate('({width:innerWidth,height:innerHeight})');
+  const expected=status==='draft'?['duplicate','archive']:status==='published'?['preview','duplicate','close']:['preview','duplicate'];
+  for(const width of [767,575,390,320]) {
+    await call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600},session);await delay(100);
+    await until('!!document.querySelector(".assessment-mobile-actions")');
+    await evaluate('document.querySelector(".assessment-list-card").scrollIntoView({block:"center",behavior:"instant"});if(document.querySelector(".swal2-toast"))Swal.close();');
+    const layout=await evaluate('(()=>{const toolbar=document.querySelector(".assessment-mobile-actions"),buttons=[...toolbar.querySelectorAll(".assessment-card-action")],rects=buttons.map(button=>button.getBoundingClientRect()),card=toolbar.closest("article").getBoundingClientRect();return {labels:buttons.map(button=>button.textContent.trim()),sameRow:rects.every(r=>Math.abs(r.top-rects[0].top)<1),equalWidths:rects.every(r=>Math.abs(r.width-rects[0].width)<1),touchSized:rects.every(r=>r.width>=44&&r.height>=44),fullWidth:toolbar.getBoundingClientRect().width>card.width-50,fits:document.documentElement.scrollWidth<=innerWidth,icons:buttons.every(button=>!!button.querySelector(".bx")&&!!button.getAttribute("aria-label"))};})()');
+    check(JSON.stringify(layout.labels)===JSON.stringify(['Edit','Schedule',status==='draft'?'Preview':'Responses','More'])&&layout.sameRow&&layout.equalWidths&&layout.touchSized&&layout.fullWidth&&layout.fits&&layout.icons,'Compact '+status+' actions use one full-width labeled row at '+width+'px: '+JSON.stringify(layout));
+    await click('[data-assessment-more]');
+    const menu=await evaluate('(()=>{const more=document.querySelector("[data-assessment-more]"),menu=document.getElementById(more.getAttribute("aria-controls")),r=menu.getBoundingClientRect();return {actions:[...menu.querySelectorAll("button")].map(button=>button.dataset.action),expanded:more.getAttribute("aria-expanded"),visible:!menu.hidden,fits:r.left>=0&&r.right<=innerWidth,focused:document.activeElement===menu.querySelector("button"),danger:!menu.querySelector(".is-danger")||getComputedStyle(menu.querySelector(".is-danger")).color==="rgb(181, 57, 62)"};})()');
+    check(JSON.stringify(menu.actions)===JSON.stringify(expected)&&menu.expanded==='true'&&menu.visible&&menu.fits&&menu.focused&&menu.danger,'The '+status+' More menu exposes the correct actions and fits '+width+'px.');
+    await evaluate('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"End",bubbles:true,cancelable:true}))');
+    check(await evaluate('document.activeElement===document.querySelector(".assessment-card-menu:not([hidden]) button:last-child")'),'End moves to the final menu action.');
+    await evaluate('document.activeElement.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true}))');
+    check(await evaluate('document.querySelector(".assessment-card-menu").hidden&&document.activeElement.hasAttribute("data-assessment-more")&&document.activeElement.getAttribute("aria-expanded")==="false"'),'Escape closes More and restores focus.');
+    await click('[data-assessment-more]');await click('#assessmentSearch');
+    check(await evaluate('document.querySelector(".assessment-card-menu").hidden'),'Tapping outside dismisses the card menu.');
+    if(status==='published'&&(width===390||width===320)) {
+      const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-compact-actions-'+width+'_lms.png'),Buffer.from(shot.data,'base64'));
+      await click('[data-assessment-more]');
+      const menuShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-compact-menu-'+width+'_lms.png'),Buffer.from(menuShot.data,'base64'));
+      await click('#assessmentSearch');
+    }
+  }
+  await click('[data-assessment-more]');
+  await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);await delay(100);
+  check(await evaluate('!document.querySelector(".assessment-mobile-actions,.assessment-card-menu")&&!!document.querySelector(".assessment-list-actions")&&!document.querySelector(".assessment-list-actions .bx")'),'Resizing to desktop restores the original text controls without retaining a popup.');
+  await call('Emulation.setDeviceMetricsOverride',{...viewport,deviceScaleFactor:1,mobile:viewport.width<600},session);await delay(100);
+}
 async function answerDialog(confirmed = true) {
   await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');
   await click(confirmed ? '.swal2-confirm' : '.swal2-cancel');
@@ -37,6 +69,11 @@ function api(request) {
   const payload = request.payload || {}, found = records.find(item => item.assessment_id === payload.assessment_id);
   if (request.action === 'list') return { ok:true, assessments:records.filter(item=>item.status!=='archived').map(item=>({ ...clone(item), question_count:item.questions.length, student_count:28, answered_count:item.status==='draft'?0:12 })) };
   if (request.action === 'detail') return { ok:true, assessment:clone(found) };
+  if (request.action === 'schedule') {
+    if (conflict) { conflict=false; return { status:409, ok:false, message:'This assessment changed in another tab. Close the schedule and refresh the list before saving.' }; }
+    found.opens_at=payload.opens_at;found.due_at=payload.due_at;found.version++;
+    return {ok:true,assessment:clone(found)};
+  }
   if (request.action === 'save' || request.action === 'publish') {
     if (conflict) { conflict=false; return { status:409, ok:false, message:'This draft changed in another tab. Reopen it before saving.' }; }
     const record = { ...clone(payload), assessment_id:payload.assessment_id || ++nextId, version:found ? found.version+1 : 1,
@@ -179,6 +216,7 @@ async function main() {
   await click('#assessmentBack');
   check(await evaluate('document.querySelector("#assessmentFinalCount").textContent==="1" && !document.querySelector("#assessmentList img")'),'The Final list count updates and titles remain escaped.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("0") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28")'),'Draft cards show zero answered and the actual roster total.');
+  await mobileCardActions('draft');
   await click('[data-action="duplicate"]');await until('document.querySelector("#assessmentDuplicateModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentDuplicateModal"))._isTransitioning');
   await fill('#assessmentDuplicatePeriod','midterm','change');duplicateFailure=true;await click('#assessmentDuplicateForm [type="submit"]');
   await until('document.querySelector("#swal2-html-container")?.textContent.includes("Refresh before duplicating")');
@@ -233,6 +271,7 @@ async function main() {
   await click('#assessmentPublishBottom');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(records[2].status==='published'&&records[2].instructions==='Write your project explanation.','Publish saves the current contents and exposes the published state.');
   const publishedVersion=records[2].version;
+  await mobileCardActions('published');
   check(await evaluate('!!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer editing, response review and closing.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("12") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28") && getComputedStyle(document.querySelector(".assessment-count-answered")).color==="rgb(21, 128, 61)" && getComputedStyle(document.querySelector(".assessment-count-total")).color==="rgb(185, 28, 28)"'),'Published cards display answered students in green and total students in red.');
   for(const width of [390,320]){
@@ -266,6 +305,7 @@ async function main() {
   await click('#assessmentSubmissionsModal .btn-close');await until('!document.querySelector("#assessmentSubmissionsModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentSubmissionsModal"))._isTransitioning');
   await click('[data-action=close]');await answerDialog(false);check(records[2].status==='published','Canceling Close leaves the assessment published.');
   await click('[data-action=close]');await answerDialog();await until('document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');check(records[2].status==='closed','The professor can close a published assessment.');
+  await mobileCardActions('closed');
   await click('[data-action=edit]');await until('!document.querySelector("#assessmentEditor").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(await evaluate('document.querySelector("#assessmentPublish").textContent==="Reopen" && !document.querySelector("#assessmentPublish").hidden && document.querySelector("#assessmentSave").textContent==="Save changes"'),'Closed assessments remain editable and provide an explicit Reopen action.');
   await fill('#assessmentTopic','Closed assessment correction');await click('#assessmentSave');await answerDialog();await until(`document.querySelector("#assessmentSaveState").textContent.includes("version ${publishedVersion+3}") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"`);
@@ -273,6 +313,36 @@ async function main() {
   await click('#assessmentPublish');await answerDialog(false);check(records[2].status==='closed','Canceling Reopen keeps the assessment closed.');
   await click('#assessmentPublish');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(records[2].status==='published','Reopen explicitly publishes the updated assessment for new attempts.');
+  await click('[data-action=schedule]');
+  await until('document.querySelector("#assessmentScheduleModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning');
+  check(await evaluate('document.querySelector("#assessmentScheduleStart").value==="2026-11-15T08:00" && document.querySelector("#assessmentScheduleEnd").value==="2026-11-16T08:00" && document.querySelector("#assessmentScheduleNote").textContent.includes("Started attempts keep their original deadline") && document.activeElement.id==="assessmentScheduleStart"'),'The shortcut opens the current dates with the original-attempt rule and keyboard focus.');
+  const scheduleCount=requests.filter(request=>request.action==='schedule').length, scheduleVersion=records[2].version;
+  await fill('#assessmentScheduleStart','2026-12-01T08:00');await fill('#assessmentScheduleEnd','2026-12-01T07:00');
+  await click('#assessmentScheduleForm [type=submit]');await until('document.querySelector("#swal2-html-container")?.textContent.includes("end must be after the start")');
+  check(requests.filter(request=>request.action==='schedule').length===scheduleCount,'Invalid schedule ordering is caught before the request.');await answerDialog();
+  await fill('#assessmentScheduleEnd','2026-12-01T09:00');conflict=true;await click('#assessmentScheduleForm [type=submit]');
+  await until('document.querySelector("#swal2-html-container")?.textContent.includes("another tab")');await answerDialog();
+  check(await evaluate('document.querySelector("#assessmentScheduleModal").classList.contains("show") && document.querySelector("#assessmentScheduleStart").value==="2026-12-01T08:00" && !document.querySelector("#assessmentScheduleForm [type=submit]").disabled'),'A failed schedule keeps both entered dates and allows retry.');
+  for(const width of [1440,390,320]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:width<500},session);await delay(100);
+    check(await evaluate('(()=>{const r=document.querySelector("#assessmentScheduleModal .modal-content").getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && document.querySelector("#assessmentScheduleStart").getBoundingClientRect().width>200 && document.documentElement.scrollWidth<=innerWidth;})()'),'The schedule form fits at '+width+'px.');
+  }
+  const scheduleShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-schedule-mobile_lms.png'),Buffer.from(scheduleShot.data,'base64'));
+  await click('#assessmentScheduleForm [type=submit]');
+  await until('!document.querySelector("#assessmentScheduleModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(records[2].status==='published'&&records[2].version===scheduleVersion+1&&records[2].due_at==='2026-12-01T09:00'&&records[2].questions[0].prompt==='Corrected published question','The schedule shortcut saves dates while retaining status and questions.');
+  await until('document.activeElement.dataset.action==="schedule"');
+  check(await evaluate('document.querySelector(".assessment-list-meta").textContent.includes("Starts Dec 1") && document.querySelector(".assessment-list-meta").textContent.includes("Ends Dec 1") && document.activeElement.dataset.action==="schedule"'),'Saved start/end dates appear immediately on the card and focus returns to its shortcut.');
+  await click('[data-action=schedule]');await until('!bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning');
+  check(await evaluate('document.querySelector("#assessmentScheduleStart").value==="2026-12-01T08:00" && document.querySelector("#assessmentScheduleEnd").value==="2026-12-01T09:00"'),'Reopening the shortcut loads saved dates.');
+  await fill('#assessmentScheduleEnd','2026-12-02T09:00');await click('#assessmentScheduleModal [data-bs-dismiss=modal]');
+  await until('!document.querySelector("#assessmentScheduleModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning');
+  check(records[2].due_at==='2026-12-01T09:00','Canceling the shortcut leaves the saved schedule unchanged.');
+  await until('document.activeElement.dataset.action==="schedule"');
+  await click('[data-action=schedule]');await until('!bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning');
+  await fill('#assessmentScheduleStart','');await fill('#assessmentScheduleEnd','');await click('#assessmentScheduleForm [type=submit]');
+  await until('!document.querySelector("#assessmentScheduleModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentScheduleModal"))._isTransitioning && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(records[2].opens_at===null&&records[2].due_at===null&&await evaluate('document.querySelector(".assessment-list-meta").textContent.includes("No start date") && document.querySelector(".assessment-list-meta").textContent.includes("No end date")'),'Clearing the shortcut removes both dates and updates the card.');
   await fill('#assessmentSearch','no-such-assessment');
   check(await evaluate('document.querySelector("#assessmentList").innerText.includes("No matching assessments")'),'Search distinguishes no matches from an empty grading period.');
   await fill('#assessmentSearch','');await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);
@@ -285,6 +355,10 @@ async function main() {
 }
 main().catch(async error=>{
   console.error(error.stack);
+  if(call&&ws?.readyState===WebSocket.OPEN){try{
+    console.error(JSON.stringify(await evaluate('(()=>{const modal=document.querySelector("#assessmentScheduleModal"),input=document.querySelector("#assessmentScheduleStart");return {scheduleClass:modal?.className,modalWidth:modal?.querySelector(".modal-content").getBoundingClientRect().width,inputWidth:input?.getBoundingClientRect().width,viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,cardDates:document.querySelector(".assessment-list-meta")?.textContent,focus:document.activeElement.outerHTML};})()')));
+    const failedShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-browser-failure_lms.png'),Buffer.from(failedShot.data,'base64'));
+  }catch{}}
   if(call&&ws?.readyState===WebSocket.OPEN){try{console.error(JSON.stringify(await evaluate('({busy:document.querySelector("#assessmentWorkspace")?.getAttribute("aria-busy"),libraryHidden:document.querySelector("#assessmentLibrary")?.hidden,editorHidden:document.querySelector("#assessmentEditor")?.hidden,dialog:document.querySelector(".swal2-popup:not(.swal2-toast)")?.textContent,submissions:document.querySelector("#assessmentSubmissionsBody")?.textContent,modalClass:document.querySelector("#assessmentSubmissionsModal")?.className})')));}catch{}}
   console.error(JSON.stringify({errors,requests:requests.slice(-5).map(request=>({action:request.action,payload:request.payload}))}));process.exitCode=1;
 }).finally(async()=>{
