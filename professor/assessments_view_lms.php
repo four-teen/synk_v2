@@ -69,6 +69,19 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
         <div class="modal-footer"><span class="assessment-help me-auto">Preview only. Responses are not recorded.</span><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div>
       </div></div>
     </div>
+    <div class="modal fade" id="assessmentScheduleModal" tabindex="-1" aria-labelledby="assessmentScheduleTitle" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="assessmentScheduleForm">
+        <div class="modal-header"><h5 class="modal-title" id="assessmentScheduleTitle">Assessment schedule</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close schedule"></button></div>
+        <div class="modal-body">
+          <p id="assessmentScheduleName" class="assessment-plain-text"></p>
+          <div class="mb-3"><label class="form-label" for="assessmentScheduleStart">Start <span class="text-muted">(optional)</span></label><input class="form-control" id="assessmentScheduleStart" type="datetime-local" min="2000-01-01T00:00" max="2100-12-31T23:59" aria-describedby="assessmentScheduleHelp"></div>
+          <div class="mb-3"><label class="form-label" for="assessmentScheduleEnd">End <span class="text-muted">(optional)</span></label><input class="form-control" id="assessmentScheduleEnd" type="datetime-local" min="2000-01-01T00:00" max="2100-12-31T23:59" aria-describedby="assessmentScheduleHelp"></div>
+          <p class="assessment-help mb-2" id="assessmentScheduleHelp">Dates use Philippine time (Asia/Manila). Start is when students can open the assessment; end is its due date. Leave a field blank to remove that date.</p>
+          <p class="assessment-help mb-0" id="assessmentScheduleNote"></p>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save schedule</button></div>
+      </form></div>
+    </div>
     <div class="modal fade" id="assessmentDuplicateModal" tabindex="-1" aria-labelledby="assessmentDuplicateTitle" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered"><form class="modal-content" id="assessmentDuplicateForm">
         <div class="modal-header"><h5 class="modal-title" id="assessmentDuplicateTitle">Duplicate assessment</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>

@@ -66,6 +66,15 @@ $sidebarSections = [
                         'pages' => ['manage-term-data.php'],
                     ],
                     [
+                        'key' => 'student_evaluation_reset',
+                        'href' => 'student-evaluation-reset.php',
+                        'icon_bg' => 'bg-label-warning',
+                        'icon' => 'bx-eraser',
+                        'title' => 'Student Evaluation Reset',
+                        'description' => 'Review and clear student evaluations for one college and term',
+                        'pages' => ['student-evaluation-reset.php'],
+                    ],
+                    [
                         'key' => 'database_backup',
                         'href' => 'database-backup.php',
                         'icon_bg' => 'bg-label-success',

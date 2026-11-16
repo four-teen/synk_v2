@@ -11,10 +11,13 @@
   const labels = { quiz:'Quiz', exam:'Exam', assignment:'Assignment', multiple_choice:'Multiple choice', true_false:'True / False', short_answer:'Short answer', essay:'Essay' };
   const periods = { midterm:'Midterm', final:'Final' };
   const icons = { quiz:'bx-list-check', exam:'bx-edit-alt', assignment:'bx-task' };
-  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, preview:null, duplicate:null, sequence:0 };
+  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, preview:null, duplicate:null, schedule:null, sequence:0 };
   const previewModal = new bootstrap.Modal($('assessmentPreviewModal'));
   const duplicateModal = new bootstrap.Modal($('assessmentDuplicateModal'));
   const submissionsModal = new bootstrap.Modal($('assessmentSubmissionsModal'));
+  const scheduleModal = new bootstrap.Modal($('assessmentScheduleModal'));
+  const compactCards = window.matchMedia('(max-width:767.98px)');
+  let cardMenu = null, cardActionOrigin = null;
   const stamp = value => value ? String(value).replace(' ', 'T').slice(0,16) : '';
   const formatQuestion = window.synkLmsContent.formatQuestion;
   function updateQuestionPreview(node) {
@@ -99,7 +102,38 @@
         <span class="${total === null ? 'assessment-count-unavailable' : 'assessment-count-total'}">${total === null ? '&mdash;' : number(total)}<span class="visually-hidden">${total === null ? ' student count unavailable' : ' total students'}</span></span>
       </div><p aria-hidden="true">answered / students</p></div></div>`;
   }
+  function closeCardMenu(returnFocus = false) {
+    if (!cardMenu) return;
+    const trigger = cardMenu.previousElementSibling;
+    cardMenu.hidden = true; trigger.setAttribute('aria-expanded', 'false'); cardMenu = null;
+    if (returnFocus) trigger.focus({ preventScroll:true });
+  }
+  function focusCardAction(origin) {
+    if (!origin || $('assessmentLibrary').hidden) return;
+    const list = $('assessmentList');
+    const button = list.querySelector(`[data-action="${origin.action}"][data-id="${origin.id}"]`);
+    const target = button && !button.closest('[hidden]') ? button : list.querySelector(`[data-assessment-more][data-id="${origin.id}"]`) || list.querySelector(`[data-action="edit"][data-id="${origin.id}"]`);
+    target?.focus({ preventScroll:true });
+  }
+  function cardActions(row) {
+    if (!compactCards.matches) return `<div class="assessment-list-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">${row.status === 'draft' ? 'Edit draft' : 'Edit assessment'}</button><button type="button" class="btn btn-sm btn-outline-primary" data-action="schedule" data-id="${row.assessment_id}">Set schedule</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div>`;
+    const actionButton = (action, label, icon, caption, menu = false) => `<button type="button" class="${menu ? 'assessment-card-menu-item' : 'assessment-card-action'}${['close','archive'].includes(action) ? ' is-danger' : ''}" data-action="${action}" data-id="${row.assessment_id}" aria-label="${label}"${menu ? ' role="menuitem" tabindex="-1"' : ''}><i class="bx ${icon}" aria-hidden="true"></i><span>${caption || label}</span></button>`;
+    const draft = row.status === 'draft', menuId = `assessmentCardMenu${row.assessment_id}`;
+    return `<div class="assessment-mobile-actions" role="group" aria-label="Assessment actions">
+      ${actionButton('edit', draft ? 'Edit draft' : 'Edit assessment', 'bx-edit-alt', 'Edit')}
+      ${actionButton('schedule', 'Set assessment schedule', 'bx-calendar', 'Schedule')}
+      ${draft ? actionButton('preview', 'Preview assessment', 'bx-show', 'Preview') : actionButton('submissions', 'Student responses', 'bx-group', 'Responses')}
+      <div class="assessment-card-more"><button type="button" class="assessment-card-action" data-assessment-more data-id="${row.assessment_id}" id="${menuId}Toggle" aria-label="More assessment actions" aria-haspopup="menu" aria-expanded="false" aria-controls="${menuId}"><i class="bx bx-dots-horizontal-rounded" aria-hidden="true"></i><span>More</span></button>
+        <div class="assessment-card-menu" id="${menuId}" role="menu" aria-labelledby="${menuId}Toggle" hidden>
+          ${!draft ? actionButton('preview', 'Preview assessment', 'bx-show', null, true) : ''}
+          ${actionButton('duplicate', 'Duplicate assessment', 'bx-copy', null, true)}
+          ${draft ? actionButton('archive', 'Archive draft', 'bx-archive', null, true) : row.status === 'published' ? actionButton('close', 'Close assessment', 'bx-x-circle', null, true) : ''}
+        </div>
+      </div>
+    </div>`;
+  }
   function renderList() {
+    closeCardMenu();
     for (const period of Object.keys(periods)) {
       const count = state.rows.filter(row => row.grading_period === period).length;
       $(period === 'midterm' ? 'assessmentMidtermCount' : 'assessmentFinalCount').textContent = number(count);
@@ -121,8 +155,8 @@
     $('assessmentList').innerHTML = rows.map(row => `<article class="card assessment-list-card">
       <span class="assessment-list-icon"><i class="bx ${icons[row.assessment_type] || 'bx-task'}" aria-hidden="true"></i></span>
       <div class="assessment-list-main"><div class="assessment-list-summary"><div class="assessment-list-details"><div class="assessment-list-labels"><span class="badge bg-label-primary">${escape(labels[row.assessment_type])}</span><span class="badge bg-label-secondary">${escape(row.status === 'draft' ? 'Draft' : row.status)}</span>${row.topic ? `<span class="text-muted">${escape(row.topic)}</span>` : ''}</div>
-      <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.due_at ? 'Due ' + escape(dateLabel(row.due_at)) : 'No due date'}</span></div></div>${participation(row)}</div>
-      <div class="assessment-list-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">${row.status === 'draft' ? 'Edit draft' : 'Edit assessment'}</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div></div></article>`).join('');
+      <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.opens_at ? 'Starts ' + escape(dateLabel(row.opens_at)) : 'No start date'}</span><span>${row.due_at ? 'Ends ' + escape(dateLabel(row.due_at)) : 'No end date'}</span></div></div>${participation(row)}</div>
+      ${cardActions(row)}</div></article>`).join('');
   }
   async function refresh() {
     const data = await api('list'); state.rows = data.assessments; renderList();
@@ -381,9 +415,28 @@
   $('assessmentPreviewBottom').addEventListener('click', () => showPreview(readDraft()));
   $('assessmentShowAnswers').addEventListener('change', renderPreview);
   $('assessmentList').addEventListener('click', async event => {
+    const more = event.target.closest('[data-assessment-more]');
+    if (more && !state.busy) {
+      const menu = more.nextElementSibling, opening = menu.hidden;
+      closeCardMenu();
+      if (opening) { cardMenu = menu; menu.hidden = false; more.setAttribute('aria-expanded', 'true'); menu.querySelector('button:not(:disabled)')?.focus(); }
+      return;
+    }
     const button = event.target.closest('[data-action]'); if (!button || state.busy) return;
     const row = state.rows.find(item => item.assessment_id === Number(button.dataset.id)); if (!row) return;
     const action = button.dataset.action;
+    cardActionOrigin = { id:row.assessment_id, action };
+    closeCardMenu(true);
+    if (action === 'schedule') {
+      state.schedule = row;
+      $('assessmentScheduleModal').dataset.assessmentId = row.assessment_id;
+      $('assessmentScheduleName').textContent = row.title;
+      $('assessmentScheduleStart').value = stamp(row.opens_at);
+      $('assessmentScheduleEnd').value = stamp(row.due_at);
+      $('assessmentScheduleNote').textContent = row.status === 'draft' ? 'Saving the schedule keeps this assessment a private draft.' : 'Changes apply to students who have not started. Started attempts keep their original deadline.' + (row.status === 'closed' ? ' This assessment stays closed; use Edit assessment to reopen it.' : ' This assessment stays published.');
+      $('assessmentScheduleForm').querySelectorAll('.is-invalid').forEach(field => field.classList.remove('is-invalid'));
+      scheduleModal.show(); return;
+    }
     if (action === 'close') {
       if (!await feedback.confirm({title:'Close assessment?',text:'Students will no longer be able to start or change responses. Saved work will be retained.',confirmText:'Close assessment',danger:true})) return;
       task(async () => { await api('close',{assessment_id:row.assessment_id,version:row.version});await refresh();notice('Assessment closed.'); });return;
@@ -415,6 +468,34 @@
       else { notice(); openEditor(data.assessment); }
     });
   });
+  $('assessmentList').addEventListener('keydown', event => {
+    if (!cardMenu) {
+      const more = event.target.closest('[data-assessment-more]');
+      if (more && ['ArrowDown','ArrowUp'].includes(event.key) && !state.busy) {
+        event.preventDefault(); more.click();
+        if (event.key === 'ArrowUp') cardMenu?.querySelector('button:last-child')?.focus();
+      }
+      return;
+    }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeCardMenu(true); return; }
+    if (event.key === 'Tab') { closeCardMenu(true); return; }
+    const items = [...cardMenu.querySelectorAll('button:not(:disabled)')];
+    const index = items.indexOf(document.activeElement);
+    if (['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    }
+  });
+  document.addEventListener('click', event => { if (cardMenu && !cardMenu.parentElement.contains(event.target)) closeCardMenu(); });
+  compactCards.addEventListener('change', () => {
+    const focused = document.activeElement;
+    const origin = $('assessmentList').contains(focused) ? { id:Number(focused.dataset.id), action:focused.dataset.action || 'more' } : null;
+    renderList(); focusCardAction(origin);
+  });
+  for (const id of ['assessmentPreviewModal','assessmentDuplicateModal','assessmentSubmissionsModal']) {
+    $(id).addEventListener('hidden.bs.modal', () => focusCardAction(cardActionOrigin));
+  }
   $('assessmentDuplicateForm').addEventListener('submit', event => {
     event.preventDefault(); if (!state.duplicate || state.busy) return;
     const row = state.duplicate, period = $('assessmentDuplicatePeriod').value;
@@ -423,7 +504,23 @@
       duplicateModal.hide(); state.period = period; await refresh(); openEditor(data.assessment); notice('Copy created as a private draft.');
     });
   });
-  feedback.validation($('assessmentForm')); feedback.validation($('assessmentDuplicateForm'));
+  $('assessmentScheduleModal').addEventListener('shown.bs.modal', () => $('assessmentScheduleStart').focus());
+  $('assessmentScheduleModal').addEventListener('hide.bs.modal', event => { if (state.busy && state.schedule) event.preventDefault(); });
+  $('assessmentScheduleModal').addEventListener('hidden.bs.modal', () => {
+    state.schedule = null;
+    $('assessmentList').querySelector(`[data-action="schedule"][data-id="${$('assessmentScheduleModal').dataset.assessmentId}"]`)?.focus({ preventScroll:true });
+  });
+  $('assessmentScheduleForm').addEventListener('submit', event => {
+    event.preventDefault(); if (!state.schedule || state.busy) return;
+    const row = state.schedule, opens = $('assessmentScheduleStart').value || null, due = $('assessmentScheduleEnd').value || null;
+    if (opens && due && due <= opens) { notice('The end must be after the start.', true); return; }
+    task(async () => {
+      const data = await api('schedule', { assessment_id:row.assessment_id, version:row.version, opens_at:opens, due_at:due });
+      state.rows = state.rows.map(item => item.assessment_id === row.assessment_id ? { ...item, ...data.assessment } : item);
+      renderList(); state.schedule = null; scheduleModal.hide(); notice('Assessment schedule saved.');
+    });
+  });
+  feedback.validation($('assessmentForm')); feedback.validation($('assessmentDuplicateForm')); feedback.validation($('assessmentScheduleForm'));
   feedback.guardNavigation(() => state.dirty,() => { state.dirty = false; },'Your unsaved assessment changes will be discarded.');
   window.addEventListener('beforeunload', event => { if (state.dirty) { event.preventDefault(); event.returnValue = ''; } });
   window.addEventListener('resize', positionFloatingActions);

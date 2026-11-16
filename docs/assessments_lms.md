@@ -10,6 +10,11 @@ The workspace supports private authoring, publishing, and enrolled student respo
 - Multiple choice (2–6 choices), True/False, short answer (accepted alternatives),
   and essay questions, with ordering and duplication.
 - Optional opening date, due date and quiz/exam time limit in Philippine time.
+- Set schedule on each assessment card opens a shortcut for its start (opening)
+  and end (due) dates, with the saved dates visible on the card. Blank fields
+  remove those dates. Scheduling preserves draft/published/closed status,
+  questions, responses, and deadlines for attempts already started. It uses
+  existing LMS storage and needs no database migration.
 - Preview with an optional professor-only answer key.
 - Draft duplication into either grading period, plus archiving.
 - Transactional saves, revision checks and an audit log.
@@ -29,6 +34,12 @@ assessments retain their submitted count. Refresh updates the card counts. If
 delivery storage is unavailable, the answered count is shown as unavailable.
 Midterm uses indigo and Final teal, with a filled selected button, icons, counts,
 keyboard focus outlines and pressed states. Counts wrap below the title on phones.
+On screens below 768px, each card has a compact row of labeled icons: Edit,
+Schedule, Responses (Preview for drafts), and More. More holds Preview,
+Duplicate, and Close assessment, or Duplicate and Archive for drafts. Closed
+assessments omit Close. Menus support keyboard navigation, Escape and outside
+tap dismissal; the existing action dialogs and confirmations still apply.
+Wide screens retain the text buttons.
 These are read-only aggregates from existing core enrollment and separate LMS
 attempt storage; this display change requires no database migration.
 
@@ -173,6 +184,9 @@ closed edits/reopening, ownership, stale revisions and transactional rollback.
 `php tests/assessment-delivery-http_lms.php` exercises the real PHP 7.1 endpoints;
 `node tests/assessments_lms_browser.cjs` covers published/closed editing, original
 response review, save confirmations and mobile action controls.
+`php tests/assessment-scheduling_lms.php` covers scheduling, clearing dates,
+validation, class scope, stale revisions, original attempts, and status preservation;
+`php tests/assessments-http_lms.php` also verifies the schedule endpoint on PHP 7.1.
 
 ## Reference and next stage
 

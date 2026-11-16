@@ -11,7 +11,7 @@ function synk_assessment_request_lms(mysqli $conn, array $input): array
         || !hash_equals((string)$_SESSION['lms_assessment_csrf'], $input['csrf_token'])) throw new DomainException('Reload the assessment workspace before continuing.', 403);
     if (!is_array($input['context'] ?? null) || ($input['context']['view'] ?? '') !== 'assessments') throw new DomainException('Open Activities & assessments from your class workspace.', 403);
     $action = $input['action'] ?? null;
-    if (!is_string($action) || !in_array($action, ['list','detail','save','duplicate','archive','publish','close','submissions'], true)) throw new DomainException('Choose a valid assessment action.', 400);
+    if (!is_string($action) || !in_array($action, ['list','detail','save','schedule','duplicate','archive','publish','close','submissions'], true)) throw new DomainException('Choose a valid assessment action.', 400);
     $context = synk_professor_class_context_lms($conn, $input['context']);
     $lms = synk_database_connection_lms($conn);
     if (!synk_assessment_ready_lms($lms)) throw new DomainException('The assessment workspace is not ready yet. Contact your administrator.', 503);
@@ -25,6 +25,7 @@ function synk_assessment_request_lms(mysqli $conn, array $input): array
         if ($action === 'detail') $data = ['assessment'=>synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($payload['assessment_id'] ?? null), true)];
         elseif ($action === 'submissions') $data = ['submissions'=>synk_assessment_submissions_lms($conn,$lms,$context,synk_assessment_id_lms($payload['assessment_id']??null))];
         elseif ($action === 'save') $data = ['assessment'=>synk_assessment_save_lms($lms, $context, $payload, $actor)];
+        elseif ($action === 'schedule') $data = ['assessment'=>synk_assessment_schedule_lms($lms, $context, $payload, $actor)];
         elseif ($action === 'publish') $data = ['assessment'=>synk_assessment_publish_lms($lms,$context,$payload,$actor)];
         elseif ($action === 'close') $data = ['assessment'=>synk_assessment_close_lms($lms,$context,$payload,$actor)];
         elseif ($action === 'duplicate') $data = ['assessment'=>synk_assessment_duplicate_lms($lms, $context, $payload, $actor)];

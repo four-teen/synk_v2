@@ -101,6 +101,23 @@
 .assessment-response summary span { margin-left:12px; color:#7b8798; font-size:12px; }
 .assessment-workspace button:focus-visible,.assessment-workspace a:focus-visible { outline:3px solid #b6b8ff; outline-offset:3px; }
 .assessment-workspace [hidden] { display:none!important; }
+@media(max-width:767.98px) {
+  #assessmentWorkspace .assessment-list-card { display:grid; grid-template-columns:42px minmax(0,1fr); }
+  #assessmentWorkspace .assessment-list-main { display:contents; }
+  #assessmentWorkspace .assessment-mobile-actions { grid-column:1/-1; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; margin-top:4px; padding-top:8px; border-top:1px solid #e5eaf2; }
+  #assessmentWorkspace .assessment-card-action { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-width:0; width:100%; min-height:48px; padding:4px 0; border:0; border-radius:8px; background:transparent; color:#64748b; }
+  #assessmentWorkspace .assessment-card-action>.bx { font-size:20px; line-height:1; }
+  #assessmentWorkspace .assessment-card-action>span { font-size:11px; line-height:1.4; }
+  #assessmentWorkspace .assessment-card-action:hover,#assessmentWorkspace .assessment-card-action[aria-expanded="true"] { background:#efefff; color:#5659c4; }
+  #assessmentWorkspace .assessment-card-action:disabled { opacity:.5; }
+  #assessmentWorkspace .assessment-card-more { position:relative; min-width:0; }
+  #assessmentWorkspace .assessment-card-menu { position:absolute; right:0; bottom:calc(100% + 8px); z-index:20; width:238px; max-width:calc(100vw - 72px); padding:6px; border:1px solid #dfe4ef; border-radius:10px; background:#fff; box-shadow:0 6px 24px #25365b24; }
+  #assessmentWorkspace .assessment-card-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:8px; border:0; border-radius:5px; background:transparent; color:#475569; font-size:12px; line-height:1.5; text-align:left; }
+  #assessmentWorkspace .assessment-card-menu-item>.bx { flex-shrink:0; font-size:18px; }
+  #assessmentWorkspace .assessment-card-menu-item:hover { background:#f4f6fa; }
+  #assessmentWorkspace .assessment-card-menu-item.is-danger { margin-top:4px; border-top:1px solid #e5eaf2; border-radius:0 0 5px 5px; color:#b5393e; }
+}
+@media(max-width:575.98px) { #assessmentScheduleModal .modal-dialog { margin:12px; min-height:calc(100% - 24px); } }
 @media(max-width:991.98px) { .assessment-editor-grid { grid-template-columns:minmax(0,1fr); } .assessment-settings { grid-row:1; grid-template-columns:repeat(2,minmax(0,1fr)); } .assessment-settings h4,.assessment-settings>p { grid-column:1/-1; } }
 @media(max-width:575.98px) { .assessment-heading h2 { font-size:20px; } .assessment-periods button { min-width:0; flex:1; } .assessment-toolbar { flex-wrap:wrap; } .assessment-search { min-width:100%; } .assessment-toolbar>div:nth-child(2) { flex:1; } .assessment-editor-heading .assessment-actions { width:100%; } .assessment-editor-heading .assessment-actions button { flex:1; } .assessment-form-card,.assessment-question { padding:18px; } .assessment-settings { grid-template-columns:minmax(0,1fr); } .assessment-list-card { padding:18px; gap:12px; } .assessment-list-actions { gap:6px; } .assessment-list-actions .btn { font-size:11px; } .assessment-question-settings { grid-template-columns:minmax(0,1fr) 90px; } }
 @media(max-width:767.98px) { .assessment-list-summary { flex-direction:column; align-items:flex-start; gap:12px; } .assessment-participation { padding:8px 12px; } .assessment-participation-count { font-size:19px; } }

@@ -83,6 +83,18 @@ try {
     $check($r['status']===200&&in_array($id,$ids,true)&&!in_array($copyId,$ids,true),'The refreshed list includes the draft and excludes the archived copy.');
     $listed=array_column($r['data']['assessments'],null,'assessment_id');
     $check($listed[$id]['answered_count']===0 && is_int($listed[$id]['student_count']) && $listed[$id]['student_count']>=0,'The PHP 7.1 list endpoint returns integer submission and roster counts for cards.');
+    $beforeSchedule=$call('detail',['assessment_id'=>$id])['data']['assessment'];
+    $schedule=['assessment_id'=>$id,'version'=>2,'opens_at'=>'2026-12-01T08:00','due_at'=>'2026-12-01T09:00'];
+    $r=$call('schedule',$schedule,['csrf_token'=>'bad']);$check($r['status']===403,'Scheduling requires the same CSRF protection as editing.');
+    $r=$call('schedule',$schedule,['context'=>array_replace($session['context'],['semester'=>$session['context']['semester']==='1'?'2':'1'])]);
+    $check($r['status']===403,'Scheduling requires a valid signed class context.');
+    $r=$call('schedule',$schedule);
+    $check($r['status']===200&&$r['data']['assessment']['opens_at']==='2026-12-01 08:00:00'&&$r['data']['assessment']['due_at']==='2026-12-01 09:00:00'&&$r['data']['assessment']['status']==='draft','The real HTTP shortcut saves both dates without publishing.');
+    $check($r['data']['assessment']['questions']===$beforeSchedule['questions'],'The schedule endpoint must retain original question IDs, prompts and answer keys.');
+    $r=$call('schedule',$schedule);$check($r['status']===409,'A stale schedule must not overwrite another revision.');
+    $r=$call('schedule',array_replace($schedule,['version'=>3,'due_at'=>'2026-12-01T07:00']));$check($r['status']===422,'The real schedule endpoint rejects an end before its start.');
+    $r=$call('schedule',array_replace($schedule,['version'=>3,'opens_at'=>null,'due_at'=>null]));
+    $check($r['status']===200&&$r['data']['assessment']['opens_at']===null&&$r['data']['assessment']['due_at']===null,'The HTTP shortcut can remove optional dates.');
     $r=$request($apiUrl,'invalid json');$check($r['status']===400,'Malformed JSON must be rejected.');
     $r=$request($apiUrl,str_repeat('a',1048577));$check($r['status']===413,'Oversized assessment requests must be rejected.');
     $r=$request($apiUrl,null,true,'GET');$check($r['status']===405,'The assessment API must reject GET.');
