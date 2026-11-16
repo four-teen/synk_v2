@@ -27,11 +27,11 @@ $researchFields = synk_faculty_profile_research_fields();
       <input type="hidden" name="research_revision" value="<?= (int)$researchRecord['revision'] ?>">
       <div class="row g-4">
         <?php foreach ($researchFields as $key=>$field): $fieldError=$researchView['errors'][$key]??''; $fieldId='research_'.$key; ?>
-          <div class="<?= in_array($key,['research_title','publisher'],true)?'col-12':'col-md-6' ?>">
+          <div class="<?= $key==='research_title'?'col-12':'col-md-6' ?>">
             <label class="form-label" for="<?= $fieldId ?>"><?= synk_faculty_profile_h($field['label']) ?><?php if (!empty($field['required'])): ?> <span class="text-danger" aria-hidden="true">*</span><?php endif; ?></label>
             <?php if (isset($field['options'])): ?>
-              <select id="<?= $fieldId ?>" name="<?= $key ?>" class="form-select<?= $fieldError!==''?' is-invalid':'' ?>" required<?= $fieldError!==''?' aria-invalid="true" aria-describedby="'.$fieldId.'-error"':'' ?>>
-                <option value="">Select <?= $key==='research_scope'?'scope':'funding' ?></option>
+              <select id="<?= $fieldId ?>" name="<?= $key ?>" class="form-select<?= $fieldError!==''?' is-invalid':'' ?>"<?= !empty($field['required'])?' required':'' ?><?= $fieldError!==''?' aria-invalid="true" aria-describedby="'.$fieldId.'-error"':'' ?>>
+                <option value="">Select <?= $key==='research_scope'?'scope':($key==='author_role'?'role':'funding') ?></option>
                 <?php foreach ($field['options'] as $option): ?><option value="<?= $option ?>"<?= $researchRecord[$key]===$option?' selected':'' ?>><?= $option ?></option><?php endforeach; ?>
               </select>
             <?php else: ?>
@@ -50,18 +50,18 @@ $researchFields = synk_faculty_profile_research_fields();
     <div class="profile-research-table-scroll" role="region" aria-label="Research records table" tabindex="0">
       <table class="profile-research-table">
         <caption class="visually-hidden">Saved research records, conference details, publications, and actions</caption>
-        <thead><tr><th scope="col">Research title</th><th scope="col">Scope</th><th scope="col">Funding</th><th scope="col">Conference</th><th scope="col">Publisher</th><th scope="col">Publication links</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Research title</th><th scope="col">Scope / Funding</th><th scope="col">Conference</th><th scope="col">Publisher / Indexing</th><th scope="col">ISSN / Volume / Issue</th><th scope="col">Publication links</th><th scope="col">Actions</th></tr></thead>
         <tbody>
         <?php if (!$researchView['records']): ?>
           <tr><td colspan="7" class="profile-research-table-empty"><span class="profile-research-icon"><i class="bx bx-book-open" aria-hidden="true"></i></span><h3>No research records yet</h3><p>Add your first research to start your portfolio.</p></td></tr>
         <?php endif; ?>
         <?php foreach ($researchView['records'] as $record): $recordId=(int)$record['research_id']; ?>
         <tr class="profile-research-record" data-research-id="<?= $recordId ?>">
-          <th scope="row" id="research-title-<?= $recordId ?>" class="profile-research-title"><?= synk_faculty_profile_h($record['research_title']) ?></th>
-          <td><?= synk_faculty_profile_h($record['research_scope']) ?></td>
-          <td><?= synk_faculty_profile_h($record['funding_type']) ?></td>
+          <th scope="row" id="research-title-<?= $recordId ?>" class="profile-research-title"><div class="profile-research-lines"><span class="profile-research-title-text"><?= synk_faculty_profile_h($record['research_title']) ?></span><span class="profile-research-secondary profile-research-role" data-research-role><?= ($record['author_role']??'')!==''?synk_faculty_profile_h($record['author_role']):'<span class="profile-research-missing">Role not entered</span>' ?></span></div></th>
+          <td class="profile-research-scope-funding"><div class="profile-research-lines"><span><?= synk_faculty_profile_h($record['research_scope']) ?></span><span class="profile-research-secondary"><?= synk_faculty_profile_h($record['funding_type']) ?></span></div></td>
           <td class="profile-research-conference"><div class="profile-research-lines"><span class="profile-research-conference-name" title="<?= synk_faculty_profile_h($record['conference_name']) ?>"><?= $record['conference_name']!==''?synk_faculty_profile_h($record['conference_name']):'<span class="profile-research-missing">Not entered</span>' ?></span><?php if (!empty($record['conference_date'])): ?><time class="profile-research-secondary" datetime="<?= synk_faculty_profile_h($record['conference_date']) ?>"><?= synk_faculty_profile_h((new DateTimeImmutable($record['conference_date']))->format('M j, Y')) ?></time><?php elseif ($record['conference_name']!==''): ?><span class="profile-research-secondary profile-research-missing">Date not entered</span><?php endif; ?></div></td>
-          <td><?= $record['publisher']!==''?synk_faculty_profile_h($record['publisher']):'<span class="profile-research-missing">Not entered</span>' ?></td>
+          <td class="profile-research-publisher"><div class="profile-research-lines"><span><?= $record['publisher']!==''?synk_faculty_profile_h($record['publisher']):'<span class="profile-research-missing">Not entered</span>' ?></span><?php if (($record['indexing']??'')!==''): ?><span class="profile-research-secondary" data-research-indexing><?= synk_faculty_profile_h($record['indexing']) ?></span><?php endif; ?></div></td>
+          <td class="profile-research-publication-details"><div class="profile-research-lines"><?php foreach (['issn_number'=>'ISSN','volume'=>'Volume','issue'=>'Issue'] as $publicationField=>$publicationLabel): ?><span><span class="profile-research-secondary"><?= $publicationLabel ?>:</span> <?= ($record[$publicationField]??'')!==''?synk_faculty_profile_h($record[$publicationField]):'<span class="profile-research-missing">Not entered</span>' ?></span><?php endforeach; ?></div></td>
           <td class="profile-research-links"><div class="profile-research-lines"><?php if ($record['publisher_link']!=='' || $record['scopus_link']!==''): ?><?php foreach (['publisher_link'=>'Publisher','scopus_link'=>'Scopus'] as $linkKey=>$linkLabel): if ($record[$linkKey]==='') continue; ?><a href="<?= synk_faculty_profile_h($record[$linkKey]) ?>" target="_blank" rel="noopener noreferrer"><?= $linkLabel ?><i class="bx bx-link-external" aria-hidden="true"></i><span class="visually-hidden"> (opens in a new tab)</span></a><?php endforeach; ?><?php else: ?><span class="profile-research-missing">Not entered</span><?php endif; ?></div></td>
           <td class="profile-research-action-cell"><div class="profile-research-actions">
               <a href="manage-profile.php?tab=researches&amp;research=<?= $recordId ?>#research-editor" class="btn btn-outline-primary" data-research-edit data-research-record="<?= synk_faculty_profile_h(json_encode($record,JSON_UNESCAPED_UNICODE)) ?>" title="Edit research" aria-label="<?= synk_faculty_profile_h('Edit '.$record['research_title']) ?>"><i class="bx bx-edit-alt" aria-hidden="true"></i><span class="visually-hidden">Edit</span></a>

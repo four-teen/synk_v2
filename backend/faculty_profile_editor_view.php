@@ -16,7 +16,7 @@ $profileEditor = array_merge([
     'photo_crop_enabled' => false, 'photo_crop_field' => 'profile_photo_crop',
     'read_only' => false,
     'show_profile_tabs' => false, 'additional_degrees' => null,
-    'research_state' => null, 'active_tab' => 'profile',
+    'research_state' => null, 'training_state' => null, 'active_tab' => 'profile',
 ], $profileEditor ?? []);
 ?>
 <!DOCTYPE html>
@@ -253,7 +253,7 @@ $profileEditor = array_merge([
             <?php if ($profileEditor['show_profile_tabs']): ?>
               </div>
               <section id="faculty-panel-researches" role="tabpanel" aria-labelledby="faculty-tab-researches" tabindex="0"<?= $profileEditor['active_tab']!=='researches'?' hidden':'' ?>><?php if ($profileEditor['research_state'] !== null) require __DIR__.'/faculty_profile_research_view.php'; ?></section>
-              <section class="card profile-blank-panel" id="faculty-panel-trainings" role="tabpanel" aria-labelledby="faculty-tab-trainings" tabindex="0"<?= $profileEditor['active_tab']!=='trainings'?' hidden':'' ?>></section>
+              <section id="faculty-panel-trainings" role="tabpanel" aria-labelledby="faculty-tab-trainings" tabindex="0"<?= $profileEditor['active_tab']!=='trainings'?' hidden':'' ?>><?php if ($profileEditor['training_state'] !== null) require __DIR__.'/faculty_profile_training_view.php'; ?></section>
             <?php endif; ?>
           </main>
           <?php include __DIR__ . '/../footer.php'; ?>

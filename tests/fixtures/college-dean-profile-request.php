@@ -13,6 +13,7 @@ require_once $root . '/backend/di_profile_analytics_helper.php';
 require_once $root . '/backend/faculty_profile_excel_helper.php';
 if (defined('SYNK_DEGREE_QA')) require_once $root.'/backend/faculty_profile_degrees_helper.php';
 if (defined('SYNK_RESEARCH_QA')) require_once $root.'/backend/faculty_profile_research_helper.php';
+if (defined('SYNK_TRAINING_QA')) require_once $root.'/backend/faculty_profile_training_helper.php';
 class DeanProfileQAConnection extends mysqli
 {
     public $requestMode = false;
@@ -111,7 +112,8 @@ if (defined('SYNK_DEGREE_QA')) synk_faculty_profile_degrees_save($conn,$owner,[[
 if (defined('SYNK_RESEARCH_QA')) {
     $researchSeed=['research_title'=>'Community learning and sustainable agriculture','research_scope'=>'International','funding_type'=>'Funded',
         'conference_name'=>'International Conference on Community Research','conference_date'=>'2026-10-15','publisher'=>'Research Journal',
-        'publisher_link'=>'https://publisher.example/articles/community-learning','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=2-s2.0-123456789'];
+        'publisher_link'=>'https://publisher.example/articles/community-learning','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=2-s2.0-123456789',
+        'author_role'=>'Co-Author','indexing'=>'Scopus','issn_number'=>'1234-5679','volume'=>'12','issue'=>'3'];
     synk_faculty_profile_research_save($conn,$owner,$researchSeed,0,0);
     $researchFixtureId=(int)$conn->insert_id;
     synk_faculty_profile_research_save($conn,'faculty:'.$faculty['foreign'],array_replace($researchSeed,['research_title'=>'Foreign private research']),0,0);
@@ -121,6 +123,18 @@ if (defined('SYNK_RESEARCH_QA')) {
     if (($_GET['research']??'')==='record') $_GET['research']=(string)$researchFixtureId;
     if (($_GET['research']??'')==='foreign') $_GET['research']=(string)$foreignResearchId;
 }
+if (defined('SYNK_TRAINING_QA')) {
+    $trainingSeed=['training_title'=>'Inclusive teaching and learning','agency'=>'Faculty Development Institute',
+        'date_from'=>'2026-10-14','date_to'=>'2026-10-15','venue'=>'University Training Hall','mode'=>'Face to face'];
+    synk_faculty_profile_training_save($conn,$owner,$trainingSeed,0,0);
+    $trainingFixtureId=(int)$conn->insert_id;
+    synk_faculty_profile_training_save($conn,'faculty:'.$faculty['foreign'],array_replace($trainingSeed,['training_title'=>'Foreign private training']),0,0);
+    $foreignTrainingId=(int)$conn->insert_id;
+    if (($_POST['training_id']??'')==='record') $_POST['training_id']=(string)$trainingFixtureId;
+    if (($_POST['training_id']??'')==='foreign') $_POST['training_id']=(string)$foreignTrainingId;
+    if (($_GET['training']??'')==='record') $_GET['training']=(string)$trainingFixtureId;
+    if (($_GET['training']??'')==='foreign') $_GET['training']=(string)$foreignTrainingId;
+}
 $uploaded=$_SERVER['REQUEST_METHOD']==='POST';
 if ($uploaded) {
     $_POST['profile_owner']=in_array($scenario,['bad_owner','professor_owner'],true) ? 'faculty:999999' : $owner;
@@ -129,6 +143,7 @@ if ($uploaded) {
 $tables=['tbl_faculty_record_profiles','tbl_faculty_profiles','tbl_faculty_profile_eligibilities','tbl_faculty_education_options'];
 if (defined('SYNK_DEGREE_QA')) $tables[]='tbl_faculty_profile_additional_degrees';
 if (defined('SYNK_RESEARCH_QA')) $tables[]='tbl_faculty_profile_researches';
+if (defined('SYNK_TRAINING_QA')) $tables[]='tbl_faculty_profile_trainings';
 $snapshot=static function() use($conn,$tables):array {
     $rows=[];foreach($tables as $table)$rows[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));return $rows;
 };
@@ -148,6 +163,8 @@ register_shutdown_function(static function() use($conn,$snapshot,$before,$target
         $progress=synk_di_faculty_profile_completion_by_faculty($conn,$directory);
         $labels=synk_faculty_excel_eligibilities($conn,[$record]);
         header('X-QA-Changed: '.($snapshot()===$before ? 'no' : 'yes'));
+        $after=$snapshot();
+        foreach ($before as $table=>$hash) header('X-QA-Table-'.str_replace('_','-',$table).': '.($after[$table]===$hash?'unchanged':'changed'));
         if(defined('SYNK_DEGREE_QA')) {
             $savedDegrees=synk_faculty_profile_degrees_fetch($conn,$owner);
             header('X-QA-Additional-Degrees: '.count($savedDegrees));
@@ -158,6 +175,12 @@ register_shutdown_function(static function() use($conn,$snapshot,$before,$target
             header('X-QA-Researches: '.count($savedResearches));
             header('X-QA-Research-Title: '.rawurlencode($savedResearches[0]['research_title']??''));
             header('X-QA-Research-Revision: '.(int)($savedResearches[0]['revision']??0));
+            header('X-QA-Research-Publication: '.rawurlencode(json_encode(array_intersect_key($savedResearches[0]??[],array_flip(['author_role','indexing','issn_number','volume','issue'])))));
+        }
+        if(defined('SYNK_TRAINING_QA')) {
+            $savedTrainings=synk_faculty_profile_training_records($conn,$owner);
+            header('X-QA-Trainings: '.count($savedTrainings));
+            header('X-QA-Training-Record: '.rawurlencode(json_encode($savedTrainings[0]??[])));
         }
         header('X-QA-Record-Revision: '.(int)($row['revision'] ?? 0));
         header('X-QA-Account-Revision: '.(int)($account['revision'] ?? 0));

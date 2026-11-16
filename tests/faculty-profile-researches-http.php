@@ -2,11 +2,12 @@
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
 require_once __DIR__.'/../backend/db.php';
 require_once __DIR__.'/../backend/faculty_profile_research_helper.php';
+require_once __DIR__.'/../backend/faculty_profile_training_helper.php';
 require_once __DIR__.'/../backend/faculty_profile_degrees_helper.php';
-synk_faculty_profile_research_ensure($conn);synk_faculty_profile_degrees_ensure($conn);
+synk_faculty_profile_research_ensure($conn);synk_faculty_profile_training_ensure($conn);synk_faculty_profile_degrees_ensure($conn);
 $checks=0;$check=static function(bool $ok,string $message)use(&$checks):void{if(!$ok)throw new RuntimeException($message);$checks++;};
 $root=dirname(__DIR__);$token=bin2hex(random_bytes(24));$route=$root.'/tmp/profile-research-'.bin2hex(random_bytes(8)).'.php';
-file_put_contents($route,'<?php define("SYNK_DEAN_PROFILE_QA",'.var_export($token,true).');define("SYNK_RESEARCH_QA",true);define("SYNK_DEGREE_QA",true);require '.var_export(__DIR__.'/fixtures/college-dean-profile-request.php',true).';');
+file_put_contents($route,'<?php define("SYNK_DEAN_PROFILE_QA",'.var_export($token,true).');define("SYNK_RESEARCH_QA",true);define("SYNK_TRAINING_QA",true);define("SYNK_DEGREE_QA",true);require '.var_export(__DIR__.'/fixtures/college-dean-profile-request.php',true).';');
 $call=static function(string $scenario,?array $post=null,array $query=[])use($route,$token):array{
     $curl=curl_init('http://localhost/synk/tmp/'.basename($route).'?'.http_build_query(array_merge(['qa'=>$token,'scenario'=>$scenario],$query)));
     curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_HEADER=>true,CURLOPT_TIMEOUT=>25,CURLOPT_FOLLOWLOCATION=>false]);
@@ -16,13 +17,15 @@ $call=static function(string $scenario,?array $post=null,array $query=[])use($ro
 };
 $post=['profile_action'=>'research_save','csrf_token'=>$token,'research_id'=>'0','research_revision'=>'0','research_title'=>'Accurate Research QA',
     'research_scope'=>'Local','funding_type'=>'Personal','conference_name'=>'Faculty Research Forum','conference_date'=>'2026-11-14',
-    'publisher'=>'Sample Publisher','publisher_link'=>'https://publisher.example/article?x=1&y=2','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=123'];
+    'publisher'=>'Sample Publisher','publisher_link'=>'https://publisher.example/article?x=1&y=2','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=123',
+    'author_role'=>'Main Author','indexing'=>'Scopus / Web of Science','issn_number'=>'1234-5679','volume'=>'14','issue'=>'2'];
 try{
     $get=$call('professor_get',null,['tab'=>'researches']);$check($get['status']===200,'The Researches tab loads.');
     $check(!preg_match('/(Warning|Fatal error|Parse error|Deprecated):/', $get['body']),'The local web PHP runtime renders without warnings or errors.');
     $dom=new DOMDocument();@$dom->loadHTML($get['body']);$xpath=new DOMXPath($dom);
     $check($xpath->query('//*[@id="faculty-tab-researches" and @aria-selected="true"]')->length===1&&$xpath->query('//*[@id="faculty-panel-researches" and not(@hidden)]')->length===1,'The requested tab is active in the server-rendered page.');
-    $check($xpath->query('//*[@id="faculty-research-form"]//input[not(@type="hidden")] | //*[@id="faculty-research-form"]//select')->length===8,'All eight requested research fields are present.');
+    $check($xpath->query('//*[@id="faculty-research-form"]//input[not(@type="hidden")] | //*[@id="faculty-research-form"]//select')->length===13,'All thirteen research fields are present.');
+    $check($xpath->query('//*[@data-researches]//thead//th')->length===7&&$xpath->query('//*[@data-research-indexing and text()="Scopus"]')->length===1,'Publication columns and Indexing beneath Publisher are rendered.');
     $check($xpath->query('//*[@id="faculty-profile-form"]//form')->length===0&&$xpath->query('//*[@id="faculty-research-form"]')->length===1,'Research has its own form without nested profile forms.');
     $editData=json_decode($xpath->query('//*[@data-research-edit]')->item(0)->getAttribute('data-research-record'),true);
     $check(is_array($editData)&&$editData['conference_date']==='2026-10-15','The record edit data renders as valid JSON on the web PHP runtime.');
@@ -34,16 +37,22 @@ try{
         $check($r['status']===303&&strpos($r['headers'],'Location: manage-profile.php?tab=researches')!==false&&strpos($r['headers'],'X-QA-Researches: 2')!==false,'Research saves independently for '.$scenario.': '.$r['status'].' '.$r['body']);
         $revisionHeader=$scenario==='professor_account'?'X-QA-Account-Revision: 1':'X-QA-Record-Revision: 1';
         $check(strpos($r['headers'],$revisionHeader)!==false&&strpos($r['headers'],'X-QA-Additional-Degrees: 1')!==false,'Research leaves the personal profile revision and additional degrees intact.');
+        $check(strpos($r['headers'],'X-QA-Table-tbl-faculty-profile-trainings: unchanged')!==false,'Research saves leave training records unchanged.');
     }
     $update=array_replace($post,['research_id'=>'record','research_revision'=>'1']);$r=$call('professor_save',$update);
     $check($r['status']===303&&strpos($r['headers'],'X-QA-Researches: 1')!==false&&strpos($r['headers'],'X-QA-Research-Title: Accurate%20Research%20QA')!==false&&strpos($r['headers'],'X-QA-Research-Revision: 2')!==false,'Editing changes the existing research and increments its version.');
+    preg_match('/X-QA-Research-Publication: ([^\r\n]*)/i',$r['headers'],$publicationHeader);
+    $publication=json_decode(rawurldecode($publicationHeader[1]??''),true);
+    $check($publication===array_intersect_key($post,array_flip(['author_role','indexing','issn_number','volume','issue'])),'All new publication fields persist through the actual web controller.');
     $delete=['profile_action'=>'research_delete','csrf_token'=>$token,'research_id'=>'record','research_revision'=>'1'];$r=$call('professor_save',$delete);
     $check($r['status']===303&&strpos($r['headers'],'X-QA-Researches: 0')!==false,'Removing a research deletes only the selected record.');
-    foreach(['invalid_date','invalid_link','invalid_scope','scopus','csrf','owner','stale','foreign','bad_id','bad_action','stale_delete','foreign_delete'] as $case){
+    foreach(['invalid_date','invalid_link','invalid_scope','invalid_role','indexing_array','scopus','csrf','owner','stale','foreign','bad_id','bad_action','stale_delete','foreign_delete'] as $case){
         $bad=$update;$scenario='professor_save';$expected=422;
         if($case==='invalid_date')$bad['conference_date']='2026-02-30';
         if($case==='invalid_link')$bad['publisher_link']='javascript:alert(1)';
         if($case==='invalid_scope')$bad['research_scope']='Other';
+        if($case==='invalid_role')$bad['author_role']='Editor';
+        if($case==='indexing_array')$bad['indexing']=['malformed'];
         if($case==='scopus')$bad['scopus_link']='https://scopus.com.evil.example/record';
         if($case==='csrf'){$bad['csrf_token']='wrong';$expected=403;}
         if($case==='owner'){$scenario='professor_owner';$expected=409;}

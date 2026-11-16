@@ -4,7 +4,8 @@ require_once __DIR__.'/../backend/faculty_profile_research_helper.php';
 $checks=0;
 $check=static function(bool $ok,string $message)use(&$checks):void{if(!$ok)throw new RuntimeException($message);$checks++;};
 $record=['research_title'=>'  Community   learning  ','research_scope'=>'Local','funding_type'=>'Personal','conference_name'=>'Community Research Forum',
-    'conference_date'=>'2028-02-29','publisher'=>'Sample Publisher','publisher_link'=>'https://publisher.example/article?id=1&lang=en','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=123'];
+    'conference_date'=>'2028-02-29','publisher'=>'Sample Publisher','publisher_link'=>'https://publisher.example/article?id=1&lang=en','scopus_link'=>'https://www.scopus.com/record/display.uri?eid=123',
+    'author_role'=>'Main Author','indexing'=>'Scopus / Web of Science','issn_number'=>'1234-5679','volume'=>'12','issue'=>'3'];
 [$valid,$errors]=synk_faculty_profile_research_validate($record);
 $check(!$errors&&$valid['research_title']==='Community learning','Valid research is normalized and future leap-day conferences are accepted.');
 [$minimal,$errors]=synk_faculty_profile_research_validate(['research_title'=>'Unpublished study','research_scope'=>'International','funding_type'=>'Funded']);
@@ -13,6 +14,7 @@ $badCases=[
     ['research_title'=>''],['research_title'=>str_repeat('ñ',501)],['research_title'=>['array']],['research_title'=>"Bad\0title"],['research_title'=>"Bad\xFFtitle"],
     ['research_scope'=>'National'],['funding_type'=>'Other'],['conference_date'=>'2026-02-29'],['conference_date'=>'2026-13-01'],['conference_date'=>'1899-01-01'],
     ['conference_date'=>'2026-01-02','conference_name'=>''],['publisher'=>str_repeat('p',301)],
+    ['author_role'=>'Editor'],['author_role'=>['Main Author']],['indexing'=>str_repeat('i',301)],['issn_number'=>str_repeat('1',33)],['volume'=>str_repeat('v',51)],['issue'=>str_repeat('i',51)],
     ['publisher_link'=>'javascript:alert(1)'],['publisher_link'=>'https://user:pass@example.test/article'],['publisher_link'=>'not-a-link'],['publisher_link'=>'https://example.test/a b'],
     ['scopus_link'=>'https://scopus.com.evil.example/record'],['scopus_link'=>'https://not-scopus.com/record'],['publisher_link'=>str_repeat('a',2049)],
 ];
@@ -32,12 +34,14 @@ try{
     $check(synk_faculty_profile_research_save($conn,$owner,$valid,0,0),'A research record can be created.');
     $rows=synk_faculty_profile_research_records($conn,$owner);$id=(int)$rows[0]['research_id'];
     $check(count($rows)===1&&$rows[0]['publisher_link']===$record['publisher_link']&&$rows[0]['conference_date']==='2028-02-29','Every research field persists and reopens accurately.');
+    foreach (['author_role','indexing','issn_number','volume','issue'] as $key) $check($rows[0][$key]===$record[$key],$key.' persists accurately.');
     $check(synk_faculty_profile_research_records($conn,'faculty:'.$ownerId)===[],'Owner types isolate research records.');
     $check(!synk_faculty_profile_research_save($conn,'account:'.($ownerId+1),$minimal,$id,1),'Another account cannot edit a research record.');
     $check(!synk_faculty_profile_research_delete($conn,'faculty:'.$ownerId,$id,1),'Another owner type cannot delete research.');
     $check(synk_faculty_profile_research_save($conn,$owner,$minimal,$id,1),'An existing research can be edited.');
     $rows=synk_faculty_profile_research_records($conn,$owner);
     $check((int)$rows[0]['revision']===2&&$rows[0]['conference_date']===null&&$rows[0]['publisher_link']==='','Editing increments the version and optional details can be cleared.');
+    $check($rows[0]['author_role']===''&&$rows[0]['indexing']===''&&$rows[0]['issn_number']===''&&$rows[0]['volume']===''&&$rows[0]['issue']==='','Legacy research entries remain valid with publication fields blank.');
     $check(!synk_faculty_profile_research_save($conn,$owner,$valid,$id,1)&&!synk_faculty_profile_research_delete($conn,$owner,$id,1),'Stale edits and deletes are rejected.');
     $check(synk_faculty_profile_research_records($conn,$owner)===$rows,'Rejected writes preserve the saved record.');
     $check(synk_faculty_profile_research_save($conn,$owner,$valid,0,0)&&count(synk_faculty_profile_research_records($conn,$owner))===2,'Multiple researches are stored as separate records.');
