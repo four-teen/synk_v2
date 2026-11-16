@@ -6,9 +6,11 @@ require_once __DIR__.'/../backend/faculty_profile_degrees_helper.php';
 synk_faculty_profile_degrees_ensure($conn);
 require_once __DIR__.'/../backend/faculty_profile_research_helper.php';
 synk_faculty_profile_research_ensure($conn);
+require_once __DIR__.'/../backend/faculty_profile_training_helper.php';
+synk_faculty_profile_training_ensure($conn);
 $checks=0;$check=static function(bool $ok,string $message)use(&$checks):void{if(!$ok)throw new RuntimeException($message);$checks++;};
 $root=dirname(__DIR__);$token=bin2hex(random_bytes(24));$route=$root.'/tmp/profile-degrees-'.bin2hex(random_bytes(8)).'.php';
-file_put_contents($route,'<?php define("SYNK_DEAN_PROFILE_QA",'.var_export($token,true).');define("SYNK_DEGREE_QA",true);require '.var_export(__DIR__.'/fixtures/college-dean-profile-request.php',true).';');
+file_put_contents($route,'<?php define("SYNK_DEAN_PROFILE_QA",'.var_export($token,true).');define("SYNK_DEGREE_QA",true);define("SYNK_TRAINING_QA",true);define("SYNK_RESEARCH_QA",true);require '.var_export(__DIR__.'/fixtures/college-dean-profile-request.php',true).';');
 $call=static function(string $scenario,?array $post=null)use($route,$token):array{
     $curl=curl_init('http://localhost/synk/tmp/'.basename($route).'?'.http_build_query(['qa'=>$token,'scenario'=>$scenario]));
     curl_setopt_array($curl,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_HEADER=>true,CURLOPT_TIMEOUT=>25,CURLOPT_FOLLOWLOCATION=>false]);
@@ -28,8 +30,9 @@ try{
     $check($xpath->query('//*[@data-degree-list="bachelor"]//*[@data-additional-degree]')->length===1&&$xpath->query('//*[@data-degree-list="doctoral"]//*[@data-additional-degree]')->length===0,'Saved degrees render under their corresponding degree level.');
     $check($xpath->query('//*[@data-additional-degree]//select[contains(@name,"[level]")]')->length===0,'Additional degrees inherit their level without another level selector.');
     $check($xpath->query('//*[@id="faculty-panel-researches"]//*[@id="faculty-research-form"]')->length===1,'The Researches panel contains its independent record editor.');
-    $check(trim($xpath->query('//*[@id="faculty-panel-trainings"]')->item(0)->textContent)==='','The Trainings panel stays blank.');
+    $check($xpath->query('//*[@id="faculty-panel-trainings"]//*[@id="faculty-training-form"]')->length===1,'The Trainings panel contains its independent record editor.');
     foreach(['professor_save','professor_account'] as $scenario){$r=$call($scenario,$post);$check($r['status']===303&&strpos($r['headers'],'X-QA-Additional-Degrees: 2')!==false&&strpos($r['headers'],'X-QA-Additional-Degree-Levels: bachelor,doctoral')!==false,'A second Bachelor and second Doctoral degree save for '.$scenario.': '.$r['status'].' '.$r['body']);}
+    $check(strpos($r['headers'],'X-QA-Table-tbl-faculty-profile-researches: unchanged')!==false&&strpos($r['headers'],'X-QA-Table-tbl-faculty-profile-trainings: unchanged')!==false,'Saving the personal profile and degrees preserves research and training records.');
     $sparse=$post;$sparse['additional_degrees']=[3=>$post['additional_degrees'][0],8=>$post['additional_degrees'][1]];
     $r=$call('professor_save',$sparse);
     $check($r['status']===303&&strpos($r['headers'],'X-QA-Additional-Degree-Levels: bachelor,doctoral')!==false,'Removing and adding rows with gaps in their indices preserves their degree levels.');

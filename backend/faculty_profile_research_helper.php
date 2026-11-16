@@ -10,6 +10,13 @@ function synk_faculty_profile_research_ensure(mysqli $conn): void
         $sql = file_get_contents(__DIR__ . '/sql/faculty_profile_researches.sql');
         if ($sql === false || !$conn->query($sql)) throw new RuntimeException('Research storage could not be initialized.');
     }
+    $columns = $conn->query('SHOW COLUMNS FROM tbl_faculty_profile_researches')->fetch_all(MYSQLI_ASSOC);
+    $present = array_column($columns, 'Field');
+    $add = [];
+    foreach (['author_role'=>"VARCHAR(20) NOT NULL DEFAULT ''",'indexing'=>"VARCHAR(300) NOT NULL DEFAULT ''",'issn_number'=>"VARCHAR(32) NOT NULL DEFAULT ''",'volume'=>"VARCHAR(50) NOT NULL DEFAULT ''",'issue'=>"VARCHAR(50) NOT NULL DEFAULT ''"] as $name=>$definition) {
+        if (!in_array($name, $present, true)) $add[] = 'ADD COLUMN `'.$name.'` '.$definition;
+    }
+    if ($add && !$conn->query('ALTER TABLE tbl_faculty_profile_researches '.implode(', ', $add))) throw new RuntimeException('Research publication fields could not be prepared.');
 }
 
 function synk_faculty_profile_research_owner(string $owner): array
@@ -23,18 +30,24 @@ function synk_faculty_profile_research_owner(string $owner): array
 function synk_faculty_profile_research_defaults(): array
 {
     return ['research_id'=>0, 'revision'=>0, 'research_title'=>'', 'research_scope'=>'', 'funding_type'=>'',
-        'conference_name'=>'', 'conference_date'=>'', 'publisher'=>'', 'publisher_link'=>'', 'scopus_link'=>''];
+        'conference_name'=>'', 'conference_date'=>'', 'publisher'=>'', 'publisher_link'=>'', 'scopus_link'=>'',
+        'author_role'=>'', 'indexing'=>'', 'issn_number'=>'', 'volume'=>'', 'issue'=>''];
 }
 
 function synk_faculty_profile_research_fields(): array
 {
     return [
         'research_title'=>['label'=>'Research title', 'max'=>500, 'required'=>true],
+        'author_role'=>['label'=>'Role', 'options'=>['Main Author','Co-Author']],
         'research_scope'=>['label'=>'Local or international', 'options'=>['Local','International'], 'required'=>true],
         'funding_type'=>['label'=>'Funded or personal', 'options'=>['Funded','Personal'], 'required'=>true],
         'conference_name'=>['label'=>'Conference name', 'max'=>300],
         'conference_date'=>['label'=>'Conference date', 'type'=>'date'],
         'publisher'=>['label'=>'Publisher', 'max'=>300],
+        'indexing'=>['label'=>'Indexing', 'max'=>300],
+        'issn_number'=>['label'=>'ISSN Number', 'max'=>32],
+        'volume'=>['label'=>'Volume', 'max'=>50],
+        'issue'=>['label'=>'Issue', 'max'=>50],
         'publisher_link'=>['label'=>'Publication link (publisher)', 'max'=>2048, 'type'=>'url'],
         'scopus_link'=>['label'=>'Publication link (Scopus)', 'max'=>2048, 'type'=>'url'],
     ];
@@ -54,7 +67,7 @@ function synk_faculty_profile_research_validate(array $input): array
         if (!isset($field['type'])) $value = preg_replace('/\s+/u', ' ', $value);
         $record[$key] = $value;
         if (!empty($field['required']) && $value === '') $errors[$key] = $field['label'] . ' is required.';
-        elseif (isset($field['options']) && !in_array($value, $field['options'], true)) $errors[$key] = 'Choose ' . strtolower($field['label']) . '.';
+        elseif (isset($field['options']) && $value !== '' && !in_array($value, $field['options'], true)) $errors[$key] = 'Choose ' . strtolower($field['label']) . '.';
         elseif (isset($field['max']) && preg_match_all('/./us', $value) > $field['max']) $errors[$key] = $field['label'] . ' must be ' . $field['max'] . ' characters or fewer.';
         if ($value !== '' && ($field['type'] ?? '') === 'url') {
             $parts = parse_url($value);
@@ -77,7 +90,7 @@ function synk_faculty_profile_research_records(mysqli $conn, string $owner): arr
 {
     [$type, $id] = synk_faculty_profile_research_owner($owner);
     $stmt = $conn->prepare('SELECT research_id, research_title, research_scope, funding_type, conference_name, conference_date,
-        publisher, publisher_link, scopus_link, revision, created_at, updated_at FROM tbl_faculty_profile_researches
+        publisher, publisher_link, scopus_link, author_role, indexing, issn_number, volume, issue, revision, created_at, updated_at FROM tbl_faculty_profile_researches
         WHERE owner_type=? AND owner_id=? ORDER BY updated_at DESC, research_id DESC');
     $stmt->bind_param('si', $type, $id);
     $stmt->execute();
@@ -93,15 +106,17 @@ function synk_faculty_profile_research_save(mysqli $conn, string $owner, array $
     if ($errors) throw new InvalidArgumentException(implode(' ', $errors));
     if ($researchId < 0 || $revision < 0 || ($researchId === 0) !== ($revision === 0)) throw new InvalidArgumentException('Invalid research version.');
     [$type, $id] = synk_faculty_profile_research_owner($owner);
-    $values = array_map(static function($key) use ($record) {return $key === 'conference_date' && $record[$key] === '' ? null : $record[$key];}, array_keys(synk_faculty_profile_research_fields()));
+    $keys = array_keys(synk_faculty_profile_research_fields());
+    $values = array_map(static function($key) use ($record) {return $key === 'conference_date' && $record[$key] === '' ? null : $record[$key];}, $keys);
+    $strings = str_repeat('s', count($keys));
     if ($researchId === 0) {
-        $stmt = $conn->prepare('INSERT INTO tbl_faculty_profile_researches (research_title,research_scope,funding_type,conference_name,conference_date,publisher,publisher_link,scopus_link,owner_type,owner_id) VALUES (?,?,?,?,?,?,?,?,?,?)');
+        $stmt = $conn->prepare('INSERT INTO tbl_faculty_profile_researches (`'.implode('`,`', $keys).'`,owner_type,owner_id) VALUES ('.implode(',', array_fill(0,count($keys)+2,'?')).')');
         $params = array_merge($values, [$type,$id]);
-        $stmt->bind_param('sssssssssi', ...$params);
+        $stmt->bind_param($strings.'si', ...$params);
     } else {
-        $stmt = $conn->prepare('UPDATE tbl_faculty_profile_researches SET research_title=?,research_scope=?,funding_type=?,conference_name=?,conference_date=?,publisher=?,publisher_link=?,scopus_link=?,revision=revision+1 WHERE owner_type=? AND owner_id=? AND research_id=? AND revision=?');
+        $stmt = $conn->prepare('UPDATE tbl_faculty_profile_researches SET `'.implode('`=?,`',$keys).'`=?,revision=revision+1 WHERE owner_type=? AND owner_id=? AND research_id=? AND revision=?');
         $params = array_merge($values, [$type,$id,$researchId,$revision]);
-        $stmt->bind_param('sssssssssiii', ...$params);
+        $stmt->bind_param($strings.'siii', ...$params);
     }
     $stmt->execute();
     $saved = $stmt->affected_rows === 1;

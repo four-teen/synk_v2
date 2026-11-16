@@ -8,7 +8,8 @@ $researchState = ['records'=>$researchRecords, 'record'=>synk_faculty_profile_re
 $requestedTab = $_GET['tab'] ?? 'profile';
 $activeProfileTab = in_array($requestedTab, ['profile','researches','trainings'], true) ? $requestedTab : 'profile';
 $profileAction = $_POST['profile_action'] ?? 'profile';
-$isResearchPost = $_SERVER['REQUEST_METHOD'] === 'POST' && $profileAction !== 'profile';
+$isResearchPost = $_SERVER['REQUEST_METHOD'] === 'POST' && $profileAction !== 'profile'
+    && (!is_string($profileAction) || strpos($profileAction,'training_') !== 0);
 
 if ($isResearchPost) {
     $activeProfileTab = 'researches';
@@ -71,7 +72,7 @@ if ($isResearchPost) {
             }
         }
     }
-} elseif (isset($_GET['research'])) {
+} elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['research'])) {
     $activeProfileTab = 'researches';
     $requestedResearch = $_GET['research'];
     if ($requestedResearch === 'new') $researchState['show_editor'] = true;

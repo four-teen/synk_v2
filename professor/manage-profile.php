@@ -6,6 +6,7 @@ require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_crop_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_degrees_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_research_helper.php';
+require_once __DIR__ . '/../backend/faculty_profile_training_helper.php';
 synk_professor_require_login();
 
 header('Cache-Control: no-store, private');
@@ -50,6 +51,8 @@ try {
     $additionalDegrees = synk_faculty_profile_degrees_fetch($conn,synk_faculty_profile_owner($userId,(int)$portal['faculty_id'],$storedProfile));
     synk_faculty_profile_research_ensure($conn);
     $researchRecords = synk_faculty_profile_research_records($conn,synk_faculty_profile_owner($userId,(int)$portal['faculty_id'],$storedProfile));
+    synk_faculty_profile_training_ensure($conn);
+    $trainingRecords = synk_faculty_profile_training_records($conn,synk_faculty_profile_owner($userId,(int)$portal['faculty_id'],$storedProfile));
 } catch (Throwable $exception) {
     error_log('Faculty profile load failed: ' . $exception->getMessage());
     http_response_code(503);
@@ -62,8 +65,9 @@ if (empty($_SESSION['faculty_profile_csrf'])) {
 }
 
 require __DIR__ . '/../backend/faculty_profile_research_controller.php';
+require __DIR__ . '/../backend/faculty_profile_training_controller.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isResearchPost) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$isResearchPost && !$isTrainingPost) {
     $savedNotice = '';
     [$submitted, $errors] = synk_faculty_profile_validate($_POST, $today, $ranks, $storedProfile ?? [], $eligibilities, $locations);
     $saveAdditionalDegrees = array_key_exists('additional_degrees_present',$_POST);
@@ -187,8 +191,9 @@ foreach (array_slice(preg_split('/\s+/', trim($profile['full_name'])) ?: [], 0, 
 
 $profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner], 'photo_crop_enabled'=>true,
     'show_profile_tabs'=>true, 'additional_degrees'=>$additionalDegrees,
-    'research_state'=>$researchState, 'active_tab'=>$activeProfileTab,
+    'research_state'=>$researchState, 'training_state'=>$trainingState, 'active_tab'=>$activeProfileTab,
     'extra_styles'=>['manage-profile.css?v='.filemtime(__DIR__.'/manage-profile.css')],
     'extra_scripts'=>['manage-profile.js?v='.filemtime(__DIR__.'/manage-profile.js'),
-        'profile-researches.js?v='.filemtime(__DIR__.'/profile-researches.js')]];
+        'profile-researches.js?v='.filemtime(__DIR__.'/profile-researches.js'),
+        'profile-trainings.js?v='.filemtime(__DIR__.'/profile-trainings.js')]];
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';
