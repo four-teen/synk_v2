@@ -45,6 +45,16 @@
 .csr-status-action:hover{background:#fff0ed;border-color:#d79c96}
 .csr-status-action.is-restore{border-color:#c7d6eb;color:#44659e;background:#f6f9ff}
 .csr-status-action:disabled{opacity:.5}
+.csr-row-actions{display:grid;justify-items:end;gap:5px;min-width:0}
+.csr-exclude-action{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:transparent;border:0;color:#7a879b;padding:6px 10px;font-size:11px;min-height:36px}
+.csr-exclude-action:hover{background:#f0f3f8;color:#42546b;border-radius:6px}
+.csr-exclude-action:disabled{opacity:.5}
+.csr-excluded-management{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:-6px 0 18px;font-size:11px;color:#7b8798}
+.csr-excluded-management button{display:inline-flex;align-items:center;gap:6px;min-height:38px;border:1px solid #e0e6ef;background:#f8fafc;padding:7px 10px;border-radius:6px;color:#65758c;font-size:11px}
+.csr-excluded-management button[aria-pressed=true]{background:#e9eef7;color:#3d5373;border-color:#aebed6}
+.csr-badge.is-excluded{background:#e8edf5;color:#586a84}
+.csr-student.is-excluded{background:#f7f9fc;box-shadow:3px 0 #8b9db8 inset}
+@media(max-width:767.98px){.csr-exclude-action{min-height:44px}.csr-row-actions{grid-column:2;grid-row:2;align-self:start}.csr-excluded-management{align-items:flex-start}.csr-excluded-management button{min-height:44px}}
 .csr-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:18px}
 .csr-pagination p{margin:0;font-size:11px;color:#7b8798}
 .csr-pagination>div{display:flex;align-items:center;gap:12px;font-size:11px;color:#64748b}

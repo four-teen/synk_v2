@@ -135,7 +135,7 @@ function synk_student_assessment_deadline_notices_lms(array $rows,string $now): 
 {
     $notices=[];$zone=new DateTimeZone('Asia/Manila');
     foreach ($rows as $row) {
-        if (($row['class_status']??'enrolled')==='dropped') continue;
+        if (in_array($row['class_status']??'enrolled',['dropped','excluded'],true)) continue;
         $deadline=$row['deadline_at']??$row['due_at']??null;
         if ($deadline===null) continue;
         $done=($row['attempt_status']??null)==='submitted';

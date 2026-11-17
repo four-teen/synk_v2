@@ -48,28 +48,31 @@ Wide screens retain the text buttons.
 These are read-only aggregates from existing core enrollment and separate LMS
 attempt storage; this display change requires no database migration.
 
-Each card also offers Missing submissions, with the current unsubmitted count.
-Drafts keep it disabled until publishing. The dialog lists the actual distinct
-enrolled students without a submitted attempt, sorted by surname, with their
-student number for identification, current status, and original effective deadline.
-Submitted written work awaiting grading is excluded. Never-started, in-progress,
-elapsed, closed and not-yet-open work have separate labels; future and undated
-assessments are not described as overdue. It uses the same legacy/merged enrollment
-matching as participation counts and rechecks the professor's signed class scope.
+Generate submission report appears once above the assessment list. One request
+covers the entire assigned class across Midterm and Final, independent of the
+selected assessment tab, search or type filter. Each student appears once with all
+outstanding published/closed assessments underneath. Drafts and submitted items,
+including written work awaiting grading, are omitted. Dropped students and excluded
+accounts are omitted. Real-student counts exclude only Excluded; Dropped remains
+in the roster total. Existing records and grades are retained.
 
-Search matches names (including accents) or student numbers. Refresh list reloads
-the roster and attempts and updates the card counts. Copy full reminder includes
-all unsubmitted names, even when search hides some, plus each missing assessment,
-status, subject, section, LMS grading period, due date and Philippine timestamp.
-Different original attempt deadlines are identified individually. Preview group-chat
-reminder shows the exact plain text copied. Student numbers, grades, emails, answers
-and answer keys are excluded from that message. If clipboard access fails, the
-preview opens and selects the full text for manual copying. Nothing is sent to a
-chat service. Empty rosters and all-submitted classes have distinct empty states
-with copying disabled. This feature reads existing core/LMS records and requires
-no database migration. `php tests/assessment-followup_lms.php` verifies membership,
-status, timing, access, reminder contents and read-only behavior; the delivery HTTP
-and professor assessment browser checks cover the endpoint, clipboard and layout.
+Every item shows its title, grading period, type, status and effective deadline.
+Started attempts retain their original metadata and timer deadline after edits.
+Not started, In progress, Attempt ended, Closed without submission, Deadline passed
+and Not open yet are distinct. Future work shows its opening time and is not called
+overdue. The report reuses current legacy/merged enrollment matching and signed
+professor ownership. Generating is read only and never changes attempt status.
+
+Search matches names, student numbers or assessment titles. Regenerate report
+refreshes the full class snapshot. Copy full report includes every grouped student
+and assessment, even while search hides some, with subject, section, statuses,
+deadlines and Philippine generation timestamp. Preview group-chat reminder shows
+the exact text copied. Student numbers, grades, emails, answers, answer keys and
+private status notes are omitted from copied text. Clipboard failure opens and
+selects the preview for manual copying. Nothing is sent to a chat service.
+Empty/all-submitted classes disable copying. `php tests/class-followup_lms.php`
+checks multi-assessment grouping, snapshots, exclusion and read-only behavior;
+delivery HTTP and professor assessment browser checks cover the API and layout.
 
 LMS notifications use the locally bundled SweetAlert2 library: success toasts,
 validation and request error dialogs, and confirmations for removing questions,

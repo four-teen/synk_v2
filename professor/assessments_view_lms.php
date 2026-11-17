@@ -11,6 +11,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     <div class="lms-feedback-state" role="status">The assessment workspace needs to be set up. Ask your administrator to prepare LMS assessment storage.</div>
   <?php else: ?>
     <div id="assessmentLibrary">
+      <div class="assessment-class-followup"><div><strong>Class submission report</strong><p>Generate once for this class. Each student is listed with all outstanding assessments.</p></div><button type="button" class="btn btn-primary" id="assessmentGenerateFollowup"><i class="bx bx-list-check" aria-hidden="true"></i>Generate submission report</button></div>
       <div class="assessment-periods" role="group" aria-label="Grading period">
         <button type="button" data-period="midterm" class="is-active" aria-pressed="true"><span class="assessment-period-label"><i class="bx bx-sun" aria-hidden="true"></i>Midterm</span><span class="assessment-period-count" id="assessmentMidtermCount" title="Midterm assessments">0</span></button>
         <button type="button" data-period="final" aria-pressed="false"><span class="assessment-period-label"><i class="bx bx-flag" aria-hidden="true"></i>Final</span><span class="assessment-period-count" id="assessmentFinalCount" title="Final assessments">0</span></button>

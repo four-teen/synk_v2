@@ -12,14 +12,15 @@ function synk_assessment_request_lms(mysqli $conn, array $input): array
         || !hash_equals((string)$_SESSION['lms_assessment_csrf'], $input['csrf_token'])) throw new DomainException('Reload the assessment workspace before continuing.', 403);
     if (!is_array($input['context'] ?? null) || ($input['context']['view'] ?? '') !== 'assessments') throw new DomainException('Open Activities & assessments from your class workspace.', 403);
     $action = $input['action'] ?? null;
-    if (!is_string($action) || !in_array($action, ['list','detail','save','schedule','duplicate','archive','publish','close','submissions','missing_submissions'], true)) throw new DomainException('Choose a valid assessment action.', 400);
+    if (!is_string($action) || !in_array($action, ['list','detail','save','schedule','duplicate','archive','publish','close','submissions','missing_submissions','class_followup'], true)) throw new DomainException('Choose a valid assessment action.', 400);
     $context = synk_professor_class_context_lms($conn, $input['context']);
     $lms = synk_database_connection_lms($conn);
     if (!synk_assessment_ready_lms($lms)) throw new DomainException('The assessment workspace is not ready yet. Contact your administrator.', 503);
     $payload = $input['payload'] ?? [];
     if (!is_array($payload)) throw new DomainException('Enter valid assessment details.', 400);
     if ($action === 'list') return ['assessments'=>synk_assessment_list_with_participation_lms($conn, $lms, $context)];
-    if (in_array($action,['publish','close','submissions','missing_submissions'],true) && !synk_assessment_delivery_ready_lms($lms)) throw new DomainException('Assessment delivery storage is not ready yet.',503);
+    if (in_array($action,['publish','close','submissions','missing_submissions','class_followup'],true) && !synk_assessment_delivery_ready_lms($lms)) throw new DomainException('Assessment delivery storage is not ready yet.',503);
+    if ($action==='class_followup' && $payload) throw new DomainException('Generate the class report without assessment or student selectors.',400);
     if ($action==='missing_submissions' && array_diff(array_keys($payload),['assessment_id'])) throw new DomainException('Choose an assessment from this class without extra student selectors.',400);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin an assessment update.');
     try {
@@ -27,6 +28,7 @@ function synk_assessment_request_lms(mysqli $conn, array $input): array
         if ($action === 'detail') $data = ['assessment'=>synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($payload['assessment_id'] ?? null), true)];
         elseif ($action === 'submissions') $data = ['submissions'=>synk_assessment_submissions_lms($conn,$lms,$context,synk_assessment_id_lms($payload['assessment_id']??null))];
         elseif ($action === 'missing_submissions') $data = ['report'=>synk_assessment_missing_submissions_lms($conn,$lms,$context,synk_assessment_id_lms($payload['assessment_id']??null))];
+        elseif ($action === 'class_followup') $data = ['report'=>synk_assessment_class_followup_lms($conn,$lms,$context)];
         elseif ($action === 'save') $data = ['assessment'=>synk_assessment_save_lms($lms, $context, $payload, $actor)];
         elseif ($action === 'schedule') $data = ['assessment'=>synk_assessment_schedule_lms($lms, $context, $payload, $actor)];
         elseif ($action === 'publish') $data = ['assessment'=>synk_assessment_publish_lms($lms,$context,$payload,$actor)];

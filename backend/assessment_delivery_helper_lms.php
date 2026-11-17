@@ -21,6 +21,7 @@ function synk_assessment_list_with_participation_lms(mysqli $core,mysqli $lms,ar
     $students=$memberships[$offering] ?? [];
     $ready=synk_assessment_delivery_ready_lms($lms); $answered=[];$submitted=[];
     $statuses=synk_class_student_status_map_lms($lms,$context);
+    $students=synk_class_student_counted_members_lms($students,$statuses);
     if ($ready && $students) {
         $attempts=synk_assessment_query_lms($lms,"SELECT DISTINCT t.assessment_id,t.student_id
             FROM tbl_lms_assessment_attempts t JOIN tbl_lms_assessments a ON a.assessment_id=t.assessment_id
@@ -72,6 +73,8 @@ function synk_assessment_submissions_lms(mysqli $core,mysqli $lms,array $context
 {
     $record=synk_assessment_detail_lms($lms,$context,$id,true);
     $rows=synk_assessment_query_lms($lms,'SELECT attempt_id,student_id,status,answers_json,assessment_snapshot_json,started_at,deadline_at,submitted_at FROM tbl_lms_assessment_attempts WHERE assessment_id=? ORDER BY started_at,attempt_id','i',[$id]);
+    $statuses=synk_class_student_status_map_lms($lms,$context);
+    $rows=array_values(array_filter($rows,static function(array $row)use($statuses):bool{return ($statuses[(int)$row['student_id']]['status']??'enrolled')!=='excluded';}));
     foreach ($rows as &$row) {
         $row['attempt_id']=(int)$row['attempt_id'];$row['student_id']=(int)$row['student_id'];
         $names=synk_assessment_query_lms($core,'SELECT student_number,first_name,middle_name,last_name,suffix_name FROM tbl_student_management WHERE student_id=?','i',[$row['student_id']]);
