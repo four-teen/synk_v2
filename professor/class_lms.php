@@ -49,6 +49,9 @@ try {
     if ($view === 'overview') {
         require_once __DIR__ . '/../backend/class_overview_helper_lms.php';
         $overviewSummary = synk_class_overview_summary_lms($lmsConn, $context);
+        require_once __DIR__.'/../backend/class_student_status_helper_lms.php';
+        $classMembers=synk_professor_workload_student_memberships($conn,[$class],(int)$class['ay_id'],(int)$class['semester']);
+        $classRosterCount=count(synk_class_student_counted_members_lms($classMembers[(int)$class['offering_id']]??[],synk_class_student_status_map_lms($lmsConn,$context)));
     }
     if ($view === 'assessments') {
         require_once __DIR__ . '/../backend/assessment_helper_lms.php';

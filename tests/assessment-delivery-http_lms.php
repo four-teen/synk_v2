@@ -25,7 +25,9 @@ foreach($users as $user){
  foreach($classes as $class){
   if(($_GET['as']??'')==='second_student'&&(int)$class['offering_id']!==(int)($_GET['offering_id']??0))continue;
   $members=synk_professor_workload_student_memberships($conn,[$class],(int)$term['ay_id'],(int)$term['semester']);
+  $statusMap=synk_class_student_status_map_lms(synk_database_connection_lms($conn),['portal'=>['faculty_id'=>(int)$user['faculty_id']],'class'=>$class]);
   foreach(array_keys($members[(int)$class['offering_id']]??[])as$id){
+   if(($statusMap[(int)$id]['status']??'enrolled')!=='enrolled')continue;
    $rows=synk_assessment_query_lms($conn,'SELECT student_id,email_address,first_name FROM tbl_student_management WHERE student_id=?','i',[(int)$id]);$student=$rows[0]??null;
    if(!$student||!filter_var($student['email_address'],FILTER_VALIDATE_EMAIL)||count(synk_student_login_find_directory($conn,$student['email_address']))!==1)continue;
    if(($_GET['as']??'')==='second_student'&&(int)$id===(int)($_GET['exclude_student_id']??0))continue;
@@ -67,9 +69,13 @@ try{
  $r=$profCall('publish',array_replace($sample,['assessment_id'=>$id,'version'=>1]));$check($r['status']===200&&$r['data']['assessment']['status']==='published','The professor could not publish the draft.');$published=$r['data']['assessment'];
  $r=$studentCall('list');$check($r['status']===200&&in_array($id,array_column($r['data']['assessments'],'assessment_id'),true),'The published assessment did not appear for its enrolled student.');
  $r=$profCall('missing_submissions',['assessment_id'=>$id]);$report=$r['data']['report']??[];
- $check($r['status']===200&&$report['counts']['missing']===$report['counts']['students']&&$report['counts']['submitted']===0,'The professor follow-up endpoint initially lists the complete current roster.');
+ $check($r['status']===200&&$report['counts']['missing']+($report['excluded_dropped_count']??0)===$report['counts']['students']&&$report['counts']['submitted']===0,'The professor follow-up endpoint lists real students, omitting any existing dropped students: '.json_encode(['http'=>$r['status'],'counts'=>$report['counts']??null,'error'=>$r['data']['message']??null]));
  $check(strpos(json_encode($report),'answer_key')===false&&!isset($report['assessment']['questions']),'Follow-up responses contain no private assessment content.');
  $r=$profCall('missing_submissions',['assessment_id'=>$id,'student_id'=>$student['student_id']]);$check($r['status']===400,'Follow-up rejects extra student selectors.');
+ $r=$profCall('class_followup');$classReport=$r['data']['report']??[];
+ $check($r['status']===200&&$classReport['counts']['assessments']>=1&&isset($classReport['students'][0]['assessments']),'One class-wide HTTP request groups outstanding assessments under each student.');
+ $check(strpos(json_encode($classReport),'answer_key')===false&&strpos(json_encode($classReport),'answers_json')===false,'The grouped report contains no answers or keys.');
+ $r=$profCall('class_followup',['assessment_id'=>$id]);$check($r['status']===400,'The class report rejects assessment selectors and cannot silently generate only one card.');
  $r=$studentCall('missing_submissions',['assessment_id'=>$id]);$check($r['status']===400,'Students cannot invoke a professor follow-up action.');
  foreach(['student_id','attempt_id','faculty_id','offering_id','ay_id','semester','student_term','preview_student_id']as$field){$r=$studentCall('detail',['assessment_id'=>$id,$field=>$secondStudent['student_id']]);$check($r['status']===400,'Injected identity, attempt or scope field was accepted: '.$field);}
  $r=$studentCall('list',[],['student_id'=>$secondStudent['student_id']]);$check($r['status']===400,'A top-level student selector must be rejected.');
@@ -109,7 +115,7 @@ try{
  $r=$studentCall('submit',['assessment_id'=>$id,'version'=>2,'answers'=>[]]);$check($r['status']===200&&$r['data']['attempt']['answers']===$answers,'Repeated submission changed locked answers.');
  $r=$profCall('submissions',['assessment_id'=>$id]);$check($r['status']===200&&count($r['data']['submissions'])===2&&in_array($student['student_id'],array_column($r['data']['submissions'],'student_id'),true)&&in_array($secondStudent['student_id'],array_column($r['data']['submissions'],'student_id'),true),'Only the authorized professor can review both students responses.');
  $r=$profCall('missing_submissions',['assessment_id'=>$id]);$report=$r['data']['report'];
- $check($r['status']===200&&$report['counts']['submitted']===2&&$report['counts']['missing']===$report['counts']['students']-2,'The real follow-up endpoint excludes both submitted students.');
+ $check($r['status']===200&&$report['counts']['submitted']===2&&$report['counts']['missing']+($report['excluded_dropped_count']??0)===$report['counts']['students']-2,'The real follow-up endpoint excludes submitted and dropped students.');
  $r=$studentCall('submissions',['assessment_id'=>$id]);$check($r['status']===400,'Students must not invoke professor-only response review.');
  $edit=array_replace($sample,['assessment_id'=>$id,'version'=>$published['version'],'opens_at'=>'2099-01-01T08:00','due_at'=>'2099-01-01T09:00',
    'questions'=>[['question_type'=>'essay','prompt'=>'Corrected question','points'=>10]]]);

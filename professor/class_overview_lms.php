@@ -27,7 +27,7 @@ $classTools = [
         </header>
         <div class="class-lms-tool-footer" id="<?= $toolId ?>-footer">
           <?php if ($tool['key'] === 'students'): ?>
-            <span class="class-lms-tool-metric"><strong><?= number_format((int)$class['student_count']) ?></strong><span>enrolled <?= (int)$class['student_count'] === 1 ? 'student' : 'students' ?></span></span>
+            <span class="class-lms-tool-metric"><strong><?= number_format((int)($classRosterCount??$class['student_count'])) ?></strong><span>listed <?= (int)($classRosterCount??$class['student_count']) === 1 ? 'student' : 'students' ?></span></span>
           <?php elseif ($tool['key'] === 'materials' && ($materialsCount ?? null) !== null): ?>
             <span class="class-lms-tool-metric"><strong><?= (int)$materialsCount ?> / 2</strong><span>files uploaded · PDF / PowerPoint</span></span>
           <?php elseif ($tool['key'] === 'activities' && $overviewSummary['assessment_count'] !== null): ?>

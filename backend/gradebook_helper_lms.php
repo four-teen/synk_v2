@@ -51,7 +51,7 @@ function synk_gradebook_items_lms(mysqli $lms, int $bookId): array
 function synk_gradebook_roster_lms(mysqli $core, array $context): array
 {
     $class=$context['class'];
-    $roster=synk_professor_workload_students($core,(int)$context['portal']['faculty_id'],(int)$class['ay_id'],(int)$class['semester'],(int)$class['offering_id']);
+    $roster=synk_class_students_roster_lms($core,synk_database_connection_lms($core),$context);
     return array_map(static function(array $student):array {return array_intersect_key($student,array_flip(['student_id','student_number','full_name']));},$roster['students']);
 }
 function synk_gradebook_auto_points_lms(array $record, array $attempt, float $itemMax): array

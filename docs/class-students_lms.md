@@ -11,13 +11,20 @@ with an optional 500-character professor note. A dropped row remains in the list
 with a red badge and Restore to enrolled action. Restoration is also confirmed.
 Statuses are independent of whether the student has signed in to the portal.
 
+Exclude hides an account from the normal roster and deducts it from real-student
+totals, assessment participation/response lists, gradebook roster and the class
+overview's named-student count. It is useful for test accounts and other entries
+that should not be counted. All students includes Enrolled and Dropped only.
+Manage excluded opens a separate list for review and Restore to enrolled; excluded
+accounts are never added to the normal total. Changes are confirmed and audited.
+
 As requested, this is a reversible LMS class status. Dropped students keep LMS
 access, assessment attempts, saved/submitted answers and grades. They can still
 start or submit assessments. They are excluded from the professor's missing-
 submission reminders and the student's dashboard assessment deadline notices
-for this class. Assessment card missing counts use the same exclusion; the
-roster total and submitted counts retain their existing meaning. Follow-up
-reports state how many outstanding dropped students were excluded. Restoring
+for this class. The single class-wide submission report groups all outstanding
+work under each enrolled student's name and omits Dropped and Excluded. Dropped
+students remain in the real-student total; Excluded accounts do not. Restoring
 reenables reminders according to the existing deadlines and completion status.
 Class announcements and gradebook access continue normally.
 
@@ -37,7 +44,11 @@ and professor note, and a stale save requires refreshing the roster.
 Run `php backend/install_class_student_status_lms.php` to install or verify the
 two tables in the separate LMS database. This has been run for the local site.
 For another installation, the equivalent SQL is
-`backend/sql/class_student_status_lms.sql`. Web requests never create tables;
+`backend/sql/class_student_status_lms.sql`. Existing installations must rerun the
+installer or apply `backend/sql/class_student_exclusion_upgrade_lms.sql` to append
+Excluded to the three status ENUM columns in the two existing LMS tables. This
+upgrade has been applied locally and preserves prior statuses and audit entries.
+No new tables are needed for exclusion or grouped reports. Web requests never create tables;
 before installation the roster remains readable and status changes are disabled.
 The installer preserves existing records and is safe to rerun.
 
