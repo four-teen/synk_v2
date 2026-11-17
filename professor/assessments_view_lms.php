@@ -91,5 +91,6 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     </div>
     <div class="modal fade" id="assessmentSubmissionsModal" tabindex="-1" aria-labelledby="assessmentSubmissionsTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="assessmentSubmissionsTitle">Student responses</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="assessmentSubmissionsBody"></div><div class="modal-footer"><span class="assessment-help me-auto">Responses are saved. Grading and grade release will be added with the gradebook.</span><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>
     <script id="assessmentConfig" type="application/json"><?= json_encode(['csrf_token'=>(string)$_SESSION['lms_assessment_csrf'], 'endpoint'=>'assessments_api_lms.php', 'context'=>array_intersect_key($_GET, array_flip(['offering_id','ay_id','semester','view','signature']))], JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+    <?php require __DIR__.'/assessment_followup_view_lms.php'; ?>
   <?php endif; ?>
 </section>

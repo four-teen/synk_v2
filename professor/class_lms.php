@@ -66,8 +66,9 @@ try {
         if (empty($_SESSION['lms_gradebook_csrf'])) $_SESSION['lms_gradebook_csrf'] = bin2hex(random_bytes(32));
     }
     if ($view === 'students') {
-        require_once __DIR__ . '/../backend/professor_workload_students_helper.php';
-        $roster = synk_professor_workload_students($conn, (int)$portal['faculty_id'], (int)$class['ay_id'], (int)$class['semester'], (int)$class['offering_id']);
+        require_once __DIR__ . '/../backend/class_student_status_helper_lms.php';
+        $roster = synk_class_students_roster_lms($conn,$lmsConn,$context);
+        if (empty($_SESSION['lms_class_students_csrf'])) $_SESSION['lms_class_students_csrf'] = bin2hex(random_bytes(32));
     }
 } catch (DomainException $error) {
     http_response_code(in_array($error->getCode(), [400, 401, 403, 404, 405, 503], true) ? $error->getCode() : 403);
@@ -96,7 +97,8 @@ $professorPortalCompactHeader = true;
   <link rel="stylesheet" href="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css">
   <link rel="stylesheet" href="custom_css.css?v=<?= (int)filemtime(__DIR__.'/custom_css.css') ?>">
   <link rel="stylesheet" href="class_lms.css?v=<?= (int)filemtime(__DIR__.'/class_lms.css') ?>">
-  <?php if ($class && in_array($view, ['overview','assessments','grading','gradebook','announcements','materials'], true)): ?><link rel="stylesheet" href="feedback_lms.css?v=<?= (int)filemtime(__DIR__.'/feedback_lms.css') ?>"><?php endif; ?>
+  <?php if ($class && in_array($view, ['overview','students','assessments','grading','gradebook','announcements','materials'], true)): ?><link rel="stylesheet" href="feedback_lms.css?v=<?= (int)filemtime(__DIR__.'/feedback_lms.css') ?>"><?php endif; ?>
+  <?php if ($view === 'students' && $class): ?><link rel="stylesheet" href="class_students_lms.css?v=<?= (int)filemtime(__DIR__.'/class_students_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'materials' && $class): ?><link rel="stylesheet" href="learning_materials_lms.css?v=<?= (int)filemtime(__DIR__.'/learning_materials_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'announcements' && $class): ?><link rel="stylesheet" href="announcements_lms.css?v=<?= (int)filemtime(__DIR__.'/announcements_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'assessments' && $class): ?><link rel="stylesheet" href="assessments_lms.css?v=<?= (int)filemtime(__DIR__.'/assessments_lms.css') ?>"><?php endif; ?>
@@ -137,15 +139,7 @@ $professorPortalCompactHeader = true;
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>" aria-label="Grade Book"<?= $view==='gradebook'?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i><span>Grade Book</span></a>
           </nav>
           <?php if ($view === 'students'): ?>
-            <section class="card class-lms-panel" aria-labelledby="class-lms-students-title">
-              <div class="class-lms-panel-head"><div><h2 id="class-lms-students-title">Class roster</h2><p>The students currently listed for this class.</p></div><span class="class-lms-count"><?= (int)$roster['counts']['students'] ?> listed</span></div>
-              <?php if (!$roster['students']): ?><div class="class-lms-roster-empty"><i class="bx bx-user" aria-hidden="true"></i><p>No named students are listed for this class yet.</p></div><?php else: ?>
-                <ul class="class-lms-students">
-                  <?php foreach ($roster['students'] as $student): ?><li><img src="<?= synk_professor_h($student['photo_url']) ?>" alt="" width="44" height="44" loading="lazy" decoding="async"><div><strong><?= synk_professor_h($student['full_name']) ?></strong><span><?= synk_professor_h($student['student_number']) ?></span></div></li><?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-              <p class="class-lms-note">The named roster and recorded enrollment total may differ. Contact your college office if a student is missing.</p>
-            </section>
+            <?php include __DIR__.'/class_students_view_lms.php'; ?>
           <?php elseif ($view === 'materials'): ?>
             <?php include __DIR__.'/learning_materials_view_lms.php'; ?>
           <?php elseif ($view === 'announcements'): ?>
@@ -166,7 +160,8 @@ $professorPortalCompactHeader = true;
   </div>
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
-<?php if ($class && in_array($view, ['overview','assessments','grading','gradebook','announcements','materials'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($class && in_array($view, ['overview','students','assessments','grading','gradebook','announcements','materials'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'students' && $class): ?><script src="class_students_lms.js?v=<?= (int)filemtime(__DIR__.'/class_students_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'materials' && $class && $materialsReady): ?><script src="learning_materials_lms.js?v=<?= (int)filemtime(__DIR__.'/learning_materials_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'announcements' && $class && $announcementsReady): ?><script src="announcements_lms.js?v=<?= (int)filemtime(__DIR__.'/announcements_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'overview' && $class): ?><script src="class_overview_lms.js?v=<?= (int)filemtime(__DIR__.'/class_overview_lms.js') ?>" defer></script><?php endif; ?>

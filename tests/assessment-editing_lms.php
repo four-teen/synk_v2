@@ -27,12 +27,14 @@ try {
         ]];
     $published=synk_assessment_publish_lms($lms,$context,$sample,$actor);$id=$published['assessment_id'];
     $start=synk_student_assessment_action_lms($conn,$lms,$sid,'start',['assessment_id'=>$id]);
-    $q=$start['assessment']['questions'];$answers=[$q[0]['question_id']=>1,$q[1]['question_id']=>false,$q[2]['question_id']=>'PHP',$q[3]['question_id']=>'Original essay response'];
+    $q=array_column($start['assessment']['questions'],null,'question_type');$answers=[$q['multiple_choice']['question_id']=>1,$q['true_false']['question_id']=>false,$q['short_answer']['question_id']=>'PHP',$q['essay']['question_id']=>'Original essay response'];
     $saved=synk_student_assessment_action_lms($conn,$lms,$sid,'save',['assessment_id'=>$id,'version'=>1,'answers'=>$answers]);
     $other=synk_student_assessment_action_lms($conn,$lms,$second,'start',['assessment_id'=>$id]);
     $submitted=synk_student_assessment_action_lms($conn,$lms,$second,'submit',['assessment_id'=>$id,'version'=>1,'answers'=>$answers]);
     // Simulate attempts created before the upgrade, including a completed attempt.
-    synk_assessment_query_lms($lms,'UPDATE tbl_lms_assessment_attempts SET assessment_snapshot_json=NULL WHERE assessment_id=?','i',[$id]);
+    // A pre-upgrade attempt used the professor's original order. Keep the new
+    // randomized in-progress attempt intact while simulating that older submission.
+    synk_assessment_query_lms($lms,'UPDATE tbl_lms_assessment_attempts SET assessment_snapshot_json=NULL WHERE assessment_id=? AND student_id=?','ii',[$id,$second]);
     $edit=array_replace($sample,['assessment_id'=>$id,'version'=>1,'grading_period'=>'final','assessment_type'=>'exam',
         'title'=>'Corrected exam','instructions'=>'Corrected instructions.','opens_at'=>'2099-01-01T08:00','due_at'=>'2099-01-01T10:00','time_limit_minutes'=>10,
         'questions'=>[
@@ -55,7 +57,7 @@ try {
     $check($listed[$id]['title']==='Original quiz'&&$listed[$id]['grading_period']==='midterm'&&$listed[$id]['result']===$submitted['result'],'Student list cards must use the attempt version, including its grading period and result.');
     $check(strpos(json_encode($listed),'answer_key')===false&&strpos(json_encode($listed),'assessment_snapshot_json')===false,'List cards must not leak snapshot questions or answer keys.');
     $review=synk_assessment_submissions_lms($conn,$lms,$context,$id);
-    $check(count($review)===2&&$review[0]['assessment']['title']==='Original quiz'&&$review[0]['assessment']['questions'][0]['question_id']===$q[0]['question_id'],'Professor review must pair old answers with original question text, type and choices.');
+    $check(count($review)===2&&$review[0]['assessment']['title']==='Original quiz'&&array_column($review[0]['assessment']['questions'],'question_id')===array_column($start['assessment']['questions'],'question_id'),'Professor review must preserve the original randomized question order alongside saved answers.');
     $fresh=synk_student_assessment_action_lms($conn,$lms,$third,'detail',['assessment_id'=>$id]);
     $check($fresh['assessment']['title']==='Corrected exam'&&$fresh['assessment']['questions']===[],'Students who have not started must receive the edited title and settings without question disclosure.');
     $denied(static function()use($conn,$lms,$third,$id){synk_student_assessment_action_lms($conn,$lms,$third,'start',['assessment_id'=>$id]);},409);
@@ -66,8 +68,10 @@ try {
     $edit['version']=2;$edit['opens_at']=null;$edit['due_at']=null;
     $updated=synk_assessment_save_lms($lms,$context,$edit,$actor);
     $newStart=synk_student_assessment_action_lms($conn,$lms,$third,'start',['assessment_id'=>$id]);
-    $check(array_column($newStart['assessment']['questions'],'question_id')===array_column($updated['questions'],'question_id')&&strpos(json_encode($newStart),'answer_key')===false,'New attempts must receive the corrected question set without private answer keys.');
-    $check($newStart['assessment']['questions'][0]['prompt']==='New essay first'&&$newStart['assessment']['assessment_type']==='exam'&&$newStart['assessment']['time_limit_minutes']===10,'New attempts must use the current type, order, points and time limit.');
+    $newIds=array_column($newStart['assessment']['questions'],'question_id');$updatedIds=array_column($updated['questions'],'question_id');sort($newIds);sort($updatedIds);
+    $check($newIds===$updatedIds&&strpos(json_encode($newStart),'answer_key')===false,'New attempts must receive every corrected question without private answer keys.');
+    $newTypes=array_column($newStart['assessment']['questions'],null,'question_type');
+    $check($newTypes['essay']['prompt']==='New essay first'&&$newStart['assessment']['assessment_type']==='exam'&&$newStart['assessment']['time_limit_minutes']===10,'New attempts must use the current type, points and time limit in randomized order.');
     // The old browser payload still saves/submits with its original question IDs and revision.
     $done=synk_student_assessment_action_lms($conn,$lms,$sid,'submit',['assessment_id'=>$id,'version'=>2,'answers'=>$answers]);
     $check($done['result']===$submitted['result']&&$done['attempt']['status']==='submitted','An attempt started before editing must still submit and score using its original keys.');

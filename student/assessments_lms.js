@@ -189,7 +189,7 @@
   setInterval(()=>{if(state.dirty&&document.visibilityState==='visible')save();},15000);setInterval(tick,1000);
   task(async()=>{
     await refresh();
-    const target=new URLSearchParams(window.location.search).get('assessment_id');
+    const target=/^#assessment-([1-9][0-9]{0,9})$/.exec(window.location.hash)?.[1];
     if(!target||!/^[1-9][0-9]{0,9}$/.test(target))return;
     const row=state.rows.find(item=>item.assessment_id===Number(target));
     if(!row){feedback.info('This activity is no longer available in your enrolled subjects.','Activity unavailable');return;}

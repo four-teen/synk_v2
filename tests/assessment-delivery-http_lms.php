@@ -66,6 +66,11 @@ try{
  $r=$studentCall('detail',['assessment_id'=>$id]);$check($r['status']===404,'Private drafts must stay hidden through the real student endpoint.');
  $r=$profCall('publish',array_replace($sample,['assessment_id'=>$id,'version'=>1]));$check($r['status']===200&&$r['data']['assessment']['status']==='published','The professor could not publish the draft.');$published=$r['data']['assessment'];
  $r=$studentCall('list');$check($r['status']===200&&in_array($id,array_column($r['data']['assessments'],'assessment_id'),true),'The published assessment did not appear for its enrolled student.');
+ $r=$profCall('missing_submissions',['assessment_id'=>$id]);$report=$r['data']['report']??[];
+ $check($r['status']===200&&$report['counts']['missing']===$report['counts']['students']&&$report['counts']['submitted']===0,'The professor follow-up endpoint initially lists the complete current roster.');
+ $check(strpos(json_encode($report),'answer_key')===false&&!isset($report['assessment']['questions']),'Follow-up responses contain no private assessment content.');
+ $r=$profCall('missing_submissions',['assessment_id'=>$id,'student_id'=>$student['student_id']]);$check($r['status']===400,'Follow-up rejects extra student selectors.');
+ $r=$studentCall('missing_submissions',['assessment_id'=>$id]);$check($r['status']===400,'Students cannot invoke a professor follow-up action.');
  foreach(['student_id','attempt_id','faculty_id','offering_id','ay_id','semester','student_term','preview_student_id']as$field){$r=$studentCall('detail',['assessment_id'=>$id,$field=>$secondStudent['student_id']]);$check($r['status']===400,'Injected identity, attempt or scope field was accepted: '.$field);}
  $r=$studentCall('list',[],['student_id'=>$secondStudent['student_id']]);$check($r['status']===400,'A top-level student selector must be rejected.');
  $r=$request('http://localhost/synk/student/assessments_api_lms.php?student_id='.$secondStudent['student_id'],['action'=>'list','csrf_token'=>$student['csrf_token']],'student');$check($r['status']===400,'API URL selectors must be rejected.');
@@ -74,11 +79,18 @@ try{
  $r=$studentCall('start',['assessment_id'=>$id]);$check($r['status']===200,'An enrolled student could not start.');$start=$r['data'];
  $check(strpos(json_encode($start),'answer_key')===false&&count($start['assessment']['questions'])===2,'Student HTTP responses must never contain answer keys.');
  $check($start['result']===null,'The real endpoint must withhold results while the student can still edit.');
- $answers=[$start['assessment']['questions'][0]['question_id']=>1,$start['assessment']['questions'][1]['question_id']=>false];
+ $r=$studentCall('deadlines');$notices=array_column($r['data']['deadlines'],null,'assessment_id');
+ $check($r['status']===200&&isset($notices[$id])&&$notices[$id]['deadline_at']===$start['attempt']['deadline_at']&&!$notices[$id]['is_complete'],'The deadline endpoint uses the signed-in student effective timer and pending status.');
+ $check(strpos(json_encode($r['data']),'answer_key')===false&&strpos(json_encode($r['data']),'answers')===false,'The deadline endpoint discloses no answers or keys.');
+ $r=$secondCall('deadlines');$notices=array_column($r['data']['deadlines'],null,'assessment_id');
+ $check($r['status']===200&&!isset($notices[$id]),'A classmate without an attempt cannot see another student timer deadline.');
+ $r=$studentCall('deadlines',['student_id'=>$secondStudent['student_id']]);$check($r['status']===400,'Deadline feeds reject injected student selectors.');
+ $byType=array_column($start['assessment']['questions'],null,'question_type');
+ $answers=[$byType['multiple_choice']['question_id']=>1,$byType['true_false']['question_id']=>false];
  $r=$studentCall('save',['assessment_id'=>$id,'version'=>1,'answers'=>$answers]);$check($r['status']===200&&$r['data']['attempt']['answers']===$answers,'The real endpoint must preserve typed objective answers.');
  $r=$secondCall('detail',['assessment_id'=>$id]);$check($r['status']===200&&$r['data']['attempt']===null&&$r['data']['assessment']['questions']===[]&&$r['data']['result']===null,'A classmate must never see the first student attempt, questions or saved answers before starting.');
  $r=$secondCall('start',['assessment_id'=>$id]);$check($r['status']===200&&$r['data']['attempt']['attempt_id']!==$start['attempt']['attempt_id'],'Each student must receive a separate attempt.');$secondAttempt=$r['data']['attempt'];
- $otherAnswers=[$start['assessment']['questions'][0]['question_id']=>0,$start['assessment']['questions'][1]['question_id']=>true];
+ $otherAnswers=[$byType['multiple_choice']['question_id']=>0,$byType['true_false']['question_id']=>true];
  $r=$secondCall('submit',['assessment_id'=>$id,'version'=>1,'answers'=>$otherAnswers]);$check($r['status']===200&&$r['data']['result']['correct_count']===0,'The second student must submit only their own answers.');
  $r=$studentCall('save',['assessment_id'=>$id,'attempt_id'=>$secondAttempt['attempt_id'],'version'=>2,'answers'=>[]]);$check($r['status']===400,'An injected classmate attempt ID must not redirect a save.');
  $r=$studentCall('submit',['assessment_id'=>$id,'student_id'=>$secondStudent['student_id'],'version'=>2,'answers'=>[]]);$check($r['status']===400,'An injected classmate student ID must not redirect submission.');
@@ -87,6 +99,8 @@ try{
  $r=$studentCall('detail',['assessment_id'=>$id],['csrf_token'=>'wrong']);$check($r['status']===403,'CSRF must protect student reads and writes.');
  $r=$studentCall('submit',['assessment_id'=>$id,'version'=>2,'answers'=>$answers]);$check($r['status']===200&&$r['data']['attempt']['status']==='submitted','Student submission failed.');
  $check($r['data']['result']===['correct_count'=>2,'mistake_count'=>0,'pending_review_count'=>0,'checked_count'=>2]&&strpos(json_encode($r['data']),'answer_key')===false,'The real endpoint must calculate aggregate results without exposing answer keys.');
+ $r=$studentCall('deadlines');$notices=array_column($r['data']['deadlines'],null,'assessment_id');
+ $check($r['status']===200&&$notices[$id]['is_complete']&&$notices[$id]['status_label']==='Submitted','The real deadline endpoint marks successfully submitted work complete.');
  $r=$studentCall('detail',['assessment_id'=>$id]);$check($r['status']===200&&$r['data']['result']['correct_count']===2,'Reopening a submitted assessment must return the same result.');
  $r=$studentCall('list');$listed=array_column($r['data']['assessments'],null,'assessment_id');
  $check($r['status']===200&&$listed[$id]['result']===['correct_count'=>2,'mistake_count'=>0,'pending_review_count'=>0,'checked_count'=>2]&&strpos(json_encode($listed),'answers')===false&&strpos(json_encode($listed),'answer_key')===false,'The real list endpoint must supply submitted card results without exposing private answers or keys.');
@@ -94,6 +108,8 @@ try{
  $r=$secondCall('list');$otherListed=array_column($r['data']['assessments'],null,'assessment_id');$check($r['status']===200&&$otherListed[$id]['result']['correct_count']===0,'List-card results must be scoped to the signed-in student.');
  $r=$studentCall('submit',['assessment_id'=>$id,'version'=>2,'answers'=>[]]);$check($r['status']===200&&$r['data']['attempt']['answers']===$answers,'Repeated submission changed locked answers.');
  $r=$profCall('submissions',['assessment_id'=>$id]);$check($r['status']===200&&count($r['data']['submissions'])===2&&in_array($student['student_id'],array_column($r['data']['submissions'],'student_id'),true)&&in_array($secondStudent['student_id'],array_column($r['data']['submissions'],'student_id'),true),'Only the authorized professor can review both students responses.');
+ $r=$profCall('missing_submissions',['assessment_id'=>$id]);$report=$r['data']['report'];
+ $check($r['status']===200&&$report['counts']['submitted']===2&&$report['counts']['missing']===$report['counts']['students']-2,'The real follow-up endpoint excludes both submitted students.');
  $r=$studentCall('submissions',['assessment_id'=>$id]);$check($r['status']===400,'Students must not invoke professor-only response review.');
  $edit=array_replace($sample,['assessment_id'=>$id,'version'=>$published['version'],'opens_at'=>'2099-01-01T08:00','due_at'=>'2099-01-01T09:00',
    'questions'=>[['question_type'=>'essay','prompt'=>'Corrected question','points'=>10]]]);

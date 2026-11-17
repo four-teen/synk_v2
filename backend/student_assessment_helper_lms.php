@@ -87,7 +87,7 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
     $rows=synk_assessment_query_lms($lms,"SELECT assessment_id,faculty_id,offering_id,ay_id,semester,grading_period,assessment_type,title,status,total_points,opens_at,due_at,time_limit_minutes,
         (SELECT COUNT(*) FROM tbl_lms_assessment_questions q WHERE q.assessment_id=tbl_lms_assessments.assessment_id) AS question_count
         FROM tbl_lms_assessments WHERE ay_id=? AND semester=? AND status IN ('published','closed') ORDER BY assessment_id DESC",'ii',[(int)$term['ay_id'],(int)$term['semester']]);
-    $result=[];$classes=[];$members=[];$finished=[];
+    $result=[];$classes=[];$members=[];$finished=[];$classStatuses=[];
     foreach ($rows as $row) {
         $facultyId=(int)$row['faculty_id'];
         if (!isset($classes[$facultyId])) {
@@ -103,10 +103,13 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
         $row=synk_assessment_attempt_record_lms($row,$attempt[0]??null);
         $item=array_intersect_key($row,array_flip(['assessment_id','grading_period','assessment_type','title','status','total_points','opens_at','due_at','time_limit_minutes']));
         $item['assessment_id']=(int)$item['assessment_id'];$item['subject_label']=$class['subject_code'].': '.$class['descriptive_title'];
+        if (!isset($classStatuses[$facultyId][$offering])) $classStatuses[$facultyId][$offering]=synk_class_student_status_map_lms($lms,['portal'=>['faculty_id'=>$facultyId],'class'=>$class]);
+        $item['class_status']=$classStatuses[$facultyId][$offering][$studentId]['status']??'enrolled';
         // Display metadata only: started attempts retain their original item count.
         $item['question_count']=isset($row['questions'])?count($row['questions']):(int)$row['question_count'];
         $item['subject_key']=synk_student_subject_key_lms($facultyId,$class['subject_code'],$class['descriptive_title']);
         $item['attempt_status']=$attempt?$attempt[0]['status']:null;
+        $item['deadline_at']=$attempt ? $attempt[0]['deadline_at'] : $item['due_at'];
         if ($item['attempt_status']==='in_progress' && $attempt[0]['deadline_at']!==null && $attempt[0]['deadline_at']<=synk_assessment_now_lms()) $item['attempt_status']='expired';
         $item['result']=null;
         if(in_array($item['attempt_status'],['submitted','expired'],true))$finished[$item['assessment_id']]=['status'=>$item['attempt_status'],'answers'=>json_decode($attempt[0]['answers_json'],true)?:[],'questions'=>$row['questions']??null];
@@ -126,6 +129,40 @@ function synk_student_assessment_list_lms(mysqli $core,mysqli $lms,int $studentI
     }
     return $result;
 }
+
+// Dashboard metadata only. Submitted is complete; expired/closed work still needs attention.
+function synk_student_assessment_deadline_notices_lms(array $rows,string $now): array
+{
+    $notices=[];$zone=new DateTimeZone('Asia/Manila');
+    foreach ($rows as $row) {
+        if (($row['class_status']??'enrolled')==='dropped') continue;
+        $deadline=$row['deadline_at']??$row['due_at']??null;
+        if ($deadline===null) continue;
+        $done=($row['attempt_status']??null)==='submitted';
+        $today=substr($deadline,0,10)===substr($now,0,10);
+        $past=$deadline<=$now;
+        $state='Not submitted';
+        if ($done) $state='Submitted';
+        elseif (($row['attempt_status']??null)==='expired') $state='Time ended';
+        elseif ($row['status']==='closed') $state='Closed';
+        elseif ($past) $state='Overdue';
+        elseif (($row['opens_at']??null)!==null && $row['opens_at']>$now) $state='Upcoming';
+        elseif (($row['attempt_status']??null)==='in_progress') $state='In progress';
+        $notices[]=[
+            'assessment_id'=>(int)$row['assessment_id'],'title'=>$row['title'],'subject_label'=>$row['subject_label'],
+            'deadline_at'=>$deadline,'deadline_label'=>(new DateTimeImmutable($deadline,$zone))->format('M j, Y \a\t g:i A').' PHT',
+            'is_complete'=>$done,'is_today'=>$today,'status_label'=>$state,
+            'notice_label'=>$done?'Completed':($today?'Due today':($past?'Deadline passed':'Due')),
+            'priority'=>$done?3:($today?0:($past?1:2))
+        ];
+    }
+    usort($notices,static function(array $a,array $b):int {
+        return ($a['priority']<=>$b['priority']) ?: strcmp($a['deadline_at'],$b['deadline_at']) ?: ($a['assessment_id']<=>$b['assessment_id']);
+    });
+    foreach ($notices as &$notice) unset($notice['priority']);unset($notice);
+    return $notices;
+}
+
 function synk_student_assessment_action_lms(mysqli $core,mysqli $lms,int $studentId,string $action,array $payload): array
 {
     $id=synk_assessment_id_lms($payload['assessment_id']??null);
@@ -142,6 +179,12 @@ function synk_student_assessment_action_lms(mysqli $core,mysqli $lms,int $studen
             if ($deadline===null || $timer<$deadline) $deadline=$timer;
         }
         $record['questions']=synk_assessment_questions_lms($lms,$id);
+        // Shuffle once per student attempt, then preserve the order with the original keys.
+        // Reloading, saving and reviewing must never reshuffle an existing attempt.
+        for ($i=count($record['questions'])-1;$i>0;$i--) {
+            $j=random_int(0,$i);
+            $question=$record['questions'][$i];$record['questions'][$i]=$record['questions'][$j];$record['questions'][$j]=$question;
+        }
         synk_assessment_query_lms($lms,"INSERT INTO tbl_lms_assessment_attempts (assessment_id,student_id,status,answers_json,assessment_snapshot_json,started_at,deadline_at,updated_at) VALUES (?,?,'in_progress','{}',?,?,?,?)",'iissss',[$id,$studentId,synk_assessment_snapshot_json_lms($record),$now,$deadline,$now]);
         $attempt=synk_student_attempt_lms($lms,$id,$studentId);
     }
@@ -164,15 +207,18 @@ function synk_student_assessment_request_lms(mysqli $core,array $input): array
     $studentId=synk_student_assessment_identity_lms($core);
     if (empty($_SESSION['student_assessment_csrf']) || !is_string($input['csrf_token']??null) || !hash_equals($_SESSION['student_assessment_csrf'],$input['csrf_token'])) throw new DomainException('Reload your assessments page before continuing.',403);
     $action=$input['action']??null;
-    if (!is_string($action) || !in_array($action,['list','detail','start','save','submit'],true)) throw new DomainException('Choose a valid assessment action.',400);
+    if (!is_string($action) || !in_array($action,['list','deadlines','detail','start','save','submit'],true)) throw new DomainException('Choose a valid assessment action.',400);
     $payload=$input['payload']??[];if (!is_array($payload)) throw new DomainException('Enter valid assessment details.',400);
-    $allowed=in_array($action,['save','submit'],true)?['assessment_id','version','answers']:($action==='list'?[]:['assessment_id']);
+    $allowed=in_array($action,['save','submit'],true)?['assessment_id','version','answers']:(in_array($action,['list','deadlines'],true)?[]:['assessment_id']);
     if(array_diff(array_keys($input),['action','payload','csrf_token'])||array_diff(array_keys($payload),$allowed))throw new DomainException('This request contains unsupported assessment fields. Reload your student workspace.',400);
     $lms=synk_database_connection_lms($core);
     if (!synk_assessment_delivery_ready_lms($lms)) throw new DomainException('Your assessments workspace is not ready yet.',503);
     if (!$lms->begin_transaction()) throw new RuntimeException('Unable to begin the assessment request.');
     try {
-        $data=$action==='list'?['assessments'=>synk_student_assessment_list_lms($core,$lms,$studentId),'server_time'=>synk_assessment_now_lms()]:synk_student_assessment_action_lms($core,$lms,$studentId,$action,$payload);
+        if (in_array($action,['list','deadlines'],true)) {
+            $rows=synk_student_assessment_list_lms($core,$lms,$studentId);$now=synk_assessment_now_lms();
+            $data=$action==='deadlines'?['deadlines'=>synk_student_assessment_deadline_notices_lms($rows,$now),'server_time'=>$now]:['assessments'=>$rows,'server_time'=>$now];
+        } else $data=synk_student_assessment_action_lms($core,$lms,$studentId,$action,$payload);
         if (!$lms->commit()) throw new RuntimeException('Unable to save assessment responses.');
         return $data;
     } catch (Throwable $error) { $lms->rollback();throw $error; }

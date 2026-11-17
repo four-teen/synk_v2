@@ -133,7 +133,7 @@ try {
         if($case==='gradebook')$check(strpos($body,'id="gradebookWorkspace"')!==false&&strpos($body,'id="gradebookConfig"')!==false&&strpos($body,'Semester summary')!==false,'The gradebook view must open with signed context and separate period controls.');
         if($case==='announcements')$check(strpos($body,'id="professorAnnouncements"')!==false&&strpos($body,'id="announcementConfig"')!==false,'The announcement card must open its signed class editor.');
         if($case==='materials')$check(strpos($body,'id="learningMaterials"')!==false&&strpos($body,'id="materialConfig"')!==false,'The learning material card must open its signed upload workspace.');
-        if($case==='students'||$case==='navigate_students')$check(strpos($body,'Jos')!==false&&strpos($body,'Foreign Test Student')===false&&strpos($body,'3 listed')!==false,'The class roster includes unrelated students or loses its named members.');
+        if($case==='students'||$case==='navigate_students')$check(strpos($body,'Jos')!==false&&strpos($body,'Foreign Test Student')===false&&strpos($body,'data-csr-count="students">3')!==false,'The class roster includes unrelated students or loses its named members.');
         if($case==='navigate_class'||$case==='navigate_back')$check(strpos($body,'class="card class-lms-hero"')!==false&&strpos($body,'Manage this subject')!==false,
             'Following the real workload and tab links did not reach the signed class overview.');
         if(in_array($case,['class','students','grading','navigate_class','navigate_students','navigate_back','navigate_grading'],true)){

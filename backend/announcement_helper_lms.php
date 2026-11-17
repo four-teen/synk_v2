@@ -76,7 +76,7 @@ function synk_student_announcement_feed_lms(mysqli $core, mysqli $lms, int $stud
         $feed[] = array_intersect_key($row,array_flip(['event_key','event_at','title','body','kind','assessment_id','opens_at','due_at','status'])) + [
             'subject_label'=>$class['subject_code'].': '.$class['descriptive_title'],
             'faculty_name'=>$names[$faculty],
-            'url'=>$row['assessment_id'] === null ? null : 'assessments_lms.php?assessment_id='.(int)$row['assessment_id']
+            'url'=>$row['assessment_id'] === null ? null : 'assessments_lms.php#assessment-'.(int)$row['assessment_id']
         ];
     }
     usort($feed,static function(array $a,array $b): int { return strcmp($b['event_at'],$a['event_at']) ?: strcmp($b['event_key'],$a['event_key']); });
