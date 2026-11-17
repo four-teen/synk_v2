@@ -1,4 +1,26 @@
 /* Student dashboard presentation. All counts, periods and announcements stay server-owned. */
+.student-deadline-panel{margin-bottom:24px;border:1px solid #d9e6ed;overflow:hidden}
+.student-deadline-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 20px;background:#eaf3f8;border-bottom:1px solid #d9e6ed}
+.student-deadline-toolbar h2{display:flex;align-items:center;gap:8px;margin:0 0 5px;font-size:18px;color:#294a5c}
+.student-deadline-toolbar p{margin:0;font-size:12px;color:#526a78;line-height:1.5}
+.student-deadline-toolbar button{flex-shrink:0;min-height:44px}
+.student-deadline-list{list-style:none;margin:0;padding:0 20px}
+.student-deadline-item{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid #e4edf1}
+.student-deadline-content{min-width:0;overflow-wrap:anywhere}
+.student-deadline-title{display:inline-block;font-weight:600;color:#294a5c;min-height:24px}
+.student-deadline-title:hover{text-decoration:underline}
+.student-deadline-subject{margin:3px 0 5px;color:#637987;font-size:12px}
+.student-deadline-notice{margin:0;color:#b42318;font-size:13px;line-height:1.6}
+.student-deadline-status{display:inline-flex;align-items:center;gap:5px;color:#b42318;font-weight:600;font-size:12px;flex-shrink:0}
+.student-deadline-item.is-today .student-deadline-notice strong{padding:3px 7px;background:#fef0ee;border:1px solid #f9c4bd;border-radius:4px}
+.student-deadline-item.is-complete :is(.student-deadline-notice,.student-deadline-status){color:#14733e}
+.student-deadline-item.is-complete.is-today .student-deadline-notice strong{background:#e9f7ee;border-color:#b9e2c8}
+.student-deadline-error{color:#b42318;font-size:13px;margin:12px 20px;line-height:1.5}
+.student-deadline-error:empty{display:none}
+.student-deadline-empty{margin:0;padding:24px 20px;color:#637987;font-size:14px}
+.student-deadline-footer{padding:14px 20px;font-size:13px}
+.student-deadline-footer a{display:inline-flex;align-items:center;gap:8px;min-height:28px}
+@media(max-width:575.98px){.student-deadline-toolbar{align-items:flex-start;flex-direction:column;padding:16px}.student-deadline-list{padding:0 16px}.student-deadline-item{align-items:flex-start;flex-direction:column;gap:8px}.student-deadline-toolbar button{width:100%}.student-deadline-toolbar h2{font-size:17px}}
 .student-portal.student-dashboard main :is(.card,.student-subject-item){border-radius:0}
 .student-portal.student-dashboard{position:relative;isolation:isolate;min-height:100vh;min-height:100dvh;background:radial-gradient(ellipse at 50% 46%,#ffffffe6,transparent 66%),linear-gradient(135deg,#edf5fc 0%,#f9fbfe 52%,#eef6fc 100%)}
 .student-dashboard-background{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}

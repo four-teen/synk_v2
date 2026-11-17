@@ -1,0 +1,17 @@
+<?php if (!isset($class,$assessmentsReady) || !$assessmentsReady || ($_SESSION['role']??'')!=='professor') { http_response_code(404); return; } ?>
+<div class="modal fade assessment-followup-modal" id="assessmentFollowupModal" tabindex="-1" aria-labelledby="assessmentFollowupTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><div class="assessment-followup-heading"><span class="assessment-followup-icon"><i class="bx bx-user-minus" aria-hidden="true"></i></span><div><p class="assessment-eyebrow">CLASS FOLLOW-UP</p><h5 class="modal-title" id="assessmentFollowupTitle">Missing submissions</h5></div></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close missing submissions"></button></div>
+    <div class="modal-body">
+      <h6 class="assessment-followup-name" id="assessmentFollowupName"></h6><p class="assessment-followup-context" id="assessmentFollowupContext"></p>
+      <div class="assessment-followup-counts" aria-label="Submission summary"><div><strong id="assessmentFollowupMissing">0</strong><span>Not submitted</span></div><div class="is-submitted"><strong id="assessmentFollowupSubmitted">0</strong><span>Submitted</span></div><div><strong id="assessmentFollowupTotal">0</strong><span>Enrolled students</span></div></div>
+      <div class="assessment-followup-notice"><i class="bx bx-info-circle" aria-hidden="true"></i><p id="assessmentFollowupNotice"></p></div>
+      <div class="assessment-followup-toolbar"><div class="assessment-search"><i class="bx bx-search" aria-hidden="true"></i><label for="assessmentFollowupSearch" class="visually-hidden">Search students by name or student number</label><input type="search" class="form-control" id="assessmentFollowupSearch" placeholder="Search name or student number" autocomplete="off"></div><button type="button" class="btn btn-outline-secondary" id="assessmentFollowupRefresh"><i class="bx bx-refresh" aria-hidden="true"></i>Refresh list</button></div>
+      <p class="assessment-followup-result" id="assessmentFollowupResult" role="status" aria-live="polite"></p>
+      <ol class="assessment-followup-students" id="assessmentFollowupStudents"></ol>
+      <div class="assessment-followup-empty" id="assessmentFollowupEmpty" hidden><i class="bx bx-check-circle" aria-hidden="true"></i><p></p></div>
+      <details class="assessment-followup-preview" id="assessmentFollowupPreview"><summary><i class="bx bx-message-square-detail" aria-hidden="true"></i>Preview group-chat reminder</summary><label class="visually-hidden" for="assessmentFollowupMessage">Full reminder to copy</label><textarea id="assessmentFollowupMessage" class="form-control" rows="10" readonly spellcheck="false"></textarea><p>Copies names and assessment details. Student numbers, grades and answers are excluded.</p></details>
+    </div>
+    <div class="modal-footer"><div class="assessment-followup-copy-note"><p id="assessmentFollowupAsOf"></p><p id="assessmentFollowupCopyStatus" role="status" aria-live="polite">Copy includes the full list, even while searching.</p></div><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="assessmentFollowupCopy"><i class="bx bx-copy" aria-hidden="true"></i><span>Copy full reminder</span></button></div>
+  </div></div>
+</div>

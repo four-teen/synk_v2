@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__.'/assessment_helper_lms.php';
 require_once __DIR__.'/professor_workload_students_helper.php';
+require_once __DIR__.'/class_student_status_helper_lms.php';
 
 function synk_assessment_delivery_ready_lms(mysqli $lms): bool
 {
@@ -18,7 +19,8 @@ function synk_assessment_list_with_participation_lms(mysqli $core,mysqli $lms,ar
     $class=$context['class']; $offering=(int)$class['offering_id'];
     $memberships=synk_professor_workload_student_memberships($core,[$class],(int)$class['ay_id'],(int)$class['semester']);
     $students=$memberships[$offering] ?? [];
-    $ready=synk_assessment_delivery_ready_lms($lms); $answered=[];
+    $ready=synk_assessment_delivery_ready_lms($lms); $answered=[];$submitted=[];
+    $statuses=synk_class_student_status_map_lms($lms,$context);
     if ($ready && $students) {
         $attempts=synk_assessment_query_lms($lms,"SELECT DISTINCT t.assessment_id,t.student_id
             FROM tbl_lms_assessment_attempts t JOIN tbl_lms_assessments a ON a.assessment_id=t.assessment_id
@@ -28,12 +30,15 @@ function synk_assessment_list_with_participation_lms(mysqli $core,mysqli $lms,ar
             if (isset($students[(int)$attempt['student_id']])) {
                 $id=(int)$attempt['assessment_id'];
                 $answered[$id]=($answered[$id] ?? 0)+1;
+                $submitted[$id][(int)$attempt['student_id']]=true;
             }
         }
     }
     foreach ($rows as &$row) {
         $row['student_count']=count($students);
         $row['answered_count']=$ready ? ($answered[$row['assessment_id']] ?? 0) : null;
+        $excluded=0;foreach ($statuses as $studentId=>$status) if ($status['status']==='dropped' && isset($students[$studentId]) && !isset($submitted[$row['assessment_id']][$studentId])) $excluded++;
+        $row['missing_count']=$ready?max(0,count($students)-($answered[$row['assessment_id']]??0)-$excluded):null;
     }
     unset($row);
     return $rows;

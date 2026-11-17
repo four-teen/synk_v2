@@ -22,6 +22,11 @@ The workspace supports private authoring, publishing, and enrolled student respo
   become available according to the saved opening date and deadline.
 - One resumable student attempt, server-enforced timers, saved responses, final
   submission locking, and professor response review.
+- All quiz/exam questions are randomized independently when a student starts.
+  Each attempt keeps that order in its existing LMS snapshot. Reloads, additional
+  tabs, saves, submissions and professor review retain the same question IDs,
+  choices, answer keys and order. Already started attempts keep their original
+  order; authoring and professor previews keep the professor's saved order.
 - Close published assessments; saved work is retained and further responses stop.
 
 Each professor assessment card shows answered students in green / total students
@@ -42,6 +47,29 @@ tap dismissal; the existing action dialogs and confirmations still apply.
 Wide screens retain the text buttons.
 These are read-only aggregates from existing core enrollment and separate LMS
 attempt storage; this display change requires no database migration.
+
+Each card also offers Missing submissions, with the current unsubmitted count.
+Drafts keep it disabled until publishing. The dialog lists the actual distinct
+enrolled students without a submitted attempt, sorted by surname, with their
+student number for identification, current status, and original effective deadline.
+Submitted written work awaiting grading is excluded. Never-started, in-progress,
+elapsed, closed and not-yet-open work have separate labels; future and undated
+assessments are not described as overdue. It uses the same legacy/merged enrollment
+matching as participation counts and rechecks the professor's signed class scope.
+
+Search matches names (including accents) or student numbers. Refresh list reloads
+the roster and attempts and updates the card counts. Copy full reminder includes
+all unsubmitted names, even when search hides some, plus each missing assessment,
+status, subject, section, LMS grading period, due date and Philippine timestamp.
+Different original attempt deadlines are identified individually. Preview group-chat
+reminder shows the exact plain text copied. Student numbers, grades, emails, answers
+and answer keys are excluded from that message. If clipboard access fails, the
+preview opens and selects the full text for manual copying. Nothing is sent to a
+chat service. Empty rosters and all-submitted classes have distinct empty states
+with copying disabled. This feature reads existing core/LMS records and requires
+no database migration. `php tests/assessment-followup_lms.php` verifies membership,
+status, timing, access, reminder contents and read-only behavior; the delivery HTTP
+and professor assessment browser checks cover the endpoint, clipboard and layout.
 
 LMS notifications use the locally bundled SweetAlert2 library: success toasts,
 validation and request error dialogs, and confirmations for removing questions,
@@ -97,9 +125,19 @@ counts submitted attempts. Total includes all visible published/closed assessmen
 including upcoming, overdue, and time-ended work. Counts cover both LMS grading
 periods, update after submission, and retain zero values. Submitted work remains
 available to review.
-The dashboard's former subject-list area is reserved for announcements; posting
-announcements is not implemented yet. Staff dashboard previews keep their existing
-read-only subject list and historical term controls.
+The student dashboard shows Assessment deadlines above announcements. It includes
+all dated published/closed work in the student's authorized current subjects and
+both LMS grading periods. Pending notices use red text; due-today notices are
+highlighted and sorted first using Philippine dates. Overdue, closed and time-ended
+work stays red. Submitted quizzes, exams and assignments turn green, including
+written work awaiting professor review. Completed notices remain visible after
+pending work. A started attempt uses its original deadline, including any earlier
+time limit; undated work remains available under Activities & assessments.
+Notices render on the server, refresh each minute while visible and when returning
+to the dashboard, and offer a manual refresh. A failed refresh retains the last
+loaded notices and displays a message. Deadline links open the authorized
+assessment through a URL fragment without starting an attempt. Staff dashboard
+previews keep their existing read-only subject list and historical term controls.
 
 Their real identity, current academic term, active enrollment (including
 legacy and merged-class matching), active faculty, and live workload ownership

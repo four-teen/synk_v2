@@ -5,6 +5,7 @@ require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/student_dashboard_helper.php';
 require_once __DIR__ . '/../backend/db_lms.php';
 require_once __DIR__ . '/../backend/announcement_helper_lms.php';
+require_once __DIR__ . '/../backend/student_assessment_helper_lms.php';
 synk_student_require_login($conn, true);
 header('Cache-Control: no-store, private');
 $isPreview = synk_student_is_staff_preview_mode();
@@ -34,7 +35,17 @@ $studentWelcomeName = implode(' ', array_filter(array_map('trim', [
     (string)($student['suffix_name'] ?? ''),
 ]))) ?: 'Student';
 $announcements = []; $announcementError = ''; $announcementReadsReady = false;
+$assessmentDeadlines = []; $assessmentDeadlineError = '';
 if (!$isPreview) {
+    if (empty($_SESSION['student_assessment_csrf'])) $_SESSION['student_assessment_csrf'] = bin2hex(random_bytes(32));
+    try {
+        $lmsConn = synk_database_connection_lms($conn);
+        if (!synk_assessment_delivery_ready_lms($lmsConn)) throw new RuntimeException('Assessment delivery storage unavailable.');
+        $assessmentDeadlines = synk_student_assessment_deadline_notices_lms(synk_student_assessment_list_lms($conn,$lmsConn,$studentId),synk_assessment_now_lms());
+    } catch (Throwable $error) {
+        error_log('Student LMS assessment deadlines are temporarily unavailable.');
+        $assessmentDeadlineError = 'Assessment deadlines are temporarily unavailable. Open Activities & assessments to check your work.';
+    }
     try {
         $lmsConn = synk_database_connection_lms($conn);
         $announcementReadsReady = synk_announcement_ready_lms($lmsConn);
@@ -84,6 +95,7 @@ if (!$isPreview) {
         </section>
         <?php if (empty($viewTerm['is_current'])): ?><div class="student-term-notice" role="status"><i class="bx bx-history" aria-hidden="true"></i><span>You’re viewing <?= synk_student_h($viewTerm['term_text']) ?>. The current term is <?= synk_student_h($currentTerm['term_text']) ?>.</span></div><?php endif; ?>
         <?php if (!$isPreview): ?>
+        <?php require __DIR__.'/assessment_deadlines_view_lms.php'; ?>
         <?php require __DIR__.'/announcements_view_lms.php'; ?>
         <?php else: ?>
         <section class="card student-subject-panel" aria-labelledby="subjects-title">
@@ -118,5 +130,6 @@ if (!$isPreview) {
 </div></div></div><?php endif; ?>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
 <script src="dashboard.js?v=<?= (int)filemtime(__DIR__.'/dashboard.js') ?>" defer></script>
+<?php if (!$isPreview): ?><script src="assessment_deadlines_lms.js?v=<?= (int)filemtime(__DIR__.'/assessment_deadlines_lms.js') ?>" defer></script><?php endif; ?>
 <?php if (!$isPreview && $announcementReadsReady && $announcements): ?><script src="announcements_lms.js?v=<?= (int)filemtime(__DIR__.'/announcements_lms.js') ?>" defer></script><?php endif; ?>
 </body></html>

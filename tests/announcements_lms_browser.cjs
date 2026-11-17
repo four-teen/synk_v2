@@ -41,6 +41,7 @@ async function main(){
     else {assessmentHtml=html;assessmentConfig=JSON.parse(html.match(/id="studentAssessmentConfig" type="application\/json">(.*?)<\/script>/s)[1]);}
   }
   check(studentConfig.unread_keys.length===2,'Real student dashboard contains one class notice and one automatic activity notice.');
+  check(/data-deadline-assessment="\d+"/.test(studentHtml)&&studentHtml.includes('Jan 2, 2099 at 5:00 PM PHT'),'The actual PHP dashboard renders its enrolled assessment deadline before JavaScript runs.');
   const executable=[process.env['ProgramFiles(x86)']+'\\Microsoft\\Edge\\Application\\msedge.exe',process.env.ProgramFiles+'\\Google\\Chrome\\Application\\chrome.exe'].find(fs.existsSync);
   if(!executable)throw Error('Edge or Chrome is required.');
   browser=spawn(executable,['--headless=new','--disable-gpu','--disable-extensions','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
@@ -99,7 +100,7 @@ async function main(){
     await call('Emulation.setDeviceMetricsOverride',{width,height:1050,deviceScaleFactor:1,mobile:width<600},session);await evaluate('document.querySelector("#studentAnnouncements").scrollIntoView({block:"start"})');
     check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'Student announcements fit '+width+'px.');if(width!==320)await screenshot(`student-class-updates-${width}_lms.png`);
   }
-  await call('Page.navigate',{url:'http://localhost/synk/student/assessments_lms.php?assessment_id=123'},session);
+  await call('Page.navigate',{url:'http://localhost/synk/student/assessments_lms.php#assessment-123'},session);
   await until('document.querySelector("#studentAssessmentEditor")&&!document.querySelector("#studentAssessmentEditor").hidden&&!document.querySelector("#studentAssessmentRefresh").disabled');
   check(await evaluate('document.querySelector("#studentAssessmentEditor").textContent.includes("New class project")&&document.querySelector("[data-student-period=final]").getAttribute("aria-pressed")==="true"'),'Activity links open the correct published activity and grading period.');
   check(!errors.length,'No browser errors: '+errors.join(' / '));

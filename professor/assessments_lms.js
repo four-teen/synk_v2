@@ -11,11 +11,12 @@
   const labels = { quiz:'Quiz', exam:'Exam', assignment:'Assignment', multiple_choice:'Multiple choice', true_false:'True / False', short_answer:'Short answer', essay:'Essay' };
   const periods = { midterm:'Midterm', final:'Final' };
   const icons = { quiz:'bx-list-check', exam:'bx-edit-alt', assignment:'bx-task' };
-  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, preview:null, duplicate:null, schedule:null, sequence:0 };
+  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, preview:null, duplicate:null, schedule:null, followup:null, sequence:0 };
   const previewModal = new bootstrap.Modal($('assessmentPreviewModal'));
   const duplicateModal = new bootstrap.Modal($('assessmentDuplicateModal'));
   const submissionsModal = new bootstrap.Modal($('assessmentSubmissionsModal'));
   const scheduleModal = new bootstrap.Modal($('assessmentScheduleModal'));
+  const followupModal = new bootstrap.Modal($('assessmentFollowupModal'));
   const compactCards = window.matchMedia('(max-width:767.98px)');
   let cardMenu = null, cardActionOrigin = null;
   const stamp = value => value ? String(value).replace(' ', 'T').slice(0,16) : '';
@@ -71,6 +72,7 @@
       });
       if (state.draft && !$('assessmentEditor').hidden) toggleType();
       updateQuestionActions();
+      $('assessmentFollowupCopy').disabled=!state.followup?.message;
     }
     updateFloatingActions();
   }
@@ -132,6 +134,44 @@
       </div>
     </div>`;
   }
+  function followupButton(row) {
+    const draft=row.status==='draft',ready=Number.isInteger(row.student_count)&&Number.isInteger(row.answered_count);
+    const count=ready?(Number.isInteger(row.missing_count)?row.missing_count:Math.max(0,row.student_count-row.answered_count)):null;
+    return `<div class="assessment-followup-action"><button type="button" class="assessment-followup-button${!draft&&count===0?' is-clear':''}" data-action="missing_submissions" data-id="${row.assessment_id}"${draft||!ready?' disabled':''} title="${draft?'Publish this assessment to check missing submissions':!ready?'Submission counts are temporarily unavailable':'View enrolled students who have not submitted'}"><i class="bx ${!draft&&count===0?'bx-check-double':'bx-user-minus'}" aria-hidden="true"></i><span>Missing submissions</span>${!draft?`<span class="assessment-followup-badge">${count===null?'—':number(count)}</span>`:''}</button><span class="assessment-followup-hint">${draft?'Available after publishing':'View names & copy a class reminder'}</span></div>`;
+  }
+  function renderFollowupStudents() {
+    if(!state.followup)return;
+    const search=$('assessmentFollowupSearch').value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const rows=state.followup.students.filter(row=>(row.student_name+' '+row.student_number).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().includes(search));
+    $('assessmentFollowupStudents').innerHTML=rows.map(row=>`<li class="assessment-followup-student"><div class="assessment-followup-student-name"><strong>${escape(row.student_name)}</strong><span>${escape(row.student_number||'Student number unavailable')}</span></div><div class="assessment-followup-student-state"><span class="assessment-followup-status is-${escape(row.status)}">${escape(row.status_label)}</span><small>${row.deadline_at?'Due '+escape(row.deadline_label):'No due date'}</small></div></li>`).join('');
+    $('assessmentFollowupResult').textContent=`Showing ${number(rows.length)} of ${number(state.followup.students.length)} unsubmitted students`;
+    $('assessmentFollowupEmpty').hidden=rows.length>0;
+    $('assessmentFollowupEmpty').querySelector('p').textContent=search?'No students match your search.':state.followup.excluded_dropped_count?'No follow-up needed. Remaining unsubmitted students are marked as dropped.':state.followup.counts.students?'Everyone currently enrolled has submitted this assessment.':'No enrolled students were found for this class.';
+  }
+  async function loadFollowup(id) {
+    const {report}=await api('missing_submissions',{assessment_id:id});state.followup=report;
+    $('assessmentFollowupName').textContent=report.assessment.title;
+    $('assessmentFollowupContext').textContent=[report.class.subject_code+': '+report.class.title,report.class.section,periods[report.assessment.grading_period],labels[report.assessment.assessment_type],'Due: '+report.due_label].filter(Boolean).join(' · ');
+    $('assessmentFollowupMissing').textContent=number(report.counts.missing);$('assessmentFollowupSubmitted').textContent=number(report.counts.submitted);$('assessmentFollowupTotal').textContent=number(report.counts.students);
+    $('assessmentFollowupNotice').textContent=report.notice;
+    $('assessmentFollowupMessage').value=report.message;$('assessmentFollowupPreview').hidden=!report.students.length;
+    $('assessmentFollowupAsOf').textContent='As of '+report.generated_label;
+    $('assessmentFollowupCopyStatus').textContent='Copy includes the full list, even while searching.';
+    $('assessmentFollowupCopy').querySelector('span').textContent='Copy full reminder ('+number(report.counts.missing)+')';
+    renderFollowupStudents();
+    const row=state.rows.find(item=>item.assessment_id===id);if(row){row.answered_count=report.counts.submitted;row.student_count=report.counts.students;row.missing_count=report.counts.missing;renderList();}
+  }
+  async function copyFollowup() {
+    if(state.busy||!state.followup?.message)return;
+    const text=$('assessmentFollowupMessage'),button=$('assessmentFollowupCopy');button.disabled=true;
+    let copied=false;
+    try {await navigator.clipboard.writeText(state.followup.message);copied=true;} catch (_) {
+      $('assessmentFollowupPreview').open=true;text.focus();text.select();
+      try {copied=document.execCommand('copy');} catch (_) {}
+    }
+    $('assessmentFollowupCopyStatus').textContent=copied?'Full reminder copied. You can paste it into your group chat.':'Automatic copying is unavailable. The full message is selected; use your device’s Copy command.';
+    button.disabled=false;if(copied)button.focus();
+  }
   function renderList() {
     closeCardMenu();
     for (const period of Object.keys(periods)) {
@@ -156,7 +196,7 @@
       <span class="assessment-list-icon"><i class="bx ${icons[row.assessment_type] || 'bx-task'}" aria-hidden="true"></i></span>
       <div class="assessment-list-main"><div class="assessment-list-summary"><div class="assessment-list-details"><div class="assessment-list-labels"><span class="badge bg-label-primary">${escape(labels[row.assessment_type])}</span><span class="badge bg-label-secondary">${escape(row.status === 'draft' ? 'Draft' : row.status)}</span>${row.topic ? `<span class="text-muted">${escape(row.topic)}</span>` : ''}</div>
       <h3>${escape(row.title)}</h3><div class="assessment-list-meta"><span>${number(row.total_points)} points</span>${row.assessment_type !== 'assignment' ? `<span>${number(row.question_count)} questions</span>` : ''}<span>${row.opens_at ? 'Starts ' + escape(dateLabel(row.opens_at)) : 'No start date'}</span><span>${row.due_at ? 'Ends ' + escape(dateLabel(row.due_at)) : 'No end date'}</span></div></div>${participation(row)}</div>
-      ${cardActions(row)}</div></article>`).join('');
+      ${cardActions(row)}${followupButton(row)}</div></article>`).join('');
   }
   async function refresh() {
     const data = await api('list'); state.rows = data.assessments; renderList();
@@ -427,6 +467,9 @@
     const action = button.dataset.action;
     cardActionOrigin = { id:row.assessment_id, action };
     closeCardMenu(true);
+    if (action === 'missing_submissions') {
+      task(async()=>{$('assessmentFollowupSearch').value='';$('assessmentFollowupPreview').open=false;await loadFollowup(row.assessment_id);followupModal.show();});return;
+    }
     if (action === 'schedule') {
       state.schedule = row;
       $('assessmentScheduleModal').dataset.assessmentId = row.assessment_id;
@@ -493,9 +536,12 @@
     const origin = $('assessmentList').contains(focused) ? { id:Number(focused.dataset.id), action:focused.dataset.action || 'more' } : null;
     renderList(); focusCardAction(origin);
   });
-  for (const id of ['assessmentPreviewModal','assessmentDuplicateModal','assessmentSubmissionsModal']) {
+  for (const id of ['assessmentPreviewModal','assessmentDuplicateModal','assessmentSubmissionsModal','assessmentFollowupModal']) {
     $(id).addEventListener('hidden.bs.modal', () => focusCardAction(cardActionOrigin));
   }
+  $('assessmentFollowupSearch').addEventListener('input',renderFollowupStudents);
+  $('assessmentFollowupCopy').addEventListener('click',copyFollowup);
+  $('assessmentFollowupRefresh').addEventListener('click',()=>{if(state.followup)task(async()=>{try{await loadFollowup(state.followup.assessment.assessment_id);}catch(error){$('assessmentFollowupCopyStatus').textContent='Refresh failed. The last loaded list is shown; check its timestamp before copying.';throw error;}});});
   $('assessmentDuplicateForm').addEventListener('submit', event => {
     event.preventDefault(); if (!state.duplicate || state.busy) return;
     const row = state.duplicate, period = $('assessmentDuplicatePeriod').value;

@@ -4,7 +4,7 @@ const { spawn } = require('node:child_process');
 const root = path.resolve(__dirname, '..'), tag = crypto.randomBytes(10).toString('hex'), token = crypto.randomBytes(24).toString('hex');
 const route = path.join(root, 'tmp', `assessment-browser-${tag}_lms.php`), profile = path.join(root, '.tmp', `assessment-browser-${tag}_lms`);
 const pending = new Map(), errors = [], failures = [], requests = [];
-let browser, ws, call, session, pageConfig, checks = 0, nextId = 100, conflict = false, duplicateFailure = false;
+let browser, ws, call, session, pageConfig, checks = 0, nextId = 100, conflict = false, duplicateFailure = false, followupEmpty=false, followupFailure=false;
 const records = [], submissionRows = [], delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (ok, message) => { if (!ok) throw Error(message); checks++; };
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -69,6 +69,11 @@ function api(request) {
   const payload = request.payload || {}, found = records.find(item => item.assessment_id === payload.assessment_id);
   if (request.action === 'list') return { ok:true, assessments:records.filter(item=>item.status!=='archived').map(item=>({ ...clone(item), question_count:item.questions.length, student_count:28, answered_count:item.status==='draft'?0:12 })) };
   if (request.action === 'detail') return { ok:true, assessment:clone(found) };
+  if (request.action === 'missing_submissions') {
+    if(followupFailure)return {ok:false,status:503,message:'Follow-up temporarily unavailable.'};
+    const students=followupEmpty?[]:Array.from({length:16},(_,i)=>({student_name:i===0?'Álvarez, Ana':i===1?'Bea <img src=x onerror=alert(1)>':i===2?'Cruz, Carlo':'Learner, Student '+(i+1),student_number:'QA-'+(i+1),status:i===1?'in_progress':i===2?'expired':'not_started',status_label:i===1?'In progress':i===2?'Attempt ended':'Not started',deadline_at:'2026-11-20 17:00:00',deadline_label:'Nov 20, 2026 at 5:00 PM PHT'}));
+    return {ok:true,report:{assessment:{assessment_id:found.assessment_id,title:found.title,grading_period:found.grading_period,assessment_type:found.assessment_type},class:{subject_code:'CS 111',title:'Fundamentals of Programming',section:'BSCS 1A'},counts:{students:28,submitted:28-students.length,missing:students.length},students,notice:'The scheduled deadline has not passed. Students may still be working.',due_label:'Nov 20, 2026 at 5:00 PM PHT',generated_label:'Nov 17, 2026 at 8:00 AM PHT',message:students.length?'ASSESSMENT REMINDER\nAssessment: '+found.title+'\n'+students.map((s,i)=>(i+1)+'. '+s.student_name+' — '+found.title+' ('+s.status_label+')').join('\n'):''}};
+  }
   if (request.action === 'schedule') {
     if (conflict) { conflict=false; return { status:409, ok:false, message:'This assessment changed in another tab. Close the schedule and refresh the list before saving.' }; }
     found.opens_at=payload.opens_at;found.due_at=payload.due_at;found.version++;
@@ -217,6 +222,7 @@ async function main() {
   check(await evaluate('document.querySelector("#assessmentFinalCount").textContent==="1" && !document.querySelector("#assessmentList img")'),'The Final list count updates and titles remain escaped.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("0") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28")'),'Draft cards show zero answered and the actual roster total.');
   await mobileCardActions('draft');
+  check(await evaluate('document.querySelector("[data-action=missing_submissions]").disabled'),'Drafts never label the class as missing a private assessment.');
   await click('[data-action="duplicate"]');await until('document.querySelector("#assessmentDuplicateModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentDuplicateModal"))._isTransitioning');
   await fill('#assessmentDuplicatePeriod','midterm','change');duplicateFailure=true;await click('#assessmentDuplicateForm [type="submit"]');
   await until('document.querySelector("#swal2-html-container")?.textContent.includes("Refresh before duplicating")');
@@ -274,6 +280,28 @@ async function main() {
   await mobileCardActions('published');
   check(await evaluate('!!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer editing, response review and closing.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("12") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28") && getComputedStyle(document.querySelector(".assessment-count-answered")).color==="rgb(21, 128, 61)" && getComputedStyle(document.querySelector(".assessment-count-total")).color==="rgb(185, 28, 28)"'),'Published cards display answered students in green and total students in red.');
+  check(await evaluate('!document.querySelector("[data-action=missing_submissions]").disabled&&document.querySelector(".assessment-followup-badge").textContent==="16"'),'Each published card exposes its missing-submission count.');
+  await click('[data-action=missing_submissions]');await until('document.querySelector("#assessmentFollowupModal").classList.contains("show")&&!bootstrap.Modal.getInstance(document.querySelector("#assessmentFollowupModal"))._isTransitioning&&document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(await evaluate('document.querySelectorAll(".assessment-followup-student").length===16&&document.querySelector("#assessmentFollowupMissing").textContent==="16"&&document.querySelector("#assessmentFollowupSubmitted").textContent==="12"&&!document.querySelector("#assessmentFollowupStudents img")&&document.querySelector("#assessmentFollowupStudents").textContent.includes("Attempt ended")'),'The dialog shows current counts, safe names and clear unfinished-attempt statuses.');
+  await fill('#assessmentFollowupSearch','alvarez');check(await evaluate('document.querySelectorAll(".assessment-followup-student").length===1&&document.querySelector("#assessmentFollowupResult").textContent.includes("1 of 16")'),'Student search matches accented names.');
+  await evaluate('Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async text=>{window.qaFollowupClipboard=text;}}})');
+  await click('#assessmentFollowupCopy');await until('document.querySelector("#assessmentFollowupCopyStatus").textContent.includes("Full reminder copied")');
+  check(await evaluate('window.qaFollowupClipboard===document.querySelector("#assessmentFollowupMessage").value&&window.qaFollowupClipboard.includes("16. Learner, Student 16")&&!window.qaFollowupClipboard.includes("QA-")'),'Copy always includes the whole list and exactly matches the preview, even during search.');
+  await fill('#assessmentFollowupSearch','nothing matches');check(await evaluate('!document.querySelector("#assessmentFollowupEmpty").hidden&&document.querySelector("#assessmentFollowupEmpty").textContent.includes("match your search")'),'No-match searches have a clear empty state.');await fill('#assessmentFollowupSearch','');
+  for(const width of [1440,768,390,320]){
+    await call('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:width<600},session);await delay(100);
+    check(await evaluate('document.documentElement.scrollWidth<=innerWidth&&document.querySelector("#assessmentFollowupModal .modal-content").getBoundingClientRect().right<=innerWidth&&document.querySelector("#assessmentFollowupCopy").getBoundingClientRect().height>=44&&document.querySelector("#assessmentFollowupModal .modal-body").scrollHeight>document.querySelector("#assessmentFollowupModal .modal-body").clientHeight'),'The long student list scrolls inside the dialog and Copy stays reachable at '+width+'px.');
+    if([1440,390].includes(width)){fs.writeFileSync(path.join(root,'.tmp','assessment-followup-'+width+'_lms.png'),Buffer.from((await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session)).data,'base64'));}
+  }
+  await evaluate('navigator.clipboard.writeText=async()=>{throw Error("Denied")};document.execCommand=()=>false');await click('#assessmentFollowupCopy');await until('document.querySelector("#assessmentFollowupCopyStatus").textContent.includes("Automatic copying is unavailable")');
+  check(await evaluate('document.querySelector("#assessmentFollowupPreview").open&&document.activeElement.id==="assessmentFollowupMessage"&&document.activeElement.selectionEnd===document.activeElement.value.length'),'Clipboard denial opens and selects the full reminder for manual copying.');
+  followupFailure=true;await click('#assessmentFollowupRefresh');await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');await answerDialog();
+  check(await evaluate('document.querySelectorAll(".assessment-followup-student").length===16&&document.querySelector("#assessmentFollowupCopyStatus").textContent.includes("Refresh failed")'),'A failed refresh retains the timestamped list and reports stale data.');followupFailure=false;
+  followupEmpty=true;await click('#assessmentFollowupRefresh');await until('document.querySelector("#assessmentFollowupMissing").textContent==="0"&&document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  check(await evaluate('document.querySelector("#assessmentFollowupCopy").disabled&&document.querySelector("#assessmentFollowupPreview").hidden&&document.querySelector("#assessmentFollowupEmpty").textContent.includes("Everyone currently enrolled has submitted")'),'An all-submitted class gets a positive empty state and no copyable reminder.');
+  followupEmpty=false;await click('#assessmentFollowupRefresh');await until('document.querySelector("#assessmentFollowupMissing").textContent==="16"&&document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  await click('#assessmentFollowupModal .modal-header [data-bs-dismiss]');await until('!document.body.classList.contains("modal-open")&&!document.querySelector("#assessmentFollowupModal").classList.contains("show")&&!bootstrap.Modal.getInstance(document.querySelector("#assessmentFollowupModal"))._isTransitioning');
+  check(await evaluate('document.activeElement.dataset.action==="missing_submissions"'),'Closing returns keyboard focus to the assessment follow-up button.');
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(100);
     await evaluate('document.querySelector(".assessment-list-card").scrollIntoView({block:"center",behavior:"instant"})');
