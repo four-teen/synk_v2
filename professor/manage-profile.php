@@ -7,6 +7,7 @@ require_once __DIR__ . '/../backend/faculty_profile_crop_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_degrees_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_research_helper.php';
 require_once __DIR__ . '/../backend/faculty_profile_training_helper.php';
+require_once __DIR__ . '/../backend/hr_faculty_pds_helper.php';
 synk_professor_require_login();
 
 header('Cache-Control: no-store, private');
@@ -62,6 +63,16 @@ try {
 $profileOwner = synk_faculty_profile_owner($userId, (int)$portal['faculty_id'], $storedProfile);
 if (empty($_SESSION['faculty_profile_csrf'])) {
     $_SESSION['faculty_profile_csrf'] = bin2hex(random_bytes(32));
+}
+
+$pdsState = ['enabled'=>false,'sections'=>[],'owner'=>synk_hr_pds_owner($userId,(int)$portal['faculty_id']),
+    'csrf_token'=>$_SESSION['faculty_profile_csrf'],'save_url'=>'pds-save.php','faculty_link'=>$facultyLink];
+try {
+    synk_hr_pds_ensure($conn);
+    $pdsState['sections'] = synk_hr_pds_load($conn,$userId,(int)$portal['faculty_id']);
+    $pdsState['enabled'] = true;
+} catch (Throwable $exception) {
+    error_log('HR PDS load failed ('.get_class($exception).', code '.$exception->getCode().').');
 }
 
 require __DIR__ . '/../backend/faculty_profile_research_controller.php';
@@ -190,10 +201,17 @@ foreach (array_slice(preg_split('/\s+/', trim($profile['full_name'])) ?: [], 0, 
 }
 
 $profileEditor = ['hidden_fields'=>['profile_owner'=>$profileOwner], 'photo_crop_enabled'=>true,
-    'show_profile_tabs'=>true, 'additional_degrees'=>$additionalDegrees,
+    'show_profile_tabs'=>true, 'show_completion_panel'=>false, 'show_pds_preview'=>true, 'show_portfolio_tabs'=>false,
+    'additional_degrees'=>$additionalDegrees, 'pds_state'=>$pdsState,
     'research_state'=>$researchState, 'training_state'=>$trainingState, 'active_tab'=>$activeProfileTab,
-    'extra_styles'=>['manage-profile.css?v='.filemtime(__DIR__.'/manage-profile.css')],
-    'extra_scripts'=>['manage-profile.js?v='.filemtime(__DIR__.'/manage-profile.js'),
-        'profile-researches.js?v='.filemtime(__DIR__.'/profile-researches.js'),
-        'profile-trainings.js?v='.filemtime(__DIR__.'/profile-trainings.js')]];
+    'extra_styles'=>['manage-profile.css?v='.filemtime(__DIR__.'/manage-profile.css'),
+        'profile-feedback.css?v='.filemtime(__DIR__.'/profile-feedback.css'),
+        'pds-preview.css?v='.filemtime(__DIR__.'/pds-preview.css')],
+    'extra_scripts'=>['../assets/js/sweetalert2.all.min.js',
+        'profile-feedback.js?v='.filemtime(__DIR__.'/profile-feedback.js'),
+        'manage-profile.js?v='.filemtime(__DIR__.'/manage-profile.js'),
+        'pds-preview.js?v='.filemtime(__DIR__.'/pds-preview.js')]];
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['tab'] ?? '') === 'pds') {
+    $profileEditor['active_tab'] = 'pds';
+}
 require __DIR__ . '/../backend/faculty_profile_editor_view.php';

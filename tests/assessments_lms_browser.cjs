@@ -26,7 +26,7 @@ async function click(selector) {
 }
 async function mobileCardActions(status) {
   const viewport=await evaluate('({width:innerWidth,height:innerHeight})');
-  const expected=status==='draft'?['duplicate','archive']:status==='published'?['preview','duplicate','close']:['preview','duplicate'];
+  const expected=status==='draft'?['transfer','duplicate','archive']:status==='published'?['preview','transfer','duplicate','close']:['preview','transfer','duplicate'];
   for(const width of [767,575,390,320]) {
     await call('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<600},session);await delay(100);
     await until('!!document.querySelector(".assessment-mobile-actions")');
@@ -62,6 +62,28 @@ async function answerDialog(confirmed = true) {
 async function fill(selector, value, type = 'input') {
   await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)});input.value=${JSON.stringify(value)};input.dispatchEvent(new Event(${JSON.stringify(type)},{bubbles:true})); })()`);
 }
+async function transferAssessment(record, width) {
+  const original=clone(record), count=records.length, selector=`[data-action=transfer][data-id="${record.assessment_id}"]`;
+  const destination=record.grading_period==='midterm'?'final':'midterm';
+  await call('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<600},session);await delay(100);
+  check(await evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent.trim()==='Move to ${destination==='final'?'Final':'Midterm'}'`),'Transfer labels name the opposite grading period.');
+  await click(selector);await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');
+  check(await evaluate('document.querySelector("#swal2-html-container").textContent.includes("student responses are preserved") && document.querySelector("#swal2-html-container").textContent.includes("gradebook entries stay") && !document.querySelector("#swal2-html-container img")'),'The confirmation explains preservation and gradebook placement, and renders the title safely.');
+  await answerDialog(false);
+  check(JSON.stringify(record)===JSON.stringify(original),'Canceling a transfer preserves the saved assessment.');
+  await click(selector);conflict=true;await until('!!document.querySelector(".swal2-popup:not(.swal2-toast)")');await click('.swal2-confirm');
+  await until('document.querySelector("#swal2-html-container")?.textContent.includes("another tab")');await answerDialog();
+  check(JSON.stringify(record)===JSON.stringify(original)&&await evaluate('document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"'),'A failed transfer keeps the assessment in its source period and permits retry.');
+  await click(selector);await answerDialog();
+  await until(`document.querySelector('[data-period=${destination}]').getAttribute('aria-pressed')==='true' && document.querySelector('#assessmentWorkspace').getAttribute('aria-busy')==='false'`);
+  check(records.length===count&&record.grading_period===destination&&record.version===original.version+1&&JSON.stringify({...record,grading_period:original.grading_period,version:original.version})===JSON.stringify(original),'Transfer moves the same '+record.status+' assessment without duplicating or changing its content, schedule or status.');
+  const counts={midterm:records.filter(item=>item.status!=='archived'&&item.grading_period==='midterm').length,final:records.filter(item=>item.status!=='archived'&&item.grading_period==='final').length};
+  check(await evaluate(`document.querySelector('#assessmentMidtermCount').textContent==='${counts.midterm}' && document.querySelector('#assessmentFinalCount').textContent==='${counts.final}'`),'Both grading-period counts update after a transfer.');
+  check(await evaluate(`document.querySelector(${JSON.stringify(selector)})!==null && (document.activeElement.dataset.action==='transfer' || document.activeElement.hasAttribute('data-assessment-more')) && document.documentElement.scrollWidth<=innerWidth`),'The destination card is visible, focused and fits at '+width+'px.');
+  await click(selector);await answerDialog();
+  await until(`document.querySelector('[data-period=${original.grading_period}]').getAttribute('aria-pressed')==='true' && document.querySelector('#assessmentWorkspace').getAttribute('aria-busy')==='false'`);
+  check(record.grading_period===original.grading_period&&record.version===original.version+2,'The assessment can move back to its original period.');
+}
 function api(request) {
   requests.push(request);
   check(JSON.stringify(request.context) === JSON.stringify(pageConfig.context) && request.csrf_token === pageConfig.csrf_token,
@@ -74,6 +96,12 @@ function api(request) {
     check(Object.keys(payload).length===0,'Class generation has no assessment selector.');
     const students=followupEmpty?[]:Array.from({length:16},(_,i)=>({student_name:i===0?'Álvarez, Ana':i===1?'Bea <img src=x onerror=alert(1)>':i===2?'Cruz, Carlo':'Learner, Student '+(i+1),student_number:'QA-'+(i+1),assessments:[{assessment_id:103,title:'Programming project',assessment_type:'assignment',grading_period:'midterm',status:i===1?'in_progress':i===2?'expired':'not_started',status_label:i===1?'In progress':i===2?'Attempt ended':'Not started',deadline_at:'2026-11-20 17:00:00',deadline_label:'Nov 20, 2026 at 5:00 PM PHT'},{assessment_id:104,title:'Final review quiz',assessment_type:'quiz',grading_period:'final',status:'not_started',status_label:'Not started',deadline_at:null,deadline_label:'No due date'}]}));
     return {ok:true,report:{class:{subject_code:'CS 111',title:'Fundamentals of Programming',section:'BSCS 1A'},counts:{students:28,eligible:27,dropped:1,excluded:2,assessments:2,missing_students:students.length,missing_assessments:students.length*2},students,notice:'Published and closed work across both periods; dropped and excluded accounts omitted.',generated_label:'Nov 17, 2026 at 8:00 AM PHT',message:students.length?'CLASS SUBMISSION FOLLOW-UP\n'+students.map((s,i)=>(i+1)+'. '+s.student_name+'\n'+s.assessments.map(a=>'   - '+a.title+' ('+a.status_label+')').join('\n')).join('\n\n'):''}};
+  }
+  if (request.action === 'transfer') {
+    if (conflict) { conflict=false;return {status:409,ok:false,message:'This assessment changed in another tab. Refresh the list before moving it.'}; }
+    check(payload.version===found.version && payload.grading_period!==found.grading_period,'Transfer sends the current revision and opposite period.');
+    found.grading_period=payload.grading_period;found.version++;
+    return {ok:true,assessment:clone(found)};
   }
   if (request.action === 'schedule') {
     if (conflict) { conflict=false; return { status:409, ok:false, message:'This assessment changed in another tab. Close the schedule and refresh the list before saving.' }; }
@@ -223,6 +251,7 @@ async function main() {
   check(await evaluate('document.querySelector("#assessmentFinalCount").textContent==="1" && !document.querySelector("#assessmentList img")'),'The Final list count updates and titles remain escaped.');
   check(await evaluate('document.querySelector(".assessment-count-answered").textContent.trim().startsWith("0") && document.querySelector(".assessment-count-total").textContent.trim().startsWith("28")'),'Draft cards show zero answered and the actual roster total.');
   await mobileCardActions('draft');
+  await transferAssessment(records[0],1440);
   check(await evaluate('!document.querySelector("[data-action=missing_submissions]")&&!!document.querySelector("#assessmentGenerateFollowup")'),'Generation is available once for the class, outside individual draft cards.');
   await click('[data-action="duplicate"]');await until('document.querySelector("#assessmentDuplicateModal").classList.contains("show") && !bootstrap.Modal.getInstance(document.querySelector("#assessmentDuplicateModal"))._isTransitioning');
   await fill('#assessmentDuplicatePeriod','midterm','change');duplicateFailure=true;await click('#assessmentDuplicateForm [type="submit"]');
@@ -277,6 +306,7 @@ async function main() {
   check(records[2].status==='draft'&&await evaluate('document.querySelector("#assessmentInstructions").value==="Write your project explanation."'),'Canceling Publish preserves the draft and unsaved instructions.');
   await click('#assessmentPublishBottom');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(records[2].status==='published'&&records[2].instructions==='Write your project explanation.','Publish saves the current contents and exposes the published state.');
+  await transferAssessment(records[2],390);
   const publishedVersion=records[2].version;
   await mobileCardActions('published');
   check(await evaluate('!!document.querySelector("#assessmentList [data-action=edit]") && !!document.querySelector("#assessmentList [data-action=submissions]") && !!document.querySelector("#assessmentList [data-action=close]")'),'Published assessments offer editing, response review and closing.');
@@ -335,9 +365,10 @@ async function main() {
   await click('[data-action=close]');await answerDialog(false);check(records[2].status==='published','Canceling Close leaves the assessment published.');
   await click('[data-action=close]');await answerDialog();await until('document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');check(records[2].status==='closed','The professor can close a published assessment.');
   await mobileCardActions('closed');
+  await transferAssessment(records[2],320);
   await click('[data-action=edit]');await until('!document.querySelector("#assessmentEditor").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
   check(await evaluate('document.querySelector("#assessmentPublish").textContent==="Reopen" && !document.querySelector("#assessmentPublish").hidden && document.querySelector("#assessmentSave").textContent==="Save changes"'),'Closed assessments remain editable and provide an explicit Reopen action.');
-  await fill('#assessmentTopic','Closed assessment correction');await click('#assessmentSave');await answerDialog();await until(`document.querySelector("#assessmentSaveState").textContent.includes("version ${publishedVersion+3}") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"`);
+  await fill('#assessmentTopic','Closed assessment correction');await click('#assessmentSave');await answerDialog();await until(`document.querySelector("#assessmentSaveState").textContent.includes("version ${publishedVersion+5}") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"`);
   check(records[2].status==='closed','Saving edits to a closed assessment keeps it closed.');
   await click('#assessmentPublish');await answerDialog(false);check(records[2].status==='closed','Canceling Reopen keeps the assessment closed.');
   await click('#assessmentPublish');await answerDialog();await until('!document.querySelector("#assessmentLibrary").hidden && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');

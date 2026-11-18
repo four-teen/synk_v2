@@ -232,11 +232,11 @@ $professorSidebarPercent = $professorSidebarCompletion !== null
       </li>
     <?php endforeach; ?>
     <li class="professor-profile-footer">
-      <a href="manage-profile.php" class="professor-profile-card" aria-label="<?php echo $professorSidebarPercent !== null ? 'Profile ' . $professorSidebarPercent . '% complete. Review profile.' : 'Review your faculty profile.'; ?>">
-        <span class="professor-profile-ring<?php echo $professorSidebarPercent !== 100 ? ' is-incomplete' : ''; ?>" style="--profile-progress: <?php echo $professorSidebarPercent ?? 0; ?>%;" <?php if ($professorSidebarPercent !== null): ?>role="progressbar" aria-label="Profile completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo $professorSidebarPercent; ?>"<?php else: ?>aria-hidden="true"<?php endif; ?>>
-          <span><strong><?php echo $professorSidebarPercent !== null ? $professorSidebarPercent . '%' : '&mdash;'; ?></strong><small><?php echo $professorSidebarPercent !== null ? 'complete' : 'profile'; ?></small></span>
+      <a href="manage-profile.php" class="professor-profile-card" data-profile-progress-link aria-label="<?php echo $professorSidebarPercent !== null ? 'Profile ' . $professorSidebarPercent . '% complete. Review profile.' : 'Review your faculty profile.'; ?>">
+        <span data-profile-progress-ring class="professor-profile-ring<?php echo $professorSidebarPercent !== 100 ? ' is-incomplete' : ''; ?>" style="--profile-progress: <?php echo $professorSidebarPercent ?? 0; ?>%;" <?php if ($professorSidebarPercent !== null): ?>role="progressbar" aria-label="Profile completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo $professorSidebarPercent; ?>"<?php else: ?>aria-hidden="true"<?php endif; ?>>
+          <span><strong data-profile-progress-value><?php echo $professorSidebarPercent !== null ? $professorSidebarPercent . '%' : '&mdash;'; ?></strong><small><?php echo $professorSidebarPercent !== null ? 'complete' : 'profile'; ?></small></span>
         </span>
-        <span class="professor-profile-copy"><strong>Profile completion</strong><small><?php echo $professorSidebarPercent === 100 ? 'All details complete' : ($professorSidebarPercent === null ? 'Review your details' : 'Keep your details up to date'); ?></small><span>Manage profile<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></span></span>
+        <span class="professor-profile-copy"><strong>Profile completion</strong><small data-profile-progress-copy><?php echo $professorSidebarPercent === 100 ? 'Profile details complete' : ($professorSidebarPercent === null ? 'Review your details' : 'Complete at your own pace'); ?></small><span>Manage profile<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></span></span>
       </a>
     </li>
   </ul>

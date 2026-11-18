@@ -23,7 +23,7 @@
   let previewUrl = null;
   const collegeOptions = Array.from(college.options).filter(option => option.value !== '');
   const completionCard = document.getElementById('profile-completion');
-  const completionRules = JSON.parse(completionCard.dataset.completionRules);
+  const completionRules = JSON.parse(form.dataset.completionRules || completionCard?.dataset.completionRules || '{}');
   const today = form.dataset.today.split('-').map(Number);
   const commitEducationEntries = [];
   let dirty = form.dataset.hasErrors === '1';
@@ -93,7 +93,8 @@
       if (!sections[rule.section]) sections[rule.section] = {completed: 0, total: 0};
       const skipped = rule.skip_when && completionValue(rule.skip_when) === 'Not applicable';
       const complete = !skipped && validCompletionField(key, rule);
-      document.querySelector('[data-completion-item="' + key + '"]').hidden = skipped || complete;
+      const missingItem = document.querySelector('[data-completion-item="' + key + '"]');
+      if (missingItem) missingItem.hidden = skipped || complete;
       if (skipped) return;
       total++;
       sections[rule.section].total++;
@@ -105,6 +106,18 @@
       }
     });
     const percent = total ? Math.floor(completed * 100 / total) : 0;
+    const sidebarRing = document.querySelector('[data-profile-progress-ring]');
+    if (sidebarRing) {
+      sidebarRing.style.setProperty('--profile-progress', percent + '%');
+      sidebarRing.classList.toggle('is-incomplete', percent !== 100);
+      sidebarRing.setAttribute('aria-valuenow', percent);
+      document.querySelector('[data-profile-progress-value]').textContent = percent + '%';
+      document.querySelector('[data-profile-progress-copy]').textContent = dirty
+        ? 'Unsaved profile changes' : (percent === 100 ? 'Profile details complete' : 'Complete at your own pace');
+      document.querySelector('[data-profile-progress-link]').setAttribute('aria-label',
+        'Profile ' + percent + '% complete. ' + (dirty ? 'Based on unsaved changes. ' : '') + 'Review profile.');
+    }
+    if (!completionCard) return;
     completionCard.classList.toggle('is-complete', percent === 100);
     document.getElementById('profile-completion-percent').textContent = percent + '%';
     document.getElementById('profile-completion-label').textContent = percent === 100 ? 'Details complete' : 'Needs attention';
@@ -121,7 +134,7 @@
     });
   }
 
-  completionCard.querySelectorAll('[data-completion-target]').forEach(function (link) {
+  completionCard?.querySelectorAll('[data-completion-target]').forEach(function (link) {
     link.addEventListener('click', function (event) {
       const field = document.getElementById(link.dataset.completionTarget);
       if (!field) return;

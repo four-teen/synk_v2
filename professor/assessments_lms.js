@@ -118,7 +118,8 @@
     target?.focus({ preventScroll:true });
   }
   function cardActions(row) {
-    if (!compactCards.matches) return `<div class="assessment-list-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">${row.status === 'draft' ? 'Edit draft' : 'Edit assessment'}</button><button type="button" class="btn btn-sm btn-outline-primary" data-action="schedule" data-id="${row.assessment_id}">Set schedule</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div>`;
+    const transferLabel = 'Move to ' + periods[row.grading_period === 'midterm' ? 'final' : 'midterm'];
+    if (!compactCards.matches) return `<div class="assessment-list-actions"><button type="button" class="btn btn-sm btn-outline-primary" data-action="edit" data-id="${row.assessment_id}">${row.status === 'draft' ? 'Edit draft' : 'Edit assessment'}</button><button type="button" class="btn btn-sm btn-outline-primary" data-action="schedule" data-id="${row.assessment_id}">Set schedule</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="preview" data-id="${row.assessment_id}">Preview</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="transfer" data-id="${row.assessment_id}">${transferLabel}</button><button type="button" class="btn btn-sm btn-outline-secondary" data-action="duplicate" data-id="${row.assessment_id}">Duplicate</button>${row.status === 'draft' ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-action="archive" data-id="${row.assessment_id}">Archive</button>` : `<button type="button" class="btn btn-sm btn-outline-primary" data-action="submissions" data-id="${row.assessment_id}">Student responses</button>`}${row.status === 'published' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="close" data-id="${row.assessment_id}">Close assessment</button>` : ''}</div>`;
     const actionButton = (action, label, icon, caption, menu = false) => `<button type="button" class="${menu ? 'assessment-card-menu-item' : 'assessment-card-action'}${['close','archive'].includes(action) ? ' is-danger' : ''}" data-action="${action}" data-id="${row.assessment_id}" aria-label="${label}"${menu ? ' role="menuitem" tabindex="-1"' : ''}><i class="bx ${icon}" aria-hidden="true"></i><span>${caption || label}</span></button>`;
     const draft = row.status === 'draft', menuId = `assessmentCardMenu${row.assessment_id}`;
     return `<div class="assessment-mobile-actions" role="group" aria-label="Assessment actions">
@@ -128,6 +129,7 @@
       <div class="assessment-card-more"><button type="button" class="assessment-card-action" data-assessment-more data-id="${row.assessment_id}" id="${menuId}Toggle" aria-label="More assessment actions" aria-haspopup="menu" aria-expanded="false" aria-controls="${menuId}"><i class="bx bx-dots-horizontal-rounded" aria-hidden="true"></i><span>More</span></button>
         <div class="assessment-card-menu" id="${menuId}" role="menu" aria-labelledby="${menuId}Toggle" hidden>
           ${!draft ? actionButton('preview', 'Preview assessment', 'bx-show', null, true) : ''}
+          ${actionButton('transfer', transferLabel, 'bx-transfer', null, true)}
           ${actionButton('duplicate', 'Duplicate assessment', 'bx-copy', null, true)}
           ${draft ? actionButton('archive', 'Archive draft', 'bx-archive', null, true) : row.status === 'published' ? actionButton('close', 'Close assessment', 'bx-x-circle', null, true) : ''}
         </div>
@@ -471,6 +473,19 @@
       $('assessmentScheduleNote').textContent = row.status === 'draft' ? 'Saving the schedule keeps this assessment a private draft.' : 'Changes apply to students who have not started. Started attempts keep their original deadline.' + (row.status === 'closed' ? ' This assessment stays closed; use Edit assessment to reopen it.' : ' This assessment stays published.');
       $('assessmentScheduleForm').querySelectorAll('.is-invalid').forEach(field => field.classList.remove('is-invalid'));
       scheduleModal.show(); return;
+    }
+    if (action === 'transfer') {
+      const period = row.grading_period === 'midterm' ? 'final' : 'midterm';
+      const origin = cardActionOrigin;
+      if (!await feedback.confirm({title:'Move assessment to ' + periods[period] + '?',text:'Move “' + row.title + '” from ' + periods[row.grading_period] + ' to ' + periods[period] + '. Questions, schedule, status, and student responses are preserved. Existing gradebook entries stay in their current period.',confirmText:'Move to ' + periods[period]})) { focusCardAction(origin); return; }
+      await task(async () => {
+        const data = await api('transfer', { assessment_id:row.assessment_id, version:row.version, grading_period:period });
+        state.rows = state.rows.map(item => item.assessment_id === row.assessment_id ? { ...item, ...data.assessment } : item);
+        state.period = data.assessment.grading_period;
+        $('assessmentSearch').value = ''; $('assessmentTypeFilter').value = 'all';
+        renderList(); notice('Assessment moved to ' + periods[state.period] + '.');
+      });
+      focusCardAction(origin); return;
     }
     if (action === 'close') {
       if (!await feedback.confirm({title:'Close assessment?',text:'Students will no longer be able to start or change responses. Saved work will be retained.',confirmText:'Close assessment',danger:true})) return;

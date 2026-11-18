@@ -1,0 +1,13 @@
+.swal2-container.profile-feedback-container{z-index:2050}
+.swal2-popup.profile-feedback-toast{padding:15px 16px;border:1px solid #e1e6ef;border-radius:12px;max-width:calc(100vw - 24px);box-shadow:0 5px 28px #26344d1f;font-family:inherit;color:#536079}
+.profile-feedback-toast .profile-feedback-title{font-size:13px;font-weight:600;line-height:1.7;color:#34455f;padding:0;margin:0 8px;overflow-wrap:anywhere}
+.profile-feedback-toast .swal2-icon{margin:0}
+.profile-feedback-toast .swal2-close{color:#8995a6;font-size:25px}
+.profile-feedback-toast .swal2-timer-progress-bar{background:#9295ed}
+.profile-feedback-toast .swal2-close:focus-visible,.profile-save-toast-fallback button:focus-visible{outline:3px solid #b6b8ff;outline-offset:2px}
+.profile-save-toast-fallback{position:fixed;top:12px;right:12px;z-index:2050;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);width:360px;padding:15px 16px;background:#fff;border:1px solid #e1e6ef;border-radius:12px;box-shadow:0 5px 28px #26344d1f;color:#34455f;font-family:inherit;font-size:13px;font-weight:600;line-height:1.7}
+.profile-save-toast-fallback>i{font-size:28px;color:#278268;flex-shrink:0}
+.profile-save-toast-fallback>span{min-width:0;overflow-wrap:anywhere}
+.profile-save-toast-fallback>button{margin-left:auto;flex-shrink:0;border:0;background:transparent;color:#8995a6;font-size:25px;line-height:1;width:32px;height:32px;padding:0;cursor:pointer}
+@media(max-width:575.98px){.swal2-popup.profile-feedback-toast,.profile-save-toast-fallback{padding:13px}}
+@media(prefers-reduced-motion:reduce){.profile-feedback-container *{animation:none!important;transition:none!important}}

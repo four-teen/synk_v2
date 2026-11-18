@@ -26,7 +26,7 @@ try{
     $check(strpos(json_encode($report),'answer_key')===false&&strpos(json_encode($report),'answers_json')===false&&strpos(json_encode($report),'Private professor note')===false,'The report never exposes keys, saved answers or private status notes.');
     synk_assessment_save_lms($lms,$context,array_replace($quizInput,['assessment_id'=>$quiz['assessment_id'],'version'=>1,'title'=>'Edited quiz','grading_period'=>'midterm']),$actor);
     $snapshotReport=synk_assessment_class_followup_lms($conn,$lms,$context);$snapshotStudents=array_column($snapshotReport['students'],null,'student_number');$snapshotItems=array_column($snapshotStudents[$numbers[$sid]]['assessments'],null,'assessment_id');
-    $check($snapshotItems[$quiz['assessment_id']]['title']==='Final quiz original'&&$snapshotItems[$quiz['assessment_id']]['grading_period']==='final','Started students retain original assessment metadata after a professor edits it.');
+    $check($snapshotItems[$quiz['assessment_id']]['title']==='Final quiz original'&&$snapshotItems[$quiz['assessment_id']]['grading_period']==='midterm','Started students retain original content under the current grading period after a professor edits it.');
     synk_assessment_query_lms($lms,"UPDATE tbl_lms_assessment_attempts SET deadline_at='2000-01-01 00:00:00' WHERE assessment_id=? AND student_id=?",'ii',[$quiz['assessment_id'],$sid]);
     synk_assessment_close_lms($lms,$context,['assessment_id'=>$midterm['assessment_id'],'version'=>1],$actor);
     synk_assessment_publish_lms($lms,$context,['grading_period'=>'final','assessment_type'=>'assignment','title'=>'Upcoming project','instructions'=>'Respond later','total_points'=>10,'opens_at'=>'2098-01-01T08:00','due_at'=>'2098-01-02T17:00'],$actor);

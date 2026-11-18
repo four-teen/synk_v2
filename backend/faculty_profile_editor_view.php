@@ -15,9 +15,14 @@ $profileEditor = array_merge([
     'csrf_token' => (string)($_SESSION['faculty_profile_csrf'] ?? ''), 'hidden_fields' => [],
     'photo_crop_enabled' => false, 'photo_crop_field' => 'profile_photo_crop',
     'read_only' => false,
+    'show_completion_panel' => true, 'show_pds_preview' => false, 'show_portfolio_tabs' => true,
     'show_profile_tabs' => false, 'additional_degrees' => null,
     'research_state' => null, 'training_state' => null, 'active_tab' => 'profile',
 ], $profileEditor ?? []);
+$profileTabs = ['profile'=>['Profile','bx-user']];
+if ($profileEditor['show_pds_preview']) $profileTabs['pds'] = ['Personal Data Sheet','bx-file'];
+if ($profileEditor['show_portfolio_tabs']) $profileTabs += ['researches'=>['Researches','bx-book-open'], 'trainings'=>['Trainings','bx-briefcase-alt']];
+if (!isset($profileTabs[$profileEditor['active_tab']])) $profileEditor['active_tab'] = 'profile';
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="../assets/" data-template="vertical-menu-template-free">
@@ -67,14 +72,14 @@ $profileEditor = array_merge([
 
             <?php if ($profileEditor['show_profile_tabs']): ?>
               <nav class="profile-page-tabs" role="tablist" aria-label="Faculty profile tabs">
-                <?php foreach (['profile'=>['Profile','bx-user'], 'researches'=>['Researches','bx-book-open'], 'trainings'=>['Trainings','bx-briefcase-alt']] as $tabKey=>$tabInfo): $tabActive=$profileEditor['active_tab']===$tabKey; ?>
+                <?php foreach ($profileTabs as $tabKey=>$tabInfo): $tabActive=$profileEditor['active_tab']===$tabKey; ?>
                 <button type="button" id="faculty-tab-<?= $tabKey ?>" role="tab" aria-controls="faculty-panel-<?= $tabKey ?>" aria-selected="<?= $tabActive?'true':'false' ?>" tabindex="<?= $tabActive?'0':'-1' ?>" data-profile-tab="<?= $tabKey ?>"><i class="bx <?= $tabInfo[1] ?>" aria-hidden="true"></i><?= $tabInfo[0] ?></button>
                 <?php endforeach; ?>
               </nav>
               <div id="faculty-panel-profile" role="tabpanel" aria-labelledby="faculty-tab-profile"<?= $profileEditor['active_tab']!=='profile'?' hidden':'' ?>>
             <?php endif; ?>
             <?php if ($savedNotice !== ''): ?>
-              <div class="alert alert-success" role="status"><?php echo synk_faculty_profile_h($savedNotice); ?></div>
+              <div class="alert alert-success" role="status"<?= $profileEditor['show_pds_preview']?' data-profile-saved-notice':'' ?>><?php echo synk_faculty_profile_h($savedNotice); ?></div>
             <?php endif; ?>
             <?php if ($profileEditor['read_only']): ?><div class="alert alert-info" role="status">This term is for viewing only. These are the faculty member’s latest saved profile details. Switch to the current term to make changes.</div><?php endif; ?>
             <?php if ($saveError !== '' || $errors): ?>
@@ -91,6 +96,7 @@ $profileEditor = array_merge([
               </div>
             <?php endif; ?>
 
+            <?php if ($profileEditor['show_completion_panel']): ?>
             <section class="card profile-completion<?php echo $completion['percent'] === 100 ? ' is-complete' : ''; ?>" id="profile-completion" aria-labelledby="profile-completion-title" data-completion-rules="<?php echo synk_faculty_profile_h(json_encode($completionRules, JSON_UNESCAPED_UNICODE)); ?>">
               <div class="profile-completion-heading">
                 <div>
@@ -118,6 +124,7 @@ $profileEditor = array_merge([
               </details>
               <p class="profile-completion-note">Choose <strong>Not applicable</strong> for education you have not pursued. Optional credentials and notes do not affect the percentage. Progress updates as you edit; save your profile to keep your changes.</p>
             </section>
+            <?php endif; ?>
 
             <div class="profile-workspace">
               <aside class="profile-overview" aria-label="Profile overview">
@@ -146,7 +153,7 @@ $profileEditor = array_merge([
                 <?php endif; ?>
               </aside>
 
-              <form method="post" action="<?php echo synk_faculty_profile_h($profileEditor['action']); ?>" enctype="multipart/form-data" id="faculty-profile-form" class="profile-form" data-education-url="<?php echo synk_faculty_profile_h($profileEditor['education_url']); ?>" data-today="<?php echo $today->format('Y-m-d'); ?>" data-has-errors="<?php echo ($errors || $saveError !== '') ? '1' : '0'; ?>">
+              <form method="post" action="<?php echo synk_faculty_profile_h($profileEditor['action']); ?>" enctype="multipart/form-data" id="faculty-profile-form" class="profile-form" data-completion-rules="<?php echo synk_faculty_profile_h(json_encode($completionRules, JSON_UNESCAPED_UNICODE)); ?>" data-education-url="<?php echo synk_faculty_profile_h($profileEditor['education_url']); ?>" data-today="<?php echo $today->format('Y-m-d'); ?>" data-has-errors="<?php echo ($errors || $saveError !== '') ? '1' : '0'; ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo synk_faculty_profile_h($profileEditor['csrf_token']); ?>">
                 <?php if ($profileEditor['read_only']): ?><fieldset disabled style="border:0;padding:0;margin:0;min-width:0"><?php endif; ?>
                 <input type="hidden" name="revision" value="<?php echo (int)$profile['revision']; ?>">
@@ -252,8 +259,13 @@ $profileEditor = array_merge([
             </div>
             <?php if ($profileEditor['show_profile_tabs']): ?>
               </div>
-              <section id="faculty-panel-researches" role="tabpanel" aria-labelledby="faculty-tab-researches" tabindex="0"<?= $profileEditor['active_tab']!=='researches'?' hidden':'' ?>><?php if ($profileEditor['research_state'] !== null) require __DIR__.'/faculty_profile_research_view.php'; ?></section>
-              <section id="faculty-panel-trainings" role="tabpanel" aria-labelledby="faculty-tab-trainings" tabindex="0"<?= $profileEditor['active_tab']!=='trainings'?' hidden':'' ?>><?php if ($profileEditor['training_state'] !== null) require __DIR__.'/faculty_profile_training_view.php'; ?></section>
+              <?php if ($profileEditor['show_pds_preview']): ?>
+              <section id="faculty-panel-pds" role="tabpanel" aria-labelledby="faculty-tab-pds"<?= $profileEditor['active_tab']!=='pds'?' hidden':'' ?>><?php require __DIR__.'/faculty_pds_preview_view.php'; ?></section>
+              <?php endif; ?>
+              <?php if ($profileEditor['show_portfolio_tabs']): ?>
+                <section id="faculty-panel-researches" role="tabpanel" aria-labelledby="faculty-tab-researches" tabindex="0"<?= $profileEditor['active_tab']!=='researches'?' hidden':'' ?>><?php if ($profileEditor['research_state'] !== null) require __DIR__.'/faculty_profile_research_view.php'; ?></section>
+                <section id="faculty-panel-trainings" role="tabpanel" aria-labelledby="faculty-tab-trainings" tabindex="0"<?= $profileEditor['active_tab']!=='trainings'?' hidden':'' ?>><?php if ($profileEditor['training_state'] !== null) require __DIR__.'/faculty_profile_training_view.php'; ?></section>
+              <?php endif; ?>
             <?php endif; ?>
           </main>
           <?php include __DIR__ . '/../footer.php'; ?>
