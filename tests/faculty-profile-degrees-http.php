@@ -24,13 +24,13 @@ $post=['full_name'=>'Additional Degree QA','revision'=>'1','csrf_token'=>$token,
     'additional_degrees'=>[['level'=>'bachelor','status'=>'Completed','degree'=>'BS Nursing','institution'=>'QA University','address'=>'QA City','specialization'=>'Nursing'],['level'=>'doctoral','status'=>'Completed','degree'=>'Doctor of Education','institution'=>'QA University','address'=>'QA City','specialization'=>'Education']]];
 try{
     $get=$call('professor_get');$check($get['status']===200,'Professor profile loads.');
-    $check(strpos($get['body'],'data-profile-tab="profile"')!==false&&strpos($get['body'],'data-profile-tab="researches"')!==false&&strpos($get['body'],'data-profile-tab="trainings"')!==false,'Profile, Researches and Trainings tabs render.');
+    $check(strpos($get['body'],'data-profile-tab="profile"')!==false&&strpos($get['body'],'data-profile-tab="pds"')!==false&&strpos($get['body'],'data-profile-tab="researches"')===false&&strpos($get['body'],'data-profile-tab="trainings"')===false,'Profile and Personal Data Sheet tabs replace the separate portfolio tabs.');
     $check(substr_count($get['body'],'data-add-degree=')===3&&strpos($get['body'],'Previously saved second degree')!==false,'Each degree level has its own Add Degree button.');
     $dom=new DOMDocument();@$dom->loadHTML($get['body']);$xpath=new DOMXPath($dom);
     $check($xpath->query('//*[@data-degree-list="bachelor"]//*[@data-additional-degree]')->length===1&&$xpath->query('//*[@data-degree-list="doctoral"]//*[@data-additional-degree]')->length===0,'Saved degrees render under their corresponding degree level.');
     $check($xpath->query('//*[@data-additional-degree]//select[contains(@name,"[level]")]')->length===0,'Additional degrees inherit their level without another level selector.');
-    $check($xpath->query('//*[@id="faculty-panel-researches"]//*[@id="faculty-research-form"]')->length===1,'The Researches panel contains its independent record editor.');
-    $check($xpath->query('//*[@id="faculty-panel-trainings"]//*[@id="faculty-training-form"]')->length===1,'The Trainings panel contains its independent record editor.');
+    $check($xpath->query('//*[@id="faculty-panel-researches"] | //*[@id="faculty-panel-trainings"]')->length===0,'Separate research and training panels are hidden without deleting their records.');
+    $check($xpath->query('//*[@id="faculty-panel-pds"]//*[@data-pds-list="trainings"]')->length===1,'Training records are represented in the PDS learning and development section.');
     foreach(['professor_save','professor_account'] as $scenario){$r=$call($scenario,$post);$check($r['status']===303&&strpos($r['headers'],'X-QA-Additional-Degrees: 2')!==false&&strpos($r['headers'],'X-QA-Additional-Degree-Levels: bachelor,doctoral')!==false,'A second Bachelor and second Doctoral degree save for '.$scenario.': '.$r['status'].' '.$r['body']);}
     $check(strpos($r['headers'],'X-QA-Table-tbl-faculty-profile-researches: unchanged')!==false&&strpos($r['headers'],'X-QA-Table-tbl-faculty-profile-trainings: unchanged')!==false,'Saving the personal profile and degrees preserves research and training records.');
     $sparse=$post;$sparse['additional_degrees']=[3=>$post['additional_degrees'][0],8=>$post['additional_degrees'][1]];

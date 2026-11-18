@@ -95,6 +95,17 @@ try {
     $r=$call('schedule',array_replace($schedule,['version'=>3,'due_at'=>'2026-12-01T07:00']));$check($r['status']===422,'The real schedule endpoint rejects an end before its start.');
     $r=$call('schedule',array_replace($schedule,['version'=>3,'opens_at'=>null,'due_at'=>null]));
     $check($r['status']===200&&$r['data']['assessment']['opens_at']===null&&$r['data']['assessment']['due_at']===null,'The HTTP shortcut can remove optional dates.');
+    $transfer=['assessment_id'=>$id,'version'=>4,'grading_period'=>'midterm'];
+    $r=$call('transfer',$transfer,['csrf_token'=>'bad']);$check($r['status']===403,'Transfers require a valid CSRF token.');
+    $r=$call('transfer',$transfer,['context'=>array_replace($session['context'],['signature'=>'bad'])]);$check($r['status']===403,'Transfers require a signed class context.');
+    $r=$call('transfer',array_replace($transfer,['grading_period'=>'other']));$check($r['status']===422,'Transfers validate the destination period.');
+    $r=$call('transfer',$transfer);
+    $check($r['status']===200&&$r['data']['assessment']['grading_period']==='midterm'&&$r['data']['assessment']['version']===5&&$r['data']['assessment']['questions']===$beforeSchedule['questions'],'The real transfer endpoint moves the same assessment without replacing question IDs.');
+    $r=$call('transfer',$transfer);$check($r['status']===409,'Stale transfers cannot overwrite newer changes.');
+    $r=$call('transfer',array_replace($transfer,['version'=>5,'grading_period'=>'final']));$check($r['status']===200&&$r['data']['assessment']['grading_period']==='final'&&$r['data']['assessment']['version']===6,'The real endpoint supports moving back to Final.');
+    $r=$call('transfer',['assessment_id'=>$copyId,'version'=>2,'grading_period'=>'final']);$check($r['status']===409,'Archived assessments cannot be transferred.');
+    $r=$call('transfer',array_replace($transfer,['assessment_id'=>2147483647]));$check($r['status']===404,'Unknown assessments cannot be transferred.');
+    $r=$call('transfer',array_replace($transfer,['version'=>6,'title'=>'Extra edit']));$check($r['status']===400,'Transfer requests cannot carry extra edits.');
     $r=$request($apiUrl,'invalid json');$check($r['status']===400,'Malformed JSON must be rejected.');
     $r=$request($apiUrl,str_repeat('a',1048577));$check($r['status']===413,'Oversized assessment requests must be rejected.');
     $r=$request($apiUrl,null,true,'GET');$check($r['status']===405,'The assessment API must reject GET.');

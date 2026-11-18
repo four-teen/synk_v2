@@ -189,7 +189,7 @@ function synk_assessment_snapshot_json_lms(array $record): string
     return $json;
 }
 
-// Live status/ownership remain authoritative. Content and settings belong to the started attempt.
+// Live status/ownership/period remain authoritative. Started attempts retain their content and timing.
 function synk_assessment_attempt_record_lms(array $record, ?array $attempt): array
 {
     if (!$attempt || ($attempt['assessment_snapshot_json'] ?? null) === null) return $record;
@@ -197,7 +197,7 @@ function synk_assessment_attempt_record_lms(array $record, ?array $attempt): arr
     if (!is_array($snapshot) || !isset($snapshot['questions'], $snapshot['assessment_type'])) {
         throw new RuntimeException('Unable to read the original assessment.');
     }
-    return array_replace($record, array_intersect_key($snapshot, array_flip(['version','grading_period','assessment_type','title','instructions','topic',
+    return array_replace($record, array_intersect_key($snapshot, array_flip(['version','assessment_type','title','instructions','topic',
         'total_points','opens_at','due_at','time_limit_minutes','questions'])));
 }
 
@@ -284,6 +284,26 @@ function synk_assessment_schedule_lms(mysqli $lms, array $context, array $input,
     synk_assessment_log_lms($lms, $record['assessment_id'], $userId, 'scheduled',
         ['version'=>$record['version']+1, 'previous_version'=>$record['version'], 'opens_at'=>$opens, 'due_at'=>$due,
             'previous_opens_at'=>$record['opens_at'], 'previous_due_at'=>$record['due_at']]);
+    return synk_assessment_detail_lms($lms, $context, $record['assessment_id']);
+}
+
+// Move the same assessment; gradebook entries keep their separately assigned placement.
+// The API owns the transaction, including original-attempt preservation and the audit entry.
+function synk_assessment_transfer_lms(mysqli $lms, array $context, array $input, int $userId): array
+{
+    if (array_diff(array_keys($input), ['assessment_id','version','grading_period'])) throw new DomainException('Transfer only the assessment and its grading period.', 400);
+    $period = $input['grading_period'] ?? null;
+    if (!is_string($period) || !in_array($period, ['midterm','final'], true)) throw new DomainException('Choose Midterm or Final as the destination.', 422);
+    $record = synk_assessment_detail_lms($lms, $context, synk_assessment_id_lms($input['assessment_id'] ?? null), true);
+    if (!in_array($record['status'], ['draft','published','closed'], true)) throw new DomainException('This assessment has been archived.', 409);
+    if (synk_assessment_id_lms($input['version'] ?? null) !== $record['version']) throw new DomainException('This assessment changed in another tab. Refresh the list before moving it.', 409);
+    if ($period === $record['grading_period']) throw new DomainException('This assessment is already in ' . ucfirst($period) . '. Refresh the list.', 409);
+    synk_assessment_preserve_attempts_lms($lms, $record);
+    synk_assessment_query_lms($lms, 'UPDATE tbl_lms_assessments SET grading_period=?,version=version+1,updated_at=? WHERE assessment_id=?',
+        'ssi', [$period,date('Y-m-d H:i:s'),$record['assessment_id']]);
+    synk_assessment_log_lms($lms, $record['assessment_id'], $userId, 'transferred',
+        ['previous_grading_period'=>$record['grading_period'], 'grading_period'=>$period,
+            'previous_version'=>$record['version'], 'version'=>$record['version']+1, 'status'=>$record['status']]);
     return synk_assessment_detail_lms($lms, $context, $record['assessment_id']);
 }
 

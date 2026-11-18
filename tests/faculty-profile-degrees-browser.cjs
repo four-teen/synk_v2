@@ -104,7 +104,7 @@ async function main() {
   check(await evaluate('document.getElementById("profile-save-status").textContent === "Unsaved changes" && document.activeElement.matches("[data-add-degree=master]")'), 'Adding and removing degrees marks the profile unsaved and restores focus.');
   const duplicateIds = await evaluate('(()=>{const ids=[...document.querySelectorAll("#education [id]")].map(node=>node.id); return ids.filter((id,index)=>ids.indexOf(id)!==index);})()');
   check(duplicateIds.length === 0, 'Added and removed rows never create duplicate control IDs: ' + duplicateIds.join(', '));
-  await evaluate('document.querySelector("[data-profile-tab=researches]").click(); document.querySelector("[data-profile-tab=profile]").click()');
+  await evaluate('document.querySelector("[data-profile-tab=pds]").click(); document.querySelector("[data-profile-tab=profile]").click()');
   check(await evaluate('document.querySelector("[data-degree-list=doctoral] [data-education-type=degree]").value === "Doctor of Education" && !document.getElementById("faculty-panel-profile").hidden'), 'Switching profile tabs preserves additional degree entries.');
   for (const width of [1440, 768, 390, 320]) {
     await resize(width);

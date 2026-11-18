@@ -47,14 +47,14 @@ try {
     $snapshots=synk_assessment_query_lms($lms,'SELECT assessment_snapshot_json FROM tbl_lms_assessment_attempts WHERE assessment_id=?','i',[$id]);
     $check(count($snapshots)===2&&count(array_filter(array_column($snapshots,'assessment_snapshot_json')))===2,'Every pre-upgrade attempt must be preserved before the first published edit.');
     $original=synk_student_assessment_action_lms($conn,$lms,$sid,'detail',['assessment_id'=>$id]);
-    $check($original['assessment']===$start['assessment']&&$original['attempt']['answers']===$answers,'Started attempts must retain their exact original content, question IDs and answers.');
+    $check($original['assessment']===array_replace($start['assessment'],['grading_period'=>'final'])&&$original['attempt']['answers']===$answers,'Started attempts retain their original content, question IDs and answers under the current grading period.');
     $check($original['attempt']['deadline_at']===$start['attempt']['deadline_at']&&$original['attempt']['version']===2,'Editing must not reset a timer or invalidate unsaved responses in an existing tab.');
     $check(strpos(json_encode($original),'answer_key')===false&&strpos(json_encode($original),'assessment_snapshot_json')===false,'Original-version answer keys and snapshots must never reach student responses.');
     $completed=synk_student_assessment_action_lms($conn,$lms,$second,'detail',['assessment_id'=>$id]);
     $check($completed['result']===$submitted['result']&&$completed['attempt']['answers']===$answers,'Submitted answers and automatic results must stay on the original answer keys.');
     $listed=array_column(synk_student_assessment_list_lms($conn,$lms,$second),null,'assessment_id');
     $check($listed[$id]['question_count']===4,'A started assessment card retains its original item count after questions are edited.');
-    $check($listed[$id]['title']==='Original quiz'&&$listed[$id]['grading_period']==='midterm'&&$listed[$id]['result']===$submitted['result'],'Student list cards must use the attempt version, including its grading period and result.');
+    $check($listed[$id]['title']==='Original quiz'&&$listed[$id]['grading_period']==='final'&&$listed[$id]['result']===$submitted['result'],'Student list cards keep original content and results in the current grading period.');
     $check(strpos(json_encode($listed),'answer_key')===false&&strpos(json_encode($listed),'assessment_snapshot_json')===false,'List cards must not leak snapshot questions or answer keys.');
     $review=synk_assessment_submissions_lms($conn,$lms,$context,$id);
     $check(count($review)===2&&$review[0]['assessment']['title']==='Original quiz'&&array_column($review[0]['assessment']['questions'],'question_id')===array_column($start['assessment']['questions'],'question_id'),'Professor review must preserve the original randomized question order alongside saved answers.');

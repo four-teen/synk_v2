@@ -17,6 +17,14 @@ The workspace supports private authoring, publishing, and enrolled student respo
   existing LMS storage and needs no database migration.
 - Preview with an optional professor-only answer key.
 - Draft duplication into either grading period, plus archiving.
+- Move to Final / Move to Midterm on each card transfers the same draft,
+  published, or closed assessment after confirmation. On phones, use More.
+  The destination tab opens automatically and counts update immediately.
+  Questions, IDs, schedules, status, responses, results and attempt timers stay
+  intact. Existing gradebook entries and scores keep their assigned placement;
+  moving an assessment does not move or duplicate gradebook entries. Transfers
+  require the current revision and signed class/CSRF checks and are audited in
+  existing LMS storage; no database migration is needed.
 - Transactional saves, revision checks and an audit log.
 - Publish the current draft with a confirmation; student delivery and questions
   become available according to the saved opening date and deadline.
@@ -41,7 +49,8 @@ Midterm uses indigo and Final teal, with a filled selected button, icons, counts
 keyboard focus outlines and pressed states. Counts wrap below the title on phones.
 On screens below 768px, each card has a compact row of labeled icons: Edit,
 Schedule, Responses (Preview for drafts), and More. More holds Preview,
-Duplicate, and Close assessment, or Duplicate and Archive for drafts. Closed
+Move to the other period, Duplicate, and Close assessment, or Move, Duplicate
+and Archive for drafts. Closed
 assessments omit Close. Menus support keyboard navigation, Escape and outside
 tap dismissal; the existing action dialogs and confirmations still apply.
 Wide screens retain the text buttons.
@@ -106,8 +115,11 @@ Submitted and time-ended attempts remain locked. Duplication still creates a
 separate draft and clears dates.
 
 Each started attempt keeps an LMS-only snapshot of its original assessment,
-including question IDs/order, choices, answer keys, points, instructions, grading
-period and timing settings. Changes apply only to students who have not started.
+including question IDs/order, choices, answer keys, points, instructions, original
+grading period and timing settings. Content/timing changes apply only to students
+who have not started. The current grading period controls placement for everyone,
+including started and submitted attempts; snapshots keep the original period as
+history without placing transferred work back under its old tab.
 Existing browser tabs can continue saving and submitting their original answers;
 editing never resets an attempt timer or revision. Student detail, list-card
 results, and professor response review use that attempt's original content.
@@ -228,6 +240,10 @@ response review, save confirmations and mobile action controls.
 `php tests/assessment-scheduling_lms.php` covers scheduling, clearing dates,
 validation, class scope, stale revisions, original attempts, and status preservation;
 `php tests/assessments-http_lms.php` also verifies the schedule endpoint on PHP 7.1.
+`php tests/assessment-transfer_lms.php` checks both transfer directions, statuses,
+original work/results/timers, student tab placement, validation, scope, audit and
+rollback. The HTTP and browser suites also cover transfer authentication,
+cancel/retry behavior, destination counts/focus and desktop/mobile controls.
 
 ## Reference and next stage
 
