@@ -4,7 +4,8 @@ const SYNK_HR_PDS_UPLOAD_MAX_BYTES=6291456;
 
 function synk_hr_pds_attachment_slots(): array
 {
-    return ['photo','signature_page_1','signature_page_2','signature_page_3','signature_page_4','thumbmark','oath_signature'];
+    // Photographs, signatures and thumbmarks are attached to the printed PDS.
+    return [];
 }
 
 // Inspect file contents, then re-encode images to discard embedded payloads and metadata.
@@ -47,6 +48,7 @@ function synk_hr_pds_attachment_content(string $slot, string $path, string $name
 
 function synk_hr_pds_prepare_attachments(array $uploads, $removed): array
 {
+    if ($uploads || !is_array($removed) || $removed) return [[],[],['_attachments'=>'Photographs, signatures and thumbmarks belong on the printed PDS. No file upload is needed.']];
     $errors=[]; $prepared=[]; $slots=synk_hr_pds_attachment_slots(); $total=0;
     if (!is_array($removed) || count($removed)>count($slots) || ($removed && array_keys($removed)!==range(0,count($removed)-1))) return [[],[],['_attachments'=>'Reload before changing attachments.']];
     foreach ($removed as $slot) if (!is_string($slot) || !in_array($slot,$slots,true)) return [[],[],['_attachments'=>'An attachment slot is invalid.']];
@@ -67,15 +69,22 @@ function synk_hr_pds_prepare_attachments(array $uploads, $removed): array
 
 function synk_hr_pds_attachments(mysqli $conn, int $profileId): array
 {
+    if (!synk_hr_pds_attachment_slots()) return [];
     $statement=$conn->prepare('SELECT slot,original_name,mime_type,byte_size,sha256,updated_at FROM tbl_hr_faculty_pds_attachments WHERE hr_profile_id=? ORDER BY slot');
     $statement->bind_param('i',$profileId); $statement->execute(); $rows=$statement->get_result(); $files=[];
-    while ($row=$rows->fetch_assoc()) $files[$row['slot']]=['name'=>$row['original_name'],'mime'=>$row['mime_type'],'size'=>(int)$row['byte_size'],'sha256'=>$row['sha256'],'updated_at'=>$row['updated_at']];
+    while ($row=$rows->fetch_assoc()) {
+        if (!in_array($row['slot'],synk_hr_pds_attachment_slots(),true)) continue;
+        $files[$row['slot']]=['name'=>$row['original_name'],'mime'=>$row['mime_type'],'size'=>(int)$row['byte_size'],'sha256'=>$row['sha256'],'updated_at'=>$row['updated_at']];
+    }
     $statement->close(); return $files;
 }
 
 // Called only after ownership and the Certification revision were checked, in its transaction.
 function synk_hr_pds_save_attachments(mysqli $conn, int $profileId, int $userId, array $files, array $removed): void
 {
+    foreach (array_merge(array_keys($files),$removed) as $slot) {
+        if (!in_array($slot,synk_hr_pds_attachment_slots(),true)) throw new InvalidArgumentException('Unsupported PDS attachment.');
+    }
     foreach ($removed as $slot) {
         $statement=$conn->prepare('DELETE FROM tbl_hr_faculty_pds_attachments WHERE hr_profile_id=? AND slot=?');
         $statement->bind_param('is',$profileId,$slot); $statement->execute(); $statement->close();

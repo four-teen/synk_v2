@@ -2,6 +2,10 @@
 
 The professor's Personal Data Sheet follows the attached CS Form 212 Revised 2026 workbook. All eleven guided sections support independent partial saves: About you, Contact & IDs, Family, Education, Eligibility, Work history, Learning & development, Voluntary work, Other details & references, Declarations, and Photo & final review. The existing Profile form continues to save independently, and its progress indicator remains in the portal sidebar.
 
+The Profile and PDS titles share aligned rows above the tab navigation. Both visible and inactive title text reserve the same space so wrapped headings and the Draft badge cannot move the tabs. Tab changes update the accessible heading, selected tab and panel together, including keyboard and hash navigation. Text, date, number, file and searchable inputs fill their available field width; editing fields use a single column throughout both tabs.
+
+Removing a PDS record, an additional Profile degree, a credential selection or a saved attachment opens a styled Proceed/Cancel confirmation with Cancel focused. Cancelling preserves values and saved-file links. Proceed applies the pending edit; it reaches storage only after the corresponding Save action. A local accessible dialog remains available if SweetAlert cannot load. Save-success messages wait until an open removal dialog has closed.
+
 ## Database preparation
 
 Run `php backend/tools/prepare_hr_faculty_pds.php` against the configured local database. The additive, repeatable SQL sources are `backend/sql/hr_faculty_pds.sql` and `backend/sql/hr_faculty_pds_remaining.sql`. All new tables use the HR prefix:
@@ -17,8 +21,8 @@ Run `php backend/tools/prepare_hr_faculty_pds.php` against the configured local 
 - `tbl_hr_faculty_pds_eligibilities_records`, `tbl_hr_faculty_pds_work_records`, `tbl_hr_faculty_pds_trainings_records`, and `tbl_hr_faculty_pds_voluntary_records`: ordered eligibility, employment, training and voluntary records.
 - `tbl_hr_faculty_pds_skills_records`, `tbl_hr_faculty_pds_recognition_records`, `tbl_hr_faculty_pds_memberships_records`, and `tbl_hr_faculty_pds_references_records`: the four Other details lists.
 - `tbl_hr_faculty_pds_declarations`: all twelve explicit Yes/No/unanswered answers, their follow-ups, case details, country, indigenous group, disability ID and solo-parent ID.
-- `tbl_hr_faculty_pds_certification`: photo date, certification ID and issuance, date accomplished, per-page signature dates, recorded oath details and the faculty's declaration acknowledgment.
-- `tbl_hr_faculty_pds_attachments`: private file bytes, slot, original display name, content type, checksum, size and update metadata, owned by Certification.
+- `tbl_hr_faculty_pds_certification`: certification ID and issuance, one date for all PDS pages, and the faculty's declaration acknowledgment. The date accomplished is authoritative and is written to all four stored page-date columns in the same save. The earlier photo-date and oath administration columns remain stored but are no longer faculty inputs.
+- `tbl_hr_faculty_pds_attachments`: retained historical file storage. Photo, signature and thumbmark uploads are retired; no stored files are reused by the active PDS.
 
 Preparation creates storage only. It does not copy records, import legacy data, or update shared student, faculty, academic, Management, or LMS records. No PDS draft is created until the faculty member saves a section.
 
@@ -36,21 +40,23 @@ Linked PDS records belong to the faculty identity. An account-only draft is conn
 
 ## Saving
 
-`professor/pds-save.php` accepts authenticated professor POST requests with JSON (up to 2 MiB), or multipart requests with a JSON `payload` and named file slots. Each includes the form CSRF token, resolved owner, section revision, and full supported field set. Unknown or omitted fields are rejected at both section and record level. Blank fields are allowed for drafts. Server validation covers options, dates, lengths, measurements, contact email, attendance order, ongoing study, nonnegative salary/hours, and multiline duties/declaration details. License validity may be in the future; historical events and certification dates may not. Conditional values are cleared when inapplicable. The server copies the residential address when the same-address option is selected.
+`professor/pds-save.php` accepts authenticated professor POST requests with JSON (up to 2 MiB). Older multipart requests can be parsed, but all uploaded files and attachment removal requests are rejected. Each save includes the form CSRF token, resolved owner, section revision, and full supported field set. Unknown or omitted fields are rejected at both section and record level. Blank fields are allowed for drafts. Server validation covers options, dates, lengths, measurements, contact email, attendance order, ongoing study, nonnegative salary/hours, and multiline duties/declaration details. License validity may be in the future; historical events and certification dates may not. Conditional values are cleared when inapplicable. The server copies the residential address when the same-address option is selected.
 
 Repeatable records use ordered arrays, with up to 20 spouse records and 100 child or education records. No record IDs or owner IDs are accepted inside rows. The server locks the owner and checks the section revision before replacing that section's rows inside the same transaction. Failed validation or a stale revision leaves all previously saved rows intact. Nested field errors identify the row and open its record card.
 
 Other lists also support up to 100 records each. Current employment clears its end date. Explicit None clears voluntary records. Declaration answers default to unanswered; saving never infers No. Explicit No clears only that question's follow-ups. A blank answer retains any entered follow-up draft.
 
-Sections have separate revisions. Concurrent saves, changed ownership, expired sessions, validation failures, and network failures preserve displayed edits and show a clear failure message. A successful response cannot replace edits or file selections made while its request was in flight. Nothing is kept in browser local/session storage. The review shows current saved details together with unsaved edits; saving a section does not submit or digitally sign the PDS.
+Sections have separate revisions. Concurrent saves, changed ownership, expired sessions, validation failures, and network failures preserve displayed edits and show a clear failure message. A successful response cannot replace edits made while its request was in flight. Nothing is kept in browser local/session storage. The review shows current saved details together with unsaved edits; saving a section does not submit or digitally sign the PDS.
 
-## Private attachments and certification
+## Printed PDS and shared page date
 
-Certification supports a photo, page 1–4 signatures/certificate files, right thumbmark, and an existing oath signature document. Files are saved only with Save section. Choose an actual image for photo/thumbmark; signature slots accept images, PDF or P7S signed-data files. Images are decoded and re-encoded, with a maximum of 6,000 pixels per side and 16 megapixels. Each file is limited to 2 MiB and each save to 6 MiB of attachments. Large sets can be uploaded in multiple saves. PHP's server upload/post limits also apply.
+The PDS photo area is reserved for a separately attached printed photograph. The page shows the professor's existing profile photo as an on-screen reference, with no PDS photo upload or photo-date input. The reference image is excluded from browser printing, and the 3.5 cm × 4.5 cm photo frame stays blank. The review follows the same rule. Previously stored PDS photos are retained in the database without being displayed, reused or accepted as new uploads.
 
-Files live in the HR database rather than a publicly served upload directory. `professor/pds-attachment.php` resolves the authenticated, active professor's current HR owner and returns only that owner's named slot, as an attachment with no-store and nosniff headers. Responses contain metadata, never file bytes in the JSON payload. Files omitted from a save remain intact; deletion requires an explicit supported slot in `removed_attachments`. File changes and Certification's revision commit or roll back together. Unknown slots, stale revisions and foreign owners cannot change stored files.
+Signatures, the right thumbmark and the oath officer's signature are added to the printed PDS. There are no digital signature, certificate or thumbmark inputs. Certification presents one Date for all PDS pages, backed by `date_accomplished`. Every successful save sets `signature_date_1` through `signature_date_4` to the same value; clearing it clears all five stored date values together. Individual page dates cannot be posted or edited independently. ID issuance remains a separate historical event. Oath administration is completed by the attorney's office, so its date and officer fields are absent from the faculty form and rejected in faculty save payloads. Existing oath values are preserved in storage.
 
-Uploaded P7S files are checked for signed-data structure, not certificate trust or cryptographic validity. Recording oath details stores an existing event; the application does not administer an oath. Declaration acknowledgment is an explicit, editable faculty checkbox and is never preselected. PDS export, digital signature verification, and an HR submission/approval workflow are separate from completing and saving these inputs.
+The active attachment whitelist is empty. Previously stored files remain in the HR database without being displayed, downloaded by the PDS endpoint, overwritten or deleted by a date save. No database columns, tables or saved files are removed by this change.
+
+Declaration acknowledgment remains an explicit, editable faculty checkbox and is never preselected. PDS export and an HR submission/approval workflow are separate from completing and saving these inputs.
 
 Confirmed section saves and the existing Profile save show a SweetAlert2 success toast matching the assessment workspace: top right, checkmark, close button, and a 3.5-second progress bar that pauses on hover or focus. Profile-specific feedback files keep the HR UI independent of LMS behavior. Failed saves never show success feedback, and a local toast remains available if the alert library cannot load.
 
@@ -58,9 +64,9 @@ Confirmed section saves and the existing Profile save show a SweetAlert2 success
 
 - `php tests/hr-faculty-pds.php`: name suggestions and section validation.
 - `php tests/hr-faculty-pds.php --database`: rollback-only persistence, ownership/link changes, conflicts, and shared-data isolation checks.
-- `php tests/hr-faculty-pds-remaining.php --database`: all remaining scalar/record fields, conditional normalization, file content checks, isolation, attachment revision conflicts and atomic rollback.
-- `php tests/hr-faculty-pds-http.php`: local HTTP and real multipart endpoint checks, private owner downloads, rejected foreign/student access, temporary sample accounts and rollback-only writes.
+- `php tests/hr-faculty-pds-remaining.php --database`: remaining scalar/record fields, conditional normalization, shared page dates, rejected independent date overrides, retired uploads, historical-file preservation and atomic rollback.
+- `php tests/hr-faculty-pds-http.php`: local HTTP section saves, rejection of photo/signature/thumbmark uploads and historical-file downloads, sample accounts and rollback-only writes.
 - `php tests/faculty-pds-preview.php --hr --saved`: rendered form/schema parity for all eleven sections, saved-list precedence, radio restoration, file links, escaping, and form boundaries.
-- `node tests/hr-faculty-pds-dom.cjs`: offline DOM checks for every section, nested records, declaration radio serialization, multipart uploads, file replacement/removal, review, errors, concurrency and preserving edits. Its temporary testing dependency is documented at the top of the test.
+- `node tests/hr-faculty-pds-dom.cjs`: offline DOM checks for every section, nested records, declaration radio serialization, the single PDS date, absent file inputs, review, errors, concurrency and preserving edits. Its testing dependency is documented at the top of the test.
 
 The migration and database/HTTP checks require access to the configured local MySQL server. The live browser should also be checked when computer-use access is available.

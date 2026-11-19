@@ -21,6 +21,7 @@ $storedProfile = $profile;
 $fields = synk_faculty_profile_fields($ranks,$profile,$locations);
 $eligibilities = [];
 $errors = []; $saveError = ''; $savedNotice = in_array('--notice',$argv,true) ? 'Your faculty profile has been saved.' : ''; $age = '36 years old'; $initials = 'SF'; $profileImageUrl = '';
+if(in_array('--photo',$argv,true))$profileImageUrl='/synk/assets/img/avatars/1.png';
 $educationLevels = ['bachelor'=>"Bachelor's degree",'master'=>"Master's degree",'doctoral'=>'Doctoral degree'];
 $completionRules = synk_faculty_profile_completion_rules($fields);
 $completion = synk_faculty_profile_completion($profile,$completionRules);
@@ -58,7 +59,8 @@ if (in_array('--hr',$argv,true)) {
         $certification=array_fill_keys(array_keys(synk_hr_pds_fields('certification')),''); $certification['declaration_acknowledged']='0';
         $certification['certification_id_number']='000ABC';
         $profileEditor['pds_state']['sections']['certification']=['values'=>$certification,'revision'=>2,'updated_at'=>'2026-11-18 10:00:00',
-            'attachments'=>['photo'=>['name'=>'<photo>.png','mime'=>'image/png','size'=>100]]];
+            'attachments'=>['photo'=>['name'=>'old-pds-photo.png','mime'=>'image/png','size'=>100],
+                'signature_page_1'=>['name'=>'<signature>.png','mime'=>'image/png','size'=>100]]];
     }
 }
 chdir(__DIR__.'/../professor');
@@ -71,6 +73,8 @@ $check = static function (bool $condition,string $message) use (&$checks): void 
 $check($xpath->query('//*[@id="profile-completion"]')->length===0,'The professor top completion panel is removed.');
 $check($xpath->query('//*[@role="progressbar"]')->length===1,'Only the sidebar shows a completion indicator.');
 $check($xpath->query('//*[@data-profile-tab]')->length===2,'The profile page has only Profile and Personal Data Sheet tabs.');
+$check($xpath->query('//*[@data-profile-heading and ancestor::*[contains(@class,"profile-page-heading")]]')->length===2,'Both tab headings occupy the shared page header above navigation.');
+$check($xpath->query('//*[@id="faculty-panel-pds"]//h1 | //*[@id="faculty-panel-pds"]//h2[text()="Your Personal Data Sheet"]')->length===0,'The PDS panel does not repeat or reposition the page title.');
 $check($xpath->query('//*[@id="faculty-panel-researches"] | //*[@id="faculty-panel-trainings"]')->length===0,'Separate research and training editors are removed from the profile UI.');
 $savedPds=in_array('--hr',$argv,true) && in_array('--saved',$argv,true);
 $check($xpath->query('//*[@data-pds-list="trainings"]//*[@data-pds-record]')->length===($savedPds?1:2),'Saved HR training lists take precedence over profile suggestions, including an empty list.');
@@ -97,10 +101,18 @@ if (in_array('--hr',$argv,true)) {
         $check($xpath->query('//*[@data-pds-list="education"]/*[@data-pds-records]/*[@data-pds-record]')->length===0,'An intentionally emptied PDS education list does not resurrect profile degrees.');
         $check($xpath->query('//*[@name="pds-declarations-q35b" and @value="No" and @checked] | //*[@name="pds-declarations-q40a" and @value="Yes" and @checked]')->length===2,'Saved Yes and No answers reload without changing radio option values.');
         $check($xpath->query('//*[@id="pds-certification-certification_id_number" and @value="000ABC"]')->length===1,'Certification identifiers preserve their leading zeros.');
-        $check($xpath->query('//*[@data-pds-file-slot="photo"]//*[@data-pds-attachment-saved and not(@hidden)]/a[@href="pds-attachment.php?slot=photo"]')->length===1,'Saved attachments use the authenticated private download endpoint.');
-        $check(strpos($html,'<photo>')===false && strpos($html,'&lt;photo&gt;.png')!==false,'Attachment filenames are escaped.');
+        $check($xpath->query('//*[@id="pds-preview"]//input[@type="file"] | //*[@id="pds-preview"]//*[@data-pds-file-slot]')->length===0,'Signatures and thumbmarks have no digital upload controls.');
+        $check(strpos($html,'<signature>')===false && strpos($html,'&lt;signature&gt;.png')===false,'Previously uploaded signatures are not displayed or reused.');
+        $check(strpos($html,'old-pds-photo.png')===false,'Previously uploaded PDS photos are not displayed or reused.');
     }
 }
+$check($xpath->query('//*[@data-pds-file-slot="photo"] | //*[@id="pds-certification-photo"] | //*[@id="pds-certification-photo_taken_date"]')->length===0,'PDS photo uploads and the digital-photo date input are removed.');
+$check($xpath->query('//*[@data-pds-print-photo]//img | //*[@data-pds-print-photo]//input')->length===0,'The printed PDS photo area stays blank and accepts no digital input.');
+$photoQuery='//*[@data-pds-profile-photo-reference]//img[@src="/synk/assets/img/avatars/1.png"]';
+$check($xpath->query($photoQuery)->length===(in_array('--photo',$argv,true)?1:0),'The on-screen photo reference uses the existing profile image only.');
+$check($xpath->query('//*[@data-pds-profile-photo-reference]')->length===1,'Photo guidance is available without requiring an uploaded profile image.');
+$check($xpath->query('//*[@id="pds-certification-date_accomplished"]')->length===1 && $xpath->query('//*[@id="pds-section-certification"]//*[@data-pds-key and starts-with(@data-pds-key,"signature_date_")]')->length===0,'One PDS date replaces the four independently editable page dates.');
+$check($xpath->query('//*[@id="pds-certification-oath_date"] | //*[@id="pds-certification-oath_officer"] | //*[@id="pds-section-certification"]//summary[text()="Oath administration"]')->length===0,'Oath administration is left to the attorney office and is not a faculty input.');
 foreach (synk_hr_pds_sections() as $section) {
     $scope='//*[@id="pds-section-'.$section.'"]'; $keys=[]; $files=[];
     foreach ($xpath->query($scope.'//*[@data-pds-control and not(ancestor::*[@data-pds-record])]') as $control) {

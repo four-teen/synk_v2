@@ -18,7 +18,7 @@ async function main() {
   fs.mkdirSync(temp, {recursive:true});
   const render = spawnSync('php', [path.join(__dirname, 'faculty-profile-degrees-http.php'), '--render', html], {cwd:root, encoding:'utf8', windowsHide:true});
   if (render.status !== 0 || !fs.existsSync(html)) throw Error(render.stdout + render.stderr);
-  const markup = fs.readFileSync(html, 'utf8').replace(/<base\b[^>]*>/i, '');
+  let markup = fs.readFileSync(html, 'utf8').replace(/<base\b[^>]*>/i, '');
   server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
     if (url.pathname === '/synk/professor/manage-profile.php') {
@@ -88,9 +88,45 @@ async function main() {
   await until('document.querySelector(".select2-container--open .select2-search__field")');
   await evaluate('const search = document.querySelector(".select2-container--open .select2-search__field"); search.value = "Doctor of Education"; search.dispatchEvent(new Event("input", {bubbles:true})); window.jQuery("[data-degree-list=doctoral] [data-education-type=degree]").select2("close"); true');
   check(await evaluate('document.querySelector("[data-degree-list=doctoral] [data-education-type=degree]").value === "Doctor of Education"'), 'A newly typed program in a dynamically added Doctoral row is retained.');
+  await evaluate('(()=>{const select=document.getElementById("eligibility_ids"),values=[...select.options].filter(option=>option.value).slice(0,2).map(option=>option.value);if(values.length!==2)throw Error("Two credential options are required for this fixture");window.jQuery(select).val(values).trigger("change");select.nextElementSibling.querySelector(".select2-selection__choice__remove").click();})()');
+  await until('document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.getElementById("eligibility_ids").selectedOptions.length===2'),'A credential chip stays selected until its removal is confirmed.');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-cancel").click()');
+  await until('!document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.getElementById("eligibility_ids").selectedOptions.length===2'),'Cancel preserves both credential selections.');
+  await evaluate('document.getElementById("eligibility_ids").nextElementSibling.querySelector(".select2-selection__choice__remove").click()');
+  await until('document.querySelector(".profile-confirm-popup")');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-confirm").click()');
+  await until('document.getElementById("eligibility_ids").selectedOptions.length===1');
+  await until('!document.querySelector(".profile-confirm-popup")');
+  check(true,'Proceed removes only the chosen credential.');
+  await evaluate('document.getElementById("eligibility_ids").nextElementSibling.querySelector(".select2-selection__clear").dispatchEvent(new MouseEvent("mousedown",{bubbles:true,cancelable:true,button:0}))');
+  await until('document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.getElementById("eligibility_ids").selectedOptions.length===1'),'Clear-all waits for confirmation.');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-confirm").click()');
+  await until('document.getElementById("eligibility_ids").selectedOptions.length===0');
+  await until('!document.querySelector(".profile-confirm-popup")');
+  check(true,'Proceed confirms clearing all credential selections.');
+  await evaluate('document.querySelector("[data-degree-list=doctoral] .select2-selection__clear").dispatchEvent(new MouseEvent("mousedown",{bubbles:true,cancelable:true,button:0}))');
+  await until('document.querySelector(".profile-confirm-popup")');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-cancel").click()');
+  await until('!document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.querySelector("[data-degree-list=doctoral] [data-education-type=degree]").value==="Doctor of Education"'),'Cancel also preserves a single education selection.');
   await evaluate('document.querySelector("[data-degree-list=bachelor] [data-remove-degree]").click()');
+  await until('document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.querySelectorAll("[data-degree-list=bachelor] [data-additional-degree]").length === 2 && document.activeElement.textContent === "Cancel"'),'Degree removal waits for a confirmation, with Cancel focused.');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-cancel").click()');
+  await until('!document.querySelector(".profile-confirm-popup")');
+  check(await evaluate('document.querySelectorAll("[data-degree-list=bachelor] [data-additional-degree]").length === 2'),'Cancel keeps the degree and its fields.');
+  await evaluate('document.querySelector("[data-degree-list=bachelor] [data-remove-degree]").click()');
+  await until('document.querySelector(".profile-confirm-popup")');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-confirm").click()');
+  await until('document.querySelectorAll("[data-degree-list=bachelor] [data-additional-degree]").length === 1');
   check(await evaluate('document.querySelector("[data-degree-list=bachelor] .profile-additional-degree-title").textContent === "Bachelor\u0027s degree 2" && document.querySelector("[data-degree-list=doctoral] .profile-additional-degree-title").textContent === "Doctoral degree 2" && document.querySelector("[data-degree-list=doctoral] [data-education-type=degree]").value === "Doctor of Education"'), 'Removing a Bachelor degree renumbers its section and preserves Doctoral entries.');
   await evaluate('document.querySelector("[data-add-degree=master]").click(); document.querySelector("[data-degree-list=master] [data-remove-degree]").click()');
+  await until('document.querySelector(".profile-confirm-popup")');
+  await evaluate('document.querySelector(".profile-confirm-popup .swal2-confirm").click()');
+  await until('!document.querySelector("[data-degree-list=master] [data-additional-degree]")');
   await evaluate(`(() => {
     const set = (id, value) => {const field = document.getElementById(id); if (field.matches('select') && ![...field.options].some(option => option.value === value)) field.add(new Option(value, value)); field.value = value; window.jQuery(field).trigger('change');};
     set('bachelor_status', 'Completed'); set('bachelor_degree', 'BS Computer Science');
@@ -108,12 +144,40 @@ async function main() {
   check(await evaluate('document.querySelector("[data-degree-list=doctoral] [data-education-type=degree]").value === "Doctor of Education" && !document.getElementById("faculty-panel-profile").hidden'), 'Switching profile tabs preserves additional degree entries.');
   for (const width of [1440, 768, 390, 320]) {
     await resize(width);
+    const profileGeometry=await evaluate('(()=>{window.scrollTo({top:0,left:0,behavior:"instant"});document.querySelector("[data-profile-tab=profile]").click();const tab=document.querySelector(".profile-page-tabs").getBoundingClientRect(),title=document.querySelector("[data-profile-heading=profile] h1").getBoundingClientRect();return {tabTop:tab.top,titleTop:title.top,titleLeft:title.left};})()');
+    const pdsGeometry=await evaluate('(()=>{document.querySelector("[data-profile-tab=pds]").click();const tab=document.querySelector(".profile-page-tabs").getBoundingClientRect(),title=document.querySelector("[data-profile-heading=pds] h1").getBoundingClientRect();return {tabTop:tab.top,titleTop:title.top,titleLeft:title.left};})()');
+    check(Object.keys(profileGeometry).every(key=>Math.abs(profileGeometry[key]-pdsGeometry[key])<1),'Profile/PDS headings and tabs keep the same coordinates at '+width+'px. '+JSON.stringify({profileGeometry,pdsGeometry}));
+    await evaluate('window.scrollTo({top:0,left:0,behavior:"instant"})');
+    const actionGeometry=await evaluate('(()=>{const button=document.querySelector(".profile-page-heading>.btn");if(!button)return null;const box=button.getBoundingClientRect(),style=getComputedStyle(button);return {left:box.left,right:box.right,top:box.top,bottom:box.bottom,visibility:style.visibility,display:style.display};})()');
+    check(!actionGeometry || actionGeometry.left>=0 && actionGeometry.right<=width && actionGeometry.top>=0 && actionGeometry.visibility==='visible' && actionGeometry.display!=='none','The header action stays visible at '+width+'px. '+JSON.stringify(actionGeometry));
+    check(await evaluate('[...document.querySelectorAll(".pds-section:not([hidden]) .pds-field")].filter(field=>field.querySelector(".form-control,.form-select")).every(field=>{const box=field.getBoundingClientRect(),input=field.querySelector(".form-control,.form-select").getBoundingClientRect();return Math.abs(box.width-input.width)<2;})'),'PDS controls fill each available field width at '+width+'px.');
+    await evaluate('document.querySelector("[data-profile-tab=profile]").click()');
+    const widthFailures=await evaluate('[...document.querySelectorAll("#faculty-profile-form .form-control,#faculty-profile-form .form-select,#faculty-profile-form .select2-container")].filter(field=>!field.classList.contains("select2-hidden-accessible") && field.getBoundingClientRect().width>0).flatMap(field=>{const row=field.parentElement,box=field.getBoundingClientRect();const available=row.clientWidth-parseFloat(getComputedStyle(row).paddingLeft)-parseFloat(getComputedStyle(row).paddingRight);return Math.abs(box.width-available)<2?[]:[{id:field.id,classes:field.className,width:box.width,available}];})');
+    check(widthFailures.length===0,'Profile controls fill their field width at '+width+'px. '+JSON.stringify(widthFailures));
     check(await evaluate('document.documentElement.scrollWidth <= innerWidth && [...document.querySelectorAll("[data-add-degree], [data-remove-degree]")].every(button => {const box = button.getBoundingClientRect(); return box.height >= 44 && box.left >= 0 && box.right <= innerWidth;})'), 'Degree sections and their touch targets fit at ' + width + 'px.');
     if (width === 1440 || width === 390) {
       await evaluate('document.getElementById("education").scrollIntoView({block:"start",behavior:"instant"})');
       fs.writeFileSync(path.join(temp, `faculty-degrees-${width === 1440 ? 'desktop' : 'mobile'}.png`), Buffer.from((await call('Page.captureScreenshot', {format:'png'}, session)).data, 'base64'));
+      await evaluate('window.scrollTo({top:0,left:0,behavior:"instant"});document.querySelector("[data-profile-tab=pds]").click()');
+      await delay(200);
+      fs.writeFileSync(path.join(temp, `faculty-pds-${width === 1440 ? 'desktop' : 'mobile'}.png`), Buffer.from((await call('Page.captureScreenshot', {format:'png'}, session)).data, 'base64'));
+      await evaluate('document.querySelector("[data-profile-tab=profile]").click()');
     }
   }
+  // Render the actual PDS view with an existing profile image, without a photo upload.
+  const photoRender=spawnSync('php',[path.join(__dirname,'faculty-pds-preview.php'),'--render',html,'--hr','--photo'],{cwd:root,encoding:'utf8',windowsHide:true});
+  if(photoRender.status!==0)throw Error(photoRender.stdout+photoRender.stderr);
+  markup=fs.readFileSync(html,'utf8').replace(/<base\b[^>]*>/i,'');
+  await resize(390); await navigate();
+  await evaluate('document.querySelector("[data-pds-step=\\"10\\"]").click()');
+  check(await evaluate('document.querySelector("[data-pds-profile-photo-reference] img").getAttribute("src")==="/synk/assets/img/avatars/1.png" && !document.getElementById("pds-certification-photo") && !document.querySelector("[data-pds-print-photo] img")'),'The PDS uses the existing profile image as an on-screen reference and has no photo upload.');
+  check(await evaluate('document.querySelectorAll("#pds-preview input[type=file]").length===0 && document.querySelectorAll("#pds-certification-date_accomplished").length===1 && !document.getElementById("pds-certification-signature_date_1")'),'Certification uses a shared page date and no digital signature or thumbmark uploads.');
+  await evaluate('document.querySelector("[data-pds-photo-guidance]").scrollIntoView({block:"center",behavior:"instant"})');
+  await delay(200);
+  fs.writeFileSync(path.join(temp,'faculty-pds-photo-mobile.png'),Buffer.from((await call('Page.captureScreenshot',{format:'png'},session)).data,'base64'));
+  await call('Emulation.setEmulatedMedia',{media:'print'},session);
+  check(await evaluate('getComputedStyle(document.querySelector("[data-pds-profile-photo-reference]")).display==="none" && getComputedStyle(document.querySelector("[data-pds-print-photo] span")).visibility==="hidden" && !document.querySelector("[data-pds-print-photo] img")'),'Browser printing excludes the profile image and leaves the PDS photo frame blank.');
+  await call('Emulation.setEmulatedMedia',{media:''},session);
   // The same Add/Remove controls must work with plain text inputs if the CDN is unavailable.
   await call('Network.enable', {}, session);
   await call('Network.setBlockedURLs', {urls:['*cdn.jsdelivr.net/npm/select2@*']}, session);

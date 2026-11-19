@@ -40,22 +40,18 @@ $bad=$examples['declarations']; $bad['q34a']='Maybe'; [, $errors]=synk_hr_pds_va
 $check(isset($errors['q34a']),'Declarations only accept explicit Yes, No, or an unanswered blank.');
 $bad=$examples['certification']; $bad['date_accomplished']='2027-01-01'; [, $errors]=synk_hr_pds_validate('certification',$bad,$today);
 $check(isset($errors['date_accomplished']),'Certification cannot record a future accomplishment date.');
-$file=tempnam(sys_get_temp_dir(),'hrpds');
-try {
-    $sample=imagecreatetruecolor(12,12); imagepng($sample,$file); imagedestroy($sample);
-    $image=synk_hr_pds_attachment_content('photo',$file,'photo.php.png');
-    $check($image['mime']==='image/png' && $image['sha256']===hash('sha256',$image['content']),'Photo content is inspected, decoded, and stored with a matching checksum.');
-    file_put_contents($file,'<?php echo "unsafe";');
-    try { synk_hr_pds_attachment_content('photo',$file,'photo.jpg'); $rejected=false; } catch (InvalidArgumentException $error) { $rejected=true; }
-    $check($rejected,'Renamed non-images are rejected.');
-    file_put_contents($file,'%PDF-1.4 sample %%EOF'); $pdf=synk_hr_pds_attachment_content('signature_page_1',$file,'signed.pdf');
-    $check($pdf['mime']==='application/pdf','PDF signature documents are supported.');
-    try { synk_hr_pds_attachment_content('thumbmark',$file,'print.pdf'); $rejected=false; } catch (InvalidArgumentException $error) { $rejected=true; }
-    $check($rejected,'A thumbmark must be an actual image.');
-    [,,$errors]=synk_hr_pds_prepare_attachments(['photo'=>['error'=>UPLOAD_ERR_OK,'tmp_name'=>$file,'name'=>'photo.png']],[]);
-    $check(isset($errors['photo']),'Only actual HTTP uploaded files are accepted by the upload boundary.');
-    [,,$errors]=synk_hr_pds_prepare_attachments([],['unknown']); $check(isset($errors['_attachments']),'Unknown attachment removals are rejected.');
-} finally { unlink($file); }
+$bad=$examples['certification']; $bad['signature_date_2']='2026-11-16'; [, $errors]=synk_hr_pds_validate('certification',$bad,$today);
+$check(isset($errors['_section']),'A client cannot override an individual page date.');
+foreach (['oath_date'=>'2026-11-15','oath_officer'=>'Sample Officer'] as $field=>$value) {
+    $bad=$examples['certification']; $bad[$field]=$value; [, $errors]=synk_hr_pds_validate('certification',$bad,$today);
+    $check(isset($errors['_section']),'Faculty saves cannot set attorney office field '.$field.'.');
+}
+foreach (['photo','thumbmark','signature_page_1','signature_page_2','signature_page_3','signature_page_4','oath_signature'] as $slot) {
+    [,,$errors]=synk_hr_pds_prepare_attachments([$slot=>['error'=>UPLOAD_ERR_OK]],[]);
+    $check(isset($errors['_attachments']),'Reject digital upload for '.$slot.'.');
+}
+[,,$errors]=synk_hr_pds_prepare_attachments([],['signature_page_1']);
+$check(isset($errors['_attachments']),'Retired signature files cannot be deleted by a form save.');
 if (!in_array('--database',$argv,true)) { echo 'Remaining PDS: ',$checks,' unit checks passed.',PHP_EOL; exit; }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require_once __DIR__.'/../backend/db.php'; synk_hr_pds_ensure($conn); $conn->close();
@@ -96,14 +92,19 @@ try {
     }
     $profile=synk_hr_pds_profile($conn,$ids[0],0); $profileId=(int)$profile['hr_profile_id'];
     $conn->query('SAVEPOINT hr_attach_atomic');
-    $saved=synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$examples['certification'],2,['photo'=>$image,'signature_page_1'=>$pdf]);
-    $check(isset($saved['attachments']['photo'],$saved['attachments']['signature_page_1']),'Certification stores private image and signature bytes.');
-    $row=$conn->query('SELECT content,sha256 FROM tbl_hr_faculty_pds_attachments WHERE hr_profile_id='.$profileId." AND slot='photo'")->fetch_assoc();
-    $check(hash('sha256',$row['content'])===$image['sha256'],'Stored photo bytes match the saved metadata checksum.');
-    try { synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$examples['certification'],2,[],['photo']); $rejected=false; } catch (DomainException $error) { $rejected=true; }
-    $check($rejected && isset(synk_hr_pds_attachments($conn,$profileId)['photo']),'A stale file removal cannot delete saved attachments.');
-    $saved=synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$examples['certification'],3,[],['photo']);
-    $check(!isset($saved['attachments']['photo']) && isset($saved['attachments']['signature_page_1']),'Removing one file keeps the other attachment.');
+    $conn->query("UPDATE tbl_hr_faculty_pds_certification SET oath_date='2020-01-01',oath_officer='Recorded Officer' WHERE hr_profile_id=".$profileId);
+    $saved=synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$examples['certification'],2);
+    $row=$conn->query('SELECT date_accomplished,signature_date_1,signature_date_2,signature_date_3,signature_date_4 FROM tbl_hr_faculty_pds_certification WHERE hr_profile_id='.$profileId)->fetch_assoc();
+    $check(count(array_unique(array_values($row)))===1 && $row['date_accomplished']==='2026-11-15','One entered date is stored identically on all four PDS pages.');
+    $conn->query("INSERT INTO tbl_hr_faculty_pds_attachments (hr_profile_id,slot,original_name,mime_type,byte_size,sha256,content,updated_by) VALUES (".$profileId.",'signature_page_1','old-signature.png','image/png',1,'old','x',".$ids[0].")");
+    $check(synk_hr_pds_attachments($conn,$profileId)===[],'Previously uploaded signatures are not reused in the current PDS.');
+    $emptyDate=$examples['certification']; $emptyDate['date_accomplished']='';
+    $saved=synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$emptyDate,3);
+    $row=$conn->query('SELECT date_accomplished,signature_date_1,signature_date_2,signature_date_3,signature_date_4 FROM tbl_hr_faculty_pds_certification WHERE hr_profile_id='.$profileId)->fetch_assoc();
+    $check(array_values($row)===array_fill(0,5,null),'Clearing the shared date clears all four page dates together.');
+    $oath=$conn->query('SELECT oath_date,oath_officer FROM tbl_hr_faculty_pds_certification WHERE hr_profile_id='.$profileId)->fetch_assoc();
+    $check($oath===['oath_date'=>'2020-01-01','oath_officer'=>'Recorded Officer'],'Faculty date saves preserve historical attorney office details.');
+    $check($conn->query('SELECT COUNT(*) FROM tbl_hr_faculty_pds_attachments WHERE hr_profile_id='.$profileId)->fetch_row()[0]==1,'Saving dates does not delete previously stored signature files.');
     $conn->query('ROLLBACK TO SAVEPOINT hr_attach_atomic');
     $check(!synk_hr_pds_attachments($conn,$profileId) && synk_hr_pds_section($conn,$profileId,'certification')['revision']===2,'Transaction rollback restores both attachment bytes and the section revision.');
     $check($before===$snapshot(),'All remaining PDS edits preserve existing profiles, degrees, trainings, accounts, and faculty directory.');
