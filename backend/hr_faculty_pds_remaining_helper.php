@@ -13,11 +13,10 @@ function synk_hr_pds_remaining_fields(string $section): array
             'resident_country'=>['max'=>100],'indigenous_group'=>['max'=>250],'q40b_id'=>['max'=>100],'q40c_id'=>['max'=>100]];
     }
     if ($section==='certification') {
-        $fields=['photo_taken_date'=>['date'=>true],'certification_id_type'=>['max'=>150],
+        $fields=['certification_id_type'=>['max'=>150],
             'certification_id_number'=>['max'=>100],'certification_id_date'=>['date'=>true],
             'certification_id_place'=>['max'=>300],'date_accomplished'=>['date'=>true],
-            'oath_date'=>['date'=>true],'oath_officer'=>['max'=>250],'declaration_acknowledged'=>['boolean'=>true]];
-        for ($page=1;$page<=4;$page++) $fields['signature_date_'.$page]=['date'=>true];
+            'declaration_acknowledged'=>['boolean'=>true]];
         return $fields;
     }
     return [];

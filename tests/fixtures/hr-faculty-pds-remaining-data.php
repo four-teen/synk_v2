@@ -43,9 +43,8 @@ function hr_pds_remaining_examples(): array
         'q39'=>'Yes','resident_country'=>'Canada','q40a'=>'Yes','indigenous_group'=>'Sample group',
         'q40b'=>'Yes','q40b_id'=>'000123','q40c'=>'Yes','q40c_id'=>'000456']);
     $data['certification']=array_replace($data['certification'],[
-        'photo_taken_date'=>'2026-11-01','certification_id_type'=>'Passport','certification_id_number'=>'0001234-A',
+        'certification_id_type'=>'Passport','certification_id_number'=>'0001234-A',
         'certification_id_date'=>'2020-01-01','certification_id_place'=>'Sample City','date_accomplished'=>'2026-11-15',
-        'oath_date'=>'2026-11-15','oath_officer'=>'Sample Officer','declaration_acknowledged'=>'1',
-        'signature_date_1'=>'2026-11-15','signature_date_2'=>'2026-11-15','signature_date_3'=>'2026-11-15','signature_date_4'=>'2026-11-15']);
+        'declaration_acknowledged'=>'1']);
     return $data;
 }

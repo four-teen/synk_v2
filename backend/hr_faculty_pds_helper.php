@@ -216,6 +216,11 @@ function synk_hr_pds_save(mysqli $conn, int $userId, string $postedOwner, string
     // Validate again at the persistence boundary, including non-HTTP callers.
     [$data,$errors] = synk_hr_pds_validate($section,$values,new DateTimeImmutable('today'));
     if ($errors) throw new InvalidArgumentException('PDS fields are invalid.');
+    // One faculty-entered date is authoritative for every printed PDS page.
+    if ($section==='certification') for ($page=1;$page<=4;$page++) {
+        $fields['signature_date_'.$page]=['date'=>true];
+        $data['signature_date_'.$page]=$data['date_accomplished'];
+    }
     $parameters=[];
     foreach ($fields as $key=>$rule) $parameters[] = ($data[$key]==='' && (!empty($rule['date']) || !empty($rule['decimal']) || !empty($rule['amount']))) ? null : $data[$key];
     $table = synk_hr_pds_section_table($section);

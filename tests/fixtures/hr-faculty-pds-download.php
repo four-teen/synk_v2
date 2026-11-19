@@ -18,7 +18,10 @@ foreach ([1,2] as $index) {
 }
 $bytes='%PDF-1.4 private sample %%EOF';
 $file=['name'=>'signed.pdf','mime'=>'application/pdf','size'=>strlen($bytes),'sha256'=>hash('sha256',$bytes),'content'=>$bytes];
-synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',hr_pds_empty_section('certification'),0,['signature_page_1'=>$file]);
+synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',hr_pds_empty_section('certification'),0);
+$profile=synk_hr_pds_profile($conn,$ids[0],0); $profileId=(int)$profile['hr_profile_id'];
+$statement=$conn->prepare("INSERT INTO tbl_hr_faculty_pds_attachments (hr_profile_id,slot,original_name,mime_type,byte_size,sha256,content,updated_by) VALUES (?,'signature_page_1',?,?,?,?,?,?)");
+$statement->bind_param('ississi',$profileId,$file['name'],$file['mime'],$file['size'],$file['sha256'],$file['content'],$ids[0]); $statement->execute(); $statement->close();
 $_SESSION=['user_id'=>($_GET['actor'] ?? '')==='foreign'?$ids[1]:$ids[0],'role'=>($_GET['actor'] ?? '')==='student'?'student':'professor'];
 session_write_close();
 require __DIR__.'/../../professor/pds-attachment.php';

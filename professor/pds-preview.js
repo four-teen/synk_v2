@@ -186,10 +186,17 @@
       markChanged(list.closest('[data-pds-section]'));
       record.querySelector('[data-pds-control]')?.focus();
     });
-    records.addEventListener('click', event => {
+    records.addEventListener('click', async event => {
       const button = event.target.closest('[data-pds-remove]');
-      if (!button) return;
-      button.closest('[data-pds-record]').remove();
+      if (!button || button.disabled) return;
+      const record=button.closest('[data-pds-record]');
+      const title=record.querySelector('[data-pds-record-title]').textContent.trim();
+      button.disabled=true;
+      let confirmed=false;
+      try { confirmed=await window.synkFacultyProfileFeedback?.confirmRemoval({title:'Remove this '+list.dataset.pdsSingular+'?',text:'Remove “'+title+'” from this section? Saved data changes only after Save section.'}); }
+      finally { if(button.isConnected)button.disabled=false; }
+      if(!confirmed || !record.isConnected){if(button.isConnected)button.focus({preventScroll:true});return;}
+      record.remove();
       updateCount();
       clearErrors(list.closest('[data-pds-section]'));
       markChanged(list.closest('[data-pds-section]'));
@@ -209,9 +216,20 @@
       record.querySelector('[data-pds-record-note]').textContent = control.closest('[data-pds-section]').dataset.pdsPersistent === '1' ? 'Unsaved changes' : 'Edited in preview';
     }
   });
-  root.addEventListener('change', event => {
+  root.addEventListener('change', async event => {
     if (event.target.matches('[data-pds-attachment-remove]')) {
-      if (event.target.checked) event.target.closest('[data-pds-file-slot]').querySelector('input[type=file]').value='';
+      const remove=event.target;
+      if(remove.checked){
+        const container=remove.closest('[data-pds-file-slot]');
+        const file=container.querySelector('input[type=file]'); const originalFile=file.files[0];
+        const name=container.querySelector('[data-pds-attachment-link]').textContent.trim();
+        remove.checked=false; remove.disabled=true;
+        let confirmed=false;
+        try { confirmed=await window.synkFacultyProfileFeedback?.confirmRemoval({title:'Remove this saved file?',text:'Mark “'+name+'” for removal? It will be deleted when you save this section.'}); }
+        finally { if(remove.isConnected)remove.disabled=false; }
+        if(!confirmed || !remove.isConnected || file.files[0]!==originalFile){if(remove.isConnected)remove.focus({preventScroll:true});return;}
+        remove.checked=true; file.value='';
+      }
       markChanged(event.target.closest('[data-pds-section]')); return;
     }
     const control = event.target.closest('[data-pds-control]');
@@ -337,6 +355,8 @@
       edit.setAttribute('aria-label', 'Edit ' + section.dataset.pdsTitle);
       edit.addEventListener('click', () => showSection(index));
       header.append(heading, edit); group.append(header);
+      const photoGuidance=section.querySelector('[data-pds-photo-guidance]');
+      if(photoGuidance)group.append(photoGuidance.cloneNode(true));
       const buckets = new Map();
       const radioNames = new Set();
       section.querySelectorAll('[data-pds-control]').forEach(control => {

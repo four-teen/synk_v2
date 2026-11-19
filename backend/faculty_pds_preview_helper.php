@@ -145,24 +145,14 @@ function synk_faculty_pds_preview_sections(): array
     }
     $sections[] = ['key'=>'declarations','title'=>'Declarations','icon'=>'bx-check-shield',
         'description'=>'Answer each question yourself. Follow-up fields appear only when needed.', 'groups'=>$declarations];
-    $signatures = [];
-    for ($page=1;$page<=4;$page++) $signatures = array_merge($signatures,[
-        $field('signature_page_'.$page,'Page '.$page.' signature / digital certificate','file',['accept'=>'.png,.jpg,.jpeg,.pdf,.p7s']),
-        $field('signature_date_'.$page,'Page '.$page.' signature date','date')]);
-    $sections[] = ['key'=>'certification','title'=>'Photo & final review','icon'=>'bx-file','description'=>'Save your photo, certification details, and supporting files when you are ready.', 'groups'=>[
-        $group('PDS photo',[$field('photo','Passport-sized unfiltered digital photo','file',
-            ['accept'=>'image/jpeg,image/png,image/webp','hint'=>'Use a recent photo taken within the last six months, 4.5 cm × 3.5 cm. Up to 2 MB.']),
-            $field('photo_taken_date','Date the photo was taken','date')]),
+    $sections[] = ['key'=>'certification','title'=>'Photo & final review','icon'=>'bx-file','description'=>'Review your photo guidance and certification details when you are ready.', 'groups'=>[
+        $group('PDS photo',[['type'=>'photo_reference']]),
         $group('Government-issued ID used for certification',[
             $field('certification_id_type','Government-issued ID'),$field('certification_id_number','ID / license / passport number'),
-            $field('certification_id_date','Date of issuance','date'),$field('certification_id_place','Place of issuance'),
-            $field('date_accomplished','Date accomplished','date')]),
-        $group('Signatures & thumbmark',array_merge($signatures,[$field('thumbmark','Right thumbmark','file',['accept'=>'image/jpeg,image/png'])]),
-            ['collapsible'=>true,'hint'=>'Files are uploaded when you save this section. Up to 2 MB per file and 6 MB per save. An upload stores the file; it does not verify a digital signature.']),
-        $group('Oath administration',[
-            $field('oath_date','Date of oath','date'),$field('oath_officer','Person administering oath'),
-            $field('oath_signature','Oath administrator signature / certificate','file',['accept'=>'.png,.jpg,.jpeg,.pdf,.p7s'])],
-            ['collapsible'=>true,'hint'=>'Record details from your administered oath and upload the existing signed document. The PDS excludes a notary public from electronic signing in this area. Saving does not administer an oath.']),
+            $field('certification_id_date','Date of issuance','date'),$field('certification_id_place','Place of issuance')]),
+        $group('PDS date',[$field('date_accomplished','Date for all PDS pages','date',
+            ['hint'=>'This date is used on all four pages of your PDS.'])],
+            ['hint'=>'Add your signatures and right thumbmark to the printed PDS. No digital signature or thumbmark is needed here.']),
         $group('Declaration under oath',[$field('declaration_acknowledged','I have read and acknowledge this declaration.','checkbox')],['hint'=>'I declare under oath that I have personally accomplished this Personal Data Sheet which is a true, correct, and complete statement pursuant to the provisions of pertinent laws, rules, and regulations of the Republic of the Philippines. I authorize the agency head/authorized representative to verify/validate the contents stated herein. I agree that any misrepresentation made in this document and its attachments shall cause the filing of administrative/criminal case/s against me.']),
     ]];
     return $sections;

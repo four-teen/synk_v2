@@ -15,7 +15,7 @@ if (!$multipart && stripos((string)($_SERVER['CONTENT_TYPE'] ?? ''),'application
     http_response_code(415); echo json_encode(['ok'=>false,'message'=>'Send a JSON or multipart section request.']); exit;
 }
 if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0)>($multipart?7340032:2097152)) {
-    http_response_code(413); echo json_encode(['ok'=>false,'message'=>'Save up to 6 MB of attachments at a time. Your entries have not been saved.']); exit;
+    http_response_code(413); echo json_encode(['ok'=>false,'message'=>'This section is too large to save. Your entries have not been saved.']); exit;
 }
 $input=$multipart?($_POST['payload'] ?? null):file_get_contents('php://input',false,null,0,2097153);
 if (!is_string($input) || strlen($input)>2097152 || ($multipart && array_diff(array_keys($_POST),['payload']))) {

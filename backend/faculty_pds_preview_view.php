@@ -21,6 +21,15 @@ function synk_faculty_pds_preview_item(array $item, string $prefix, array $value
     $h = 'synk_faculty_profile_h';
     $type = $item['type'];
     $condition = isset($item['when']) ? ' data-pds-when="'.$h(json_encode($item['when'])).'"' : '';
+    if ($type==='photo_reference') {
+        global $profileImageUrl;
+        echo '<div class="pds-photo-guidance" data-pds-photo-guidance><div class="pds-profile-photo-reference" data-pds-profile-photo-reference>';
+        if (!empty($profileImageUrl)) echo '<img src="'.$h($profileImageUrl).'" alt="Your profile photo" class="pds-profile-photo-image">';
+        else echo '<span class="pds-profile-photo-placeholder" role="img" aria-label="No profile photo available"><i class="bx bx-user" aria-hidden="true"></i></span>';
+        echo '<div><strong>Profile photo</strong><p>Your profile photo is shown here for reference. Attach a printed photograph to your PDS; no photo upload is needed.</p></div></div>';
+        echo '<div class="pds-print-photo" data-pds-print-photo aria-label="Blank PDS photo area for a printed photograph"><span>Attach printed photo here<small>4.5 cm × 3.5 cm</small></span></div></div>';
+        return;
+    }
     if ($type === 'group') {
         $collapsible = !empty($item['collapsible']);
         echo $collapsible ? '<details class="pds-group pds-disclosure"'.$condition.'><summary>'.$h($item['label']).'</summary>'
@@ -105,12 +114,7 @@ function synk_faculty_pds_preview_record(array $item, string $prefix, array $val
 }
 ?>
 <div class="pds-preview" id="pds-preview"<?php if ($pdsStorage): ?> data-pds-save-url="<?= synk_faculty_profile_h($pdsStorage['save_url']) ?>" data-pds-owner="<?= synk_faculty_profile_h($pdsStorage['owner']) ?>" data-pds-csrf="<?= synk_faculty_profile_h($pdsStorage['csrf_token']) ?>" data-pds-saving-enabled="<?= !empty($pdsStorage['enabled'])?'1':'0' ?>"<?php endif; ?>>
-  <header class="pds-intro">
-    <div><span class="pds-eyebrow">CS FORM 212 · REVISED 2026 <span class="pds-preview-badge"><?= $pdsStorage?'Draft':'UI preview' ?></span></span>
-      <h2>Your Personal Data Sheet</h2><p>A little at a time. Start anywhere and move between sections freely.</p></div>
-    <button type="button" class="btn btn-outline-secondary" data-pds-review><i class="bx bx-show" aria-hidden="true"></i>Review PDS</button>
-  </header>
-  <div class="pds-preview-notice" role="note"><i class="bx bx-info-circle" aria-hidden="true"></i><p><?php if ($pdsStorage): ?><strong>Save a little at a time.</strong> Every section saves independently, even while incomplete. Use Review PDS to check your details whenever you like.<?php else: ?><strong>UI preview only.</strong> New PDS entries reset when you leave or reload.<?php endif; ?> Your existing <button type="button" data-pds-profile>Profile tab</button> stays available. Sidebar progress tracks that tab.</p></div>
+  <div class="pds-preview-notice" role="note"><i class="bx bx-info-circle" aria-hidden="true"></i><p><?php if ($pdsStorage): ?><strong>Save a little at a time.</strong> Save any section, even while incomplete, and return when you are ready.<?php else: ?><strong>UI preview only.</strong> New PDS entries reset when you leave or reload.<?php endif; ?> Your <button type="button" data-pds-profile>Profile tab</button> stays available.</p><button type="button" class="btn btn-outline-secondary" data-pds-review><i class="bx bx-show" aria-hidden="true"></i>Review PDS</button></div>
   <?php if ($pdsStorage && empty($pdsStorage['enabled'])): ?><p class="alert alert-warning" role="alert">PDS saving is temporarily unavailable. Your existing Profile tab is still available. Reload this page before entering new PDS details.</p><?php endif; ?>
   <div class="pds-layout">
     <nav class="pds-navigation card" aria-label="PDS sections">
@@ -118,7 +122,7 @@ function synk_faculty_pds_preview_record(array $item, string $prefix, array $val
       <?php foreach ($pdsSections as $index=>$section): ?>
       <button type="button" data-pds-step="<?= $index ?>"<?= $index===0?' aria-current="step"':'' ?> aria-controls="pds-section-<?= $section['key'] ?>"><span class="pds-step-number"><?= str_pad((string)($index+1),2,'0',STR_PAD_LEFT) ?></span><span><?= synk_faculty_profile_h($section['title']) ?><?php if ($pdsStorage): ?><small class="pds-step-state" data-pds-step-state="<?= $section['key'] ?>"><?= in_array($section['key'],synk_hr_pds_sections(),true)?(!empty($pdsStorage['sections'][$section['key']])?'Saved':'Draft'):'Preview' ?></small><?php endif; ?></span><i class="bx bx-chevron-right" aria-hidden="true"></i></button>
       <?php endforeach; ?>
-      <div class="pds-navigation-note"><i class="bx bx-lock-alt" aria-hidden="true"></i><span><?= $pdsStorage?'Your PDS is a saved draft. Files are private to your profile.':'No submission or uploads in this preview.' ?></span></div>
+      <div class="pds-navigation-note"><i class="bx bx-lock-alt" aria-hidden="true"></i><span><?= $pdsStorage?'Your PDS is a saved draft. Return to any section whenever you are ready.':'No submission or uploads in this preview.' ?></span></div>
     </nav>
     <div class="pds-content">
       <noscript><p class="alert alert-info">Enable JavaScript to use the guided PDS and section saving. Your existing Profile tab remains available.</p></noscript>

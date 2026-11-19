@@ -11,3 +11,14 @@
 .profile-save-toast-fallback>button{margin-left:auto;flex-shrink:0;border:0;background:transparent;color:#8995a6;font-size:25px;line-height:1;width:32px;height:32px;padding:0;cursor:pointer}
 @media(max-width:575.98px){.swal2-popup.profile-feedback-toast,.profile-save-toast-fallback{padding:13px}}
 @media(prefers-reduced-motion:reduce){.profile-feedback-container *{animation:none!important;transition:none!important}}
+.swal2-popup.profile-confirm-popup{width:420px;max-width:calc(100vw - 32px);padding:26px 24px 22px;border:1px solid #e1e6ef;border-radius:16px;font-family:inherit;color:#34455f;box-shadow:0 16px 60px #26344d26}
+.profile-confirm-popup .profile-confirm-title{padding:0;font-size:19px;line-height:1.45;color:#293c4f}
+.profile-confirm-popup .profile-confirm-message{margin:12px 0 0;padding:0;font-size:13px;line-height:1.8;color:#64748b;overflow-wrap:anywhere}
+.profile-confirm-actions{display:flex;justify-content:flex-end;gap:10px;width:100%;margin:22px 0 0;padding:0}
+.profile-confirm-actions .btn{min-height:44px;min-width:94px;margin:0;border-radius:8px;padding:10px 16px;font-size:13px}
+.profile-confirm-proceed{background:#b7545b;border:1px solid #b7545b;color:#fff}.profile-confirm-proceed:hover{background:#a3444b;border-color:#a3444b;color:#fff}
+.profile-confirm-actions .btn:focus-visible{outline:3px solid #b6b8ff;outline-offset:3px}
+.profile-confirm-overlay{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:16px;background:#18253670}
+.profile-confirm-dialog{width:420px;max-width:100%;max-height:calc(100vh - 32px);overflow:auto;border:1px solid #e1e6ef;border-radius:16px;padding:26px 24px 22px;background:#fff;color:#293c4f;font-family:inherit;box-shadow:0 16px 60px #26344d26}
+.profile-confirm-dialog>i{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 18px;border-radius:50%;background:#fff1e4;color:#bd7941;font-size:27px}
+.profile-confirm-dialog h2{font-size:19px;line-height:1.45;text-align:center;margin:0}.profile-confirm-dialog p{font-size:13px;line-height:1.8;color:#64748b;text-align:center;margin:12px 0 0;overflow-wrap:anywhere}

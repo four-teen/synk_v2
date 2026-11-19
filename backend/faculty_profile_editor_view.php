@@ -56,12 +56,19 @@ if (!isset($profileTabs[$profileEditor['active_tab']])) $profileEditor['active_t
       <div class="layout-page">
         <?php include $profileEditor['navbar_path']; ?>
         <div class="content-wrapper">
-          <main class="container-xxl flex-grow-1 container-p-y faculty-profile-page">
+          <main class="container-xxl flex-grow-1 container-p-y faculty-profile-page<?= $profileEditor['show_pds_preview']?' has-pds-tabs':'' ?>">
             <div class="profile-page-heading<?php echo $profileEditor['heading_actions_path'] !== null ? ' has-profile-actions' : ''; ?>">
-              <div>
+              <div<?= $profileEditor['show_pds_preview']?' class="profile-heading-copy"':'' ?>>
+                <?php if ($profileEditor['show_pds_preview']): ?><div class="profile-tab-title" data-profile-heading="profile" aria-hidden="<?= $profileEditor['active_tab']==='pds'?'true':'false' ?>"><?php endif; ?>
                 <div class="profile-eyebrow"><?php echo synk_faculty_profile_h($profileEditor['eyebrow']); ?></div>
                 <h1><?php echo synk_faculty_profile_h($profileEditor['title']); ?></h1>
                 <p><?php echo synk_faculty_profile_h($profileEditor['subtitle']); ?></p>
+                <?php if ($profileEditor['show_pds_preview']): ?></div>
+                <div class="profile-tab-title" data-profile-heading="pds" aria-hidden="<?= $profileEditor['active_tab']==='pds'?'false':'true' ?>">
+                  <div class="profile-eyebrow">CS FORM 212 · REVISED 2026 <span class="profile-draft-badge">Draft</span></div>
+                  <h1>Your Personal Data Sheet</h1>
+                  <p>A little at a time. Start anywhere and move between sections freely.</p>
+                </div><?php endif; ?>
               </div>
               <?php if ($profileEditor['heading_actions_path'] !== null): ?>
                 <?php include $profileEditor['heading_actions_path']; ?>
@@ -73,7 +80,7 @@ if (!isset($profileTabs[$profileEditor['active_tab']])) $profileEditor['active_t
             <?php if ($profileEditor['show_profile_tabs']): ?>
               <nav class="profile-page-tabs" role="tablist" aria-label="Faculty profile tabs">
                 <?php foreach ($profileTabs as $tabKey=>$tabInfo): $tabActive=$profileEditor['active_tab']===$tabKey; ?>
-                <button type="button" id="faculty-tab-<?= $tabKey ?>" role="tab" aria-controls="faculty-panel-<?= $tabKey ?>" aria-selected="<?= $tabActive?'true':'false' ?>" tabindex="<?= $tabActive?'0':'-1' ?>" data-profile-tab="<?= $tabKey ?>"><i class="bx <?= $tabInfo[1] ?>" aria-hidden="true"></i><?= $tabInfo[0] ?></button>
+                <button type="button" id="faculty-tab-<?= $tabKey ?>" role="tab" aria-controls="faculty-panel-<?= $tabKey ?>" aria-selected="<?= $tabActive?'true':'false' ?>" tabindex="<?= $tabActive?'0':'-1' ?>" data-profile-tab="<?= $tabKey ?>"><i class="bx <?= $tabInfo[1] ?>" aria-hidden="true"></i><span class="profile-tab-copy"><strong><?= $tabInfo[0] ?></strong><?php if ($profileEditor['show_pds_preview']): ?><small><?= $tabKey==='pds'?'CS Form 212 · Revised 2026':'Personal & academic details' ?></small><?php endif; ?></span><i class="bx bx-check-circle profile-tab-selected" aria-hidden="true"></i></button>
                 <?php endforeach; ?>
               </nav>
               <div id="faculty-panel-profile" role="tabpanel" aria-labelledby="faculty-tab-profile"<?= $profileEditor['active_tab']!=='profile'?' hidden':'' ?>>

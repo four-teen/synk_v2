@@ -46,22 +46,15 @@ try {
     }
     $certRequest=array_replace($request,['section'=>'certification','values'=>hr_pds_empty_section('certification'),'removed_attachments'=>[]]);
     $image=imagecreatetruecolor(12,12); imagepng($image,$uploadPath); imagedestroy($image);
-    $result=$call($url.'&case=real_endpoint',$certRequest,'POST',['photo'=>new CURLFile($uploadPath,'image/png','photo.png')]);
-    $check($result['status']===200 && ($result['body']['attachments']['photo']['mime'] ?? '')==='image/png','The real multipart save endpoint stores a private uploaded photo on PHP 7.1.');
-    $check(strpos($result['headers'],'X-QA-Certification-Revision: 1')!==false && strpos($result['headers'],'X-QA-Records-Reloaded: yes')!==false,'Photo upload and certification fields share a confirmed section revision.');
-    file_put_contents($uploadPath,'<?php echo "unsafe";');
-    $result=$call($url.'&case=real_endpoint',$certRequest,'POST',['photo'=>new CURLFile($uploadPath,'image/jpeg','photo.jpg')]);
-    $check($result['status']===422 && isset($result['body']['errors']['photo']),'The actual endpoint rejects a renamed executable instead of trusting its filename or MIME label.');
-    $result=$call($url.'&case=real_endpoint',$certRequest,'POST',['unknown'=>new CURLFile($uploadPath,'application/octet-stream','file.dat')]);
-    $check($result['status']===422 && isset($result['body']['errors']['_attachments']),'Unknown upload slots are rejected.');
-    file_put_contents($uploadPath,'%PDF-1.4 sample %%EOF');
-    $result=$call($url.'&case=real_endpoint',$certRequest,'POST',['signature_page_2'=>new CURLFile($uploadPath,'application/pdf','signed.pdf')]);
-    $check($result['status']===200 && isset($result['body']['attachments']['signature_page_2']),'The actual endpoint accepts a signature PDF without claiming signature verification.');
-    $bad=$certRequest; $bad['revision']=9;
-    $result=$call($url.'&case=real_endpoint',$bad,'POST',['signature_page_2'=>new CURLFile($uploadPath,'application/pdf','signed.pdf')]);
-    $check($result['status']===409 && strpos($result['headers'],'X-QA-Certification-Revision: 0')!==false,'A stale upload cannot create certification data or attachments.');
+    foreach (['photo','thumbmark','signature_page_1','signature_page_2','signature_page_3','signature_page_4','oath_signature','unknown'] as $slot) {
+        $result=$call($url.'&case=real_endpoint',$certRequest,'POST',[$slot=>new CURLFile($uploadPath,'image/png','printed-item.png')]);
+        $check($result['status']===422 && isset($result['body']['errors']['_attachments']) && strpos($result['headers'],'X-QA-Certification-Revision: 0')!==false,'Reject '.$slot.' uploads without saving a section.');
+    }
+    $certRequest['values']['date_accomplished']='2026-11-15';
+    $result=$call($url,$certRequest);
+    $check($result['status']===200 && $result['body']['values']['date_accomplished']==='2026-11-15' && !isset($result['body']['values']['signature_date_1']),'The shared PDS date saves and reloads as one editable field.');
     $result=$call($downloadUrl.'&actor=owner&slot=signature_page_1',null,'GET',[],false);
-    $check($result['status']===200 && $result['raw']==='%PDF-1.4 private sample %%EOF' && strpos($result['headers'],'Content-Disposition: attachment;')!==false,'An authenticated owner can download the private signed document.');
+    $check($result['status']===404 && strpos($result['raw'],'private sample')===false,'Previously uploaded signatures are not reused or served by the PDS.');
     $check(stripos($result['headers'],'X-Content-Type-Options: nosniff')!==false && stripos($result['headers'],'no-store')!==false,'Private downloads disable MIME sniffing and shared caching.');
     foreach (['foreign'=>404,'student'=>401] as $actor=>$status) {
         $result=$call($downloadUrl.'&actor='.$actor.'&slot=signature_page_1',null,'GET',[],false);
