@@ -9,14 +9,21 @@ $incomingState = is_string($_GET['state'] ?? null) ? trim($_GET['state']) : '';
 $studentState = (string)($_SESSION['student_google_oauth_state'] ?? '');
 $mainState = (string)($_SESSION['google_oauth_state'] ?? '');
 $managementState = (string)($_SESSION['management_google_oauth_state'] ?? '');
+$hrisState = (string)($_SESSION['hris_google_oauth_state'] ?? '');
+$matchesHris = $incomingState !== '' && $hrisState !== '' && hash_equals($hrisState, $incomingState);
 $matchesManagement = $incomingState !== '' && $managementState !== '' && hash_equals($managementState, $incomingState);
 $matchesStudent = $incomingState !== '' && $studentState !== '' && hash_equals($studentState, $incomingState);
 $matchesMain = $incomingState !== '' && $mainState !== '' && hash_equals($mainState, $incomingState);
-$isStudentPortal = $matchesStudent || (!$matchesMain && !$matchesManagement && ($_SESSION['google_oauth_portal'] ?? '') === 'student');
-$isManagementPortal = $matchesManagement || (!$matchesMain && !$matchesStudent && ($_SESSION['google_oauth_portal'] ?? '') === 'management');
+$isStudentPortal = !$matchesHris && ($matchesStudent || (!$matchesMain && !$matchesManagement && ($_SESSION['google_oauth_portal'] ?? '') === 'student'));
+$isManagementPortal = !$matchesHris && ($matchesManagement || (!$matchesMain && !$matchesStudent && ($_SESSION['google_oauth_portal'] ?? '') === 'management'));
 $redirectTarget = $isManagementPortal ? '../management/login.php' : ($isStudentPortal ? '../student/login.php' : '../index.php');
 $stateSessionKey = $isManagementPortal ? 'management_google_oauth_state' : ($isStudentPortal ? 'student_google_oauth_state' : 'google_oauth_state');
 $nonceSessionKey = $isManagementPortal ? 'management_google_oauth_nonce' : ($isStudentPortal ? 'student_google_oauth_nonce' : 'google_oauth_nonce');
+if ($matchesHris) {
+    $redirectTarget = '../hris/login.php';
+    $stateSessionKey = 'hris_google_oauth_state';
+    $nonceSessionKey = 'hris_google_oauth_nonce';
+}
 $managementStartedAt = (int)($_SESSION['management_google_oauth_started_at'] ?? 0);
 $storedState = (string)($_SESSION[$stateSessionKey] ?? '');
 $storedNonce = (string)($_SESSION[$nonceSessionKey] ?? '');
@@ -44,7 +51,12 @@ if ($incomingState === '' || $storedState === '' || !hash_equals($storedState, $
 // Consume only the matching flow. A Student and staff sign-in may be open in separate tabs.
 unset($_SESSION[$stateSessionKey], $_SESSION[$nonceSessionKey]);
 if ($isStudentPortal) unset($_SESSION['student_google_oauth_email'], $_SESSION['student_google_oauth_started_at']);
-if (($_SESSION['google_oauth_portal'] ?? '') === ($isManagementPortal ? 'management' : ($isStudentPortal ? 'student' : 'main'))) unset($_SESSION['google_oauth_portal']);
+if (!$matchesHris && ($_SESSION['google_oauth_portal'] ?? '') === ($isManagementPortal ? 'management' : ($isStudentPortal ? 'student' : 'main'))) unset($_SESSION['google_oauth_portal']);
+if ($matchesHris) {
+    $hrisStartedAt = (int)($_SESSION['hris_google_oauth_started_at'] ?? 0);
+    unset($_SESSION['hris_google_oauth_started_at']);
+    if ($hrisStartedAt < time() - 900) $redirectStatus('google_state_invalid');
+}
 if ($isManagementPortal) {
     unset($_SESSION['management_google_oauth_started_at']);
     if ($managementStartedAt < time() - 900) $redirectStatus('google_state_invalid');
@@ -103,6 +115,22 @@ if ($googleSub === '' || $email === '' || !$emailVerified) {
 if (($idTokenEmail !== '' && !hash_equals($idTokenEmail, $email))
     || ($idTokenSub !== '' && !hash_equals($idTokenSub, $googleSub))) {
     $redirectStatus('google_email_mismatch');
+}
+
+if ($matchesHris) {
+    if ($idTokenEmail === '' || $idTokenSub === '') $redirectStatus('google_profile_invalid');
+    require_once __DIR__ . '/../hris/auth.php';
+    try {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        synk_hris_complete_login($conn, $userInfo, $settings);
+    } catch (DomainException $error) {
+        $redirectStatus($error->getMessage());
+    } catch (Throwable $error) {
+        error_log('HRIS sign-in failed: ' . get_class($error));
+        $redirectStatus('hris_unavailable');
+    }
+    header('Location: ../hris/', true, 303);
+    exit;
 }
 
 if ($isStudentPortal) { $verifiedStudentEmail = $email; $verifiedStudentName = $displayName; }
