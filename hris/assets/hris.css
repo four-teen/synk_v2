@@ -1,0 +1,255 @@
+@font-face {
+    font-family: 'Paola';
+    src: url('../../assets/fonts/paola/paola.ttf') format('truetype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+
+:root {
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color: #f4f3e5;
+    background: #173a2c;
+    --hris-accent: #ff791f;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .55; }
+:focus-visible { outline: 2px solid var(--hris-accent); outline-offset: 5px; }
+
+.hris-entry {
+    --hris-emblem-size: 6.75rem;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    isolation: isolate;
+    padding: calc(var(--hris-emblem-size) / 2 + 1.25rem) 1rem 2rem;
+    background: radial-gradient(ellipse at 50% 46%, #ffffffeb, transparent 66%),
+        linear-gradient(135deg, #edf5fc, #f9fbfe 52%, #eef6fc);
+    color: #1f3552;
+}
+
+.hris-login-background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.hris-login-background::before,
+.hris-login-background::after {
+    content: '';
+    position: absolute;
+    inset: -20% -15%;
+    background-size: 16px 16px;
+}
+
+.hris-login-background::before {
+    background-image: radial-gradient(circle, #23855154 1.25px, transparent 1.75px);
+    transform: perspective(1100px) rotateY(-27deg) rotateZ(-15deg);
+    mask-image: radial-gradient(ellipse 52% 66% at 28% 55%, #000 25%, transparent 82%);
+}
+
+.hris-login-background::after {
+    background-image: radial-gradient(circle, #37995f44 1.1px, transparent 1.55px);
+    transform: perspective(900px) rotateY(28deg) rotateZ(19deg);
+    mask-image: radial-gradient(ellipse 48% 64% at 83% 27%, #000 20%, transparent 82%);
+}
+
+.hris-login-card {
+    position: relative;
+    width: min(100%, 25rem);
+    border: 1px solid #dce5eb;
+    border-radius: 16px;
+    background: #fff;
+    box-shadow: 0 3px 8px #1f355210, 0 8px 20px #1f355214;
+    text-align: center;
+}
+
+.hris-login-emblem {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: var(--hris-emblem-size);
+    height: var(--hris-emblem-size);
+    padding: .45rem;
+    border: 1px solid #e5ebf2;
+    border-radius: 50%;
+    background: #f3f6fb;
+    box-shadow: 0 8px 18px #0f172a26;
+}
+
+.hris-login-emblem img { display: block; width: 100%; height: 100%; border-radius: 50%; }
+.hris-login-identity { padding: calc(var(--hris-emblem-size) / 2 + 1rem) clamp(1rem, 5vw, 2rem) 1.25rem; }
+.hris-login-identity h1 {
+    margin: 0;
+    font-size: clamp(2.7rem, 10vw, 3.35rem);
+    line-height: .86;
+}
+
+.hris-login-system {
+    margin: .35rem 0 .3rem;
+    font-size: clamp(.85rem, 4vw, 1rem);
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.hris-login-university { margin: 0; color: #58708a; font-size: .875rem; line-height: 1.45; }
+
+.hris-login-access {
+    max-width: 19rem;
+    margin: 1rem auto 0;
+    padding: .75rem .9rem;
+    border: 1px solid #c3daff;
+    border-radius: 12px;
+    background: #edf4ff;
+    color: #194d7f;
+    font-size: .875rem;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.hris-login-panel {
+    padding: 1.15rem clamp(1rem, 5vw, 2rem) 1.35rem;
+    border-top: 1px solid #e2eaf3;
+    border-radius: 0 0 15px 15px;
+    background: linear-gradient(#f9fbff, #edf6f0);
+}
+
+.hris-wordmark {
+    font-family: 'Paola', system-ui, sans-serif;
+    font-weight: 400;
+    letter-spacing: .04em;
+    line-height: 1.08;
+}
+
+.hris-wordmark span { color: var(--hris-accent); }
+.hris-login-panel h2 {
+    margin: 0 0 1rem;
+    color: #60758f;
+    font-size: .8rem;
+    font-weight: 500;
+    letter-spacing: .08em;
+    line-height: 1.45;
+    text-transform: uppercase;
+}
+
+.hris-login-tagline {
+    margin: .95rem 0 0;
+    color: #5f7088;
+    font-size: .875rem;
+    line-height: 1.5;
+}
+
+.hris-login-credit {
+    margin: .55rem 0 0;
+    color: #566b57;
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+}
+
+.hris-login-panel .hris-notice {
+    margin: 0 0 1rem;
+    border: 1px solid #ffd6aa;
+    border-radius: 10px;
+    padding: .65rem .85rem;
+    background: #fff4e8;
+    color: #793f06;
+    font-size: .9rem;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.hris-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    min-height: 44px;
+    width: min(100%, 15rem);
+    margin: 0 auto;
+    border: 1px solid #dce5eb;
+    border-radius: 12px;
+    padding: .6rem .9rem;
+    background: #fff;
+    color: #2f4058;
+    font-weight: 600;
+    font-size: .9rem;
+    text-decoration: none;
+    box-shadow: 0 4px 12px #0f172a0e;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+.hris-google {
+    position: relative;
+    min-height: 3.75rem;
+    width: min(100%, 234px);
+    gap: .65rem;
+    border-color: #e4e8f0;
+    line-height: 1.45;
+    box-shadow: 0 8px 18px #0f172a0f;
+}
+
+.hris-google-mark { flex: none; }
+.hris-google-mark + span { max-width: 10.25rem; }
+
+.hris-google:not(:disabled)::after {
+    content: '';
+    position: absolute;
+    bottom: -.17rem;
+    left: 1.75rem;
+    width: .34rem;
+    height: .34rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, #ffddba, #f4953f 50%, #b3530f);
+    box-shadow: 0 0 5px #c9681c99;
+    pointer-events: none;
+}
+
+@supports (offset-path: inset(0 round 1px)) {
+    @media (prefers-reduced-motion: no-preference) {
+        .hris-google:not(:disabled)::after {
+            inset: 0 auto auto 0;
+            offset-path: inset(.5px round 11.5px);
+            offset-distance: 84%;
+            animation: hris-google-orbit 4s linear infinite;
+        }
+
+        @keyframes hris-google-orbit { to { offset-distance: 184%; } }
+    }
+}
+
+.hris-button:hover:not(:disabled) { border-color: #d7b693; box-shadow: 0 5px 14px #33476718; }
+.hris-button:active:not(:disabled) { background: #f4f7fb; }
+
+@media (max-width: 30rem), (max-height: 37.5rem) {
+    .hris-entry { --hris-emblem-size: 6rem; padding-bottom: 1.5rem; }
+    .hris-login-emblem { padding: .35rem; }
+    .hris-login-identity { padding-bottom: 1.1rem; }
+    .hris-login-panel { padding-top: 1rem; padding-bottom: 1.15rem; }
+}
+
+@media (max-height: 25rem) {
+    .hris-entry { --hris-emblem-size: 5rem; padding-block: calc(var(--hris-emblem-size) / 2 + .45rem) .3rem; }
+    .hris-login-card { width: min(100%, 30rem); }
+    .hris-login-identity { padding-block: calc(var(--hris-emblem-size) / 2 + .45rem) .45rem; }
+    .hris-login-identity h1 { font-size: 2.65rem; }
+    .hris-login-system { margin-block: .25rem .15rem; font-size: .9rem; }
+    .hris-login-access { max-width: none; margin-top: .4rem; padding: .35rem .65rem; font-size: .8125rem; }
+    .hris-login-panel { padding-block: .4rem; }
+    .hris-login-panel h2 { margin-bottom: .35rem; }
+    .hris-login-tagline { margin-top: .45rem; font-size: .8rem; }
+    .hris-login-credit { margin-top: .25rem; }
+    .hris-google { min-height: 44px; width: min(100%, 17rem); padding-block: .3rem; }
+    .hris-google-mark + span { max-width: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hris-button { transition: none; }
+}

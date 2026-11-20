@@ -75,6 +75,8 @@ synk-research-api.php
 # Database dumps (reviewed schema and migration scripts remain included)
 *.sql
 !/backend/sql/*.sql
+!/hris/schema.sql
+!/hris/faculty-review.sql
 !/sql_create_tbl_faculty_workload_simulation.sql
 !/sql_create_tbl_offering_enrollee_counts.sql
 
