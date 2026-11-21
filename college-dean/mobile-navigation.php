@@ -17,7 +17,9 @@ $deanMobileMoreActive=!isset($deanMobilePrimary[$collegeDeanSidebarActiveKey]);
 <div class="offcanvas-header"><h2 class="offcanvas-title fs-5" id="deanMobileMoreTitle">More Dean pages</h2><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close more pages"></button></div>
 <div class="offcanvas-body"><nav aria-label="More College Dean pages">
 <?php foreach ($collegeDeanSidebarItems as $deanMobileItem): ?>
-<?php if (!isset($deanMobilePrimary[$deanMobileItem['key']])): ?><a href="<?= htmlspecialchars($deanMobileItem['href'],ENT_QUOTES,'UTF-8') ?>"<?= $collegeDeanSidebarActiveKey===$deanMobileItem['key']?' aria-current="page"':'' ?>><i class="bx <?= htmlspecialchars($deanMobileItem['icon'],ENT_QUOTES,'UTF-8') ?>" aria-hidden="true"></i><span><?= htmlspecialchars($deanMobileItem['title'],ENT_QUOTES,'UTF-8') ?></span></a><?php endif; ?>
+<?php if ($deanMobileItem['key'] === 'evaluation-reports'): ?>
+<h3 class="dean-mobile-group-label">Evaluation Reports</h3>
+<?php elseif (!isset($deanMobilePrimary[$deanMobileItem['key']])): ?><a href="<?= htmlspecialchars($deanMobileItem['href'],ENT_QUOTES,'UTF-8') ?>"<?= $collegeDeanSidebarActiveKey===$deanMobileItem['key']?' aria-current="page"':'' ?>><i class="bx <?= htmlspecialchars($deanMobileItem['icon'],ENT_QUOTES,'UTF-8') ?>" aria-hidden="true"></i><span><?= htmlspecialchars($deanMobileItem['title'],ENT_QUOTES,'UTF-8') ?></span></a><?php endif; ?>
 <?php foreach ($deanMobileItem['children'] ?? [] as $deanMobileChild): ?><a href="<?= htmlspecialchars($deanMobileChild['href'],ENT_QUOTES,'UTF-8') ?>"<?= $collegeDeanSidebarCurrentPage===$deanMobileChild['href']?' aria-current="page"':'' ?>><i class="bx <?= htmlspecialchars($deanMobileChild['icon'],ENT_QUOTES,'UTF-8') ?>" aria-hidden="true"></i><span><?= htmlspecialchars($deanMobileChild['title'],ENT_QUOTES,'UTF-8') ?></span></a><?php endforeach; ?>
 <?php endforeach; ?>
 </nav></div></div>

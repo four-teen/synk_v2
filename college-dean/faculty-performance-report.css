@@ -1,0 +1,333 @@
+.sef-report-filter {
+  flex: 1 1 25rem;
+  min-width: 0;
+}
+
+.sef-report-filter-field {
+  flex: 1 1 15rem;
+  max-width: 28rem;
+  min-width: 0;
+}
+
+@media screen and (max-width: 575.98px) {
+  .sef-report-filter-field .form-select {
+    font-size: 16px;
+  }
+}
+
+.sef-report-preview {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.sef-report-sheet {
+  /* A4 portrait from the Word form, with positions measured from the finished PDF. */
+  box-sizing: border-box;
+  position: relative;
+  display: flow-root;
+  width: 210mm;
+  min-height: 297mm;
+  margin-inline: auto;
+  padding: 122.25pt calc(210mm - 575.25pt) 32pt 68.25pt;
+  overflow: clip;
+  background: #fff;
+  color: #111;
+  font: 10pt / 1.25 Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.sef-report-preview[data-paginated] .sef-report-sheet {
+  height: 297mm;
+}
+
+.sef-report-sheet + .sef-report-sheet {
+  margin-top: 16px;
+}
+
+.sef-report-letterhead {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sef-report-letterhead img {
+  position: absolute;
+  max-width: none;
+}
+
+.sef-report-stationery {
+  top: 19.5pt;
+  left: 0;
+  width: 595.5pt;
+  height: 841.89pt;
+}
+
+.sef-report-bagong-pilipinas {
+  top: 35.25pt;
+  left: 32.07pt;
+  width: 54.75pt;
+  height: 51pt;
+}
+
+.sef-report-university-seal {
+  top: 36pt;
+  left: 100.32pt;
+  width: 48.75pt;
+  height: 49.5pt;
+}
+
+.sef-report-university {
+  position: absolute;
+  top: 42pt;
+  left: 179.7pt;
+  color: #a8afa9;
+  font-size: 7.6pt;
+  line-height: 9pt;
+}
+
+.sef-report-university strong {
+  display: block;
+  color: #93b89b;
+  font-size: 9.8pt;
+  line-height: 10.5pt;
+  letter-spacing: .2pt;
+}
+
+.sef-report-university address {
+  margin: 0;
+  color: #9fa7a1;
+  font: italic 8pt / 9pt "Times New Roman", serif;
+}
+
+.sef-report-form-details {
+  position: absolute;
+  top: 65.5pt;
+  left: 470.54pt;
+  color: #9da5a1;
+  font-size: 7.2pt;
+  line-height: 8.25pt;
+}
+
+.sef-report-body {
+  position: relative;
+  display: flow-root;
+}
+
+.sef-report-title,
+.sef-report-term {
+  margin: 0;
+  color: inherit;
+  text-align: center;
+  font: bold 10.7pt / 13.5pt Arial, sans-serif;
+}
+
+.sef-report-term {
+  margin-top: .75pt;
+  font-size: 9.8pt;
+}
+
+.sef-report-name {
+  display: grid;
+  grid-template-columns: 80.25pt 260.25pt;
+  align-items: baseline;
+  margin: 22pt 6.75pt 8.25pt;
+  line-height: 13.5pt;
+}
+
+.sef-report-name span:first-child {
+  position: relative;
+  top: .75pt;
+}
+
+.sef-report-name span:last-child {
+  position: relative;
+  top: -.75pt;
+  border-bottom: .75pt solid #111;
+  padding: 0 4pt;
+  font-size: 9.2pt;
+  text-transform: uppercase;
+}
+
+.sef-report-table {
+  --sef-rating-green: #d8ebca;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.sef-report-table th,
+.sef-report-table td {
+  border: .75pt solid #111;
+  padding: 0 4pt;
+  vertical-align: middle;
+}
+
+.sef-report-table th {
+  background: var(--sef-rating-green);
+  font-size: 6.2pt;
+  font-weight: bold;
+}
+
+.sef-report-table td {
+  height: 24pt;
+  font-size: 7pt;
+}
+
+.sef-report-table strong {
+  display: block;
+  margin-top: 1.5pt;
+  font-size: 7.8pt;
+}
+
+.sef-report-student-mean { width: 100.5pt; }
+.sef-report-student-percentage { width: 103.5pt; }
+.sef-report-supervisor-mean { width: 91.5pt; }
+.sef-report-supervisor-percentage { width: 105pt; }
+
+.sef-report-summary th {
+  height: 15.75pt;
+}
+
+.sef-report-summary th:not(.sef-report-total) {
+  padding-bottom: 1.5pt;
+}
+
+.sef-report-summary .sef-report-total {
+  font-size: 8pt;
+}
+
+.sef-report-total strong {
+  margin-top: 3.75pt;
+  font-size: 8.6pt;
+}
+
+.sef-category-grid {
+  margin-top: 12.75pt;
+}
+
+.sef-category-grid .sef-report-category-title {
+  height: 16.5pt;
+  padding-top: 1.5pt;
+  padding-left: 6pt;
+  text-align: left;
+  font-size: 8pt;
+}
+
+.sef-category-grid thead tr + tr th {
+  height: 20.25pt;
+}
+
+.sef-category-grid th[scope="col"]:not(:last-child) {
+  text-transform: uppercase;
+}
+
+.sef-category-grid tr > :nth-child(1) { background: var(--sef-rating-green); }
+.sef-category-grid tr > :nth-child(2) { background: #f1c7b8; }
+.sef-category-grid tr > :nth-child(3) { background: #d9edf8; }
+.sef-category-grid tr > :nth-child(4) { background: #f22bc3; }
+
+.sef-report-comments {
+  margin: 11.5pt 6.75pt 0;
+  overflow-wrap: anywhere;
+}
+
+.sef-report-comments h2 {
+  margin: 0 0 4.5pt;
+  color: inherit;
+  font: bold 10pt / 12.75pt Arial, sans-serif;
+}
+
+.sef-report-comments ol {
+  margin: 0;
+  padding-left: 22.75pt;
+}
+
+.sef-report-comments li,
+.sef-report-comments p {
+  margin: 0 0 1.8pt;
+  font-size: 8.8pt;
+  line-height: 11.2pt;
+}
+
+.sef-report-comment-text {
+  white-space: pre-wrap;
+}
+
+.sef-report-comment-continuation {
+  list-style: none;
+}
+
+.sef-report-signatures {
+  display: grid;
+  gap: 11.25pt;
+  margin: 10.5pt 6.75pt 0;
+}
+
+.sef-report-signatory {
+  font-size: 9.5pt;
+  line-height: 12.75pt;
+  break-inside: avoid;
+}
+
+.sef-report-signature-line,
+.sef-report-signature-role {
+  width: 189.75pt;
+}
+
+.sef-report-signature-line {
+  height: 32.25pt;
+  border-bottom: .75pt solid #111;
+}
+
+.sef-report-signatory:first-child .sef-report-signature-line {
+  height: 35.25pt;
+}
+
+.sef-report-signature-role {
+  font-size: 9.3pt;
+  text-align: center;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  .sef-report-page {
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  .sef-report-page :is(
+    #layout-menu, #layout-navbar, .dean-mobile-nav, .dean-mobile-more, .layout-overlay,
+    .content-backdrop, .content-footer, .sef-main > :not(.sef-report-preview)
+  ) {
+    display: none !important;
+  }
+
+  .sef-report-page :is(.layout-wrapper, .layout-container, .layout-page, .content-wrapper, #sefWorkspace) {
+    display: block !important;
+    width: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .sef-report-preview {
+    overflow: visible;
+  }
+
+  .sef-report-sheet {
+    margin: 0;
+  }
+
+  .sef-report-sheet + .sef-report-sheet {
+    margin-top: 0;
+    break-before: page;
+  }
+}

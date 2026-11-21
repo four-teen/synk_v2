@@ -23,8 +23,13 @@ function synk_hris_saved_profiles(mysqli $conn): array
     if (synk_table_exists($conn, 'tbl_faculty_profiles')) {
         $idColumn = synk_table_has_column($conn, 'tbl_faculty_profiles', 'faculty_id_number')
             ? 'p.faculty_id_number' : "''";
+        $entryDateColumn = synk_table_has_column($conn, 'tbl_faculty_profiles', 'service_start_date')
+            ? 'p.service_start_date' : 'NULL';
+        $serviceLengthColumn = synk_table_has_column($conn, 'tbl_faculty_profiles', 'length_of_service')
+            ? 'p.length_of_service' : "''";
         $result = $conn->query("SELECT p.user_id, l.faculty_id, p.full_name, {$idColumn} AS faculty_id_number,
             p.campus_name, p.college_name, p.faculty_rank, p.employment_classification, p.work_status, p.revision,
+            {$entryDateColumn} AS service_start_date, {$serviceLengthColumn} AS length_of_service,
             p.master_degree, p.master_status, p.doctoral_degree, p.doctoral_status
             FROM tbl_faculty_profiles p LEFT JOIN tbl_useraccount_faculty_links l ON l.user_id = p.user_id");
         while ($row = $result->fetch_assoc()) {
@@ -144,6 +149,8 @@ function synk_hris_faculty_records(array $profiles, array $drafts, int $sectionC
             'rank' => trim((string)($profile['faculty_rank'] ?? '')),
             'appointment' => trim((string)($profile['employment_classification'] ?? '')),
             'work_status' => trim((string)($profile['work_status'] ?? '')),
+            'service_start_date' => trim((string)($profile['service_start_date'] ?? '')),
+            'length_of_service' => trim((string)($profile['length_of_service'] ?? '')),
             'has_profile' => isset($profiles[$owner]),
             'saved_sections' => $savedSections,
             'last_saved' => $pds['last_saved'] ?? null,
@@ -211,25 +218,36 @@ function synk_hris_faculty_sources(mysqli $conn, bool $includeDegrees = false): 
     return $sources;
 }
 
-function synk_hris_rank_counts(array $profiles, array $additionalDegrees): array
+function synk_hris_rank_aliases(): array
 {
-    $counts = [];
-    $aliases = [];
+    static $aliases = [];
+    if ($aliases) return $aliases;
+
     $levels = [1 => 'I', 'II', 'III', 'IV', 'V', 'VI'];
     foreach (['Instructor' => 3, 'Assistant Professor' => 4, 'Associate Professor' => 5, 'Professor' => 6] as $rank => $lastLevel) {
         for ($level = 1; $level <= $lastLevel; $level++) {
             $label = $rank . ' ' . $levels[$level];
-            $counts[$label] = ['faculty' => 0, 'master' => 0, 'doctoral' => 0];
             $aliases[strtolower($label)] = $label;
             $aliases[strtolower($rank) . ' ' . $level] = $label;
         }
     }
+    return $aliases;
+}
+
+function synk_hris_rank_label(string $value): ?string
+{
+    $key = strtolower(trim(preg_replace('/\s+/u', ' ', $value) ?? ''));
+    return synk_hris_rank_aliases()[$key] ?? null;
+}
+
+function synk_hris_rank_counts(array $profiles, array $additionalDegrees): array
+{
+    $counts = array_fill_keys(synk_hris_rank_aliases(), ['faculty' => 0, 'master' => 0, 'doctoral' => 0]);
 
     foreach ($profiles as $owner => $profile) {
-        $rank = strtolower(trim(preg_replace('/\s+/u', ' ', (string)($profile['faculty_rank'] ?? '')) ?? ''));
-        if (!isset($aliases[$rank])) continue;
+        $label = synk_hris_rank_label((string)($profile['faculty_rank'] ?? ''));
+        if ($label === null) continue;
 
-        $label = $aliases[$rank];
         $degreeOwner = ($profile['_storage'] ?? '') !== 'faculty' && !empty($profile['user_id'])
             ? 'account:' . (int)$profile['user_id'] : $owner;
         $counts[$label]['faculty']++;
