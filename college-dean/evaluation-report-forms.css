@@ -1,0 +1,418 @@
+.sef-word-sheet {
+  /* A4 paper with the letterhead and form geometry measured from Word. */
+  padding: 116.5pt 8.5pt 69pt 72pt;
+  color: #000;
+  font: 12pt / 13.8pt Arial, sans-serif;
+}
+
+.sef-word-report[data-paginated] .sef-word-sheet.sef-word-overflow {
+  height: auto;
+}
+
+.sef-word-paper {
+  top: .55pt;
+  left: 0;
+  width: 599.05pt;
+  height: 840.49pt;
+}
+
+.sef-word-stationery::before,
+.sef-word-stationery::after {
+  position: absolute;
+  z-index: 1;
+  background: #fff;
+  content: "";
+}
+
+.sef-word-stationery::before {
+  top: 85.6pt;
+  left: 142.8pt;
+  width: 201.6pt;
+  height: 13.1pt;
+}
+
+.sef-word-stationery::after {
+  top: 87.4pt;
+  left: 340.2pt;
+  width: 38.1pt;
+  height: 7.2pt;
+}
+
+.sef-word-bagong-pilipinas {
+  left: 50.2pt;
+  top: 17.65pt;
+  width: 72.9pt;
+  height: 68.2pt;
+}
+
+.sef-word-university-seal {
+  left: 123.05pt;
+  top: 16.7pt;
+  width: 67.2pt;
+  height: 67.7pt;
+}
+
+.sef-word-university {
+  position: absolute;
+  top: 28.8pt;
+  left: 196.4pt;
+  font: 11pt / 12.65pt "Times New Roman", serif;
+}
+
+.sef-word-university strong {
+  display: block;
+  color: #006400;
+  font: bold 12pt / 13.8pt Georgia, serif;
+}
+
+.sef-word-university address {
+  margin: 0;
+  font-style: italic;
+}
+
+.sef-word-form-number {
+  position: absolute;
+  top: 77.2pt;
+  left: 471.7pt;
+  font: 10pt / 11.5pt "Arial Narrow", Arial, sans-serif;
+}
+
+.sef-word-university-footer {
+  position: absolute;
+  bottom: 33.5pt;
+  left: 65.5pt;
+  width: 488pt;
+  text-align: center;
+  font: 6pt / 7.46pt Arial, sans-serif;
+}
+
+.sef-word-university-footer::before {
+  display: block;
+  width: 460pt;
+  margin: 0 auto;
+  border-top: .5pt dashed #28803a;
+  content: "";
+}
+
+.sef-word-sheet :is(h1, h2) {
+  margin: 0;
+  color: inherit;
+  font: bold 12pt / 13.8pt Arial, sans-serif;
+}
+
+.sef-word-sheet p {
+  margin: 0;
+}
+
+.sef-word-sheet .sef-word-title,
+.sef-consolidated-heading {
+  width: calc(210mm - 144pt);
+  text-align: center;
+}
+
+.sef-word-sheet .sef-word-heading {
+  display: flex;
+  margin-left: 3.3pt;
+}
+
+.sef-word-heading span {
+  flex: 0 0 18pt;
+}
+
+.sef-word-fields {
+  margin: 0 0 0 21.3pt;
+}
+
+.sef-word-fields > div {
+  display: flex;
+  align-items: baseline;
+  gap: 3pt;
+}
+
+.sef-word-fields dt {
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.sef-word-fields dd {
+  position: relative;
+  width: 214pt;
+  min-width: 0;
+  min-height: 13.8pt;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sef-word-fields dd::after,
+.sef-training-period::after {
+  position: absolute;
+  inset: auto 0 0;
+  border-bottom: .5pt solid #000;
+  content: "";
+}
+
+.sef-word-fields > div:nth-child(2) dd { width: 187pt; }
+.sef-word-fields > div:nth-child(3) dd { width: 180pt; }
+.sef-word-fields > div:nth-child(4) dd { width: 200pt; }
+
+.sef-word-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: inherit;
+}
+
+.sef-word-table :is(th, td) {
+  border: .5pt solid #000;
+  padding: 0 5pt;
+  vertical-align: middle;
+}
+
+.sef-word-table thead {
+  text-align: center;
+}
+
+.sef-word-training .sef-word-title {
+  margin: 13.8pt 0 27.6pt;
+}
+
+.sef-training-reference,
+.sef-feedback-results {
+  margin-top: 13.8pt;
+}
+
+.sef-training-source {
+  margin: 0;
+  padding-left: 42.6pt;
+  line-height: 14.6pt;
+}
+
+.sef-training-source li:first-child {
+  margin-bottom: 14.3pt;
+}
+
+.sef-word-choice {
+  white-space: nowrap;
+}
+
+.sef-training-period {
+  position: relative;
+  display: inline-block;
+  min-width: 273pt;
+}
+
+.sef-training-plan {
+  margin-top: 28.6pt;
+}
+
+.sef-training-table {
+  width: 493.2pt;
+  margin-left: 21.3pt;
+}
+
+.sef-training-table col:nth-child(1) { width: 108.15pt; }
+.sef-training-table col:nth-child(2) { width: 128.2pt; }
+.sef-training-table col:nth-child(3) { width: 153.2pt; }
+
+.sef-training-table thead tr {
+  height: 41.8pt;
+}
+
+.sef-training-table tbody tr {
+  height: 14.3pt;
+}
+
+.sef-training-endorsement {
+  margin-top: 41.4pt;
+}
+
+.sef-word-sheet .sef-word-dated-signature {
+  margin-top: 14pt;
+}
+
+.sef-training-endorsement .sef-word-dated-signature:first-of-type {
+  margin-top: 27.9pt;
+}
+
+.sef-training-acknowledgement {
+  margin-top: 27.6pt;
+}
+
+.sef-word-acknowledgement h2 + p {
+  width: 451.1pt;
+  margin-top: 13.8pt;
+  text-align: justify;
+}
+
+.sef-training-acknowledgement .sef-word-dated-signature {
+  margin-top: 27.8pt;
+}
+
+.sef-word-feedback .sef-word-title {
+  margin: 27.6pt 0;
+}
+
+.sef-feedback-table {
+  width: 460.9pt;
+  margin: 13.8pt 0 0 21.3pt;
+}
+
+.sef-feedback-table col:nth-child(1) { width: 113.15pt; }
+.sef-feedback-table col:nth-child(2) { width: 184.25pt; }
+
+.sef-feedback-table thead tr {
+  height: 41pt;
+}
+
+.sef-feedback-table tbody tr {
+  height: 86.5pt;
+}
+
+.sef-feedback-table .sef-feedback-overall {
+  height: 69.5pt;
+}
+
+.sef-feedback-table tbody :is(th, td) {
+  padding-top: 1.2pt;
+  text-align: left;
+  vertical-align: top;
+}
+
+.sef-feedback-table tbody th {
+  font-weight: normal;
+}
+
+.sef-feedback-table ul {
+  margin: 0;
+  padding-left: 21.3pt;
+}
+
+.sef-feedback-overall li {
+  text-align: justify;
+}
+
+.sef-feedback-strengths,
+.sef-feedback-improvements {
+  margin-top: 13.8pt;
+}
+
+.sef-word-writing-lines span {
+  display: block;
+  height: 13.8pt;
+  border-bottom: .55pt solid #000;
+}
+
+.sef-feedback-strengths .sef-word-writing-lines {
+  width: 427pt;
+  margin-left: 21.3pt;
+}
+
+.sef-feedback-strengths .sef-word-writing-lines span:last-child { width: 187pt; }
+.sef-feedback-improvements .sef-word-writing-lines { width: 447pt; }
+.sef-feedback-improvements .sef-word-writing-lines span:last-child { width: 247pt; }
+
+.sef-feedback-recommendations ul {
+  margin: 0 0 0 24.6pt;
+  padding: 0;
+  list-style: none;
+  line-height: 14.6pt;
+}
+
+.sef-feedback-recommendations li span {
+  display: inline-block;
+  width: 14.5pt;
+}
+
+.sef-feedback-acknowledgement {
+  margin-top: 13.8pt;
+}
+
+.sef-feedback-acknowledgement .sef-word-dated-signature:nth-of-type(2) {
+  margin-top: 41.6pt;
+}
+
+.sef-consolidated-heading {
+  font-weight: bold;
+}
+
+.sef-consolidated-campus {
+  text-transform: uppercase;
+}
+
+.sef-consolidated-table {
+  width: 468pt;
+  margin-top: 13.5pt;
+  font-size: 11pt;
+  line-height: 12.6pt;
+}
+
+.sef-consolidated-table colgroup:nth-child(1) col:first-child { width: 28.9pt; }
+.sef-consolidated-table colgroup:nth-child(1) col:last-child { width: 164.55pt; }
+.sef-consolidated-table colgroup:nth-child(2) col:first-child { width: 46.8pt; }
+.sef-consolidated-table colgroup:nth-child(2) col:last-child { width: 43.95pt; }
+.sef-consolidated-table colgroup:nth-child(3) col:first-child { width: 59.1pt; }
+.sef-consolidated-table colgroup:nth-child(3) col:last-child { width: 65.4pt; }
+
+.sef-consolidated-table thead th {
+  background: #a8d08d;
+}
+
+.sef-consolidated-table thead tr:first-child { height: 14pt; }
+.sef-consolidated-table thead tr:last-child { height: 25.8pt; }
+
+.sef-consolidated-table tbody tr {
+  height: 13.75pt;
+}
+
+.sef-consolidated-table td {
+  text-align: center;
+}
+
+.sef-consolidated-table td:nth-child(2),
+.sef-consolidated-table .sef-consolidated-group th {
+  text-align: left;
+}
+
+.sef-consolidated-table tbody td:nth-child(n+3) {
+  padding-inline: 2pt;
+  font-size: 10pt;
+}
+
+.sef-consolidated-signatures {
+  margin-top: 14.5pt;
+}
+
+.sef-consolidated-signatures section + section {
+  margin: 27.6pt 0 0 5.4pt;
+}
+
+.sef-consolidated-signatures section > div {
+  margin-top: 40pt;
+}
+
+.sef-consolidated-signatures section:nth-child(2) > div {
+  margin-top: 42.7pt;
+}
+
+.sef-consolidated-signatures section:nth-child(2) p {
+  margin-left: -5.4pt;
+}
+
+.sef-consolidated-signatures section:last-child {
+  margin-top: 17.6pt;
+}
+
+.sef-consolidated-signatures section:last-child > div {
+  margin-top: 44pt;
+}
+
+.sef-consolidated-signatures section > div::before {
+  display: block;
+  width: 240.2pt;
+  margin-bottom: 1pt;
+  border-top: .7pt solid #000;
+  content: "";
+}
+
+.sef-consolidated-signatures section:nth-child(2) > div::before { width: 113.4pt; }
+.sef-consolidated-signatures section:nth-child(3) > div::before { width: 133.5pt; }
+.sef-consolidated-signatures section:nth-child(4) > div::before { width: 200.2pt; }

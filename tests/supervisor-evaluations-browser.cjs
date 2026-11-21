@@ -80,8 +80,38 @@ async function main(){
  await call('Emulation.setEmulatedMedia',{media:'print'},session);
  check(await evaluate('getComputedStyle(document.querySelector("#layout-menu")).display==="none" && getComputedStyle(document.querySelector(".sef-print-tools")).display==="none" && getComputedStyle(document.querySelector("#sefIndividualReport")).display!=="none"'), 'Print mode contains the report without navigation or controls.');
  await shot('report-print');
+ const { data: printedReport } = await call('Page.printToPDF', { preferCSSPageSize: true }, session);
+ const pdf = Buffer.from(printedReport, 'base64').toString('latin1');
+ const mediaBox = pdf.match(/\/MediaBox\s*\[0 0 ([\d.]+) ([\d.]+)\]/);
+ check(
+   (pdf.match(/\/Type\s*\/Page\b/g) || []).length === 1 && mediaBox
+     && Math.abs(Number(mediaBox[1]) - 595.28) < 1 && Math.abs(Number(mediaBox[2]) - 841.89) < 1,
+   'The reference-sized report prints on one A4 portrait page without an extra blank page.'
+ );
  await call('Emulation.setEmulatedMedia',{media:''},session);
  await call('Emulation.setEmulatedMedia',{media:''},session);
+ await navigate('dean_training_report');
+ check(await evaluate(`(() => {
+   const current = document.querySelector('#layout-menu a[aria-current="page"]');
+   return current.textContent.includes('Training Recommendation Form')
+     && current.closest('details').querySelectorAll('li a').length === 4
+     && document.querySelector('#sefWordReport').textContent.includes('QA-CS101');
+ })()`), 'Evaluation Reports contains all four forms and highlights the selected route.');
+ check(await evaluate(`(() => {
+   const picker = document.getElementById('sefReportFaculty');
+   let submitted = false;
+   picker.form.addEventListener('submit', event => { event.preventDefault(); submitted = true; }, { once: true });
+   picker.selectedIndex = 2;
+   picker.dispatchEvent(new Event('change'));
+   return submitted && Boolean(picker.value);
+ })()`), 'Changing the college faculty selection submits the report filter.');
+ const trainingPrint = await call('Page.printToPDF', { preferCSSPageSize: true }, session);
+ check((Buffer.from(trainingPrint.data, 'base64').toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length === 1,
+   'The training recommendation form prints on one A4 page.');
+ await navigate('chair_feedback_report');
+ const feedbackPrint = await call('Page.printToPDF', { preferCSSPageSize: true }, session);
+ check((Buffer.from(feedbackPrint.data, 'base64').toString('latin1').match(/\/Type\s*\/Page\b/g) || []).length === 2,
+   'The chair feedback form prints on the two pages in the Word template.');
  await resize(390,844);await navigate('chair_shared_draft');await until('document.querySelector("#sefEvaluationModal").dataset.qaReady==="1"');
  check(await evaluate('document.querySelector("#sefRating1").value==="5" && document.querySelector("#sefComment").value.includes("PRIVATE_CHAIR_DRAFT")'), 'A tied Chair can reopen the shared ratings and comment from the first Chair.');
  await navigate('chair_shared_done');

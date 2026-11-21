@@ -1,6 +1,9 @@
 <?php
+require_once __DIR__.'/../backend/evaluation_report_forms.php';
+
 $collegeDeanSidebarCurrentPage = basename($_SERVER['PHP_SELF'] ?? '');
 $collegePortalIsChair = ($_SESSION['role'] ?? '') === 'program_chair';
+$collegeDeanEvaluationReports = synk_sef_report_forms();
 $collegeDeanSidebarItems = [
     [
         'key' => 'dashboard',
@@ -54,12 +57,22 @@ $collegeDeanSidebarItems = [
         'icon' => 'bx-check-square',
         'title' => 'Faculty Evaluation',
         'description' => 'Student and supervisor faculty results',
-        'pages' => ['faculty-evaluations.php', 'evaluation-subject-exclusions.php', 'evaluation-student-exclusions.php', 'faculty-performance.php', 'faculty-performance-report.php', 'supervisor-evaluations.php'],
+        'pages' => ['faculty-evaluations.php', 'evaluation-subject-exclusions.php', 'evaluation-student-exclusions.php', 'faculty-performance.php', 'supervisor-evaluations.php'],
         'children' => [
             ['href'=>'faculty-performance.php','title'=>'Combined Faculty Results','icon'=>'bx-bar-chart-alt-2'],
             ['href'=>'supervisor-evaluations.php','title'=>'Supervisor Evaluations','icon'=>'bx-edit-alt'],
             ['href'=>'faculty-evaluations.php','title'=>'Student Results','icon'=>'bx-group'],
         ],
+    ],
+    [
+        'key' => 'evaluation-reports',
+        'href' => $collegeDeanEvaluationReports['consolidated']['href'],
+        'icon_bg' => 'bg-label-success',
+        'icon' => 'bx-file',
+        'title' => 'Evaluation Reports',
+        'description' => 'Preview and print evaluation forms',
+        'pages' => array_column($collegeDeanEvaluationReports, 'href'),
+        'children' => $collegeDeanEvaluationReports,
     ],
     [
         'key' => 'reports',
@@ -115,7 +128,7 @@ if ($collegePortalIsChair) {
     $chairSidebarByKey['reports']['children'][0]['title'] = 'Faculty & Student Summary';
     $collegeDeanSidebarItems = array_map(static function (string $key) use ($chairSidebarByKey): array {
         return $chairSidebarByKey[$key];
-    }, ['dashboard','manage-college-faculty','faculty-profile','faculty-workload','faculty-evaluations',
+    }, ['dashboard','manage-college-faculty','faculty-profile','faculty-workload','faculty-evaluations','evaluation-reports',
         'programs','curriculum','need-attention','students','reports']);
 }
 

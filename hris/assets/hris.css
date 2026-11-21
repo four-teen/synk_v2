@@ -1,9 +1,15 @@
 @font-face {
-    font-family: 'Paola';
-    src: url('../../assets/fonts/paola/paola.ttf') format('truetype');
+    font-family: 'Allura';
+    src: url('../assets/fonts/allura/Allura-Regular.woff2') format('woff2');
     font-style: normal;
     font-weight: 400;
-    font-display: swap;
+    font-display: block;
+}
+
+@font-face {
+    font-family: 'Allura Fallback';
+    src: local('Arial'), local('Liberation Sans'), local('Roboto');
+    size-adjust: 75%;
 }
 
 :root {
@@ -86,7 +92,10 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .hris-login-emblem img { display: block; width: 100%; height: 100%; border-radius: 50%; }
-.hris-login-identity { padding: calc(var(--hris-emblem-size) / 2 + 1rem) clamp(1rem, 5vw, 2rem) 1.25rem; }
+.hris-login-identity {
+    container-type: inline-size;
+    padding: calc(var(--hris-emblem-size) / 2 + 1rem) clamp(1rem, 5vw, 2rem) 1.25rem;
+}
 .hris-login-identity h1 {
     margin: 0;
     font-size: clamp(2.7rem, 10vw, 3.35rem);
@@ -94,10 +103,15 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 }
 
 .hris-login-system {
+    --hris-system-max-size: 1.75rem;
     margin: .35rem 0 .3rem;
-    font-size: clamp(.85rem, 4vw, 1rem);
-    font-weight: 700;
-    line-height: 1.35;
+    font-family: 'Allura', 'Allura Fallback', system-ui, sans-serif;
+    font-size: min(var(--hris-system-max-size), 5.5vw);
+    /* The fixed label is about 12.6 em wide in Allura. */
+    font-size: min(var(--hris-system-max-size), 7.5cqi);
+    font-weight: 400;
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
 .hris-login-university { margin: 0; color: #58708a; font-size: .875rem; line-height: 1.45; }
@@ -240,7 +254,7 @@ button:disabled { cursor: not-allowed; opacity: .55; }
     .hris-login-card { width: min(100%, 30rem); }
     .hris-login-identity { padding-block: calc(var(--hris-emblem-size) / 2 + .45rem) .45rem; }
     .hris-login-identity h1 { font-size: 2.65rem; }
-    .hris-login-system { margin-block: .25rem .15rem; font-size: .9rem; }
+    .hris-login-system { --hris-system-max-size: 1.45rem; margin-block: .25rem .15rem; }
     .hris-login-access { max-width: none; margin-top: .4rem; padding: .35rem .65rem; font-size: .8125rem; }
     .hris-login-panel { padding-block: .4rem; }
     .hris-login-panel h2 { margin-bottom: .35rem; }

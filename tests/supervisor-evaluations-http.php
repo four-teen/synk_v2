@@ -28,6 +28,33 @@ try {
     $r=$request('chair_shared_draft');$check($r['status']===200 && strpos($r['body'],'PRIVATE_CHAIR_DRAFT')!==false && strpos($r['body'],'Draft saved')!==false,'A tied program Chair receives the first Chair saved draft inputs.');
     $r=$request('chair_shared_done');$check($r['status']===200 && strpos($r['body'],'Submitted by')!==false && strpos($r['body'],'Completed')!==false && strpos($r['body'],'data-sef-evaluate=')===false,'The other tied Chair sees completion and cannot start a second evaluation.');
     $r=$request('report_foreign');$check($r['status']===404 && strpos($r['body'],'id="sefIndividualReport"')===false,'A guessed report faculty outside the college is rejected.');
+    foreach ([
+        'dean_training_report' => ['training', 'Key Performance Areas Needing Improvement', 'QA-CS101'],
+        'chair_feedback_report' => ['feedback', 'Management of Teaching and Learning', '82.20%'],
+        'dean_consolidated_report' => ['consolidated', 'II. CONTRACT OF SERVICE FACULTY', '82.20%'],
+    ] as $case => [$form, $heading, $expectedValue]) {
+        $r = $request($case);
+        $check($r['status'] === 200 && strpos($r['body'], 'id="sefWordReport"') !== false
+            && strpos($r['body'], 'id="sefReportFaculty"') !== false && strpos($r['body'], $heading) !== false
+            && strpos($r['body'], $expectedValue) !== false && strpos($r['body'], 'download_evaluation_report_template.php?form='.$form) !== false,
+            'The report uses the selected college data and links its Word template: '.$case);
+    }
+    $r = $request('dean_consolidated_selected');
+    $check($r['status'] === 200 && substr_count($r['body'], 'data-faculty-id=') === 1 && strpos($r['body'], '82.20%') !== false,
+        'The consolidated faculty filter limits the report to one faculty member.');
+    $r = $request('dean_individual_picker');
+    $check($r['status'] === 200 && strpos($r['body'], 'id="sefReportFaculty"') !== false
+        && strpos($r['body'], 'id="sefIndividualReport"') === false && strpos($r['body'], 'Evaluation Reports') !== false,
+        'The individual report opens from the sidebar with a college faculty picker.');
+    $r = $request('dean_feedback_foreign');
+    $check($r['status'] === 404 && strpos($r['body'], 'id="sefWordReport"') === false, 'The new forms reject faculty outside the college.');
+    foreach (['dean_template' => 'INDIVIDUAL FACULTY PERFORMANCE EVALUATION.docx',
+        'chair_template' => 'FACULTY EVALUATION FEEDBACK REPORT FORM.docx'] as $case => $filename) {
+        $r = $request($case);
+        $check($r['status'] === 200 && strpos($r['headers'], 'filename="'.$filename.'"') !== false
+            && hash('sha256', $r['body']) === hash_file('sha256', __DIR__.'/../backend/templates/evaluation-reports/'.$filename),
+            'The portal downloads the original Word template: '.$case);
+    }
 } finally {if(is_file($route))unlink($route);}
 $check($before===$snapshot(),'All HTTP fixture records rolled back, including schedules and workloads.');
 echo 'Supervisor evaluations HTTP: ',$checks,' checks passed. All fixture records rolled back.',PHP_EOL;

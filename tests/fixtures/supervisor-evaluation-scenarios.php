@@ -41,9 +41,17 @@ if (in_array($case,['chair_shared_draft','chair_shared_done'],true)) {
     if ($case==='chair_shared_done') $seedFinal('chair');else $seedDrafts('chair');
 }
 $role=strpos($case,'chair_')===0?'chair':'dean';$handler=$role==='dean'?'college-dean/supervisor-evaluations.php':'program-chair/supervisor-evaluations.php';
+$evaluationReportPages = [
+    'dean_training_report' => 'college-dean/training-recommendation-report.php',
+    'chair_feedback_report' => 'program-chair/faculty-evaluation-feedback-report.php',
+    'dean_consolidated_report' => 'college-dean/consolidated-faculty-performance-report.php',
+    'dean_consolidated_selected' => 'college-dean/consolidated-faculty-performance-report.php',
+    'dean_individual_picker' => 'college-dean/faculty-performance-report.php',
+    'dean_feedback_foreign' => 'college-dean/faculty-evaluation-feedback-report.php',
+];
 if (in_array($case,['chair_drafts','dean_private','chair_final'],true)) $seedDrafts('chair');
 if ($case==='dean_final') $seedDrafts('dean');
-if (in_array($case,['dean_results','chair_results','dean_report','chair_report','report_foreign','historical'],true)) {
+if (isset($evaluationReportPages[$case]) || in_array($case,['dean_results','chair_results','dean_report','chair_report','report_foreign','historical'],true)) {
     $seedFinal('chair');$seedFinal('dean');
     for ($index=0;$index<4;$index++) {
         if ($index<2) $student=array_values($students)[$index];
@@ -61,11 +69,23 @@ if (in_array($case,['dean_results','chair_results','dean_report','chair_report',
     if (strpos($case,'chair_')===0) $handler=str_replace('college-dean/','program-chair/',$handler);
     if ($case==='historical') synk_evaluation_query($conn,'UPDATE tbl_academic_settings SET current_semester=?','i',[$semester===1?2:1]);
 }
+if (isset($evaluationReportPages[$case])) {
+    $handler = $evaluationReportPages[$case];
+    // Exercise the two employment sections in the supplied summary form.
+    synk_evaluation_query($conn, "UPDATE tbl_faculty SET employment_classification = 'permanent' WHERE faculty_id = ?", 'i', [$teachers[0]]);
+    synk_evaluation_query($conn, "UPDATE tbl_faculty SET employment_classification = 'contract_of_service' WHERE faculty_id = ?", 'i', [$teachers[1]]);
+}
 if (in_array($case,['chair_shared_draft','chair_shared_done'],true)) $role='chair2';
 $sefSession($role);
 synk_dean_select_view_term($conn,$ay,$semester);
 $_GET=['qa'=>SYNK_STUDENT_PORTAL_QA,'scenario'=>$scenario,'dean_ay_id'=>$ay,'dean_semester'=>$semester,'faculty_id'=>$teachers[0]];
-if ($case==='report_foreign') $_GET['faculty_id']=2147483647;
+if (in_array($case, ['report_foreign', 'dean_feedback_foreign'], true)) $_GET['faculty_id']=2147483647;
+if (in_array($case, ['dean_consolidated_report', 'dean_individual_picker'], true)) unset($_GET['faculty_id']);
+if (in_array($case, ['dean_template', 'chair_template'], true)) {
+    $handler = 'backend/download_evaluation_report_template.php';
+    $_GET['form'] = $role === 'dean' ? 'individual' : 'feedback';
+    ob_start();
+}
 if (in_array($case,['chair_save','chair_bad_csrf','chair_self','chair_closed','chair_past'],true)) {
     $_POST=$base+['action'=>'save','faculty_id'=>$case==='chair_self'?$teachers[1]:$teachers[0],'assignment_revision'=>1,'version'=>0,'ratings'=>array_fill_keys(array_keys(synk_sef_questions()),4),'comment_text'=>'Actual HTTP draft'];
     if ($case==='chair_bad_csrf') $_POST['csrf_token']='bad';

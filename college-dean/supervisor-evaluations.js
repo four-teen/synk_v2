@@ -34,5 +34,4 @@
     target.closest('.modal')?.addEventListener('hide.bs.modal',event=>{if(target.dataset.submitting==='1')event.preventDefault();});
   });
   window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
-  document.getElementById('sefPrintReport')?.addEventListener('click',()=>window.print());
 })();

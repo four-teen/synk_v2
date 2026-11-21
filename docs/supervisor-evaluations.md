@@ -100,11 +100,20 @@ For the supplied sample, student mean 3.65 contributes 43.80 and supervisor mean
 responses totaling 219/60 answers to reproduce that exact student mean.
 
 **View Report → Print / Save PDF** prints the individual report with both category
-breakdowns, weighted contributions, original submitted comments, supervisor identity,
-submission reference and approval signature lines. Displaying/printing never records
-an approval or electronic signature. Submitted timestamps are stored in UTC and
+breakdowns, weighted contributions, original submitted comments and approval signature
+lines. The on-screen **Evaluation details** section includes the supervisor identity
+and submission reference. Displaying or printing the report never records an
+approval or electronic signature. Submitted timestamps are stored in UTC and
 displayed in Philippine Time. Signature lines are separate from the supervisor's
 saved evaluator identity. Report comments can span additional pages as needed.
+
+**Evaluation Reports** provides the training recommendation, faculty feedback,
+consolidated performance and individual performance forms in both college portals.
+Each page offers a faculty selector, an A4 print preview and its original Word
+template. The consolidated form shows the whole college by default and groups
+faculty using their recorded employment classifications. Feedback displays the
+categories from the current evaluation instruments. Recommendations, qualitative
+observations, endorsements and signatures can be completed manually.
 
 ## Setup and verification
 
