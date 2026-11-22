@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, '..'), tag = crypto.randomBytes(10).toStrin
 const route = path.join(root, 'tmp', `assessment-browser-${tag}_lms.php`), profile = path.join(root, '.tmp', `assessment-browser-${tag}_lms`);
 const pending = new Map(), errors = [], failures = [], requests = [];
 let browser, ws, call, session, pageConfig, checks = 0, nextId = 100, conflict = false, duplicateFailure = false, followupEmpty=false, followupFailure=false;
+let bulkSaveGate = null;
 const records = [], submissionRows = [], delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (ok, message) => { if (!ok) throw Error(message); checks++; };
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -61,6 +62,249 @@ async function answerDialog(confirmed = true) {
 }
 async function fill(selector, value, type = 'input') {
   await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(selector)});input.value=${JSON.stringify(value)};input.dispatchEvent(new Event(${JSON.stringify(type)},{bubbles:true})); })()`);
+}
+async function pasteText(selector, text) {
+  return evaluate(`(() => {
+    const input = document.querySelector(${JSON.stringify(selector)});
+    const text = ${JSON.stringify(text)};
+    const clipboard = new DataTransfer();
+    clipboard.setData('text/plain', text);
+    input.focus();
+    input.select();
+    const useNativePaste = input.dispatchEvent(new ClipboardEvent('paste', { clipboardData:clipboard, bubbles:true, cancelable:true }));
+    // Synthetic clipboard events run the handler but do not insert text by default.
+    if (useNativePaste) {
+      input.setRangeText(text, input.selectionStart, input.selectionEnd, 'end');
+      input.dispatchEvent(new InputEvent('input', { bubbles:true, inputType:'insertFromPaste' }));
+    }
+    return !useNativePaste;
+  })()`);
+}
+async function checkQuestionPaste() {
+  const card = '[data-question="0"]';
+  const prompt = card + ' [data-field="prompt"]';
+  const sample = [
+    '### 1. What is CEDAW primarily concerned with?', '',
+    'A. Computer education standards\\', 'B. Eliminating discrimination against women\\',
+    'C. Internet regulation\\', 'D. University budgeting &#x20;', '',
+    '**Answer: B. Eliminating discrimination against women**'
+  ].join('\r\n');
+  const snapshot = () => evaluate(`(() => {
+    const card = document.querySelector(${JSON.stringify(card)});
+    return { prompt:card.querySelector('[data-field=prompt]').value, points:card.querySelector('[data-field=points]').value,
+      choices:[...card.querySelectorAll('[data-choice]')].map(field => field.value), answer:card.querySelector('[data-answer]:checked')?.value,
+      feedback:card.querySelector('[data-paste-status]').textContent };
+  })()`);
+  const visibleAnswerLabels = () => evaluate(`[...document.querySelectorAll('${card} .assessment-choice-correct')]
+    .filter(label => label.getClientRects().length)
+    .map(label => label.closest('.assessment-choice').querySelector('[data-answer]').value)`);
+  await click('#assessmentAddQuestion');
+  await fill(prompt, 'Keep this other question.');
+  await click('#assessmentAddQuestion');
+  const blankChoiceColor = await evaluate(`getComputedStyle(document.querySelector('${card} [data-choice]')).backgroundColor`);
+  await fill(card + ' [data-field="points"]', '2.5');
+  check(await pasteText(prompt, sample), 'The CEDAW template fills the selected multiple choice card on paste.');
+  const original = await snapshot();
+  check(original.prompt === 'What is CEDAW primarily concerned with?' && original.points === '2.5' && original.answer === '1'
+    && JSON.stringify(original.choices) === JSON.stringify(['Computer education standards','Eliminating discrimination against women','Internet regulation','University budgeting'])
+    && original.feedback.includes('Choice B selected'), 'The paste strips template markers, fills all choices, and selects B without replacing the points.');
+  check(await evaluate('document.querySelectorAll("[data-question]").length===2 && document.querySelector(\'[data-question="1"] [data-field=prompt]\').value==="Keep this other question."'),'Import affects exactly one existing question card.');
+  check(await evaluate(`getComputedStyle(document.querySelector('${card} [data-choice]')).backgroundColor !== ${JSON.stringify(blankChoiceColor)}`),
+    'The choice field uses a distinct background while it is empty.');
+  check(JSON.stringify(await visibleAnswerLabels()) === '["1"]', 'The correct-answer label appears on the pasted answer only.');
+  await evaluate(`document.querySelector('${card}').scrollIntoView({block:'start',behavior:'instant'})`);
+  const editorShot = await call('Page.captureScreenshot', {format:'png',captureBeyondViewport:false}, session);
+  fs.writeFileSync(path.join(root,'.tmp','assessment-question-editor_lms.png'), Buffer.from(editorShot.data,'base64'));
+  for (const width of [390,320]) {
+    await call('Emulation.setDeviceMetricsOverride', {width,height:844,deviceScaleFactor:1,mobile:true}, session);
+    check(await evaluate(`(() => {
+      const buttons = [...document.querySelectorAll('${card} .assessment-question-controls button')];
+      const rects = buttons.map(button => button.getBoundingClientRect());
+      return buttons.map(button => button.textContent.trim()).join(' ') === 'Up Down Copy Delete'
+        && rects.every(rect => rect.width >= 44 && rect.height >= 44 && Math.abs(rect.top - rects[0].top) < 1
+          && rect.left >= 0 && rect.right <= innerWidth)
+        && document.documentElement.scrollWidth <= innerWidth;
+    })()`), 'The four labeled question actions stay in one touch-friendly row at ' + width + 'px.');
+    check(await evaluate(`(() => {
+      const selected = document.querySelector('${card} .assessment-choice:has([data-answer]:checked)');
+      const field = selected.querySelector('[data-choice]').getBoundingClientRect();
+      const label = selected.querySelector('.assessment-choice-correct').getBoundingClientRect();
+      const choice = selected.getBoundingClientRect();
+      return label.top >= field.bottom && label.left >= choice.left && label.right <= choice.right;
+    })()`), 'The selected answer label wraps beneath the choice field at ' + width + 'px.');
+    if (width === 390) {
+      await evaluate(`document.querySelector('${card} .assessment-answer-key').scrollIntoView({block:'start',behavior:'instant'})`);
+      const mobileShot = await call('Page.captureScreenshot', {format:'png',captureBeyondViewport:false}, session);
+      fs.writeFileSync(path.join(root,'.tmp','assessment-question-editor-mobile_lms.png'), Buffer.from(mobileShot.data,'base64'));
+    }
+  }
+  await call('Emulation.setDeviceMetricsOverride', {width:1440,height:1100,deviceScaleFactor:1,mobile:false}, session);
+
+  const replacement = 'Question 2: Pick an output.\n* First result\n* Second result\nCorrect answer: Second result';
+  await pasteText(prompt, replacement);
+  await until('document.querySelector(".swal2-title")?.textContent==="Replace this question?"');
+  await answerDialog(false);
+  check(JSON.stringify(await snapshot()) === JSON.stringify(original), 'Canceling a smart replacement keeps the question, choices and key.');
+  await pasteText(prompt, replacement);
+  await answerDialog();
+  const replaced = await snapshot();
+  check(replaced.prompt === 'Pick an output.' && replaced.choices.length === 2 && replaced.answer === '1' && replaced.points === '2.5',
+    'Bullet choices and a full-text answer can replace a filled card after confirmation.');
+
+  for (const [text, hint] of [
+    ['Which fruit?\nA) Apple\nB) Banana\nAnswer: B. Apple', 'correct answer is unclear'],
+    ['Which fruit?\nA) Apple\nB) Banana', 'Add an answer'],
+    [replacement + '\n\n' + replacement, 'one question at a time']
+  ]) {
+    check(!await pasteText(prompt, text), 'Incomplete, conflicting or multi-question pastes are kept as ordinary text.');
+    const after = await snapshot();
+    check(after.prompt === text && after.feedback.includes(hint) && after.answer === '1' && JSON.stringify(after.choices) === JSON.stringify(replaced.choices),
+      'The card explains the ambiguity and leaves the choice fields alone.');
+  }
+
+  const codeOnly = ['```text','A. Literal code','B. More code','Answer: B','```'].join('\n');
+  check(!await pasteText(prompt, codeOnly) && (await snapshot()).feedback === '', 'A plain fenced example never triggers question import.');
+  await evaluate(`(() => {
+    const question = document.querySelector('${card}');
+    question.querySelector('[data-answer]:checked').checked = false;
+    question.querySelector('[data-answer]').reportValidity();
+  })()`);
+  await until('document.querySelector("#swal2-html-container")?.textContent.startsWith("Correct answer:")');
+  await answerDialog();
+  await click(card + ' .assessment-choice + .assessment-choice .assessment-choice-picker');
+  check(await evaluate(`!document.querySelector('${card} [data-answer].is-invalid')`),
+    'Selecting any answer clears the radio group validation error.');
+  await click(card + ' .assessment-choice-picker');
+  check(JSON.stringify(await visibleAnswerLabels()) === '["0"]', 'Clicking the choice letter moves the correct-answer label to that choice.');
+  await fill(card + ' [data-field="type"]', 'essay', 'change');
+  check(!await pasteText(prompt, sample) && await evaluate('!document.querySelector(\'[data-question="0"] [data-paste-status]\')'), 'Pasting remains ordinary text for essay questions.');
+  for (let index = 0; index < 2; index++) {
+    await click(card + ' [data-operation="remove"]');
+    await answerDialog();
+  }
+  check(await evaluate('document.querySelectorAll("[data-question]").length===0'), 'The imported and manual question cards still use the normal editor controls.');
+}
+async function checkBulkQuestions() {
+  const quizItems = Array.from({length:25}, (_, index) => {
+    const n = index + 1;
+    const stem = n === 3 ? ['3. Which value matches the example?', '```text', '  99. A numbered line inside code', '  Answer: source text', '```'].join('\n')
+      : n + '. Select the result for example ' + n + '.';
+    const choices = ['A. A first choice', 'B. A second choice.', 'C. A third choice', 'D. A fourth choice'];
+    const answer = n === 7 ? 'Answer: B. A first choice' : n === 8 ? '' : 'Answer: B. A second choice';
+    const note = n === 10 ? 'Questions 1–10 come from the first lesson.' : n === 21 ? 'This explanation belongs with the source, after the answer.' : '';
+    return [stem, ...choices, answer, note].filter(Boolean).join('\n');
+  });
+  const text = ['Bulk import QA', 'Instructions: Choose one answer.', '', 'Number of Items: 25', 'Suggested Points: 1 point each', 'Total: 25 points', '', ...quizItems].join('\n');
+  const initialRequests = requests.length;
+  await click('#assessmentNew');
+  await click('#assessmentAddQuestion');
+  await fill('[data-question="0"] [data-field=prompt]','Existing question that stays first.');
+  for (const [i, value] of ['One','Two','Three','Four'].entries()) {
+    await fill(`[data-question="0"] [data-choice][id$="choice${i}"]`, value);
+  }
+  await click('[data-question="0"] [data-answer][value="0"]');
+  await evaluate('synkLmsFeedback.toast("Previous editor action")');
+  await click('#assessmentAddBulkBottom');
+  await until('document.querySelector("#assessmentBulkModal").classList.contains("show") && document.activeElement.id==="assessmentBulkSource"');
+  check(await evaluate('document.querySelector("#assessmentBulkModal .modal-content").getBoundingClientRect().width>=900 && document.querySelector("#assessmentBulkRoom").textContent.includes("99 more") && !document.querySelector(".swal2-toast")'),
+    'The wide modal accounts for existing questions and opens without an obstructing toast.');
+  await call('Emulation.setEmulatedMedia', { features:[{ name:'prefers-reduced-motion', value:'no-preference' }] }, session);
+  await evaluate(`(() => {
+    window.bulkCheckTimeline = [];
+    const observer = new MutationObserver(changes => {
+      for (const change of changes) {
+        if (change.oldValue === 'checking') window.bulkCheckTimeline.push(Number(change.target.dataset.number));
+      }
+      if (window.bulkCheckTimeline.length === 25) observer.disconnect();
+    });
+    observer.observe(document.getElementById('assessmentBulkChecked'), {
+      subtree:true, attributes:true, attributeOldValue:true, attributeFilter:['data-state']
+    });
+  })()`);
+  await fill('#assessmentBulkSource',text);
+  check(await evaluate('document.querySelector("#assessmentBulkProcess").click(); !document.querySelector("#assessmentBulkProgress").hidden && document.querySelector("#assessmentBulkBar").value===0'),
+    'A real progress step opens before question validation.');
+  await until('!document.querySelector("#assessmentBulkReview").hidden && document.activeElement.id==="assessmentBulkReviewTitle"');
+  check(await evaluate('document.querySelector("#assessmentBulkBar").value===25 && document.querySelector("#assessmentBulkReview").textContent.includes("23 ready · 2 need review") && document.querySelector("#assessmentBulkList").children.length===25'),
+    'Every item advances progress, including questions with missing or conflicting answers.');
+  check(await evaluate('document.querySelectorAll("#assessmentBulkChecked [data-state=ready]").length===23 && document.querySelectorAll("#assessmentBulkChecked [data-state=review]").length===2 && window.bulkCheckTimeline.every((question,index)=>question===index+1) && window.bulkCheckTimeline.length===25 && document.querySelector("#assessmentBulkCurrent").textContent.includes("checked in this browser")'),
+    'The per-question indicators show every checked item and distinguish local checking from saving.');
+  check(await evaluate('getComputedStyle(document.querySelector("#assessmentBulkChecked .assessment-bulk-check-icon"),"::after").animationName==="assessment-check-ring" && !document.querySelector("#assessmentBulkAdd").disabled'),
+    'Per-question loader animations run independently of the Add button.');
+  check(await evaluate('document.querySelector("#assessmentBulkPoints").value==="1" && document.querySelector("#assessmentBulkAdd").textContent==="Add 23 questions" && document.querySelector("#assessmentBulkNotesBody").textContent.includes("Choose one answer.") && document.querySelector("#assessmentBulkNotesBody").textContent.includes("first lesson") && document.querySelector("#assessmentBulkNotesBody").textContent.includes("This explanation")'),
+    'The preview shows detected metadata and the batch defaults to the suggested points.');
+  check(await evaluate('document.querySelectorAll("#assessmentBulkNotesBody [data-bulk-field]:checked").length===2 && !document.querySelector("#assessmentTitle").value && !document.querySelector("#assessmentInstructions").value'),
+    'Detected fields are selected automatically for the empty editor, and wait for Add questions.');
+  await click('[data-bulk-row="2"] summary');
+  const expectedCode = '  99. A numbered line inside code\n  Answer: source text';
+  check(await evaluate(`document.querySelector('[data-bulk-row="2"] pre code').textContent===${JSON.stringify(expectedCode)}`),
+    'Numbered lines and answer labels inside fenced code remain part of the prompt.');
+  await click('#assessmentBulkEdit');
+  check(await evaluate(`document.querySelector('#assessmentBulkSource').value===${JSON.stringify(text)}`), 'Returning to paste keeps the original text.');
+  await click('#assessmentBulkProcess');
+  await until('!document.querySelector("#assessmentBulkReview").hidden');
+  await click('[data-bulk-row="6"] summary');
+  await fill('[data-bulk-row="6"] [data-bulk-repair]',quizItems[6].replace('B. A first choice','B. A second choice'));
+  await click('[data-bulk-row="6"] [data-bulk-recheck]');
+  check(await evaluate('document.querySelector("#assessmentBulkAdd").textContent==="Add 24 questions" && document.querySelector(\'[data-bulk-row="7"] [data-bulk-include]\').disabled'),
+    'Rechecking selects the corrected item and leaves unresolved work out of the batch.');
+  await click('[data-bulk-row="24"] [data-bulk-include]');
+  await fill('#assessmentBulkPoints','500');
+  await click('#assessmentBulkAdd');
+  check(await evaluate('document.querySelector("#assessmentBulkMessage").textContent.includes("10,000 points") && document.querySelectorAll("#assessmentQuestions [data-question]").length===1'),
+    'The point limit is checked before the staged import changes the editor.');
+  await fill('#assessmentBulkPoints','1.5');
+  check(await evaluate('document.querySelector("#assessmentBulkSelection").textContent.includes("23 selected · 34.5 points")'),
+    'Changing the batch points updates the selected total.');
+  for (const width of [1440, 390, 320]) {
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:width<500},session);
+    await delay(100);
+    check(await evaluate('(()=>{const modal=document.querySelector("#assessmentBulkModal .modal-content"),button=document.querySelector("#assessmentBulkAdd").getBoundingClientRect();return modal.getBoundingClientRect().width<=innerWidth&&document.documentElement.scrollWidth<=innerWidth&&button.width>=44&&button.height>=44&&button.right<=innerWidth;})()'),
+      'Bulk review and its Add button fit at ' + width + 'px.');
+    if(width!==320) {
+      const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);
+      fs.writeFileSync(path.join(root,'.tmp','assessment-bulk-review-'+width+'_lms.png'),Buffer.from(shot.data,'base64'));
+    }
+  }
+  await click('#assessmentBulkAdd');
+  await until('!document.querySelector("#assessmentBulkModal").classList.contains("show") && document.activeElement.closest("[data-question]")?.dataset.question==="1"');
+  check(requests.length===initialRequests && await evaluate('document.querySelectorAll("#assessmentQuestions [data-question]").length===24 && document.querySelector("#assessmentQuestionTotal").textContent.includes("35.5 points")'),
+    'Adding appends only the selected questions to the unsaved editor, with no network request.');
+  check(await evaluate('document.querySelector("#assessmentTitle").value==="Bulk import QA" && document.querySelector("#assessmentInstructions").value==="Choose one answer."'),
+    'Adding questions fills the detected title and instructions in the same operation.');
+  let releaseSave;
+  bulkSaveGate = new Promise(resolve => { releaseSave = resolve; });
+  try {
+    await click('#assessmentSaveBottom');
+    check(await evaluate('document.querySelector("#assessmentSaveState").textContent==="Saving assessment…"'),
+      'The save progress begins with the actual save request.');
+    await until('document.querySelector("#assessmentSaveState").textContent.includes("Still waiting for the server")');
+    check(await evaluate('(()=>{const notice=document.querySelector("#assessmentFloatingState"),live=document.querySelector("#assessmentWriteAnnouncement");return getComputedStyle(notice).display!=="none" && notice.textContent.includes("Still waiting for the server") && document.querySelector("#assessmentSaveBottom").disabled && live.textContent===notice.textContent && !live.closest("[aria-busy=true]");})()'),
+      'A slow server response shows the waiting state beside the save buttons on mobile.');
+  } finally {
+    releaseSave();
+    bulkSaveGate = null;
+  }
+  await until('document.querySelector("#assessmentSaveState").textContent.includes("version 1") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
+  const saved = records.find(record => record.title === 'Bulk import QA');
+  check(saved?.questions.length===24 && saved.questions[0].prompt==='Existing question that stays first.' && saved.questions[1].prompt.endsWith('example 1.')
+    && saved.questions[7].prompt.endsWith('example 7.') && saved.questions[8].prompt.endsWith('example 9.') && saved.questions[23].prompt.endsWith('example 24.')
+    && saved.questions.slice(1).every(item => item.answer_key === 1 && item.points === 1.5) && saved.instructions==='Choose one answer.',
+    'Normal saving keeps the imported title and instructions, selected questions, keys, order, and points.');
+
+  await click('#assessmentAddBulk');
+  await until('document.querySelector("#assessmentBulkModal").classList.contains("show") && document.activeElement.id==="assessmentBulkSource"');
+  await fill('#assessmentBulkSource',['Title: Revised quiz title','Instructions: New instructions.', '', quizItems[0]].join('\n'));
+  await click('#assessmentBulkProcess');
+  await until('!document.querySelector("#assessmentBulkReview").hidden');
+  await click('#assessmentBulkNotesLabel');
+  check(await evaluate('document.querySelectorAll("#assessmentBulkNotesBody [data-bulk-field]:checked").length===0 && document.querySelector("#assessmentBulkNotesLabel").textContent.includes("Review replacements")'),
+    'Existing quiz details require an explicit choice to replace them.');
+  await click('[data-bulk-field="title"]');
+  await click('#assessmentBulkAdd');
+  await until('!document.querySelector("#assessmentBulkModal").classList.contains("show")');
+  check(await evaluate('document.querySelector("#assessmentTitle").value==="Revised quiz title" && document.querySelector("#assessmentInstructions").value==="Choose one answer."'),
+    'The editor applies the chosen replacement and keeps the other field.');
 }
 async function transferAssessment(record, width) {
   const original=clone(record), count=records.length, selector=`[data-action=transfer][data-id="${record.assessment_id}"]`;
@@ -149,7 +393,9 @@ async function main() {
     if(message.method==='Page.javascriptDialogOpening'){errors.push('Unexpected native dialog: '+message.params.type);call('Page.handleJavaScriptDialog',{accept:true},session).catch(error=>errors.push(error.message));}
     if(message.method==='Fetch.requestPaused')(async()=>{
       const { requestId,request }=message.params,isApi=request.url.includes('assessments_api_lms.php');
-      const data=isApi?api(JSON.parse(request.postData)):html;
+      const apiRequest=isApi ? JSON.parse(request.postData) : null;
+      const data=isApi ? api(apiRequest) : html;
+      if (apiRequest?.action === 'save' && bulkSaveGate) await bulkSaveGate;
       const status=isApi?(data.status||200):200;if(isApi)delete data.status;
       await call('Fetch.fulfillRequest',{requestId,responseCode:status,responseHeaders:[{name:'Content-Type',value:isApi?'application/json':'text/html; charset=utf-8'}],body:Buffer.from(isApi?JSON.stringify(data):data).toString('base64')},session);
     })().catch(error=>errors.push(error.stack));
@@ -168,11 +414,12 @@ async function main() {
   check(await evaluate('document.querySelector("#assessmentPeriod").value==="final"'),'A new draft inherits the selected grading period.');
   check(await evaluate('!document.querySelector("#assessmentFloatingActions").hidden && getComputedStyle(document.querySelector("#assessmentFloatingActions")).position==="fixed" && document.querySelector(".assessment-editor-heading #assessmentSave") && document.querySelector(".assessment-editor-heading #assessmentPreview")'),'New drafts expose bottom actions while preserving both top buttons.');
   check(await evaluate('document.querySelector("#assessmentSave").nextElementSibling.id==="assessmentPublish" && document.querySelector("#assessmentSaveBottom").nextElementSibling.id==="assessmentPublishBottom" && !document.querySelector("#assessmentNewEditor,#assessmentNewBottom")'),'Publish replaces the mistakenly added New draft buttons in both action bars.');
-  check(await evaluate('document.querySelector("#assessmentAddQuestion").nextElementSibling.id==="assessmentPreview" && document.querySelector("#assessmentAddQuestionBottom").nextElementSibling.id==="assessmentPreviewBottom" && !document.querySelector("#assessmentQuestionsEmpty").hidden && document.querySelector("#assessmentQuestionsEmpty").textContent.includes("No questions yet.")'),'Both action bars place Add question before Preview, and an empty question list explains how to start.');
+  check(await evaluate('document.querySelector("#assessmentAddQuestion").nextElementSibling.id==="assessmentAddBulk" && document.querySelector("#assessmentAddQuestionBottom").nextElementSibling.id==="assessmentAddBulkBottom" && !document.querySelector("#assessmentQuestionsEmpty").hidden && document.querySelector("#assessmentQuestionsEmpty").textContent.includes("No questions yet.")'),'Both action bars place Add bulk questions beside Add question.');
   await click('#assessmentAddQuestionBottom');check(await evaluate('document.querySelectorAll("[data-question]").length===1&&document.querySelector("#assessmentQuestionsEmpty").hidden'),'The floating Add question button creates a question and hides the empty prompt.');await click('[data-question="0"] [data-operation="remove"]');check(await evaluate('!document.querySelector("#assessmentQuestionsEmpty").hidden'),'Removing the last blank question restores the prompt.');
+  await checkQuestionPaste();
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(150);
-    check(await evaluate('[...document.querySelectorAll(".assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===4&&Math.abs(buttons[0].top-buttons[1].top)<1&&Math.abs(buttons[2].top-buttons[3].top)<1&&buttons[2].top>buttons[0].top&&buttons.every(r=>r.width>100&&r.height>=44&&r.left>=0&&r.right<=innerWidth);})&&document.documentElement.scrollWidth<=innerWidth'),'The four quiz actions form two usable rows on '+width+'px mobile screens.');
+    check(await evaluate('[...document.querySelectorAll(".assessment-editor-heading .assessment-actions,.assessment-floating-actions .assessment-actions")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===5&&Math.abs(buttons[0].top-buttons[1].top)<1&&Math.abs(buttons[2].top-buttons[4].top)<1&&buttons[2].top>buttons[0].top&&buttons.every(r=>r.width>75&&r.height>=44&&r.left>=0&&r.right<=innerWidth);})&&document.documentElement.scrollWidth<=innerWidth'),'The two question actions and three draft actions fit on separate rows at '+width+'px.');
     if(width===390){await evaluate('document.querySelector(".assessment-editor-heading").scrollIntoView({block:"start",behavior:"instant"})');fs.writeFileSync(path.join(root,'.tmp','assessment-quiz-actions-mobile_lms.png'),Buffer.from((await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session)).data,'base64'));}
   }
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);
@@ -189,7 +436,7 @@ async function main() {
   await evaluate('document.querySelector("[data-question=\\"0\\"] [data-field=\\"prompt\\"]").setSelectionRange(8,13)');
   await click('[data-question="0"] [data-format="inline"]');
   check(await evaluate('document.querySelector("[data-question=\\"0\\"] .assessment-inline-code").textContent==="2 + 2"'),'Inline code wraps the selected question text and updates the live preview.');
-  const codeSample='<?php\n    echo "<script>window.assessmentCodeExecuted = true;</script>";\n    // ``` stays inside this example\n    $label = "'+'Programming '.repeat(20)+'";\n?>';
+  const codeSample='<?php\n    echo "<script>window.assessmentCodeExecuted = true;</script>";\n    // ``` stays inside this example\n    $label = "'+'Programming '.repeat(20)+'";\n?>\nA. Example text\nB. Another line\nAnswer: B';
   const codePrompt='What is `2 + 2`? <img src=x onerror=alert(1)>\n'+codeSample;
   await fill('[data-question="0"] [data-field="prompt"]',codePrompt);
   await evaluate(`document.querySelector('[data-question="0"] [data-field="prompt"]').setSelectionRange(${codePrompt.indexOf('<?php')},${codePrompt.length})`);
@@ -207,11 +454,14 @@ async function main() {
   await until('document.querySelector("#swal2-html-container")?.textContent.includes("10,000-character")');
   check(await evaluate('document.querySelector("[data-question=\\"0\\"] [data-field=\\"prompt\\"]").value.length===10000'),'Formatting respects the existing question-length limit without dropping text.');
   await answerDialog();
-  await fill('[data-question="0"] [data-field="prompt"]',formattedPrompt);
+  const codeQuestion = formattedPrompt + '\n\n(A) 3\n(B) 4\n(C) 5\n(D) 6\nAnswer key: (B) 4';
+  check(await pasteText('[data-question="0"] [data-field="prompt"]', codeQuestion), 'The complete programming question is recognized around the fenced code.');
+  await answerDialog();
+  check(await evaluate(`document.querySelector('[data-question="0"] [data-field="prompt"]').value===${JSON.stringify(formattedPrompt)}
+    && document.querySelector('[data-question="0"] pre code').textContent===${JSON.stringify(codeSample)}
+    && document.querySelector('[data-question="0"] [data-answer]:checked')?.value==='1'`), 'The programming question preserves the original code and uses the answer outside the fence.');
   await evaluate('document.querySelector("[data-question=\\"0\\"]").scrollIntoView({block:"start",behavior:"instant"})');
   const editorShot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp','assessment-code-editor_lms.png'),Buffer.from(editorShot.data,'base64'));
-  for(const [index,value] of ['3','4','5','6'].entries())await fill(`[data-question="0"] [data-choice][id$="choice${index}"]`,value);
-  await click('[data-question="0"] [data-answer][value="1"]');
   await click('#assessmentAddQuestion');
   check(await evaluate(`document.querySelector('[data-question="0"] [data-field="prompt"]').value==='' && document.querySelector('[data-question="1"] [data-field="prompt"]').value===${JSON.stringify(formattedPrompt)} && document.activeElement===document.querySelector('[data-question="0"] [data-field="prompt"]')`),'A new question is inserted and focused first, preserving the existing formatted prompt.');
   await fill('[data-question="0"] [data-field="type"]','true_false','change');
@@ -237,7 +487,10 @@ async function main() {
   check(await evaluate('!document.querySelector("#assessmentPreviewModal img") && document.querySelector("#assessmentPreviewTitle").textContent.includes("<img")'),'HTML-like titles render as plain text in preview.');
   await click('#assessmentPreviewModal .btn-close');await until('!document.querySelector("#assessmentPreviewModal").classList.contains("show")');
   await click('#assessmentSaveBottom');await until('document.querySelector("#assessmentSaveState").textContent.includes("version 1") && document.querySelector("#assessmentWorkspace").getAttribute("aria-busy")==="false"');
-  check(records.length===1&&records[0].grading_period==='final'&&records[0].total_points===9.5&&records[0].questions[2].answer_key===false&&records[0].questions[3].prompt===formattedPrompt,'The editor saves the displayed order, formatted source, answer keys, and correct point total.');
+  const savedMultipleChoice = records[0]?.questions[3];
+  check(records.length===1&&records[0].grading_period==='final'&&records[0].total_points===9.5&&records[0].questions[2].answer_key===false
+    &&savedMultipleChoice.prompt===formattedPrompt&&savedMultipleChoice.answer_key===1&&savedMultipleChoice.options.join(',')==='3,4,5,6',
+    'The editor saves the pasted choices and answer, formatted source, displayed order, and correct point total.');
   check(await evaluate('document.querySelector("#assessmentFloatingActions").hidden && !document.querySelector("#assessmentSave").disabled && !document.querySelector("#assessmentPreview").disabled'),'A successful save hides the bottom bar and leaves both top buttons usable.');
   check(await evaluate('document.activeElement===document.querySelector("#assessmentSave")'),'Saving from the bottom bar moves keyboard focus to the retained top Save button.');
   check(await evaluate('document.querySelector(".swal2-toast .swal2-title")?.textContent.includes("Draft saved")'),'Draft saves display a SweetAlert2 success toast.');
@@ -346,7 +599,7 @@ async function main() {
   await fill('[data-question="0"] [data-field="prompt"]','Corrected published question');await fill('[data-question="0"] [data-field="true_false"]','false','change');
   for(const width of [390,320]){
     await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:true},session);await delay(150);
-    check(await evaluate('[...document.querySelectorAll(".assessment-actions.is-published")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===3 && Math.abs(buttons[0].top-buttons[2].top)<1 && buttons.every(r=>r.height>=44&&r.width>80&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'Published edit actions, including Add question, fit at '+width+'px.');
+    check(await evaluate('[...document.querySelectorAll(".assessment-actions.is-published")].every(bar=>{const buttons=[...bar.querySelectorAll("button:not([hidden])")].map(button=>button.getBoundingClientRect());return buttons.length===4&&Math.abs(buttons[0].top-buttons[1].top)<1&&Math.abs(buttons[2].top-buttons[3].top)<1&&buttons[2].top>buttons[0].top&&buttons.every(r=>r.height>=44&&r.width>80&&r.right<=innerWidth);}) && document.documentElement.scrollWidth<=innerWidth'),'Published edit actions, including bulk import, fit at '+width+'px.');
   }
   await click('#assessmentSaveBottom');await answerDialog(false);
   check(records[2].instructions==='Write your project explanation.'&&await evaluate('document.querySelector("#assessmentInstructions").value==="Corrected project instructions." && !document.querySelector("#assessmentFloatingActions").hidden'),'Canceling Save changes keeps the unsaved correction.');
@@ -409,9 +662,10 @@ async function main() {
   await evaluate('document.fonts.ready.then(()=>true)');
   const clip=await evaluate('(()=>{const r=document.querySelector("#assessmentWorkspace").getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1};})()');
   const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip},session);fs.writeFileSync(path.join(root,'.tmp','assessment-drafts_lms.png'),Buffer.from(shot.data,'base64'));
+  await checkBulkQuestions();
   check(!errors.length,'No browser errors: '+errors.join('\n'));check(!failures.length,'Local assessment assets load: '+failures.join('\n'));
   check(requests.some(request=>request.action==='save')&&requests.some(request=>request.action==='archive'),'The editor exercises both save and archive actions.');
-  console.log(`LMS assessment browser: ${checks} checks passed, including authoring, preview, revisions, duplication, archiving, and mobile layout.`);
+  console.log(`LMS assessment browser: ${checks} checks passed, including bulk import, authoring, preview, revisions, duplication, archiving, and mobile layout.`);
 }
 main().catch(async error=>{
   console.error(error.stack);

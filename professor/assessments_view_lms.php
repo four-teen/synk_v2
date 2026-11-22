@@ -26,7 +26,11 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     <div id="assessmentEditor" hidden>
       <div class="assessment-editor-heading">
         <div><button class="assessment-text-button" type="button" id="assessmentBack"><i class="bx bx-arrow-back" aria-hidden="true"></i>All assessments</button><h3 id="assessmentEditorTitle">New assessment</h3><span class="assessment-save-state" id="assessmentSaveState" role="status">Not saved yet</span></div>
-        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentAddQuestion"><i class="bx bx-plus" aria-hidden="true"></i>Add question</button><button type="button" class="btn btn-outline-primary" id="assessmentPreview">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSave">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublish">Publish</button></div>
+        <div class="assessment-actions">
+          <button type="button" class="btn btn-outline-primary" id="assessmentAddQuestion" data-assessment-question-add><i class="bx bx-plus" aria-hidden="true"></i>Add question</button>
+          <button type="button" class="btn btn-outline-primary" id="assessmentAddBulk" data-assessment-bulk-open aria-haspopup="dialog" aria-controls="assessmentBulkModal"><i class="bx bx-list-plus" aria-hidden="true"></i>Add bulk questions</button>
+          <button type="button" class="btn btn-outline-primary" id="assessmentPreview">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSave">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublish">Publish</button>
+        </div>
       </div>
       <p class="assessment-stage-note" id="assessmentLiveNote" role="note" hidden></p>
       <form id="assessmentForm">
@@ -39,7 +43,7 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
             </section>
             <section id="assessmentQuestionsSection" aria-labelledby="assessmentQuestionsTitle">
               <div class="assessment-question-heading"><div><h4 id="assessmentQuestionsTitle">Questions</h4><p>Choose a type, set points, and prepare the answer key.</p></div><span class="assessment-total" id="assessmentQuestionTotal">0 questions / 0 points</span></div>
-              <div class="assessment-question-empty" id="assessmentQuestionsEmpty" role="status"><i class="bx bx-help-circle" aria-hidden="true"></i><p><strong>No questions yet.</strong> Click <strong>Add question</strong> in the action bar to start.</p></div>
+              <div class="assessment-question-empty" id="assessmentQuestionsEmpty" role="status"><i class="bx bx-help-circle" aria-hidden="true"></i><p><strong>No questions yet.</strong> Add a question or paste a batch from the action bar.</p></div>
               <div id="assessmentQuestions" class="assessment-questions"></div>
               <p class="assessment-help mt-2">Drafts can start without questions. Short answers accept the alternatives you list; essays require manual grading.</p>
             </section>
@@ -60,7 +64,50 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
       </form>
       <div class="assessment-floating-actions" id="assessmentFloatingActions" role="group" aria-label="Unsaved assessment actions" hidden>
         <span class="assessment-floating-state" id="assessmentFloatingState">Not saved yet</span>
-        <div class="assessment-actions"><button type="button" class="btn btn-outline-primary" id="assessmentAddQuestionBottom"><i class="bx bx-plus" aria-hidden="true"></i>Add question</button><button type="button" class="btn btn-outline-primary" id="assessmentPreviewBottom">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSaveBottom">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublishBottom">Publish</button></div>
+        <div class="assessment-actions">
+          <button type="button" class="btn btn-outline-primary" id="assessmentAddQuestionBottom" data-assessment-question-add><i class="bx bx-plus" aria-hidden="true"></i>Add question</button>
+          <button type="button" class="btn btn-outline-primary" id="assessmentAddBulkBottom" data-assessment-bulk-open aria-haspopup="dialog" aria-controls="assessmentBulkModal"><i class="bx bx-list-plus" aria-hidden="true"></i>Add bulk questions</button>
+          <button type="button" class="btn btn-outline-primary" id="assessmentPreviewBottom">Preview</button><button type="submit" form="assessmentForm" class="btn btn-primary" id="assessmentSaveBottom">Save draft</button><button type="submit" form="assessmentForm" class="btn btn-success" id="assessmentPublishBottom">Publish</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade assessment-bulk-modal" id="assessmentBulkModal" tabindex="-1" aria-labelledby="assessmentBulkTitle" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content">
+          <div class="modal-header">
+            <div class="assessment-bulk-heading"><span class="assessment-bulk-icon" aria-hidden="true"><i class="bx bx-list-plus"></i></span><h5 class="modal-title" id="assessmentBulkTitle">Add bulk questions</h5></div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close bulk question import"></button>
+          </div>
+          <div class="modal-body" id="assessmentBulkBody">
+            <p id="assessmentBulkMessage" class="assessment-bulk-message" role="alert" hidden></p>
+            <section id="assessmentBulkPaste">
+              <label class="form-label" for="assessmentBulkSource">Paste your quiz</label>
+              <p class="assessment-bulk-help" id="assessmentBulkHelp">Start each question with a number. Put its choices on separate lines and include the correct answer.</p>
+              <textarea class="form-control assessment-code-input" id="assessmentBulkSource" rows="13" spellcheck="false" autocapitalize="off" aria-describedby="assessmentBulkHelp assessmentBulkRoom" placeholder="1. Write or paste a question&#10;A. First choice&#10;B. Second choice&#10;Answer: B"></textarea>
+              <p class="assessment-bulk-help mt-2 mb-0" id="assessmentBulkRoom"></p>
+            </section>
+            <section class="assessment-bulk-progress" id="assessmentBulkProgress" aria-labelledby="assessmentBulkProgressTitle" hidden>
+              <div class="assessment-bulk-heading"><span class="assessment-bulk-icon" aria-hidden="true"><i class="bx bx-loader-alt" id="assessmentBulkProgressIcon"></i></span><div><h6 id="assessmentBulkProgressTitle">Checking questions</h6><p id="assessmentBulkCurrent" role="status"></p></div></div>
+              <progress id="assessmentBulkBar" value="0" max="1" aria-label="Questions checked"></progress>
+              <ul id="assessmentBulkChecked" class="assessment-bulk-checked" aria-label="Individual question checks"></ul>
+            </section>
+            <section id="assessmentBulkReview" aria-labelledby="assessmentBulkReviewTitle" hidden>
+              <div class="assessment-bulk-review-head">
+                <div><h6 id="assessmentBulkReviewTitle" tabindex="-1">Review questions</h6><p class="assessment-bulk-help mb-0" id="assessmentBulkSummary"></p></div>
+                <div><label class="form-label" for="assessmentBulkPoints">Points per question</label><input type="number" class="form-control" id="assessmentBulkPoints" min="0.01" max="10000" step="0.01" value="1" required></div>
+              </div>
+              <details class="assessment-bulk-notes" id="assessmentBulkNotes" hidden><summary id="assessmentBulkNotesLabel">Detected quiz details</summary><div id="assessmentBulkNotesBody"></div></details>
+              <ul class="assessment-bulk-list" id="assessmentBulkList" aria-label="Questions to review"></ul>
+            </section>
+          </div>
+          <div class="modal-footer">
+            <p id="assessmentBulkSelection" class="assessment-bulk-help assessment-bulk-selection" role="status" hidden></p>
+            <button type="button" class="btn btn-outline-secondary" id="assessmentBulkCancel" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-outline-secondary" id="assessmentBulkEdit" hidden>Edit paste</button>
+            <button type="button" class="btn btn-primary" id="assessmentBulkProcess">Process questions</button>
+            <button type="button" class="btn btn-primary" id="assessmentBulkAdd" hidden>Add questions</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="modal fade" id="assessmentPreviewModal" tabindex="-1" aria-labelledby="assessmentPreviewTitle" aria-hidden="true">
@@ -95,3 +142,4 @@ if (!isset($class, $assessmentsReady) || $view !== 'assessments' || ($_SESSION['
     <?php require __DIR__.'/assessment_followup_view_lms.php'; ?>
   <?php endif; ?>
 </section>
+<?php if ($assessmentsReady): ?><div id="assessmentWriteAnnouncement" class="visually-hidden" role="status"></div><?php endif; ?>
