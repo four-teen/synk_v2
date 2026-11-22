@@ -5,6 +5,7 @@ if (PHP_SAPI !== 'cli') {
 }
 
 require_once __DIR__ . '/../auth.php';
+require_once __DIR__ . '/../account-access.php';
 session_start();
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require __DIR__ . '/../../backend/db.php';
@@ -74,6 +75,17 @@ if (synk_google_login_enabled($settings) && synk_google_auth_ready($settings)) {
 check_hris($status === 303 && $location === 'login.php', 'An HRIS sign-out with a valid form token must return to its login.');
 curl_share_close($cookies);
 
+function hris_test_sign_in_rejected(mysqli $conn, array $google, array $settings, string $reason): void
+{
+    try {
+        synk_hris_complete_login($conn, $google, $settings);
+        throw new RuntimeException('An unauthorized Google sign-in was accepted.');
+    } catch (DomainException $error) {
+        check_hris($error->getMessage() === $reason, 'Google sign-in should be rejected as ' . $reason);
+    }
+}
+
+check_hris(synk_hris_employee_accounts_ready($conn), 'Apply employee-accounts.sql before testing account approvals.');
 $_SESSION = ['user_id' => 17, 'role' => 'professor', 'auth_method' => 'google'];
 $email = 'hris-test-' . bin2hex(random_bytes(6)) . '@' . $settings['allowed_domain'];
 $google = ['email' => $email, 'sub' => 'hris-test-' . bin2hex(random_bytes(14)), 'email_verified' => true];
@@ -85,33 +97,36 @@ try {
     $stmt->execute();
     $userId = (int)$conn->insert_id;
     $stmt->close();
-    check_hris(synk_hris_find_admin($conn, $userId) === null, 'Synk Administrator alone must never grant HRIS access.');
-    $conn->query("INSERT INTO tbl_hr_user_roles (user_id, role_code) VALUES ({$userId}, 'hris_admin')");
-    synk_hris_complete_login($conn, $google, $settings);
-    check_hris($_SESSION['hris_identity']['user_id'] === $userId && $_SESSION['user_id'] === 17 && $_SESSION['role'] === 'professor', 'The HRIS session must preserve the existing Synk role and identity.');
-    check_hris(synk_hris_find_admin($conn, $userId)['google_sub'] === $google['sub'], 'A verified Google identity must bind to the existing account.');
-    try {
-        synk_hris_complete_login($conn, array_replace($google, ['sub' => 'different-subject']), $settings);
-        throw new RuntimeException('Changing the Google subject must not be accepted.');
-    } catch (DomainException $error) {
-        check_hris($error->getMessage() === 'google_identity_mismatch', 'Reject a mismatched Google subject.');
-    }
-    $conn->query("UPDATE tbl_hr_user_roles SET status = 'inactive' WHERE user_id = {$userId}");
-    check_hris(synk_hris_find_admin($conn, $userId) === null, 'Revocation must take effect when the workspace is opened again.');
-    $conn->query("INSERT INTO tbl_hr_user_roles (user_id, role_code, status) VALUES ({$userId}, 'hris_user', 'active')");
-    check_hris(synk_hris_find_account($conn, $userId)['role_code'] === SYNK_HRIS_USER
-        && synk_hris_find_admin($conn, $userId) === null, 'A User role grants HRIS sign-in without administrator access.');
-    synk_hris_complete_login($conn, $google, $settings);
-    check_hris($_SESSION['hris_identity']['user_id'] === $userId, 'A linked HRIS User account can complete verified Google sign-in.');
+    $original = $conn->query("SELECT * FROM tbl_useraccount WHERE user_id = {$userId}")->fetch_assoc();
+    hris_test_sign_in_rejected($conn, $google, $settings, 'hris_access_denied');
 
-    $conn->query("UPDATE tbl_hr_user_roles SET status = 'active' WHERE user_id = {$userId} AND role_code = 'hris_admin'");
-    check_hris(synk_hris_find_account($conn, $userId) === null, 'Conflicting active HRIS roles must fail closed.');
-    try {
-        synk_hris_complete_login($conn, $google, $settings);
-        throw new RuntimeException('Conflicting active HRIS roles must not allow sign-in.');
-    } catch (DomainException $error) {
-        check_hris($error->getMessage() === 'hris_access_denied', 'Conflicting roles must be rejected at login.');
-    }
+    synk_hris_write_account($conn, null, null, $userId, $email, SYNK_HRIS_ADMIN, null);
+    synk_hris_complete_login($conn, $google, $settings);
+    $approval = synk_hris_employee_account($conn, 'email', $email);
+    check_hris((int)$approval['synk_user_id'] === $userId && $approval['google_sub'] === $google['sub']
+        && $_SESSION['hris_identity']['account_id'] === (int)$approval['account_id'], 'A verified Google identity must bind in Kawani.');
+    check_hris($_SESSION['user_id'] === 17 && $_SESSION['role'] === 'professor', 'The Kawani session must preserve the Synk role and identity.');
+    check_hris($conn->query("SELECT * FROM tbl_useraccount WHERE user_id = {$userId}")->fetch_assoc() === $original, 'Kawani must preserve every field of the Synk account.');
+    hris_test_sign_in_rejected($conn, array_replace($google, ['sub' => 'different-subject']), $settings, 'google_identity_mismatch');
+    synk_hris_write_account($conn, $approval, null, $userId, $email, null, $userId);
+    hris_test_sign_in_rejected($conn, $google, $settings, 'hris_access_denied');
+
+    $employeeEmail = 'hris-employee-test-' . bin2hex(random_bytes(6)) . '@' . $settings['allowed_domain'];
+    $employeeGoogle = ['email' => $employeeEmail, 'sub' => 'hris-test-' . bin2hex(random_bytes(14)), 'email_verified' => true];
+    $conn->query("INSERT INTO tbl_faculty (first_name, last_name, middle_name, ext_name, status) VALUES ('Kawani', 'Test Employee', '', '', 'inactive')");
+    $facultyId = (int)$conn->insert_id;
+    synk_hris_record_employee_email($conn, $facultyId, $employeeEmail, $userId);
+    hris_test_sign_in_rejected($conn, $employeeGoogle, $settings, 'hris_access_denied');
+    $recorded = synk_hris_employee_account($conn, 'faculty_id', $facultyId);
+    synk_hris_write_account($conn, $recorded, $facultyId, null, $employeeEmail, SYNK_HRIS_USER, $userId);
+    hris_test_sign_in_rejected($conn, array_replace($employeeGoogle, ['email_verified' => false]), $settings, 'hris_access_denied');
+    synk_hris_complete_login($conn, $employeeGoogle, $settings);
+    $employee = synk_hris_employee_account($conn, 'faculty_id', $facultyId);
+    check_hris($employee['synk_user_id'] === null && $employee['role_code'] === SYNK_HRIS_USER
+        && $employee['google_sub'] === $employeeGoogle['sub'], 'Approved employees can sign in to Kawani without a shared account or faculty login link.');
+    check_hris(synk_hris_matching_synk_account($conn, $employeeEmail) === null, 'A Kawani-only sign-in must not create a Synk account.');
+    synk_hris_write_account($conn, $employee, $facultyId, null, $employeeEmail, 'conflict', $userId);
+    hris_test_sign_in_rejected($conn, $employeeGoogle, $settings, 'hris_access_denied');
 } finally {
     $conn->rollback();
     $_SESSION = [];

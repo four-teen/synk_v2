@@ -18,27 +18,34 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require __DIR__ . '/../backend/db.php';
 $inTransaction = false;
 try {
-    foreach (['schema.sql', 'faculty-review.sql'] as $file) {
+    foreach (['schema.sql', 'faculty-review.sql', 'faculty-status.sql', 'personnel.sql', 'employee-accounts.sql'] as $file) {
         $schema = file_get_contents(__DIR__ . '/' . $file);
         if ($schema === false) {
             throw new RuntimeException('HRIS schema file is unavailable.');
         }
-        $conn->query($schema);
+        $conn->multi_query($schema);
+        do {
+            $result = $conn->store_result();
+            if ($result instanceof mysqli_result) $result->close();
+        } while ($conn->more_results() && $conn->next_result());
     }
     $conn->begin_transaction();
     $inTransaction = true;
-    $stmt = $conn->prepare('SELECT user_id, status FROM tbl_useraccount WHERE LOWER(email) = ? LIMIT 2 FOR UPDATE');
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $account = $result->num_rows === 1 ? $result->fetch_assoc() : null;
-    $stmt->close();
-    if (!$account || $account['status'] !== 'active') {
-        throw new DomainException('Expected exactly one active Synk account for the supplied email.');
+    $existing = synk_hris_employee_account($conn, 'email', $email, true);
+    $facultyId = (int)($existing['faculty_id'] ?? 0);
+    $shared = synk_hris_matching_synk_account($conn, $email, $facultyId);
+    if (!$shared) throw new DomainException('Expected an active Synk account for the supplied email.');
+    $userId = (int)$shared['user_id'];
+    if (!$existing && synk_table_exists($conn, 'tbl_useraccount_faculty_links')) {
+        $stmt = $conn->prepare('SELECT faculty_id FROM tbl_useraccount_faculty_links WHERE user_id = ?');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $facultyId = (int)($stmt->get_result()->fetch_assoc()['faculty_id'] ?? 0);
+        $stmt->close();
     }
-
-    $userId = (int)$account['user_id'];
-    synk_hris_save_role($conn, $userId, SYNK_HRIS_ADMIN);
+    if (($existing['role_code'] ?? null) !== SYNK_HRIS_ADMIN || (int)($existing['synk_user_id'] ?? 0) !== $userId) {
+        synk_hris_write_account($conn, $existing, $facultyId ?: null, $userId, $email, SYNK_HRIS_ADMIN, null);
+    }
     $conn->commit();
     $inTransaction = false;
     echo "HRIS Administrator access is active for {$email}.\n";

@@ -2,6 +2,29 @@
 require_once __DIR__ . '/../backend/faculty_record_profile_helper.php';
 require_once __DIR__ . '/../backend/faculty_pds_preview_helper.php';
 
+// The caller holds a transaction so new Kawani references cannot race an employee deletion.
+function synk_hris_lock_employee_record(mysqli $conn, int $facultyId): void
+{
+    $stmt = $conn->prepare('SELECT faculty_id FROM tbl_faculty WHERE faculty_id = ? LOCK IN SHARE MODE');
+    try {
+        $stmt->bind_param('i', $facultyId);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows !== 1) throw new DomainException('This employee record is no longer available.', 404);
+    } finally {
+        $stmt->close();
+    }
+}
+
+function synk_hris_work_columns(): array
+{
+    return [
+        'date_from' => 'From', 'date_to' => 'To', 'position' => 'POSITION TITLE',
+        'employer' => 'DEPARTMENT / AGENCY / OFFICE / COMPANY', 'salary' => 'MONTHLY SALARY',
+        'pay_grade' => 'SALARY/ JOB/ PAY GRADE (if applicable)& STEP INCREMENT',
+        'appointment_status' => 'STATUS OF APPOINTMENT', 'government_service' => "GOV'T SERVICE",
+    ];
+}
+
 function synk_hris_saved_profiles(mysqli $conn): array
 {
     $profiles = [];
@@ -50,7 +73,6 @@ function synk_hris_pds_drafts(mysqli $conn): array
         $table = synk_hr_pds_section_table($section);
         $alias = 'pds_' . $section;
         $columns[] = "{$alias}.updated_at AS `{$section}`";
-        $columns[] = "{$alias}.revision AS `revision_{$section}`";
         $joins[] = "LEFT JOIN {$table} {$alias} ON {$alias}.hr_profile_id = h.hr_profile_id";
     }
 
@@ -63,6 +85,7 @@ function synk_hris_pds_drafts(mysqli $conn): array
             THEN CONCAT_WS(' ', NULLIF(TRIM(pds_personal.first_name), ''), NULLIF(TRIM(pds_personal.middle_name), ''),
                 NULLIF(TRIM(pds_personal.surname), ''), NULLIF(TRIM(pds_personal.name_extension), ''))
         END AS pds_name,
+        pds_personal.surname, pds_personal.first_name, pds_personal.middle_name, pds_personal.name_extension,
         pds_contact.agency_employee_number, " . implode(', ', $columns) . '
         FROM tbl_hr_faculty_profiles h
         LEFT JOIN tbl_useraccount_faculty_links l ON l.user_id = h.account_user_id
@@ -85,20 +108,16 @@ function synk_hris_pds_drafts(mysqli $conn): array
         }
 
         $savedSections = array_filter(array_intersect_key($row, $sectionKeys));
-        $revisions = [];
-        foreach (array_keys($savedSections) as $section) {
-            $revisions[$section] = (int)$row['revision_' . $section];
-        }
         $linkIssue = '';
         if ((int)$row['faculty_id'] === 0) {
             $linkIssue = $facultyId > 0 ? 'Draft is still stored under the account.' : 'PDS awaits a faculty link.';
         }
         $drafts[$owner] = [
             'name' => trim((string)$row['pds_name']),
+            'name_parts' => array_intersect_key($row, array_flip(['surname', 'first_name', 'middle_name', 'name_extension'])),
             'owner_name' => trim((string)$row['faculty_name']),
             'photo_user_id' => (int)$row['photo_user_id'],
             'pds_id' => (int)$row['hr_profile_id'],
-            'revisions' => $revisions,
             'employee_id' => trim((string)$row['agency_employee_number']),
             'saved_sections' => $savedSections,
             'last_saved' => $savedSections ? max($savedSections) : null,
@@ -107,6 +126,52 @@ function synk_hris_pds_drafts(mysqli $conn): array
     }
     $result->close();
     return $drafts;
+}
+
+function synk_hris_faculty_name_parts(mysqli $conn): array
+{
+    $names = [];
+    $result = $conn->query('SELECT faculty_id, first_name, middle_name, last_name, ext_name FROM tbl_faculty');
+    while ($row = $result->fetch_assoc()) {
+        $names[(int)$row['faculty_id']] = $row;
+    }
+    $result->close();
+    return $names;
+}
+
+function synk_hris_format_directory_names(array &$records, array $drafts, array $facultyNames): void
+{
+    foreach ($records as &$record) {
+        $personal = $drafts[$record['owner']]['name_parts'] ?? [];
+        $faculty = $facultyNames[$record['photo_faculty_id']] ?? null;
+        if (trim($personal['surname'] ?? '') !== '' && trim($personal['first_name'] ?? '') !== '') {
+            $parts = array_map(static function ($value): string { return trim((string)$value); }, $personal);
+        } else {
+            $storedName = $record['name'] === 'Name not recorded' ? '' : $record['name'];
+            $parts = synk_hr_pds_name_defaults('', $faculty);
+            if ($parts['surname'] === '') $parts = synk_hr_pds_name_defaults($storedName);
+        }
+        $givenNames = implode(' ', array_filter([$parts['first_name'], $parts['middle_name'], $parts['name_extension']], 'strlen'));
+        $surname = $parts['surname'];
+        $record['directory_name'] = $surname !== '' && $givenNames !== ''
+            ? $surname . ', ' . $givenNames
+            : ($surname ?: ($givenNames ?: $record['name']));
+        $record['directory_sort'] = [$surname ?: $givenNames, $parts['first_name'], $parts['middle_name'], $parts['name_extension']];
+    }
+    unset($record);
+
+    $collator = class_exists('Collator') ? Collator::create('en_PH') : null;
+    if ($collator) $collator->setStrength(Collator::SECONDARY);
+    usort($records, static function (array $left, array $right) use ($collator): int {
+        foreach ($left['directory_sort'] as $index => $part) {
+            $other = $right['directory_sort'][$index];
+            $comparison = $collator ? $collator->compare($part, $other) : false;
+            if ($comparison === false) $comparison = strnatcasecmp($part, $other);
+            if ($comparison !== 0) return $comparison;
+        }
+        return strnatcasecmp($left['employee_id'], $right['employee_id'])
+            ?: strnatcasecmp($left['owner'], $right['owner']);
+    });
 }
 
 function synk_hris_faculty_records(array $profiles, array $drafts, int $sectionCount): array
@@ -156,10 +221,6 @@ function synk_hris_faculty_records(array $profiles, array $drafts, int $sectionC
             'last_saved' => $pds['last_saved'] ?? null,
             'pds_status' => $status,
             'link_issue' => $pds['link_issue'] ?? '',
-            'data_version' => hash('sha256', serialize([
-                $owner, $profile['_storage'] ?? '', (int)($profile['user_id'] ?? 0), (int)($profile['revision'] ?? 0),
-                $pds['pds_id'] ?? 0, $pds['revisions'] ?? [], $pds['link_issue'] ?? '',
-            ])),
         ];
     }
 
@@ -196,13 +257,14 @@ function synk_hris_completed_additional_degrees(mysqli $conn): array
     return $completed;
 }
 
-function synk_hris_faculty_sources(mysqli $conn, bool $includeDegrees = false): array
+function synk_hris_faculty_sources(mysqli $conn, bool $includeDegrees = false, bool $includeFacultyNames = false): array
 {
     $sources = [];
     try {
         $conn->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
         $readers = ['profiles' => 'synk_hris_saved_profiles', 'pds' => 'synk_hris_pds_drafts'];
         if ($includeDegrees) $readers['degrees'] = 'synk_hris_completed_additional_degrees';
+        if ($includeFacultyNames) $readers['faculty_names'] = 'synk_hris_faculty_name_parts';
         foreach ($readers as $source => $read) {
             try {
                 $sources[$source] = $read($conn);
@@ -216,6 +278,29 @@ function synk_hris_faculty_sources(mysqli $conn, bool $includeDegrees = false): 
         error_log('Kawani could not read faculty records. Database error ' . $error->getCode());
     }
     return $sources;
+}
+
+function synk_hris_preview_name_parts(mysqli $conn, int $facultyId, string $storedName, array $personal): array
+{
+    if (trim($personal['surname'] ?? '') !== '' && trim($personal['first_name'] ?? '') !== '') {
+        return array_intersect_key($personal, array_flip(['surname', 'first_name', 'middle_name', 'name_extension']));
+    }
+
+    $faculty = null;
+    if ($facultyId > 0) {
+        $stmt = $conn->prepare('SELECT first_name, middle_name, last_name, ext_name FROM tbl_faculty WHERE faculty_id = ?');
+        try {
+            $stmt->bind_param('i', $facultyId);
+            $stmt->execute();
+            $faculty = $stmt->get_result()->fetch_assoc();
+        } finally {
+            $stmt->close();
+        }
+    }
+    if (!empty($faculty['last_name']) && !empty($faculty['first_name'])) {
+        return synk_hr_pds_name_defaults('', $faculty);
+    }
+    return synk_hr_pds_name_defaults($storedName);
 }
 
 function synk_hris_rank_aliases(): array

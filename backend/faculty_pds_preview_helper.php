@@ -87,8 +87,8 @@ function synk_faculty_pds_preview_sections(): array
         ['key'=>'work','title'=>'Work history','icon'=>'bx-briefcase-alt','description'=>'Include public and private employment, starting with your most recent work.', 'groups'=>[
             $list('work','Work experience','work record',[
                 $field('position','Position title'),$field('employer','Department / agency / office / company'),
-                $field('date_from','From','date'),$field('current','I currently work here','checkbox'),
-                $field('date_to','To','date',['when'=>['current','unchecked']]),
+                $field('date_from','From','text',['hint'=>'Use dd/mm/yyyy or a four-digit year.']),$field('current','I currently work here','checkbox'),
+                $field('date_to','To','text',['when'=>['current','unchecked'],'hint'=>'Use dd/mm/yyyy or a four-digit year.']),
                 $field('salary','Monthly salary','number',['min'=>'0','step'=>'0.01']),
                 $field('pay_grade','Salary / job / pay grade and step','text',['hint'=>'Use the recorded grade and step, for example 23-1.']),
                 $field('appointment_status','Status of appointment'),$select('government_service','Government service',['Yes','No']),

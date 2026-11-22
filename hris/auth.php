@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../backend/auth_google.php';
+require_once __DIR__ . '/employee-account-data.php';
 
 const SYNK_HRIS_ADMIN = 'hris_admin';
 const SYNK_HRIS_USER = 'hris_user';
@@ -61,25 +62,54 @@ function synk_hris_start_google(array $settings): void
     exit;
 }
 
-function synk_hris_find_account(mysqli $conn, int $userId): ?array
+function synk_hris_legacy_account(mysqli $conn, $identity): ?array
 {
+    $filter = is_int($identity) ? 'u.user_id = ?' : 'LOWER(TRIM(u.email)) = ?';
+    $type = is_int($identity) ? 'i' : 's';
     $stmt = $conn->prepare("SELECT u.user_id, u.username, u.email, u.google_sub, r.role_code
         FROM tbl_useraccount u JOIN tbl_hr_user_roles r ON r.user_id = u.user_id
-        WHERE u.user_id = ? AND u.status = 'active' AND r.role_code IN ('hris_admin', 'hris_user') AND r.status = 'active'
-        ORDER BY r.role_code LIMIT 2");
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    // An account with conflicting active HRIS roles must not receive the more privileged role by accident.
-    $account = $result->num_rows === 1 ? $result->fetch_assoc() : null;
-    $stmt->close();
-    return $account ?: null;
+        WHERE {$filter} AND u.status = 'active' AND r.role_code IN ('hris_admin', 'hris_user') AND r.status = 'active' LIMIT 2");
+    try {
+        $stmt->bind_param($type, $identity);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->num_rows === 1 ? $result->fetch_assoc() + ['account_id' => 0, 'revision' => 0] : null;
+    } finally {
+        $stmt->close();
+    }
 }
 
-function synk_hris_find_admin(mysqli $conn, int $userId): ?array
+function synk_hris_account_access(mysqli $conn, ?array $approval, string $domain): ?array
 {
-    $account = synk_hris_find_account($conn, $userId);
-    return $account && $account['role_code'] === SYNK_HRIS_ADMIN ? $account : null;
+    if (!$approval || !isset(synk_hris_role_labels()[$approval['role_code'] ?? ''])
+        || !synk_is_allowed_email_domain($approval['email'], $domain)) return null;
+
+    $facultyId = (int)$approval['faculty_id'];
+    $employee = synk_hris_employee_identity($conn, $facultyId);
+    if ($facultyId && !$employee) return null;
+    try {
+        $shared = synk_hris_matching_synk_account($conn, $approval['email'], $facultyId);
+    } catch (DomainException $error) {
+        return null;
+    }
+    $sharedId = (int)($shared['user_id'] ?? 0);
+    if ($approval['synk_user_id'] !== null && (int)$approval['synk_user_id'] !== $sharedId) return null;
+
+    $name = $employee ? trim(implode(' ', array_filter(array_map('trim', [
+        (string)$employee['first_name'], (string)$employee['middle_name'], (string)$employee['last_name'], (string)$employee['ext_name'],
+    ]), 'strlen'))) : '';
+    return $approval + [
+        'user_id' => (int)$approval['synk_user_id'],
+        'matching_synk_id' => $sharedId,
+        'username' => $name ?: (string)($shared['username'] ?? $approval['email']),
+        'synk_google_sub' => (string)($shared['google_sub'] ?? ''),
+    ];
+}
+
+function synk_hris_actor_id(array $account): int
+{
+    // Signed audit columns retain positive Synk IDs and use negative IDs for Kawani-only actors.
+    return (int)$account['user_id'] ?: -(int)$account['account_id'];
 }
 
 // Called only after the shared callback verifies the Google response and HRIS OAuth state.
@@ -87,52 +117,58 @@ function synk_hris_complete_login(mysqli $conn, array $google, array $settings):
 {
     $email = synk_normalize_email((string)($google['email'] ?? ''));
     $subject = trim((string)($google['sub'] ?? ''));
-    if ($subject === '' || strlen($subject) > 64 || ($google['email_verified'] ?? false) !== true
-        || !synk_is_allowed_email_domain($email, (string)$settings['allowed_domain'])) {
+    $domain = (string)$settings['allowed_domain'];
+    if (!preg_match('/\A[!-~]{1,64}\z/', $subject) || ($google['email_verified'] ?? false) !== true
+        || !filter_var($email, FILTER_VALIDATE_EMAIL) || !synk_is_allowed_email_domain($email, $domain)) {
         throw new DomainException('hris_access_denied');
     }
 
-    $stmt = $conn->prepare("SELECT u.user_id, u.google_sub
-        FROM tbl_useraccount u
-        WHERE LOWER(u.email) = ? AND u.status = 'active' AND EXISTS (
-            SELECT 1 FROM tbl_hr_user_roles r WHERE r.user_id = u.user_id
-            AND r.role_code IN ('hris_admin', 'hris_user') AND r.status = 'active'
-        ) AND (SELECT COUNT(*) FROM tbl_hr_user_roles r WHERE r.user_id = u.user_id
-            AND r.role_code IN ('hris_admin', 'hris_user') AND r.status = 'active') = 1
-        LIMIT 2");
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $account = $result->num_rows === 1 ? $result->fetch_assoc() : null;
-    $stmt->close();
-    if (!$account) {
-        throw new DomainException('hris_access_denied');
-    }
+    if (!synk_hris_employee_accounts_ready($conn)) {
+        $legacy = synk_hris_legacy_account($conn, $email);
+        if (!$legacy) throw new DomainException('hris_access_denied');
+        if (trim((string)$legacy['google_sub']) === '') throw new DomainException('hris_unavailable');
+        if (!hash_equals((string)$legacy['google_sub'], $subject)) throw new DomainException('google_identity_mismatch');
+        $identity = ['user_id' => (int)$legacy['user_id']];
+    } else {
+        $approval = synk_hris_employee_account($conn, 'email', $email);
+        $account = synk_hris_account_access($conn, $approval, $domain);
+        if (!$account) throw new DomainException('hris_access_denied');
+        foreach ([$account['google_sub'], $account['synk_google_sub']] as $bound) {
+            if ((string)$bound !== '' && !hash_equals((string)$bound, $subject)) {
+                throw new DomainException('google_identity_mismatch');
+            }
+        }
 
-    $userId = (int)$account['user_id'];
-    $boundSubject = trim((string)$account['google_sub']);
-    if ($boundSubject === '') {
-        // Bind once, without changing the account's original Synk role or sign-in preferences.
-        $stmt = $conn->prepare("UPDATE tbl_useraccount SET google_sub = ?, google_email_verified = 1
-            WHERE user_id = ? AND LOWER(email) = ? AND status = 'active'
-            AND (google_sub IS NULL OR google_sub = '')");
-        $stmt->bind_param('sis', $subject, $userId, $email);
-        $stmt->execute();
-        $stmt->close();
-    }
-    $current = synk_hris_find_account($conn, $userId);
-    if (!$current || synk_normalize_email($current['email']) !== $email) {
-        throw new DomainException('hris_access_denied');
-    }
-    if (!hash_equals((string)$current['google_sub'], $subject)) {
-        throw new DomainException('google_identity_mismatch');
+        // Bind only while the approved address and role still belong to this account revision.
+        $accountId = (int)$account['account_id'];
+        $revision = (int)$account['revision'];
+        $sharedId = $account['matching_synk_id'] ?: null;
+        $stmt = $conn->prepare('UPDATE tbl_hr_employee_accounts SET google_sub = ?, synk_user_id = ?
+            WHERE account_id = ? AND revision = ? AND (google_sub IS NULL OR google_sub = ?)
+                AND (synk_user_id IS NULL OR synk_user_id = ?)');
+        try {
+            $stmt->bind_param('siiisi', $subject, $sharedId, $accountId, $revision, $subject, $sharedId);
+            $stmt->execute();
+        } catch (mysqli_sql_exception $error) {
+            if ((int)$error->getCode() === 1062) throw new DomainException('google_identity_mismatch');
+            throw $error;
+        } finally {
+            $stmt->close();
+        }
+        $current = synk_hris_account_access($conn, synk_hris_employee_account($conn, 'account_id', $accountId), $domain);
+        if (!$current || (int)$current['revision'] !== $revision) throw new DomainException('hris_access_denied');
+        if (!hash_equals((string)$current['google_sub'], $subject)
+            || ($current['synk_google_sub'] !== '' && !hash_equals($current['synk_google_sub'], $subject))) {
+            throw new DomainException('google_identity_mismatch');
+        }
+        $identity = ['account_id' => $accountId, 'revision' => $revision];
     }
 
     if (!session_regenerate_id(true)) {
         throw new RuntimeException('Could not refresh the HRIS session.');
     }
     unset($_SESSION['hris_csrf']);
-    $_SESSION['hris_identity'] = ['user_id' => $userId, 'google_sub' => $subject, 'signed_in_at' => time()];
+    $_SESSION['hris_identity'] = $identity + ['google_sub' => $subject, 'signed_in_at' => time()];
 }
 
 function synk_hris_require_account(): array
@@ -146,16 +182,29 @@ function synk_hris_require_account(): array
     try {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         require __DIR__ . '/../backend/db.php';
-        $account = synk_hris_find_account($conn, (int)$identity['user_id']);
+        $domain = (string)synk_auth_settings()['allowed_domain'];
+        if (synk_hris_employee_accounts_ready($conn)) {
+            $upgrading = !isset($identity['account_id']);
+            $approval = $upgrading
+                ? synk_hris_employee_account($conn, 'legacy_user_id', (int)($identity['user_id'] ?? 0))
+                : synk_hris_employee_account($conn, 'account_id', (int)$identity['account_id']);
+            $account = synk_hris_account_access($conn, $approval, $domain);
+            if ($account && (int)$account['revision'] !== ($upgrading ? 1 : (int)($identity['revision'] ?? 0))) $account = null;
+        } else {
+            $account = synk_hris_legacy_account($conn, (int)($identity['user_id'] ?? 0));
+        }
     } catch (Throwable $error) {
         error_log('HRIS access check failed: ' . get_class($error));
         synk_auth_status_redirect('hris_unavailable', 'login.php');
     }
-    $settings = synk_auth_settings();
     if (!$account || (string)$account['google_sub'] === '' || !hash_equals((string)$account['google_sub'], (string)($identity['google_sub'] ?? ''))
-        || !synk_is_allowed_email_domain($account['email'], (string)$settings['allowed_domain'])) {
+        || (!empty($account['synk_google_sub']) && !hash_equals($account['synk_google_sub'], $account['google_sub']))
+        || !synk_is_allowed_email_domain($account['email'], $domain)) {
         unset($_SESSION['hris_identity']);
         synk_auth_status_redirect('hris_access_denied', 'login.php');
+    }
+    if ((int)$account['account_id'] > 0 && !isset($identity['account_id'])) {
+        $_SESSION['hris_identity'] = ['account_id' => (int)$account['account_id'], 'revision' => (int)$account['revision']] + $identity;
     }
     return [$conn, $account];
 }

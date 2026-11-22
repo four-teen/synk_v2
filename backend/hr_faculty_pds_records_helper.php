@@ -46,6 +46,11 @@ function synk_hr_pds_validate_records(string $section, $input, DateTimeImmutable
             $errors[$key]='Use a valid list of up to '.$definition['limit'].' records.'; continue;
         }
         foreach ($rows as $index=>$row) {
+            if ($section==='work' && is_array($row) && is_string($row['date_to'] ?? null)
+                && strcasecmp(trim($row['date_to']), 'Present')===0 && array_key_exists('current', $row)) {
+                $row['current']='1';
+                $row['date_to']='';
+            }
             [$values,$rowErrors]=synk_hr_pds_validate_fields($definition['fields'],$row,$today);
             if (!isset($rowErrors['_section'])) [$values,$rowErrors]=synk_hr_pds_normalize_record($section,$values,$rowErrors);
             if ($key==='education' && !$rowErrors) {
@@ -56,6 +61,7 @@ function synk_hr_pds_validate_records(string $section, $input, DateTimeImmutable
             $data[$key][]=$values;
             foreach ($rowErrors as $field=>$message) $errors[$key.'.'.$index.'.'.$field]=$message;
         }
+        if ($section==='work' && !$errors) synk_hr_pds_sort_work($data[$key]);
     }
     if ($section==='family') {
         foreach (['spouses'=>['spouse_applies','Not applicable'],'children'=>['children_apply','None']] as $list=>[$flag,$none]) {
@@ -84,6 +90,7 @@ function synk_hr_pds_load_records(mysqli $conn, int $profileId, string $section)
             $values[$key][]=$record;
         }
         $statement->close();
+        if ($section==='work') synk_hr_pds_sort_work($values[$key]);
     }
     return $values;
 }
@@ -99,7 +106,7 @@ function synk_hr_pds_save_records(mysqli $conn, int $profileId, string $section,
         $statement=$conn->prepare($query);
         foreach ($values[$key] as $index=>$row) {
             $parameters=[$profileId,$index];
-            foreach ($fields as $field=>$rule) $parameters[]=($row[$field]==='' && (!empty($rule['date']) || !empty($rule['year']) || !empty($rule['amount'])))?null:$row[$field];
+            foreach ($fields as $field=>$rule) $parameters[]=($row[$field]==='' && (!empty($rule['date']) || !empty($rule['work_date']) || !empty($rule['year']) || !empty($rule['amount'])))?null:$row[$field];
             $types='ii'.str_repeat('s',count($fields)); $statement->bind_param($types,...$parameters); $statement->execute();
         }
         $statement->close();

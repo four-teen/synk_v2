@@ -41,3 +41,19 @@ document.addEventListener('error', (event) => {
 document.querySelectorAll('.hris-faculty-avatar img').forEach((photo) => {
     if (photo.complete && !photo.naturalWidth) photo.hidden = true;
 });
+
+const mobileManagement = document.querySelector('.hris-mobile-nav .hris-management-menu');
+if (mobileManagement) {
+    document.addEventListener('click', (event) => {
+        if (mobileManagement.open && !mobileManagement.contains(event.target)) mobileManagement.open = false;
+    });
+    mobileManagement.addEventListener('focusout', (event) => {
+        if (event.relatedTarget && !mobileManagement.contains(event.relatedTarget)) mobileManagement.open = false;
+    });
+    mobileManagement.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !mobileManagement.open) return;
+        event.preventDefault();
+        mobileManagement.open = false;
+        mobileManagement.querySelector('summary').focus();
+    });
+}
