@@ -47,7 +47,7 @@ $previewHeading = $showProfile ? $profileLabel : $sections[$sectionKey]['title']
                     <?php if ($educationNote !== ''): ?><p class="hris-preview-note" role="status"><?= synk_hris_h($educationNote) ?></p><?php endif; ?>
                     <?php if ($educationGroups || ($loadError === '' && $educationNote === '')) synk_hris_render_education($educationGroups); ?>
                 <?php elseif ($sectionKey === 'work' && $loadError === ''): ?>
-                    <?php require __DIR__ . '/work-experience-preview.php'; ?>
+                    <?php $workRecords = $sectionData['values']['work'] ?? []; require __DIR__ . '/../../backend/faculty_pds_work_preview_view.php'; ?>
                 <?php elseif ($loadError === '' && !$sectionData): ?><p class="hris-preview-note"><?= $sectionKey === 'family' ? 'No family details recorded.' : 'No details recorded for this section.' ?></p>
                 <?php elseif ($loadError === ''): ?>
                     <?php synk_hris_render_pds_section($sections[$sectionKey], $sectionData['values']); ?>

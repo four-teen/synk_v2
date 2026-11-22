@@ -84,18 +84,7 @@ function synk_faculty_pds_preview_sections(): array
                 $field('rating','Rating, if applicable'),$field('examination_date','Date of examination / conferment','date'),
                 $field('examination_place','Place of examination / conferment'),$field('license_number','License number, if applicable'),
                 $field('valid_until','License validity date','date')])]],
-        ['key'=>'work','title'=>'Work history','icon'=>'bx-briefcase-alt','description'=>'Include public and private employment, starting with your most recent work.', 'groups'=>[
-            $list('work','Work experience','work record',[
-                $field('position','Position title'),$field('employer','Department / agency / office / company'),
-                $field('date_from','From','text',['hint'=>'Use dd/mm/yyyy or a four-digit year.']),$field('current','I currently work here','checkbox'),
-                $field('date_to','To','text',['when'=>['current','unchecked'],'hint'=>'Use dd/mm/yyyy or a four-digit year.']),
-                $field('salary','Monthly salary','number',['min'=>'0','step'=>'0.01']),
-                $field('pay_grade','Salary / job / pay grade and step','text',['hint'=>'Use the recorded grade and step, for example 23-1.']),
-                $field('appointment_status','Status of appointment'),$select('government_service','Government service',['Yes','No']),
-                $group('Duties & accomplishments',[
-                    $field('office_unit','Division / office / unit'),$field('supervisor','Immediate supervisor'),
-                    $field('duties','Summary of actual duties','textarea'),$field('accomplishments','Accomplishments and contributions','textarea')],['collapsible'=>true])]),
-            $group('Work Experience Sheet details', [], ['hint'=>'Each work record also has optional office, supervisor, duties, and accomplishments fields.'])]],
+        ['key'=>'work','title'=>'Work history','icon'=>'bx-briefcase-alt','description'=>'Human Resources manages your work history.', 'groups'=>[]],
         ['key'=>'learning','title'=>'Learning & development','icon'=>'bx-book-reader','description'=>'Reuse your training records and add the PDS details to each one.', 'groups'=>[
             $list('trainings','Training programs attended','training',array_merge([
                 $field('training_title','Title of learning & development intervention / training program')],$dates(),[

@@ -89,6 +89,11 @@ try {
     foreach ($examples as $section=>$values) {
         $request=['csrf_token'=>'remaining-qa','owner'=>'account:'.$ids[0],'section'=>$section,'revision'=>0,'values'=>$values];
         $result=synk_hr_pds_handle_save($conn,$session,$request);
+        if ($section==='work') {
+            $check($result['status']===403 && synk_hr_pds_load($conn,$ids[0],0)['work']===null,
+                'Professor work saves cannot create a section.');
+            continue;
+        }
         $check($result['status']===200 && $result['body']['values']===$values,$section.' saves every field.');
         $state=synk_hr_pds_load($conn,$ids[0],0);
         $check($state[$section]['values']===$values && $state[$section]['revision']===1,$section.' round-trips from its HR tables.');
@@ -103,6 +108,12 @@ try {
         $check($result['status']===200 && $result['body']['revision']===2 && $result['body']['values']===$request['values'],'Clearing '.$section.' persists a valid empty draft.');
     }
     $profile=synk_hr_pds_profile($conn,$ids[0],0); $profileId=(int)$profile['hr_profile_id'];
+    $workState = synk_hr_pds_save_section($conn,$profileId,$ids[0],'work',$examples['work'],0);
+    $request=['csrf_token'=>'remaining-qa','owner'=>'account:'.$ids[0],'section'=>'work','revision'=>1,'values'=>['work'=>[]]];
+    $result=synk_hr_pds_handle_save($conn,$session,$request);
+    $storedWork = synk_hr_pds_section($conn,$profileId,'work');
+    $check($storedWork['values']===$examples['work'] && $storedWork['revision']===$workState['revision']
+        && $result['status']===403,'HR work saves remain available and professor requests cannot clear their records.');
     $conn->query('SAVEPOINT hr_attach_atomic');
     $conn->query("UPDATE tbl_hr_faculty_pds_certification SET oath_date='2020-01-01',oath_officer='Recorded Officer' WHERE hr_profile_id=".$profileId);
     $saved=synk_hr_pds_save($conn,$ids[0],'account:'.$ids[0],'certification',$examples['certification'],2);

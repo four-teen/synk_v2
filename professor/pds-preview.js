@@ -89,9 +89,11 @@
     const persistent = section.dataset.pdsPersistent === '1' && review.hidden;
     if (save) {
       save.hidden = !persistent;
-      save.disabled = root.dataset.pdsSavingEnabled !== '1' || savingSections.has(key);
+      save.disabled = !persistent || root.dataset.pdsSavingEnabled !== '1' || savingSections.has(key);
       save.textContent = savingSections.has(key) ? 'Saving…' : 'Save section';
     }
+    status.hidden = review.hidden && section.dataset.pdsReadOnly === '1';
+    if (status.hidden) { status.textContent = ''; return; }
     if (!review.hidden) status.textContent = 'Review includes saved details and any unsaved edits';
     else if (!persistent) status.textContent = 'Preview only · Changes in this section are not saved';
     else if (root.dataset.pdsSavingEnabled !== '1') status.textContent = 'Saving unavailable · Reload before entering details';
@@ -280,7 +282,7 @@
 
   async function saveSection() {
     const section = sections[current]; const key = section.dataset.pdsKey;
-    if (section.dataset.pdsPersistent !== '1' || root.dataset.pdsSavingEnabled !== '1' || savingSections.has(key)) return;
+    if (!review.hidden || section.dataset.pdsPersistent !== '1' || root.dataset.pdsSavingEnabled !== '1' || savingSections.has(key)) return;
     clearErrors(section);
     copyAddress();
     const submitted = readSection(section);
@@ -350,11 +352,19 @@
       const header = document.createElement('div');
       const heading = document.createElement('h4');
       heading.textContent = section.dataset.pdsTitle;
+      header.append(heading);
+      group.append(header);
+      const workPreview = section.querySelector('[data-pds-work-preview]');
+      if (workPreview) {
+        group.append(workPreview.cloneNode(true));
+        content.append(group);
+        return;
+      }
       const edit = document.createElement('button');
       edit.type = 'button'; edit.className = 'pds-review-edit'; edit.textContent = 'Edit';
       edit.setAttribute('aria-label', 'Edit ' + section.dataset.pdsTitle);
       edit.addEventListener('click', () => showSection(index));
-      header.append(heading, edit); group.append(header);
+      header.append(edit);
       const photoGuidance=section.querySelector('[data-pds-photo-guidance]');
       if(photoGuidance)group.append(photoGuidance.cloneNode(true));
       const buckets = new Map();

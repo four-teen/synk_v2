@@ -12,7 +12,7 @@ The installer provisions Kawani’s database tables and grants access to the sup
 
 The Dashboard, Employee Profiles, Position Catalog, and PDS Tracker are administrator-only. In **Management → Account**, select an employee by name or ID, confirm the official email, and assign Administrator or User. Approved employees verify their email on first Google sign-in. Administrators can change the email, change the role, or revoke Kawani access. Another administrator must make changes to your own access. Users sign in to their dedicated HR Workspace.
 
-The dashboard, Employee Profiles, and PDS Tracker read the existing Professor Profile and HR PDS tables. Kawani groups records by the Synk faculty link and displays the PDS agency employee number, with the Professor Profile ID as a fallback. Saved sections reflect faculty draft progress. Profile and PDS edits still happen in the Professor Portal.
+The dashboard, Employee Profiles, and PDS Tracker read the existing Professor Profile and HR PDS tables. Kawani groups records by the Synk faculty link and displays the PDS agency employee number, with the Professor Profile ID as a fallback. Saved sections reflect PDS draft progress. Kawani administrators manage Work history. Faculty view those entries and edit their other PDS sections in the Professor Portal.
 
 Existing installations can apply `faculty-status.sql` to enable the **HR status** control in Employee Profiles. Records begin at **Not yet reviewed**. An administrator can save **Active**, **Enactive**, or **Retired**. Active requires the administrator to confirm that they verified the employee’s identity and current employment against official HR records. Kawani stores the status, reviewer, and date with the directory record. An unlinked record that later acquires a different directory identity goes through review under the new identity.
 
@@ -26,6 +26,6 @@ Open **Management → Position Catalog** from any administrator page to add, edi
 
 The dashboard rank and employment classification charts use the production ApexCharts 3.54.1 browser distribution and stylesheet from the `apexcharts` npm package. The bundled MIT license is in `assets/vendor/apexcharts/LICENSE`.
 
-Manage opens the Personal Data Sheet at **About you** in the faculty preview. The preview presents Professor Profile and Personal Data Sheet details by section. Faculty make updates in the Professor Portal.
+Manage opens the Personal Data Sheet at **About you** in the faculty preview. The preview presents Professor Profile and Personal Data Sheet details by section.
 
 Run `php hris/tests/smoke.php` with local Apache and MySQL running to check sign-in routes, isolated OAuth state and role enforcement. The script rolls back the test account and role assignment.

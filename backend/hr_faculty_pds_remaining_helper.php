@@ -1,5 +1,15 @@
 <?php
 // Definitions owned exclusively by the faculty HR Personal Data Sheet.
+function synk_hr_pds_work_columns(): array
+{
+    return [
+        'date_from' => 'From', 'date_to' => 'To', 'position' => 'POSITION TITLE',
+        'employer' => 'DEPARTMENT / AGENCY / OFFICE / COMPANY', 'salary' => 'MONTHLY SALARY',
+        'pay_grade' => 'SALARY/ JOB/ PAY GRADE (if applicable)& STEP INCREMENT',
+        'appointment_status' => 'STATUS OF APPOINTMENT', 'government_service' => "GOV'T SERVICE",
+    ];
+}
+
 function synk_hr_pds_remaining_fields(string $section): array
 {
     if ($section==='voluntary') return ['voluntary_applies'=>['options'=>['Yes','None']]];
