@@ -15,16 +15,6 @@ function synk_hris_lock_employee_record(mysqli $conn, int $facultyId): void
     }
 }
 
-function synk_hris_work_columns(): array
-{
-    return [
-        'date_from' => 'From', 'date_to' => 'To', 'position' => 'POSITION TITLE',
-        'employer' => 'DEPARTMENT / AGENCY / OFFICE / COMPANY', 'salary' => 'MONTHLY SALARY',
-        'pay_grade' => 'SALARY/ JOB/ PAY GRADE (if applicable)& STEP INCREMENT',
-        'appointment_status' => 'STATUS OF APPOINTMENT', 'government_service' => "GOV'T SERVICE",
-    ];
-}
-
 function synk_hris_saved_profiles(mysqli $conn): array
 {
     $profiles = [];

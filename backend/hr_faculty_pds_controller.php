@@ -19,6 +19,7 @@ function synk_hr_pds_handle_save(mysqli $conn, array $session, $payload, array $
         || (!is_int($revision) && !is_string($revision)) || !preg_match('/^(0|[1-9][0-9]{0,9})$/D',(string)$revision) || (float)$revision>2147483646) {
         return $fail(422,'The section or version is invalid. Reload before saving.');
     }
+    if (synk_hr_pds_section_managed_by_hr($section)) return $fail(403,'Human Resources manages work history.');
     [$values,$errors]=synk_hr_pds_validate($section,$payload['values'] ?? null,new DateTimeImmutable('today'));
     $files=[]; $removed=[];
     if ($section!=='certification' && ($uploads || array_key_exists('removed_attachments',$payload))) return $fail(422,'Attachments belong to Photo & final review.');

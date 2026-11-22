@@ -42,6 +42,11 @@ try {
     foreach (hr_pds_remaining_examples() as $section=>$values) {
         $remainingRequest=array_replace($request,['section'=>$section,'values'=>$values]);
         $result=$call($url,$remainingRequest);
+        if ($section==='work') {
+            $check($result['status']===403 && strpos($result['headers'],'X-QA-Work-Revision: 0')!==false,
+                'The professor endpoint refuses work history saves.');
+            continue;
+        }
         $check($result['status']===200 && $result['body']['values']===$values && strpos($result['headers'],'X-QA-Records-Reloaded: yes')!==false,'Web PHP saves and reloads all '.$section.' fields.');
     }
     $certRequest=array_replace($request,['section'=>'certification','values'=>hr_pds_empty_section('certification'),'removed_attachments'=>[]]);

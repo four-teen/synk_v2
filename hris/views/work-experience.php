@@ -1,5 +1,5 @@
 <?php
-$workColumns = synk_hris_work_columns();
+$workColumns = synk_hr_pds_work_columns();
 $workRules = synk_hr_pds_record_lists('work')['work'];
 $workPositions = [];
 foreach (['INSTRUCTOR' => 3, 'ASSISTANT PROFESSOR' => 4, 'ASSOCIATE PROFESSOR' => 5, 'PROFESSOR' => 6] as $rank => $levels) {
@@ -24,7 +24,7 @@ $workAppointments = ['PERMANENT', 'TEMPORARY', 'JOB ORDER', 'CONTRACT OF SERVICE
             <p data-work-error role="alert" hidden></p>
             <div class="hris-work-scroll" data-work-table hidden tabindex="0" role="region" aria-label="Work experience table">
                 <table class="hris-work-table" aria-label="Work experience" aria-describedby="work-date-format">
-                    <?php $workEditable = true; require __DIR__ . '/work-experience-table-head.php'; ?>
+                    <?php $workEditable = true; require __DIR__ . '/../../backend/faculty_pds_work_table_head.php'; ?>
                     <tbody data-work-records></tbody>
                 </table>
             </div>

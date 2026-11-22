@@ -27,6 +27,9 @@ $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatar
         <script src="assets/vendor/jquery/jquery-3.7.1.min.js" defer></script>
         <script src="assets/vendor/select2/select2.min.js" defer></script>
     <?php endif; ?>
+    <?php if ($view === 'faculty' && (isset($visibleRecords) || isset($previewUrl))): ?>
+        <link rel="stylesheet" href="../assets/css/faculty-pds-work.css?v=<?= filemtime(__DIR__ . '/../../assets/css/faculty-pds-work.css') ?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="assets/dashboard.css?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/dashboard.css') ?>">
     <script src="assets/dashboard.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/dashboard.js') ?>" defer></script>
     <?php if ($hasManagementMenu): ?>

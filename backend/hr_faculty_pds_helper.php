@@ -5,6 +5,11 @@ require_once __DIR__.'/hr_faculty_pds_attachments_helper.php';
 
 function synk_hr_pds_sections(): array { return ['personal','contact','family','education','eligibility','work','learning','voluntary','other','declarations','certification']; }
 
+function synk_hr_pds_section_managed_by_hr(string $section): bool
+{
+    return $section === 'work';
+}
+
 function synk_hr_pds_section_table(string $section): string
 {
     if (!in_array($section,synk_hr_pds_sections(),true)) throw new InvalidArgumentException('This PDS section is not available for saving yet.');
@@ -213,6 +218,9 @@ function synk_hr_pds_load(mysqli $conn, int $userId, int $facultyId): array
 function synk_hr_pds_save(mysqli $conn, int $userId, string $postedOwner, string $section, array $values, int $revision, array $files=[], array $removed=[]): array
 {
     if ($userId<=0 || $revision<0) throw new InvalidArgumentException('Invalid PDS version.');
+    if (synk_hr_pds_section_managed_by_hr($section)) {
+        throw new DomainException('Human Resources manages work history.', 403);
+    }
     $statement = $conn->prepare("SELECT user_id FROM tbl_useraccount WHERE user_id=? AND status='active' FOR UPDATE");
     $statement->bind_param('i',$userId); $statement->execute(); $active=$statement->get_result()->num_rows===1; $statement->close();
     if (!$active) throw new DomainException('Your account is unavailable. Sign in again before saving.');

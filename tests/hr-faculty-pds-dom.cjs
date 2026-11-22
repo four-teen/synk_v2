@@ -11,7 +11,7 @@ let checks = 0;
 const check = (condition, message) => { assert.ok(condition, message); checks++; };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function main() {
-  const render = spawnSync('php', [path.join(__dirname, 'faculty-pds-preview.php'), '--render', output, '--hr'], {cwd:root, encoding:'utf8', windowsHide:true});
+  const render = spawnSync('php', [path.join(__dirname, 'faculty-pds-preview.php'), '--render', output, '--hr', '--work'], {cwd:root, encoding:'utf8', windowsHide:true});
   assert.equal(render.status, 0, render.stdout + render.stderr);
   const dom = new JSDOM(fs.readFileSync(output,'utf8'), {runScripts:'outside-only', url:'http://localhost/synk/professor/manage-profile.php?tab=pds'});
   const {window} = dom; const doc = window.document;
@@ -130,14 +130,19 @@ async function main() {
   const editRecord=(record,key,value)=>input(record.querySelector('[data-pds-key="'+key+'"]').id,value);
   editRecord(eligibility,'name','Professional teacher'); editRecord(eligibility,'license_number','000123-A'); editRecord(eligibility,'valid_until','2028-04-01');
   save.click(); check(submitted.payload.values.eligibilities.at(-1).license_number==='000123-A' && submitted.payload.values.eligibilities.at(-1).valid_until==='2028-04-01','Eligibility preserves license zeros and future validity dates.'); await succeed(1);
-  step(5); add('work'); const employment=records('work')[0];
-  editRecord(employment,'position','Instructor'); editRecord(employment,'date_from','2020-01-01'); editRecord(employment,'current',true);
-  editRecord(employment,'duties','Teach classes.\nPrepare materials.'); editRecord(employment,'salary','0');
-  check(employment.querySelector('[data-pds-key="date_to"]').disabled,'Current employment hides and disables the end date.');
-  save.click(); const normalizedWork=structuredClone(submitted.payload.values); normalizedWork.work[0].salary='0.00';
-  await finish(200,{ok:true,revision:1,updated_at:'2026-11-18 10:20:00',values:normalizedWork});
-  check(employment.querySelector('[data-pds-key="duties"]').value.includes('\n') && field('pds-preview-status').textContent.startsWith('Saved'),'Multiline Work Experience Sheet details save and normalized salary does not leave a false unsaved state.');
-  step(6); check(records('trainings').length===1,'Existing training is available as an editable suggestion.');
+  step(5);
+  const work = field('pds-section-work');
+  check(!work.hidden && save.hidden && save.disabled && field('pds-preview-status').hidden,'Work history shows only the section navigation.');
+  check(work.querySelector('table').textContent.includes('PRESENT') && work.querySelector('table').textContent.includes('01/06/2021')
+    && work.querySelector('details').textContent.includes('Prepare learning materials.'),'Saved work dates and notes remain visible in Kawani’s table format.');
+  const previousSubmission = submitted;
+  save.click();
+  check(submitted === previousSubmission,'Viewing work history never posts a save.');
+  doc.querySelector('[data-pds-previous]').click();
+  check(!field('pds-section-eligibility').hidden && !save.hidden,'Previous returns to the editable eligibility section.');
+  doc.querySelector('[data-pds-next]').click();
+  doc.querySelector('[data-pds-next]').click();
+  check(!field('pds-section-learning').hidden && !save.hidden && records('trainings').length===1,'Next continues to the editable training section.');
   const training=records('trainings')[0]; editRecord(training,'hours','8'); editRecord(training,'type','Other'); editRecord(training,'type_other','Research'); save.click(); await succeed(1);
   check(alerts.at(-1).titleText==='Learning & development saved successfully.','Training uses the same confirmed section alert.');
   step(7); input('pds-voluntary-voluntary_applies','Yes'); add('voluntary'); editRecord(records('voluntary')[0],'organization','Community Learning Center'); save.click(); await succeed(1);
@@ -165,6 +170,9 @@ async function main() {
   check(field('pds-preview-status').textContent.startsWith('Saved') && alerts.at(-1).titleText==='Photo & final review saved successfully.','The shared date saves with the section success alert.');
   doc.querySelector('[data-pds-review]').click();
   check(!field('pds-review').hidden && field('pds-review').textContent.includes('Professional teacher') && field('pds-review').textContent.includes('000123-A'),'Review includes the completed saved sections and preserved identifiers.');
+  const workReview = field('pds-review').querySelector('[data-pds-work-preview]');
+  check(workReview?.textContent.includes('PRESENT') && !workReview.closest('.pds-review-section').querySelector('button'),
+    'Review includes HR work history without an Edit action.');
   check(field('pds-review').querySelector('[data-pds-print-photo]') && !field('pds-review').querySelector('[data-pds-print-photo] img'),'Review also keeps the PDS photo area blank for a printed photograph.');
   step(0); check(field('pds-personal-surname').value==='Edited while saving','Navigating sections preserves editable names.');
   const profileTab=doc.querySelector('[data-profile-tab="profile"]'), pdsTab=doc.querySelector('[data-profile-tab="pds"]');

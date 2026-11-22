@@ -1,9 +1,9 @@
 <?php
-$workHeadings = [
+$workHeadings = ['government_service' => '(Y/N)'];
+if ($workEditable) $workHeadings += [
     'position' => '(Write in full/Do not abbreviate)',
     'employer' => '(Write in full/Do not abbreviate)',
     'pay_grade' => '(Format "00-0")',
-    'government_service' => '(Y/ N)',
 ];
 ?>
 <colgroup span="2" class="hris-work-date-columns"></colgroup>
@@ -16,8 +16,8 @@ $workHeadings = [
         <th scope="colgroup" colspan="2"><span class="hris-work-item-number">28.</span>INCLUSIVE DATES<small>(dd/mm/yyyy)</small></th>
         <?php foreach (array_slice($workColumns, 2) as $key => $label): ?>
             <th scope="col" rowspan="2">
-                <?= synk_hris_h($label) ?>
-                <?php if (isset($workHeadings[$key])): ?><small><?= synk_hris_h($workHeadings[$key]) ?></small><?php endif; ?>
+                <?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                <?php if (isset($workHeadings[$key])): ?><small><?= htmlspecialchars($workHeadings[$key], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></small><?php endif; ?>
             </th>
         <?php endforeach; ?>
         <?php if ($workEditable): ?><th scope="col" rowspan="2" aria-label="Actions"></th><?php endif; ?>

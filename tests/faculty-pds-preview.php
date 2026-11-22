@@ -39,9 +39,15 @@ $profileEditor = ['show_profile_tabs'=>true,'show_completion_panel'=>false,'show
         'record'=>synk_faculty_profile_training_defaults(),'notice'=>'','error'=>'','errors'=>[],'show_editor'=>false],
     'extra_styles'=>['manage-profile.css','profile-feedback.css','pds-preview.css'],
     'extra_scripts'=>['../assets/js/sweetalert2.all.min.js','profile-feedback.js','manage-profile.js','pds-preview.js']];
+$savedWork = in_array('--hr',$argv,true) && in_array('--work',$argv,true);
 if (in_array('--hr',$argv,true)) {
     $storedProfile['full_name']='ELBREN OSORIO ANTONIO JR.';
     $profileEditor['pds_state']=['enabled'=>true,'sections'=>[],'owner'=>'account:1','csrf_token'=>'offline-preview-token','save_url'=>'pds-save.php','faculty_link'=>null];
+    if ($savedWork) {
+        require_once __DIR__.'/fixtures/hr-faculty-pds-remaining-data.php';
+        $profileEditor['pds_state']['sections']['work']=['values'=>hr_pds_remaining_examples()['work'],'revision'=>1,
+            'updated_at'=>'2026-11-18 10:00:00'];
+    }
     if (in_array('--saved',$argv,true)) {
         $savedNames=array_fill_keys(array_keys(synk_hr_pds_fields('personal')),'');
         $savedNames['surname']='Corrected Surname'; $savedNames['first_name']='Corrected First';
@@ -90,7 +96,7 @@ $check($xpath->query('//*[@id="faculty-profile-form"]//*[@id="pds-contact-email"
 $check($xpath->query('//*[@id="pds-preview"]//button[not(@type="button")]')->length===0,'Preview controls never submit profile forms.');
 if (in_array('--notice',$argv,true)) $check($xpath->query('//*[@data-profile-saved-notice and text()="Your faculty profile has been saved."]')->length===1,'A confirmed profile save triggers the same success feedback.');
 if (in_array('--hr',$argv,true)) {
-    $check($xpath->query('//*[@data-pds-persistent="1"]')->length===11,'Every PDS section supports independent saving.');
+    $check($xpath->query('//*[@data-pds-persistent="1"]')->length===10,'The editable PDS sections support independent saving.');
     $check($xpath->query('//*[@data-pds-save]')->length===1,'A section Save button is available.');
     $expectedSurname=in_array('--saved',$argv,true) ? 'Corrected Surname' : 'ANTONIO';
     $check($xpath->query('//*[@id="pds-personal-surname" and @value="'.$expectedSurname.'"]')->length===1,'Saved names take priority over the profile-name suggestion.');
@@ -113,7 +119,20 @@ $check($xpath->query($photoQuery)->length===(in_array('--photo',$argv,true)?1:0)
 $check($xpath->query('//*[@data-pds-profile-photo-reference]')->length===1,'Photo guidance is available without requiring an uploaded profile image.');
 $check($xpath->query('//*[@id="pds-certification-date_accomplished"]')->length===1 && $xpath->query('//*[@id="pds-section-certification"]//*[@data-pds-key and starts-with(@data-pds-key,"signature_date_")]')->length===0,'One PDS date replaces the four independently editable page dates.');
 $check($xpath->query('//*[@id="pds-certification-oath_date"] | //*[@id="pds-certification-oath_officer"] | //*[@id="pds-section-certification"]//summary[text()="Oath administration"]')->length===0,'Oath administration is left to the attorney office and is not a faculty input.');
+$workScope = '//*[@id="pds-section-work"]';
+$check($xpath->query($workScope.'[@data-pds-read-only and not(@data-pds-persistent)]')->length===1,'Work history is marked view-only.');
+$check($xpath->query($workScope.'//input | '.$workScope.'//select | '.$workScope.'//textarea | '.$workScope.'//button')->length===0,
+    'Work history has no entry or management controls.');
+if ($savedWork) {
+    $check($xpath->query($workScope.'//table[@aria-label="Work experience"]//td[normalize-space(.)="PRESENT"]')->length===1,
+        'Saved work history uses the shared table and current employment format.');
+    $check(strpos($xpath->query($workScope)->item(0)->textContent,'Prepare learning materials.')!==false,
+        'Saved Work Experience Sheet details are available to review.');
+} else {
+    $check($xpath->query($workScope.'//p[text()="No work experience recorded."]')->length===1,'Empty work history shows an empty state.');
+}
 foreach (synk_hr_pds_sections() as $section) {
+    if ($section==='work') continue;
     $scope='//*[@id="pds-section-'.$section.'"]'; $keys=[]; $files=[];
     foreach ($xpath->query($scope.'//*[@data-pds-control and not(ancestor::*[@data-pds-record])]') as $control) {
         if ($control->getAttribute('type')==='file') $files[]=$control->getAttribute('data-pds-key');

@@ -39,6 +39,9 @@ if (!isset($profileTabs[$profileEditor['active_tab']])) $profileEditor['active_t
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css">
   <link rel="stylesheet" href="custom_css.css?v=<?php echo filemtime($profileEditor['theme_path']); ?>">
   <link rel="stylesheet" href="../professor/faculty-profile.css?v=<?php echo filemtime(dirname(__DIR__) . '/professor/faculty-profile.css'); ?>">
+  <?php if ($profileEditor['show_pds_preview']): ?>
+    <link rel="stylesheet" href="../assets/css/faculty-pds-work.css?v=<?= filemtime(dirname(__DIR__) . '/assets/css/faculty-pds-work.css') ?>">
+  <?php endif; ?>
   <?php foreach ($profileEditor['extra_styles'] as $stylesheet): ?>
     <link rel="stylesheet" href="<?php echo synk_faculty_profile_h($stylesheet); ?>">
   <?php endforeach; ?>

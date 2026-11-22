@@ -534,37 +534,7 @@ button { cursor: pointer; }
 }
 .hris-work-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; overflow-y: auto; padding: 1rem 1.2rem; }
 .hris-work-body > button { justify-self: start; }
-.hris-work-scroll { overflow-x: auto; max-width: 100%; }
-.hris-work-table {
-    width: 100%;
-    min-width: 63rem;
-    table-layout: fixed;
-    border-collapse: collapse;
-    color: #18221b;
-    font-size: .85rem;
-}
-.hris-work-date-columns { width: 6.4rem; }
-.hris-work-position { width: 19%; }
-.hris-work-employer { width: 22%; }
-.hris-work-salary { width: 10%; }
-.hris-work-grade { width: 9%; }
-.hris-work-appointment { width: 10%; }
-.hris-work-government { width: 8%; }
 .hris-work-remove { width: 2.8rem; }
-.hris-work-table th, .hris-work-table td { border: 1px solid #69756c; }
-.hris-work-table th {
-    position: relative;
-    padding: .4rem .3rem;
-    background: #edf0ed;
-    text-align: center;
-    line-height: 1.25;
-}
-.hris-work-table th small { display: block; margin-top: .3rem; font-size: .92em; font-weight: 400; }
-.hris-work-item-number { position: absolute; top: .4rem; left: .35rem; font-weight: 400; }
-.hris-work-table td { padding: 0; vertical-align: top; }
-.hris-work-preview { margin-top: .8rem; }
-.hris-work-preview .hris-work-table td { padding: .55rem .4rem; vertical-align: middle; overflow-wrap: anywhere; }
-.hris-work-preview-salary { text-align: right; }
 .hris-work-table :is(input, select) {
     display: block;
     width: 100%;

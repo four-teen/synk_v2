@@ -18,7 +18,7 @@ if (!in_array($method, ['GET', 'POST'], true)) {
     $reply(405, ['message' => 'Use the Work Experience form.']);
 }
 $saving = $method === 'POST';
-$columns = synk_hris_work_columns();
+$columns = synk_hr_pds_work_columns();
 $token = $_SESSION['hris_csrf'] ?? '';
 session_write_close();
 
