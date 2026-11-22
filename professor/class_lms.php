@@ -168,7 +168,12 @@ $professorPortalCompactHeader = true;
 <?php if ($view === 'materials' && $class && $materialsReady): ?><script src="learning_materials_lms.js?v=<?= (int)filemtime(__DIR__.'/learning_materials_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'announcements' && $class && $announcementsReady): ?><script src="announcements_lms.js?v=<?= (int)filemtime(__DIR__.'/announcements_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'overview' && $class): ?><script src="class_overview_lms.js?v=<?= (int)filemtime(__DIR__.'/class_overview_lms.js') ?>" defer></script><?php endif; ?>
-<?php if ($view === 'assessments' && $class && $assessmentsReady): ?><script src="content_lms.js?v=<?= (int)filemtime(__DIR__.'/content_lms.js') ?>" defer></script><script src="assessments_lms.js?v=<?= (int)filemtime(__DIR__.'/assessments_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'assessments' && $class && $assessmentsReady): ?>
+  <script src="content_lms.js?v=<?= (int)filemtime(__DIR__.'/content_lms.js') ?>" defer></script>
+  <script src="assessment_paste_lms.js?v=<?= (int)filemtime(__DIR__.'/assessment_paste_lms.js') ?>" defer></script>
+  <script src="assessment_bulk_lms.js?v=<?= (int)filemtime(__DIR__.'/assessment_bulk_lms.js') ?>" defer></script>
+  <script src="assessments_lms.js?v=<?= (int)filemtime(__DIR__.'/assessments_lms.js') ?>" defer></script>
+<?php endif; ?>
 <?php if ($view === 'grading' && $class && $gradingReady): ?><script src="grading_lms.js?v=<?= (int)filemtime(__DIR__.'/grading_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'gradebook' && $class && $gradebookReady): ?><script src="gradebook_lms.js?v=<?= (int)filemtime(__DIR__.'/gradebook_lms.js') ?>" defer></script><?php endif; ?>
 </body>

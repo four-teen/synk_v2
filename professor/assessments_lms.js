@@ -11,12 +11,16 @@
   const labels = { quiz:'Quiz', exam:'Exam', assignment:'Assignment', multiple_choice:'Multiple choice', true_false:'True / False', short_answer:'Short answer', essay:'Essay' };
   const periods = { midterm:'Midterm', final:'Final' };
   const icons = { quiz:'bx-list-check', exam:'bx-edit-alt', assignment:'bx-task' };
-  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, preview:null, duplicate:null, schedule:null, followup:null, sequence:0 };
+  const questionLimit = 100;
+  const requestBody = (action, payload) => JSON.stringify({ action, payload, context:config.context, csrf_token:config.csrf_token });
+  const state = { rows:[], period:'midterm', draft:null, questions:[], dirty:false, busy:false, writeMessage:'', preview:null, duplicate:null, schedule:null, followup:null, sequence:0 };
   const previewModal = new bootstrap.Modal($('assessmentPreviewModal'));
   const duplicateModal = new bootstrap.Modal($('assessmentDuplicateModal'));
   const submissionsModal = new bootstrap.Modal($('assessmentSubmissionsModal'));
   const scheduleModal = new bootstrap.Modal($('assessmentScheduleModal'));
   const followupModal = new bootstrap.Modal($('assessmentFollowupModal'));
+  const detailFields = { title:$('assessmentTitle'), instructions:$('assessmentInstructions') };
+  const bulkQuestions = window.synkSetupBulkQuestions({ room:() => questionLimit - state.questions.length, detailFields, addQuestions:addBulkQuestions });
   const compactCards = window.matchMedia('(max-width:767.98px)');
   let cardMenu = null, cardActionOrigin = null;
   const stamp = value => value ? String(value).replace(' ', 'T').slice(0,16) : '';
@@ -36,10 +40,12 @@
     $('assessmentFloatingActions').style.bottom = navigationHeight ? (navigationHeight + 12) + 'px' : '';
   }
   function updateFloatingActions() {
-    const visible = !!state.draft && !$('assessmentEditor').hidden && (!state.draft.assessment_id || state.dirty);
-    $('assessmentFloatingActions').hidden = !visible;
+    const visible = !!state.draft && !$('assessmentEditor').hidden && (!state.draft.assessment_id || state.dirty || !!state.writeMessage);
+    const actions = $('assessmentFloatingActions');
+    actions.hidden = !visible;
+    actions.classList.toggle('is-writing', !!state.writeMessage);
     $('assessmentEditor').classList.toggle('has-floating-actions', visible);
-    $('assessmentFloatingState').textContent = state.busy ? 'Saving assessment...' : state.dirty ? 'Unsaved changes' : 'Not saved yet';
+    $('assessmentFloatingState').textContent = state.writeMessage || (state.dirty ? 'Unsaved changes' : 'Not saved yet');
     if (visible) positionFloatingActions();
   }
   function dateLabel(value) {
@@ -81,12 +87,27 @@
     try {
       response = await fetch(config.endpoint, { method:'POST', credentials:'same-origin', cache:'no-store',
         headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
-        body:JSON.stringify({ action, payload, context:config.context, csrf_token:config.csrf_token }) });
+        body:requestBody(action, payload) });
     } catch { throw Error('The connection was interrupted. Your changes are still here; try again.'); }
     let data;
     try { data = await response.json(); } catch { throw Error('The workspace did not return a valid response. Your changes have been kept.'); }
     if (!response.ok || !data.ok) throw Error(data.message || 'This assessment request could not be completed.');
     return data;
+  }
+  async function writeAssessment(action, payload) {
+    const status = $('assessmentSaveState');
+    const previous = status.textContent;
+    const show = message => {
+      state.writeMessage = message;
+      status.textContent = message || previous;
+      $('assessmentWriteAnnouncement').textContent = message;
+      status.classList.toggle('is-writing', !!message);
+      updateFloatingActions();
+    };
+    show(action === 'publish' ? 'Publishing assessment…' : 'Saving assessment…');
+    const timer = setTimeout(() => show('Still waiting for the server…'), 1800);
+    try { return await api(action, payload); }
+    finally { clearTimeout(timer); show(''); }
   }
   async function task(callback) {
     if (state.busy) return;
@@ -224,37 +245,133 @@
   }
   function updateQuestionActions() {
     const assignment = $('assessmentType').value === 'assignment';
-    for (const id of ['assessmentAddQuestion','assessmentAddQuestionBottom']) {
-      $(id).hidden = assignment;
-      $(id).disabled = state.busy || state.questions.length >= 100;
-      $(id).parentElement.classList.toggle('has-question-action', !assignment);
-    }
+    root.querySelectorAll('[data-assessment-question-add], [data-assessment-bulk-open]').forEach(button => {
+      button.hidden = assignment;
+      button.disabled = state.busy || state.questions.length >= questionLimit;
+      button.parentElement.classList.toggle('has-question-action', !assignment);
+    });
     $('assessmentQuestionsEmpty').hidden = assignment || state.questions.length > 0;
+  }
+  function multipleChoiceFields(item, id) {
+    const choices = item.options.map((option, choice) => {
+      const letter = String.fromCharCode(65 + choice);
+      return `<div class="assessment-choice">
+        <label class="assessment-choice-picker">
+          <input type="radio" class="form-check-input" data-answer name="${id}answer" value="${choice}" aria-label="Mark choice ${letter} as correct" ${item.answer_key === choice ? 'checked' : ''} required>
+          <span class="visually-hidden">Correct answer</span>
+          <span data-choice-letter="${letter}" aria-hidden="true"></span>
+        </label>
+        <div class="assessment-choice-fields">
+          <label class="visually-hidden" for="${id}choice${choice}">Choice ${letter}</label>
+          <input type="text" class="form-control" id="${id}choice${choice}" data-choice maxlength="1000" placeholder="Enter choice ${letter}" value="${escape(option)}" required>
+          <span class="assessment-choice-correct" aria-hidden="true"><i class="bx bx-check" aria-hidden="true"></i>Correct answer</span>
+        </div>
+        ${item.options.length > 2 ? `<button type="button" data-operation="remove-choice" data-choice-index="${choice}" aria-label="Remove choice ${letter}"><i class="bx bx-x" aria-hidden="true"></i></button>` : ''}
+      </div>`;
+    }).join('');
+    const add = item.options.length < 6 ? '<button type="button" class="assessment-text-button" data-operation="add-choice"><i class="bx bx-plus" aria-hidden="true"></i>Add choice</button>' : '';
+    return `<fieldset class="assessment-choice-set"><legend>Answer choices</legend><p class="assessment-help mb-2">Select the circle beside the correct answer.</p>${choices}${add}</fieldset>`;
   }
   function renderQuestions(focus = null) {
     $('assessmentQuestions').innerHTML = state.questions.map((item,index) => {
       const id = 'aq' + item.uid;
+      const multipleChoice = item.question_type === 'multiple_choice';
       let key = '';
-      if (item.question_type === 'multiple_choice') {
-        key = `<p class="assessment-help mb-2">Select the circle beside the correct answer.</p>${item.options.map((option,choice) => `<div class="assessment-choice"><input type="radio" class="form-check-input" data-answer name="${id}answer" value="${choice}" aria-label="Choice ${choice+1} is correct" ${item.answer_key === choice ? 'checked' : ''} required><label class="visually-hidden" for="${id}choice${choice}">Choice ${choice+1}</label><input type="text" class="form-control" id="${id}choice${choice}" data-choice maxlength="1000" placeholder="Choice ${choice+1}" value="${escape(option)}" required>${item.options.length > 2 ? `<button type="button" data-operation="remove-choice" data-choice-index="${choice}" aria-label="Remove choice ${choice+1}"><i class="bx bx-x" aria-hidden="true"></i></button>` : ''}</div>`).join('')}${item.options.length < 6 ? '<button type="button" class="assessment-text-button" data-operation="add-choice"><i class="bx bx-plus" aria-hidden="true"></i>Add choice</button>' : ''}`;
+      if (multipleChoice) {
+        key = multipleChoiceFields(item, id);
       } else if (item.question_type === 'true_false') {
         key = `<label class="form-label" for="${id}answer">Correct answer</label><select class="form-select" data-field="true_false" id="${id}answer" required><option value="">Choose an answer</option><option value="true"${item.answer_key === true ? ' selected' : ''}>True</option><option value="false"${item.answer_key === false ? ' selected' : ''}>False</option></select>`;
       } else if (item.question_type === 'short_answer') {
         key = `<label class="form-label" for="${id}answer">Accepted answers</label><textarea class="form-control" data-field="accepted" id="${id}answer" rows="3" maxlength="5010" required placeholder="One accepted answer per line">${escape((item.answer_key || []).join('\n'))}</textarea><p class="assessment-help mb-0 mt-2">Add up to 10 alternative answers, each at most 500 characters.</p>`;
       } else key = '<p class="assessment-help mb-0">An essay will be reviewed and graded by the professor.</p>';
-      return `<article class="card assessment-question" data-question="${index}"><div class="assessment-question-top"><h5>Question ${index+1}</h5><div class="assessment-question-controls"><button type="button" data-operation="up" aria-label="Move question ${index+1} up" ${index === 0 ? 'disabled' : ''}><i class="bx bx-up-arrow-alt" aria-hidden="true"></i></button><button type="button" data-operation="down" aria-label="Move question ${index+1} down" ${index === state.questions.length-1 ? 'disabled' : ''}><i class="bx bx-down-arrow-alt" aria-hidden="true"></i></button><button type="button" data-operation="copy" aria-label="Duplicate question ${index+1}"><i class="bx bx-copy" aria-hidden="true"></i></button><button type="button" data-operation="remove" aria-label="Remove question ${index+1}"><i class="bx bx-trash" aria-hidden="true"></i></button></div></div>
-        <div class="assessment-question-settings"><div><label class="form-label" for="${id}type">Question type</label><select class="form-select" data-field="type" id="${id}type">${['multiple_choice','true_false','short_answer','essay'].map(kind => `<option value="${kind}"${kind === item.question_type ? ' selected' : ''}>${labels[kind]}</option>`).join('')}</select></div><div><label class="form-label" for="${id}points">Points</label><input type="number" class="form-control" data-field="points" id="${id}points" value="${escape(item.points)}" min="0.01" max="10000" step="0.01" required></div></div>
-        <label class="form-label" for="${id}prompt">Question</label>
-        <div class="assessment-code-toolbar" role="group" aria-label="Code formatting for question ${index+1}"><button type="button" data-format="inline" aria-controls="${id}prompt"><i class="bx bx-code" aria-hidden="true"></i>Inline code</button><button type="button" data-format="block" aria-controls="${id}prompt"><i class="bx bx-code-block" aria-hidden="true"></i>Code block</button></div>
-        <textarea class="form-control assessment-code-input" data-field="prompt" id="${id}prompt" rows="5" maxlength="10000" placeholder="Write your question or paste code" aria-describedby="${id}help" spellcheck="false" autocapitalize="off" autocorrect="off" required>${escape(item.prompt)}</textarea>
-        <p class="assessment-help mt-2 mb-0" id="${id}help">Select text, then choose Inline code or Code block. You can also paste code between triple backticks, with an optional language (e.g. &#96;&#96;&#96;python).</p>
-        <div class="assessment-prompt-preview" hidden><p class="assessment-eyebrow">QUESTION PREVIEW</p><div class="assessment-formatted-prompt"></div></div>
-        <div class="assessment-answer-key">${key}</div></article>`;
+      const questionNumber = index + 1;
+      return `<article class="card assessment-question" data-question="${index}">
+        <header class="assessment-question-top">
+          <h5>Question ${questionNumber}</h5>
+          <div class="assessment-question-controls" role="group" aria-label="Question ${questionNumber} actions">
+            <div class="assessment-question-move" role="group" aria-label="Reorder question ${questionNumber}">
+              <button type="button" data-operation="up" aria-label="Move question ${questionNumber} up" ${index === 0 ? 'disabled' : ''}><i class="bx bx-up-arrow-alt" aria-hidden="true"></i>Up</button>
+              <button type="button" data-operation="down" aria-label="Move question ${questionNumber} down" ${index === state.questions.length - 1 ? 'disabled' : ''}><i class="bx bx-down-arrow-alt" aria-hidden="true"></i>Down</button>
+            </div>
+            <button type="button" data-operation="copy" aria-label="Copy question ${questionNumber}" ${state.questions.length >= questionLimit ? 'disabled' : ''}><i class="bx bx-copy" aria-hidden="true"></i>Copy</button>
+            <button type="button" data-operation="remove" aria-label="Delete question ${questionNumber}"><i class="bx bx-trash" aria-hidden="true"></i>Delete</button>
+          </div>
+        </header>
+        <div class="assessment-question-body">
+          <div class="assessment-question-settings">
+            <div><label class="form-label" for="${id}type">Question type</label><select class="form-select" data-field="type" id="${id}type">${['multiple_choice','true_false','short_answer','essay'].map(kind => `<option value="${kind}"${kind === item.question_type ? ' selected' : ''}>${labels[kind]}</option>`).join('')}</select></div>
+            <div><label class="form-label" for="${id}points">Points</label><input type="number" class="form-control" data-field="points" id="${id}points" value="${escape(item.points)}" min="0.01" max="10000" step="0.01" placeholder="e.g. 1" required></div>
+          </div>
+          <label class="form-label" for="${id}prompt">Question</label>
+          <div class="assessment-code-toolbar" role="group" aria-label="Code formatting for question ${questionNumber}">
+            <button type="button" data-format="inline" aria-controls="${id}prompt"><i class="bx bx-code" aria-hidden="true"></i>Inline code</button>
+            <button type="button" data-format="block" aria-controls="${id}prompt"><i class="bx bx-code-block" aria-hidden="true"></i>Code block</button>
+          </div>
+          <div class="assessment-prompt-field"><textarea class="form-control assessment-code-input" data-field="prompt" id="${id}prompt" rows="5" maxlength="10000" placeholder="Write your question or paste code" aria-describedby="${id}help" spellcheck="false" autocapitalize="off" autocorrect="off" required>${escape(item.prompt)}</textarea></div>
+          <p class="assessment-help mt-2 mb-0" id="${id}help">${multipleChoice ? 'Paste one question with choices and its answer to fill this card. ' : ''}Use the buttons above to format code, or paste a code block between triple backticks.</p>
+          ${multipleChoice ? '<p class="assessment-paste-status" data-paste-status role="status"></p>' : ''}
+          <div class="assessment-prompt-preview" hidden><p class="assessment-eyebrow">QUESTION PREVIEW</p><div class="assessment-formatted-prompt"></div></div>
+          <div class="assessment-answer-key">${key}</div>
+        </div>
+      </article>`;
     }).join('');
     $('assessmentQuestions').querySelectorAll('[data-question]').forEach(updateQuestionPreview);
     totals();
     updateQuestionActions();
     if (focus !== null) $('assessmentQuestions').querySelector(`[data-question="${focus}"] [data-field="prompt"]`)?.focus();
+  }
+  function showPasteScan(input) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const field = input.parentElement;
+    field.querySelector('.assessment-paste-scan')?.remove();
+    const scan = document.createElement('span');
+    scan.className = 'assessment-paste-scan';
+    scan.setAttribute('aria-hidden', 'true');
+    const removeScan = () => scan.remove();
+    scan.addEventListener('animationend', removeScan, { once:true });
+    scan.addEventListener('animationcancel', removeScan, { once:true });
+    field.append(scan);
+  }
+  async function pasteQuestion(event) {
+    const input = event.target;
+    if (!input.matches('textarea[data-field="prompt"]') || state.busy || event.defaultPrevented) return;
+    const card = input.closest('[data-question]');
+    const item = state.questions[Number(card.dataset.question)];
+    if (item.question_type !== 'multiple_choice') return;
+
+    const text = event.clipboardData?.getData('text/plain');
+    if (!text) return;
+    const parsed = window.synkAssessmentPaste?.(text);
+    const status = card.querySelector('[data-paste-status]');
+    if (!parsed || parsed.message) {
+      status.dataset.tone = 'review';
+      status.textContent = parsed?.message || '';
+      return;
+    }
+
+    event.preventDefault();
+    const filled = input.value.trim() || card.querySelector('[data-answer]:checked')
+      || [...card.querySelectorAll('[data-choice]')].some(choice => choice.value.trim());
+    if (filled && !await feedback.confirm({
+      title:'Replace this question?',
+      text:'Use the pasted question, choices, and correct answer in this card.',
+      confirmText:'Replace question',
+      cancelText:'Keep current question'
+    })) return;
+    if (!card.isConnected || state.busy) return;
+
+    item.prompt = input.value = parsed.prompt;
+    item.options = parsed.options;
+    item.answer_key = parsed.answerKey;
+    input.classList.remove('is-invalid');
+    card.querySelector('.assessment-answer-key').innerHTML = multipleChoiceFields(item, 'aq' + item.uid);
+    updateQuestionPreview(card);
+    dirty();
+    input.focus({ preventScroll:true });
+    input.setSelectionRange(input.value.length, input.value.length);
+    status.dataset.tone = 'success';
+    status.textContent = `${parsed.options.length} choices filled. Choice ${String.fromCharCode(65 + parsed.answerKey)} selected as correct. Review before saving.`;
+    showPasteScan(input);
   }
   function toggleType() {
     const assignment = $('assessmentType').value === 'assignment';
@@ -282,6 +399,7 @@
     $('assessmentSettingsHelp').textContent = 'Dates use Philippine time (Asia/Manila). ' + (live ? 'Updated opening dates, deadlines, and time limits apply to new attempts. Existing timers do not change.' : 'Saving a draft does not publish it.');
   }
   function openEditor(record) {
+    bulkQuestions.clear();
     state.draft = record;
     state.questions = (record.questions || []).map(item => question(item.question_type, { ...item, uid:++state.sequence }));
     state.dirty = false;
@@ -360,7 +478,13 @@
   });
   $('assessmentForm').addEventListener('input', event => {
     dirty();
-    if (event.target.matches('[data-field="prompt"]')) updateQuestionPreview(event.target.closest('[data-question]'));
+    const card = event.target.closest('[data-question]');
+    if (event.target.matches('[data-field="prompt"]')) updateQuestionPreview(card);
+    if (event.target.matches('[data-answer]')) {
+      card.querySelector('[data-answer].is-invalid')?.classList.remove('is-invalid');
+    }
+    const pasteStatus = card?.querySelector('[data-paste-status]');
+    if (pasteStatus && event.inputType !== 'insertFromPaste') pasteStatus.textContent = '';
     if (event.target.matches('[data-field="points"]')) { syncQuestions(); totals(); }
   });
   $('assessmentForm').addEventListener('change', dirty);
@@ -378,12 +502,40 @@
     state.draft.assessment_type = selected; toggleType(); dirty();
   });
   function addQuestion() {
-    if (state.busy || $('assessmentType').value === 'assignment' || state.questions.length >= 100) return;
+    if (state.busy || $('assessmentType').value === 'assignment' || state.questions.length >= questionLimit) return;
     syncQuestions();
     state.questions.unshift(question()); renderQuestions(0); dirty();
   }
+  function addBulkQuestions(entries, details) {
+    if (state.busy || !state.draft || $('assessmentEditor').hidden || $('assessmentType').value === 'assignment') {
+      return { message:'Open a quiz or exam to add these questions.' };
+    }
+    const firstIndex = state.questions.length;
+    if (!entries.length || firstIndex + entries.length > questionLimit) {
+      return { message:'Select questions that fit the 100-question limit.' };
+    }
+    const draft = { ...readDraft(), ...details };
+    const questions = [...draft.questions, ...entries];
+    const total = questions.reduce((sum, item) => sum + Math.round((Number(item.points) || 0) * 100), 0);
+    if (total > 1000000) return { message:'The assessment can have up to 10,000 points. Lower the points or uncheck some questions.' };
+    const bytes = new TextEncoder().encode(requestBody('publish', { ...draft, questions })).length;
+    if (bytes > 1048576) return { message:'This selection would make the assessment too large to save. Uncheck some questions or shorten their text.' };
+
+    for (const [key, value] of Object.entries(details)) {
+      detailFields[key].value = value;
+      detailFields[key].classList.remove('is-invalid');
+    }
+    state.questions.push(...entries.map(item => question(item.question_type, item)));
+    renderQuestions();
+    dirty();
+    return { focus:$('assessmentQuestions').querySelector(`[data-question="${firstIndex}"] [data-field="prompt"]`) };
+  }
   $('assessmentAddQuestion').addEventListener('click', addQuestion);
   $('assessmentAddQuestionBottom').addEventListener('click', addQuestion);
+  root.querySelectorAll('[data-assessment-bulk-open]').forEach(button => button.addEventListener('click', () => {
+    if (!state.busy && state.draft && $('assessmentType').value !== 'assignment' && state.questions.length < questionLimit) bulkQuestions.open(button);
+  }));
+  $('assessmentQuestions').addEventListener('paste', pasteQuestion);
   $('assessmentQuestions').addEventListener('change', event => {
     if (!event.target.matches('[data-field="type"]')) return;
     const index = Number(event.target.closest('[data-question]').dataset.question);
@@ -412,8 +564,8 @@
     const button = event.target.closest('[data-operation]'); if (!button || state.busy) return;
     const index = Number(button.closest('[data-question]').dataset.question), operation = button.dataset.operation;
     syncQuestions(); const item = state.questions[index];
-    if (operation === 'remove') { if (item.prompt && !await feedback.confirm({title:'Remove question?',text:'This question will be removed when you save. Started attempts keep their original questions and answers.',confirmText:'Remove question',danger:true})) return; state.questions.splice(index,1); }
-    if (operation === 'copy' && state.questions.length < 100) state.questions.splice(index+1,0,question(item.question_type, { ...JSON.parse(JSON.stringify(item)), uid:++state.sequence }));
+    if (operation === 'remove') { if (item.prompt && !await feedback.confirm({title:'Delete question?',text:'This question will be removed when you save. Started attempts keep their original questions and answers.',confirmText:'Delete question',danger:true})) return; state.questions.splice(index,1); }
+    if (operation === 'copy' && state.questions.length < questionLimit) state.questions.splice(index+1,0,question(item.question_type, { ...JSON.parse(JSON.stringify(item)), uid:++state.sequence }));
     if (operation === 'up' && index > 0) [state.questions[index-1],state.questions[index]] = [item,state.questions[index-1]];
     if (operation === 'down' && index < state.questions.length-1) [state.questions[index+1],state.questions[index]] = [item,state.questions[index+1]];
     if (operation === 'add-choice' && item.options.length < 6) item.options.push('');
@@ -435,7 +587,7 @@
     if (publishing && !await feedback.confirm({title:reopening ? 'Reopen assessment?' : 'Publish assessment?',text:reopening ? 'Your changes will be saved and new students can start according to the saved dates. Started attempts keep their original version. Submitted and time-ended attempts stay locked.' : 'Your current work will be saved and published to enrolled students. Opening dates, deadlines, and time limits apply. You can edit it later; started attempts keep their original version.',confirmText:reopening ? 'Reopen' : 'Publish',cancelText:'Keep editing'})) return;
     if (!publishing && live && !await feedback.confirm({title:'Save assessment changes?',text:'Changes apply to new attempts. Students who have started keep their original questions, answers, results, and deadline.',confirmText:'Save changes',cancelText:'Keep editing'})) return;
     await task(async () => {
-      notice(); const data = await api(publishing ? 'publish' : 'save', payload);
+      notice(); const data = await writeAssessment(publishing ? 'publish' : 'save', payload);
       state.draft = data.assessment; state.dirty = false; saved = true;
       updateFloatingActions();
       editorLabels();
