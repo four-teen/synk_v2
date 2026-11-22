@@ -1,9 +1,9 @@
 <?php
 if (!isset($view, $unrankedCount) || $view !== 'dashboard') { http_response_code(404); return; }
-$rankSeries = ['faculty' => 'All faculty', 'master' => 'Master’s degree', 'doctoral' => 'Doctorate'];
+$rankSeries = ['faculty' => 'Active faculty', 'master' => 'Master’s degree', 'doctoral' => 'Doctorate'];
 $chartTabs = [
-    'rank' => ['Academic Rank', 'Faculty by academic rank', 'bx-line-chart'],
-    'employment' => ['Employment Classification', 'Faculty by employment classification', 'bx-bar-chart-alt-2'],
+    'rank' => ['Academic Rank', 'Active faculty by academic rank', 'bx-line-chart'],
+    'employment' => ['Employment Classification', 'Active employees by employment classification', 'bx-bar-chart-alt-2'],
 ];
 $requestedChart = $_GET['chart'] ?? '';
 $activeChart = is_string($requestedChart) && isset($chartTabs[$requestedChart]) ? $requestedChart : 'rank';
@@ -12,7 +12,7 @@ $activeChart = is_string($requestedChart) && isset($chartTabs[$requestedChart]) 
     <div class="hris-panel-heading hris-charts-heading">
         <div>
             <h2 id="faculty-chart-title"><?= synk_hris_h($chartTabs[$activeChart][1]) ?></h2>
-            <p>Counts from saved Professor Profiles</p>
+            <p>Employees verified as Active by HR</p>
         </div>
         <nav class="hris-chart-tabs" aria-label="Faculty charts" data-chart-tabs>
             <?php foreach ($chartTabs as $key => [$label, $title, $icon]): ?>
@@ -35,7 +35,7 @@ $activeChart = is_string($requestedChart) && isset($chartTabs[$requestedChart]) 
             </ul>
             <p id="rank-chart-scroll" class="hris-rank-scroll-hint" hidden>Scroll horizontally to see every rank.</p>
             <div class="hris-rank-chart-scroll" role="region" aria-label="Academic rank chart" data-rank-chart-scroll hidden>
-                <div class="hris-rank-chart" role="img" aria-label="Faculty totals and completed degrees by academic rank"
+                <div class="hris-rank-chart" role="img" aria-label="Active faculty and completed degrees by academic rank"
                     data-rank-counts="<?= synk_hris_h(json_encode($rankCounts)) ?>"
                     data-rank-series="<?= synk_hris_h(json_encode($rankSeries)) ?>"></div>
             </div>
@@ -68,12 +68,12 @@ $activeChart = is_string($requestedChart) && isset($chartTabs[$requestedChart]) 
         <?php if ($employmentCounts === null): ?>
             <p class="hris-empty">Employment classification counts are unavailable.</p>
         <?php else: ?>
-            <div class="hris-employment-chart" role="img" aria-label="Faculty counts by employment classification"
+            <div class="hris-employment-chart" role="img" aria-label="Active employee counts by employment classification"
                 data-employment-counts="<?= synk_hris_h(json_encode($employmentCounts)) ?>" hidden></div>
             <details class="hris-rank-values">
                 <summary>View classification counts</summary>
                 <table>
-                    <thead><tr><th scope="col">Employment classification</th><th scope="col">Faculty count</th></tr></thead>
+                    <thead><tr><th scope="col">Employment classification</th><th scope="col">Employee count</th></tr></thead>
                     <tbody>
                         <?php foreach ($employmentCounts as $classification => $count): ?>
                             <tr><th scope="row"><?= synk_hris_h($classification) ?></th><td><?= number_format($count) ?></td></tr>

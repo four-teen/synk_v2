@@ -29,8 +29,8 @@ function synk_hr_pds_remaining_lists(string $section): array
         'name'=>['max'=>500],'rating'=>['max'=>100],'examination_date'=>['date'=>true],
         'examination_place'=>['max'=>500],'license_number'=>['max'=>100],'valid_until'=>['date'=>true,'future'=>true]]];
     if ($section==='work') $lists=['work'=>[
-        'position'=>['max'=>500],'employer'=>['max'=>500],'date_from'=>['date'=>true],
-        'current'=>['boolean'=>true],'date_to'=>['date'=>true],
+        'position'=>['max'=>500],'employer'=>['max'=>500],'date_from'=>['work_date'=>true],
+        'current'=>['boolean'=>true],'date_to'=>['work_date'=>true],
         'salary'=>['amount'=>true,'max_value'=>9999999999.99],'pay_grade'=>['max'=>100],
         'appointment_status'=>['max'=>150],'government_service'=>['options'=>['Yes','No']],
         'office_unit'=>['max'=>300],'supervisor'=>['max'=>250],
@@ -55,9 +55,22 @@ function synk_hr_pds_normalize_record(string $section, array $values, array $err
 {
     if ($section==='work' && ($values['current'] ?? '')==='1') { $values['date_to']=''; unset($errors['date_to']); }
     if ($section==='learning' && ($values['type'] ?? '')!=='Other') { $values['type_other']=''; unset($errors['type_other']); }
-    if (isset($values['date_from'],$values['date_to']) && $values['date_from']!=='' && $values['date_to']!==''
-        && !isset($errors['date_from']) && !isset($errors['date_to']) && $values['date_to']<$values['date_from']) $errors['date_to']='The end date cannot be before the start date.';
+    $end = $values['date_to'] ?? '';
+    if ($section==='work' && strlen($end)===4) $end .= '-12-31';
+    if (isset($values['date_from'],$values['date_to']) && $values['date_from']!=='' && $end!==''
+        && !isset($errors['date_from']) && !isset($errors['date_to']) && $end<$values['date_from']) $errors['date_to']='The end date cannot be before the start date.';
     return [$values,$errors];
+}
+
+function synk_hr_pds_sort_work(array &$rows): void
+{
+    if (!$rows) return;
+    $current = array_column($rows, 'current');
+    $starts = array_column($rows, 'date_from');
+    $ends = array_column($rows, 'date_to');
+    $originalOrder = array_keys($rows);
+    array_multisort($current, SORT_DESC, SORT_STRING, $starts, SORT_DESC, SORT_STRING,
+        $ends, SORT_DESC, SORT_STRING, $originalOrder, SORT_ASC, SORT_NUMERIC, $rows);
 }
 
 function synk_hr_pds_normalize_section(string $section, array $values, array $errors): array

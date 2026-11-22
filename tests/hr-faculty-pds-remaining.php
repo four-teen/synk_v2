@@ -28,6 +28,18 @@ foreach (['work'=>'work','learning'=>'trainings','voluntary'=>'voluntary'] as $s
 }
 $bad=$examples['work']; $bad['work'][0]['date_to']='not-a-date'; [$data,$errors]=synk_hr_pds_validate('work',$bad,$today);
 $check(!$errors && $data['work'][0]['date_to']==='','Current employment clears an inapplicable end date.');
+$pastWork = array_replace($examples['work']['work'][0], ['current'=>'0','date_from'=>'03/02/2022','date_to'=>'2024']);
+$currentWork = array_replace($pastWork, ['date_from'=>'2021','date_to'=>'present']);
+$olderWork = array_replace($pastWork, ['date_from'=>'2017','date_to'=>'2020']);
+[$data,$errors]=synk_hr_pds_validate('work',['work'=>[$olderWork,$pastWork,$currentWork]],$today);
+$check(!$errors && array_column($data['work'],'date_from')===['2021','2022-02-03','2017'],'Work sorts current first, then by descending start date, preserving year precision.');
+$check($data['work'][0]['current']==='1' && $data['work'][0]['date_to']==='','Present uses the shared current employment flag.');
+$badWork = array_replace($pastWork, ['date_from'=>'31/02/2022','date_to'=>'2027']);
+[, $errors]=synk_hr_pds_validate('work',['work'=>[$badWork]],$today);
+$check(isset($errors['work.0.date_from'],$errors['work.0.date_to']),'Work rejects invalid calendar days and future years.');
+$badWork = array_replace($pastWork, ['date_from'=>'31/12/2022','date_to'=>'2021']);
+[, $errors]=synk_hr_pds_validate('work',['work'=>[$badWork]],$today);
+$check(isset($errors['work.0.date_to']),'Work rejects an end year wholly before the start date.');
 $bad=$examples['learning']; $bad['trainings'][0]['type']='Technical'; [$data,$errors]=synk_hr_pds_validate('learning',$bad,$today);
 $check(!$errors && $data['trainings'][0]['type_other']==='','Changing L&D type clears its Other follow-up.');
 $bad=$examples['voluntary']; $bad['voluntary_applies']='None'; [$data,$errors]=synk_hr_pds_validate('voluntary',$bad,$today);

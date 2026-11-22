@@ -1,49 +1,48 @@
 <?php
 if (!isset($record, $showProfile, $sectionKey)) { http_response_code(404); return; }
-require_once __DIR__ . '/pds-values.php';
-?>
-<section class="hris-preview <?= $profileDocument ? 'hris-document-preview' : 'hris-card' ?>" aria-label="Faculty profile preview">
-    <div class="hris-preview-toolbar">
-        <nav class="hris-preview-tabs" aria-label="Preview source">
-            <a href="<?= synk_hris_h($previewUrl . '&tab=profile') ?>"<?= $showProfile ? ' aria-current="page"' : '' ?>><i class="bx bx-id-card" aria-hidden="true"></i> Professor Profile</a>
-            <a href="<?= synk_hris_h($previewUrl . '&tab=pds') ?>"<?= !$showProfile ? ' aria-current="page"' : '' ?>><i class="bx bx-file" aria-hidden="true"></i> Personal Data Sheet</a>
-        </nav>
-        <?php if ($profileDocument): ?>
-            <a class="hris-action" href="<?= synk_hris_h($manageUrl) ?>"><i class="bx bx-edit" aria-hidden="true"></i> Manage review</a>
-        <?php endif; ?>
-    </div>
 
-    <?php if ($profileDocument): ?>
-        <?php require __DIR__ . '/profile-document.php'; ?>
-    <?php elseif ($showProfile): ?>
-        <div class="hris-panel hris-preview-data">
-            <?php if ($loadError !== ''): ?><p class="hris-empty" role="status"><?= synk_hris_h($loadError) ?></p>
-            <?php else: ?><p class="hris-empty">There is no saved Professor Profile for this record.</p><?php endif; ?>
-        </div>
-    <?php else: ?>
-        <div class="hris-preview-shell">
-            <nav class="hris-preview-sections" aria-label="Personal Data Sheet sections">
-                <?php foreach ($sections as $key => $section): ?>
-                    <a href="<?= synk_hris_h($previewUrl . '&tab=pds&section=' . $key . '#pds-preview') ?>"<?= $key === $sectionKey ? ' aria-current="page"' : '' ?>>
-                        <i class="bx <?= synk_hris_h($section['icon']) ?>" aria-hidden="true"></i>
-                        <?= synk_hris_h($section['title']) ?>
-                        <?php if (isset($record['saved_sections'][$key])): ?><i class="bx bx-check-circle" aria-label="Saved"></i><?php endif; ?>
-                    </a>
-                <?php endforeach; ?>
-            </nav>
-            <section class="hris-panel hris-preview-data" id="pds-preview" aria-labelledby="pds-preview-title">
-                <div class="hris-panel-heading">
-                    <div><h2 id="pds-preview-title"><?= synk_hris_h($sections[$sectionKey]['title']) ?></h2>
-                        <?php if ($sectionData): ?><p>Saved <?= synk_hris_h(date('M j, Y, g:i A', strtotime($sectionData['updated_at']))) ?></p><?php endif; ?>
-                    </div>
-                    <span class="hris-status hris-tone-<?= $sectionData ? 'green' : 'neutral' ?>"><?= $sectionData ? 'Saved' : ($loadError !== '' ? 'Unavailable' : 'Not saved') ?></span>
-                </div>
-                <?php if ($loadError !== ''): ?><p class="hris-empty" role="status"><?= synk_hris_h($loadError) ?></p>
-                <?php elseif (!$sectionData): ?><p class="hris-empty">The faculty member hasn’t saved this PDS section yet.</p>
+$surname = trim($nameParts['surname'] ?? '');
+$firstName = trim($nameParts['first_name'] ?? '');
+$firstName = function_exists('mb_convert_case')
+    ? mb_convert_case($firstName, MB_CASE_TITLE, 'UTF-8')
+    : ucwords(strtolower($firstName), " \t-'");
+$middleName = trim($nameParts['middle_name'] ?? '');
+$extension = trim($nameParts['name_extension'] ?? '');
+$nonTeaching = ($personnel['personnel_category'] ?? '') === 'non_teaching';
+$jobTitle = $nonTeaching ? ($personnel['position_title'] ?? '') : (synk_hris_rank_label($record['rank']) ?? $record['rank']);
+$employment = $record['appointment'] ?: $record['work_status'];
+?>
+<main id="main-content" class="hris-main hris-detail" tabindex="-1" data-faculty-preview>
+<nav aria-label="Faculty navigation">
+    <a class="hris-action hris-action-pill hris-tone-blue" href="./?view=faculty"><i class="bx bx-left-arrow-alt" aria-hidden="true"></i> Employee Profiles</a>
+</nav>
+
+<header class="hris-card hris-detail-hero">
+    <div class="hris-faculty-identity">
+        <?php require __DIR__ . '/faculty-avatar.php'; ?>
+        <div class="hris-faculty-info">
+            <?php if ($jobTitle !== ''): ?><small class="hris-faculty-rank"><?= synk_hris_h($jobTitle) ?></small><?php endif; ?>
+            <h1 class="hris-preview-name" id="faculty-preview-name">
+                <?php if ($surname !== '' || $firstName !== ''): ?>
+                    <?php if ($surname !== ''): ?><span class="hris-preview-surname"><?= synk_hris_h($surname) ?></span><?= $firstName !== '' ? ', ' : '' ?><?php endif; ?>
+                    <?= synk_hris_h($firstName) ?>
+                    <?php if ($middleName !== ''): ?><em><?= synk_hris_h($middleName) ?></em><?php endif; ?>
+                    <?= synk_hris_h($extension) ?>
                 <?php else: ?>
-                    <?php synk_hris_render_pds_items($sections[$sectionKey]['groups'], $sectionData['values']); ?>
+                    <?= synk_hris_h($record['name']) ?>
                 <?php endif; ?>
-            </section>
+            </h1>
+            <small class="hris-faculty-id-line">
+                <?php if ($record['employee_id'] !== ''): ?>
+                    <b class="hris-employee-id"><?= synk_hris_h($record['employee_id']) ?></b>
+                <?php else: ?>Employee ID not recorded<?php endif; ?>
+                <span class="hris-faculty-id-divider" aria-hidden="true">|</span>
+                <?= synk_hris_h($employment ?: 'Employment not recorded') ?>
+            </small>
         </div>
-    <?php endif; ?>
-</section>
+    </div>
+</header>
+
+<p class="hris-preview-announcement" data-preview-announcement role="status"></p>
+<p class="hris-detail-warning" data-preview-error role="alert" hidden>Could not open this section. Select it again to retry.</p>
+<?php require __DIR__ . '/faculty-preview-content.php'; ?>

@@ -109,6 +109,16 @@ function synk_hr_pds_validate_fields(array $fields, $input, DateTimeImmutable $t
         if ($value==='' || isset($errors[$key])) continue;
         if (isset($rule['options']) && !in_array($value,$rule['options'],true)) $errors[$key] = 'Choose an option from the list.';
         if (!empty($rule['email']) && !filter_var($value,FILTER_VALIDATE_EMAIL)) $errors[$key] = 'Enter a valid contact email address.';
+        if (!empty($rule['work_date'])) {
+            if (preg_match('/^[0-9]{4}$/D', $value) && $value >= '1900' && $value <= $today->format('Y')) continue;
+            $format = strpos($value, '/') !== false ? 'd/m/Y' : 'Y-m-d';
+            $date = DateTimeImmutable::createFromFormat('!' . $format, $value);
+            if ($date && $date->format($format) === $value && $date->format('Y-m-d') >= '1900-01-01' && $date <= $today) {
+                $data[$key] = $date->format('Y-m-d');
+            } else {
+                $errors[$key] = 'Enter a valid date as dd/mm/yyyy or a four-digit year, from 1900 through today.';
+            }
+        }
         if (!empty($rule['date'])) {
             $date = DateTimeImmutable::createFromFormat('!Y-m-d',$value);
             if (!$date || $date->format('Y-m-d')!==$value || $value<'1900-01-01' || $value>'9999-12-31' || (empty($rule['future']) && $date>$today)) $errors[$key] = !empty($rule['future'])?'Enter a real date from 1900 onward.':'Enter a real date between 1900 and today.';
@@ -138,11 +148,24 @@ function synk_hr_pds_ensure(mysqli $conn): void
         $statement = $conn->prepare('SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');
         $statement->bind_param('s',$table); $statement->execute(); $ready = $statement->get_result()->num_rows>0 && $ready; $statement->close();
     }
-    if ($ready) return;
-    foreach (['hr_faculty_pds.sql','hr_faculty_pds_remaining.sql'] as $file) {
+    foreach ($ready ? [] : ['hr_faculty_pds.sql','hr_faculty_pds_remaining.sql'] as $file) {
         $sql=file_get_contents(__DIR__.'/sql/'.$file);
         if ($sql===false) throw new RuntimeException('HR PDS storage could not be prepared.');
         foreach (explode(';',$sql) as $query) if (trim($query)!=='') $conn->query($query);
+    }
+    synk_hr_pds_ensure_work_dates($conn);
+}
+
+function synk_hr_pds_ensure_work_dates(mysqli $conn): void
+{
+    $result = $conn->query("SELECT 1 FROM information_schema.columns
+        WHERE table_schema=DATABASE() AND table_name='tbl_hr_faculty_pds_work_records'
+        AND column_name IN ('date_from','date_to') AND data_type='date'");
+    $needsUpgrade = $result->num_rows > 0;
+    $result->close();
+    if ($needsUpgrade) {
+        $conn->query('ALTER TABLE tbl_hr_faculty_pds_work_records
+            MODIFY date_from VARCHAR(10) NULL, MODIFY date_to VARCHAR(10) NULL');
     }
 }
 
@@ -189,7 +212,6 @@ function synk_hr_pds_load(mysqli $conn, int $userId, int $facultyId): array
 // Caller starts the transaction. Lock account and faculty link before resolving the HR owner.
 function synk_hr_pds_save(mysqli $conn, int $userId, string $postedOwner, string $section, array $values, int $revision, array $files=[], array $removed=[]): array
 {
-    $fields = synk_hr_pds_fields($section);
     if ($userId<=0 || $revision<0) throw new InvalidArgumentException('Invalid PDS version.');
     $statement = $conn->prepare("SELECT user_id FROM tbl_useraccount WHERE user_id=? AND status='active' FOR UPDATE");
     $statement->bind_param('i',$userId); $statement->execute(); $active=$statement->get_result()->num_rows===1; $statement->close();
@@ -200,6 +222,13 @@ function synk_hr_pds_save(mysqli $conn, int $userId, string $postedOwner, string
     if ($link) $facultyId=(int)$link['faculty_id'];
     if (!hash_equals(synk_hr_pds_owner($userId,$facultyId),$postedOwner)) throw new DomainException('Your faculty connection changed. Reload this page before saving.');
     $profile = synk_hr_pds_profile($conn,$userId,$facultyId,true);
+    $profileId = synk_hr_pds_prepare_profile($conn,$profile,$userId,$facultyId);
+    return synk_hr_pds_save_section($conn,$profileId,$userId,$section,$values,$revision,$files,$removed);
+}
+
+// The caller resolves and locks the owner before preparing its profile.
+function synk_hr_pds_prepare_profile(mysqli $conn, ?array $profile, int $userId, int $facultyId): int
+{
     if (!$profile) {
         $faculty = $facultyId ?: null; $account = $facultyId>0 ? null : $userId;
         $statement = $conn->prepare('INSERT INTO tbl_hr_faculty_profiles (faculty_id,account_user_id) VALUES (?,?)');
@@ -211,6 +240,12 @@ function synk_hr_pds_save(mysqli $conn, int $userId, string $postedOwner, string
             $statement->bind_param('ii',$facultyId,$profileId); $statement->execute(); $statement->close();
         }
     }
+    return $profileId;
+}
+
+function synk_hr_pds_save_section(mysqli $conn, int $profileId, int $userId, string $section, array $values, int $revision, array $files=[], array $removed=[]): array
+{
+    $fields = synk_hr_pds_fields($section);
     $existing = synk_hr_pds_section($conn,$profileId,$section);
     if (($existing['revision'] ?? 0)!==$revision) throw new DomainException('This section was saved in another window. Your entries are still here. Reload to see the latest saved version.');
     // Validate again at the persistence boundary, including non-HTTP callers.

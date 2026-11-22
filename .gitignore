@@ -77,6 +77,9 @@ synk-research-api.php
 !/backend/sql/*.sql
 !/hris/schema.sql
 !/hris/faculty-review.sql
+!/hris/faculty-status.sql
+!/hris/personnel.sql
+!/hris/employee-accounts.sql
 !/sql_create_tbl_faculty_workload_simulation.sql
 !/sql_create_tbl_offering_enrollee_counts.sql
 

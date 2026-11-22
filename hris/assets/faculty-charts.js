@@ -31,7 +31,8 @@ if (facultyCharts) {
         const values = JSON.parse(isRank ? target.dataset.rankCounts : target.dataset.employmentCounts);
         const labels = Object.keys(values);
         const styles = getComputedStyle(facultyCharts);
-        let series = [{ name: 'Faculty count', data: Object.values(values) }];
+        const countLabel = isRank ? 'Faculty count' : 'Employee count';
+        let series = [{ name: countLabel, data: Object.values(values) }];
         let colors = [styles.getPropertyValue('--hris-rank-faculty').trim()];
         if (isRank) {
             const legend = Object.entries(JSON.parse(target.dataset.rankSeries));
@@ -42,7 +43,7 @@ if (facultyCharts) {
         const peak = Math.max(...series[0].data);
         const step = Math.max(1, Math.ceil(peak / 5));
         const ticks = Math.max(1, Math.ceil(peak / step));
-        const countAxis = { min: 0, max: ticks * step, tickAmount: ticks, decimalsInFloat: 0, title: { text: 'Faculty count' } };
+        const countAxis = { min: 0, max: ticks * step, tickAmount: ticks, decimalsInFloat: 0, title: { text: countLabel } };
         const categoryAxis = {
             categories: isRank ? labels.map((rank) => rank.split(' ')) : labels,
             labels: { rotate: 0, hideOverlappingLabels: false, trim: false, style: { fontSize: '11px' } },
