@@ -32,7 +32,8 @@ function synk_professor_student_roster(mysqli $conn,int $facultyId,array $term):
                 $nameParts=array_map('trim',[(string)$row['last_name'],(string)$row['first_name'],(string)$row['middle_name'],(string)$row['suffix_name']]);
                 $name=implode(', ',array_filter([$nameParts[0],implode(' ',array_filter(array_slice($nameParts,1),'strlen'))],'strlen'));
                 $students[]=['student_id'=>$id,'student_number'=>$row['student_number'],'name'=>$name ?: 'Student '.$id,
-                    'email'=>(string)$row['email_address'],'classes'=>$assignments[$id]];
+                    'email'=>(string)$row['email_address'],'classes'=>$assignments[$id],
+                    'photo_url'=>synk_student_profile_image_url($id) ?: '../student/profile-placeholder.svg'];
             }
         } finally { $stmt->close(); }
     }

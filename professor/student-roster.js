@@ -3,6 +3,36 @@
   const root = document.getElementById('professorStudentRoster');
   const config = JSON.parse(root.querySelector('#student-roster-config').textContent);
   const rows = Array.from(root.querySelectorAll('[data-roster-row]'));
+  const placeholder = '../student/profile-placeholder.svg';
+  root.querySelectorAll('.student-roster-avatar img').forEach(image => {
+    const usePlaceholder = () => { image.src = placeholder; };
+    if (image.complete && image.naturalWidth === 0) usePlaceholder();
+    else image.addEventListener('error', usePlaceholder, {once: true});
+  });
+  const photoDialog = root.querySelector('#student-roster-photo-modal');
+  const photoModal = new bootstrap.Modal(photoDialog);
+  const largePhoto = photoDialog.querySelector('#student-roster-photo-image');
+  let photoTrigger = null;
+  largePhoto.addEventListener('error', () => {
+    if (largePhoto.getAttribute('src') !== placeholder) largePhoto.src = placeholder;
+  });
+  root.addEventListener('click', event => {
+    const button = event.target.closest('[data-roster-photo]');
+    if (!button) return;
+    const row = button.closest('[data-roster-row]');
+    for (const field of ['name', 'number', 'email', 'classes']) {
+      photoDialog.querySelector('#student-roster-photo-' + field).textContent =
+        row.querySelector('[data-roster-' + field + ']').textContent;
+    }
+    largePhoto.src = button.querySelector('img').src;
+    photoTrigger = button;
+    photoModal.show(button);
+  });
+  photoDialog.addEventListener('hidden.bs.modal', () => {
+    largePhoto.removeAttribute('src');
+    photoTrigger?.focus({preventScroll: true});
+    photoTrigger = null;
+  });
   const search = root.querySelector('#student-roster-query');
   const count = root.querySelector('#student-roster-count');
   const pagination = root.querySelector('#student-roster-pages');

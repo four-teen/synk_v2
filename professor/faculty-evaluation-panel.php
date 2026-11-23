@@ -33,7 +33,14 @@ if (!isset($evaluationDetail,$evaluationView)) { http_response_code(404); exit; 
     </section><?php endforeach; ?>
     <h5>Student comments</h5>
     <?php if ($group['submitted_count']>$group['response_count']): ?><p class="evaluation-panel-note">Submitted comments are retained independently of score eligibility.</p><?php endif; ?>
-    <?php foreach ($group['comments'] as $comment): ?><p class="evaluation-comment"><?= nl2br(synk_professor_evaluation_h($comment)) ?></p><?php endforeach; ?>
-    <?php if (!$group['comments']): ?><p class="evaluation-panel-note">No comments were submitted.</p><?php endif; ?>
+    <?php if ($group['comments']): ?>
+    <ol class="evaluation-comment-list">
+      <?php foreach ($group['comments'] as $comment): ?>
+      <li class="evaluation-comment"><?= synk_professor_evaluation_h($comment) ?></li>
+      <?php endforeach; ?>
+    </ol>
+    <?php else: ?>
+    <p class="evaluation-panel-note">No comments were submitted.</p>
+    <?php endif; ?>
   </section><?php endforeach; ?>
 <?php endif; ?>
