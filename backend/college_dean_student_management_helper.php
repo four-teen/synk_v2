@@ -42,26 +42,6 @@ function synk_dean_student_manage_names(array $input): array
     return $record;
 }
 
-function synk_dean_student_manage_portal_email(mysqli $conn, array $before, string $email): void
-{
-    if ($email==='' || $email===(string)$before['email_address'] || !synk_table_exists($conn,'tbl_student_portal_profile')) return;
-    $profiles=synk_dean_students_query($conn,'SELECT * FROM tbl_student_portal_profile WHERE email_address IN (?,?) OR student_number=? ORDER BY profile_id FOR UPDATE','sss',[$before['email_address'],$email,$before['student_number']]);
-    $own=[];
-    foreach ($profiles as $profile) {
-        if ($profile['student_number']===$before['student_number'] || ($before['email_address']!=='' && $profile['email_address']===$before['email_address'])) {
-            if ($profile['student_number']!=='' && $profile['student_number']!==$before['student_number']) throw new DomainException('The existing login profile has a different student ID. Verify the account with an administrator before changing its email.');
-            $own[]=$profile;
-        } elseif (strtolower($profile['email_address'])===$email) throw new DomainException('That email is already associated with another student login profile.');
-    }
-    if (count($own)>1) throw new DomainException('Multiple login profiles use this student ID. Ask an administrator to verify the account before changing its email.');
-    if ($own) {
-        $stmt=$conn->prepare('UPDATE tbl_student_portal_profile SET email_address=? WHERE profile_id=?');
-        $id=(int)$own[0]['profile_id']; $stmt->bind_param('si',$email,$id);
-        if (!$stmt->execute()) throw new RuntimeException('Unable to update the student login profile.');
-        $stmt->close();
-    }
-}
-
 function synk_dean_student_manage_save(mysqli $conn, array $scope, array $input): array
 {
     $names=synk_dean_student_manage_names($input);
@@ -81,7 +61,7 @@ function synk_dean_student_manage_save(mysqli $conn, array $scope, array $input)
             $before=synk_dean_student_manage_record($conn,$fresh,$id);
             if ($number!==$before['student_number']) throw new DomainException('The student ID identifies the shared profile and cannot be changed here.');
             if (!is_string($input['version'] ?? null) || !hash_equals($before['version'],$input['version'])) throw new DomainException('This student was changed by another request. Reopen Edit Student before saving.');
-            synk_dean_student_manage_portal_email($conn,$before,$email);
+            synk_student_email_sync_portal($conn,$before,$email);
             $stmt=$conn->prepare('UPDATE tbl_student_management SET first_name=?,last_name=?,middle_name=?,suffix_name=?,email_address=? WHERE student_id=?');
             $params=[$names['first_name'],$names['last_name'],$names['middle_name'],$names['suffix_name'],$email,$id];
             synk_bind_dynamic_params($stmt,'sssssi',$params);

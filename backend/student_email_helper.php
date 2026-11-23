@@ -70,6 +70,45 @@ function synk_student_email_unlock(mysqli $conn): void
     $conn->query("SELECT RELEASE_LOCK('synk_student_email_assignment')");
 }
 
+// Call inside the student directory transaction, before committing the email change.
+function synk_student_email_sync_portal(mysqli $conn, array $before, string $email): void
+{
+    $previous=(string)$before['email_address'];
+    if ($email==='' || $email===$previous || !synk_table_exists($conn,'tbl_student_portal_profile')) return;
+    $number=(string)$before['student_number'];
+    $oldKey=strtolower(trim($previous));
+    $stmt=$conn->prepare("SELECT profile_id,student_number,email_address FROM tbl_student_portal_profile
+        WHERE student_number=? OR LOWER(TRIM(email_address))=? OR (?<>'' AND LOWER(TRIM(email_address))=?)
+        ORDER BY profile_id FOR UPDATE");
+    if (!$stmt) throw new RuntimeException('Unable to check the student login profile.');
+    try {
+        $stmt->bind_param('ssss',$number,$email,$oldKey,$oldKey);
+        if (!$stmt->execute()) throw new RuntimeException('Unable to check the student login profile.');
+        $profiles=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    } finally { $stmt->close(); }
+
+    $own=[];
+    foreach ($profiles as $profile) {
+        $profileNumber=(string)$profile['student_number'];
+        $profileEmail=strtolower(trim((string)$profile['email_address']));
+        if ($profileNumber===$number || ($oldKey!=='' && $profileEmail===$oldKey)) {
+            if ($profileNumber!=='' && $profileNumber!==$number) throw new DomainException('The existing login profile belongs to a different student ID. Ask an administrator to verify the account.',409);
+            $own[]=(int)$profile['profile_id'];
+        } elseif ($profileEmail===$email) {
+            throw new DomainException('That email already belongs to another student login profile.',409);
+        }
+    }
+    if (count($own)>1) throw new DomainException('Multiple login profiles match this student. Ask an administrator to verify the account.',409);
+    if (!$own) return;
+
+    $stmt=$conn->prepare('UPDATE tbl_student_portal_profile SET email_address=? WHERE profile_id=?');
+    if (!$stmt) throw new RuntimeException('Unable to update the student login profile.');
+    try {
+        $stmt->bind_param('si',$email,$own[0]);
+        if (!$stmt->execute()) throw new RuntimeException('Unable to update the student login profile.');
+    } finally { $stmt->close(); }
+}
+
 function synk_student_email_fill(mysqli $conn, int $studentId, string $email): void
 {
     $stmt=$conn->prepare("UPDATE tbl_student_management SET email_address=? WHERE student_id=? AND (email_address IS NULL OR TRIM(email_address)='')");

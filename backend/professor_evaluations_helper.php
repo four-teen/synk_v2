@@ -65,7 +65,12 @@ function synk_professor_evaluation_class_context(mysqli $conn,int $offeringId,ar
 {
     $scope=synk_professor_evaluation_require_scope($conn,$expected);
     foreach (synk_professor_evaluation_subjects($conn,$scope) as $class) {
-        if ((int)$class['offering_id']===$offeringId) return ['scope'=>$scope,'class'=>$class];
+        if ((int)$class['offering_id']!==$offeringId) continue;
+        $eligible=synk_professor_evaluation_options($conn,(int)$class['faculty_id'],$scope);
+        foreach ($eligible as $college) {
+            if ((int)$college['college_id']===(int)$scope['college_id']) return ['scope'=>$scope,'class'=>$class];
+        }
+        break;
     }
     throw new DomainException('This class is no longer available in your assigned workload.',404);
 }
@@ -124,17 +129,15 @@ function synk_professor_evaluation_consolidated_results(mysqli $conn,array $expe
     }
     $facultyId=(int)$portal['faculty_id'];
     $scopes=synk_professor_evaluation_options($conn,$facultyId,$term);
-    $collegeIds=array_map('intval',array_column($scopes,'college_id'));
-    $classes=[]; $classIdsByCollege=[]; $counts=[]; $members=[]; $pending=[]; $colleges=[];
-    $eligibleSql=$collegeIds ? synk_evaluation_score_predicate(synk_evaluation_score_states($conn,$term['ay_id'],$term['semester'])) : '1=1';
+    $classes=[]; $classIdsByCollege=[]; $counts=[]; $colleges=[];
+    $eligibleSql=$scopes ? synk_evaluation_score_predicate(synk_evaluation_score_states($conn,$term['ay_id'],$term['semester'])) : '1=1';
     foreach ($scopes as $scope) {
         $collegeId=(int)$scope['college_id'];
-        $collegeGroups=synk_professor_evaluation_result_groups($conn,$facultyId,$term,[$collegeId],$eligibleSql);
-        if ($collegeGroups) $colleges[]=['college_id'=>$collegeId,'college_name'=>$scope['college_name'],'groups'=>$collegeGroups];
+        $collegeGroups=synk_professor_evaluation_result_groups($conn,$facultyId,$scope,$eligibleSql);
         $collegeClasses=synk_professor_evaluation_subjects($conn,$scope);
         $classIdsByCollege[$collegeId]=array_column($collegeClasses,'offering_id');
-        if (!$collegeClasses) continue;
-        $submitted=synk_professor_evaluation_submitted_students($conn,$scope);
+        $members=[]; $pending=[];
+        $submitted=$collegeClasses ? synk_professor_evaluation_submitted_students($conn,$scope) : [];
         $rosters=synk_professor_workload_student_memberships($conn,$collegeClasses,$term['ay_id'],$term['semester']);
         foreach ($collegeClasses as $class) {
             $offeringId=(int)$class['offering_id'];
@@ -145,10 +148,10 @@ function synk_professor_evaluation_consolidated_results(mysqli $conn,array $expe
             $pending+=$missing;
             $counts[$offeringId]=['total'=>count($roster),'evaluated'=>count($roster)-count($missing),'not_evaluated'=>count($missing)];
         }
+        $colleges[]=['college_id'=>$collegeId,'college_name'=>$scope['college_name'],'groups'=>$collegeGroups,
+            'class_count'=>count($collegeClasses),
+            'counts'=>['total'=>count($members),'evaluated'=>count($members)-count($pending),'not_evaluated'=>count($pending)]];
     }
-    $groups=count($colleges)>1
-        ? synk_professor_evaluation_result_groups($conn,$facultyId,$term,$collegeIds,$eligibleSql)
-        : ($colleges[0]['groups'] ?? []);
     foreach ($scopes as $scope) {
         $latestClassIds=array_column(synk_professor_evaluation_subjects($conn,$scope),'offering_id');
         $loadedClassIds=$classIdsByCollege[(int)$scope['college_id']];
@@ -162,8 +165,7 @@ function synk_professor_evaluation_consolidated_results(mysqli $conn,array $expe
         || $scopes!==synk_professor_evaluation_options($conn,$facultyId,$term)) {
         throw new DomainException('Evaluation access changed. Reload the page for current results.',409);
     }
-    return ['groups'=>$groups,'colleges'=>$colleges,'classes'=>$classes,'class_counts'=>$counts,
-        'counts'=>['total'=>count($members),'evaluated'=>count($members)-count($pending),'not_evaluated'=>count($pending)]];
+    return ['colleges'=>$colleges,'classes'=>$classes,'class_counts'=>$counts];
 }
 
 function synk_professor_evaluation_class_detail(mysqli $conn,int $offeringId,string $view,array $expected): array
@@ -260,13 +262,13 @@ function synk_professor_evaluation_options(mysqli $conn,int $facultyId,?array $s
 {
     if (!synk_evaluation_table_exists($conn,'tbl_college_evaluation_settings')
         || !synk_evaluation_has_ownership($conn)) return [];
-    $assignmentSource=synk_professor_workload_assignment_source_sql();
     $supervisorExists=$studentTerm===null && synk_evaluation_table_exists($conn,'tbl_supervisor_evaluations')
         && synk_evaluation_table_exists($conn,'tbl_supervisor_evaluation_assignments')
         ? "OR EXISTS (SELECT 1 FROM tbl_supervisor_evaluations se
             JOIN tbl_supervisor_evaluation_assignments sa ON sa.assignment_id=se.assignment_id AND sa.revision=se.assignment_revision
             WHERE se.faculty_id={$facultyId} AND se.college_id=s.college_id AND se.ay_id=s.ay_id AND se.semester=s.semester AND se.submission_status='submitted')" : '';
     $termFilter=$studentTerm===null ? '' : 'AND s.ay_id=? AND s.semester=?';
+    $legacyRoster=$studentTerm===null ? '' : 'OR (cf.ay_id IS NULL AND cf.semester IS NULL)';
     $params=$studentTerm===null ? [$facultyId] : [$studentTerm['ay_id'],$studentTerm['semester'],$facultyId];
     return synk_evaluation_query($conn,"SELECT s.college_id,s.ay_id,s.semester,c.college_name,ay.ay AS ay_label,s.version AS release_version
         FROM tbl_college_evaluation_settings s JOIN tbl_college c ON c.college_id=s.college_id
@@ -280,8 +282,9 @@ function synk_professor_evaluation_options(mysqli $conn,int $facultyId,?array $s
                 AND NOT EXISTS (SELECT 1 FROM tbl_student_management_enrolled_subjects es WHERE es.student_id=e.student_id
                     AND es.faculty_id=e.faculty_id AND es.ay_id=e.ay_id AND es.semester=e.semester AND es.college_id>0 AND es.college_id<>s.college_id))))
         {$supervisorExists}
-        OR EXISTS (SELECT 1 {$assignmentSource} JOIN tbl_program p ON p.program_id=po.program_id
-            WHERE fw.faculty_id={$facultyId} AND fw.ay_id=s.ay_id AND fw.semester=s.semester AND p.college_id=s.college_id))
+        OR EXISTS (SELECT 1 FROM tbl_college_faculty cf
+            WHERE cf.faculty_id={$facultyId} AND cf.college_id=s.college_id
+              AND ((cf.ay_id=s.ay_id AND cf.semester=s.semester) {$legacyRoster}) AND cf.status='active'))
         ORDER BY ay.ay DESC,s.ay_id DESC,s.semester DESC,c.college_name,c.college_id",str_repeat('i',count($params)),$params);
 }
 
@@ -342,27 +345,23 @@ function synk_professor_evaluation_results(mysqli $conn, array $term,?array $eva
     $portal=synk_professor_evaluation_identity($conn);
     $collegeId=(int)$term['college_id'];
     $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,(int)$term['ay_id'],(int)$term['semester']));
-    $groups=synk_professor_evaluation_result_groups($conn,(int)$portal['faculty_id'],$term,[$collegeId],$eligibleSql,$evaluationIds);
+    $groups=synk_professor_evaluation_result_groups($conn,(int)$portal['faculty_id'],$term,$eligibleSql,$evaluationIds);
     // A concurrent hide must suppress the already-read result as well.
     if (empty(synk_evaluation_settings($conn,$collegeId,(int)$term['ay_id'],(int)$term['semester'])['faculty_released'])) return [];
     return $groups;
 }
 
 // Callers resolve faculty identity server-side and recheck release before responding.
-function synk_professor_evaluation_result_groups(mysqli $conn,int $facultyId,array $term,array $collegeIds,string $eligibleSql,?array $evaluationIds=null): array
+function synk_professor_evaluation_result_groups(mysqli $conn,int $facultyId,array $term,string $eligibleSql,?array $evaluationIds=null): array
 {
-    $owners=[];
-    foreach ($collegeIds as $collegeId) {
-        $collegeId=(int)$collegeId;
-        $owners[]="(s.college_id={$collegeId} AND ".synk_evaluation_owner_sql($conn,'e',$collegeId).')';
-    }
-    $ownerFilter=implode(' OR ',$owners);
+    $collegeId=(int)$term['college_id'];
+    $ownerFilter=synk_evaluation_owner_sql($conn,'e',$collegeId);
     // Release is checked in each data query, including comments and question means.
     $source="FROM tbl_student_faculty_evaluations e
-        JOIN tbl_college_evaluation_settings s ON s.ay_id=e.ay_id AND s.semester=e.semester AND s.faculty_released=1 AND ({$ownerFilter})
+        JOIN tbl_college_evaluation_settings s ON s.college_id={$collegeId} AND s.ay_id=e.ay_id AND s.semester=e.semester AND s.faculty_released=1
         JOIN tbl_college c ON c.college_id=s.college_id AND c.status='active'
         JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
-        WHERE e.faculty_id=? AND e.ay_id=? AND e.semester=? AND e.submission_status='submitted'";
+        WHERE e.faculty_id=? AND e.ay_id=? AND e.semester=? AND e.submission_status='submitted' AND {$ownerFilter}";
     $params=[$facultyId,(int)$term['ay_id'],(int)$term['semester']];
     if ($evaluationIds!==null) {
         $ids=array_values(array_unique(array_filter(array_map('intval',$evaluationIds),static function(int $id):bool{return $id>0;})));

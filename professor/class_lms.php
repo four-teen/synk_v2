@@ -70,7 +70,9 @@ try {
     }
     if ($view === 'students') {
         require_once __DIR__ . '/../backend/class_student_status_helper_lms.php';
+        require_once __DIR__.'/../backend/professor_student_email_helper.php';
         $roster = synk_class_students_roster_lms($conn,$lmsConn,$context);
+        $canEditStudentEmail = synk_professor_student_email_current_class($conn,$class);
         if (empty($_SESSION['lms_class_students_csrf'])) $_SESSION['lms_class_students_csrf'] = bin2hex(random_bytes(32));
     }
 } catch (DomainException $error) {
@@ -164,7 +166,10 @@ $professorPortalCompactHeader = true;
 </div><div class="layout-overlay layout-menu-toggle"></div></div>
 <script src="../assets/vendor/libs/jquery/jquery.js"></script><script src="../assets/vendor/libs/popper/popper.js"></script><script src="../assets/vendor/js/bootstrap.js"></script><script src="../assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script><script src="../assets/vendor/js/menu.js"></script><script src="../assets/js/main.js"></script>
 <?php if ($class && in_array($view, ['overview','students','assessments','grading','gradebook','announcements','materials'], true)): ?><script src="../assets/js/sweetalert2.all.min.js"></script><script src="feedback_lms.js?v=<?= (int)filemtime(__DIR__.'/feedback_lms.js') ?>" defer></script><?php endif; ?>
-<?php if ($view === 'students' && $class): ?><script src="class_students_lms.js?v=<?= (int)filemtime(__DIR__.'/class_students_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'students' && $class): ?>
+  <script src="student-email-editor.js?v=<?= (int)filemtime(__DIR__.'/student-email-editor.js') ?>" defer></script>
+  <script src="class_students_lms.js?v=<?= (int)filemtime(__DIR__.'/class_students_lms.js') ?>" defer></script>
+<?php endif; ?>
 <?php if ($view === 'materials' && $class && $materialsReady): ?><script src="learning_materials_lms.js?v=<?= (int)filemtime(__DIR__.'/learning_materials_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'announcements' && $class && $announcementsReady): ?><script src="announcements_lms.js?v=<?= (int)filemtime(__DIR__.'/announcements_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'overview' && $class): ?><script src="class_overview_lms.js?v=<?= (int)filemtime(__DIR__.'/class_overview_lms.js') ?>" defer></script><?php endif; ?>
