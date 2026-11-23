@@ -12,12 +12,12 @@ if (!isset($evaluationDetail,$evaluationView)) { http_response_code(404); exit; 
   <?php endif; ?>
 <?php else: ?>
   <?php if ($evaluationView==='consolidated'): ?>
-  <p class="evaluation-panel-note">Only submitted responses linked to your assigned subjects and current class rosters are included. A response shared across subject cards contributes once to these totals and comments. Questionnaire versions are reported separately.</p>
+  <p class="evaluation-panel-note">Scores and comments are grouped by questionnaire version.</p>
   <?php else: ?>
   <div class="evaluation-panel-heading"><div><h3>Subject evaluation results</h3><p><?= synk_professor_evaluation_h($evaluationDetail['class']['subject_code'].' · '.$evaluationDetail['class']['section_display']) ?></p></div></div>
   <p class="evaluation-panel-note">Only submitted responses linked to this subject from students on this class roster are included.</p>
   <?php endif; ?>
-  <?php if ($evaluationDetail['combined_count']): ?><p class="evaluation-panel-note evaluation-combined-note"><?= (int)$evaluationDetail['combined_count'] ?> submitted <?= $evaluationDetail['combined_count']===1?'response also covers':'responses also cover' ?> other subjects. These responses retain their original combined ratings; separate ratings for each subject were not collected.</p><?php endif; ?>
+  <?php if (!empty($evaluationDetail['combined_count'])): ?><p class="evaluation-panel-note evaluation-combined-note"><?= (int)$evaluationDetail['combined_count'] ?> submitted <?= $evaluationDetail['combined_count']===1?'response also covers':'responses also cover' ?> other subjects. These responses retain their original combined ratings; separate ratings for each subject were not collected.</p><?php endif; ?>
   <?php if (!$evaluationDetail['groups']): ?><p class="evaluation-panel-empty" role="status">No submitted results can be linked to this subject and class roster yet. Responses with missing or ambiguous subject associations are not included.</p><?php endif; ?>
   <?php foreach ($evaluationDetail['groups'] as $group): ?>
   <section class="evaluation-instrument" data-professor-evaluation-instrument="<?= synk_professor_evaluation_h($group['instrument_version']) ?>">

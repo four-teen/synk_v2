@@ -24,12 +24,10 @@ try {
     $_SESSION=['user_id'=>$user_id,'role'=>'professor'];
     $college=(int)$offerings[0]['college_id'];
     $scope=['college_id'=>$college,'ay_id'=>(int)$term['ay_id'],'semester'=>(int)$term['semester']];
-    $current=synk_professor_evaluation_current_scope($conn);
-    $check((int)$current['college_id']===$college && (int)$current['ay_id']===(int)$term['ay_id'] && (int)$current['semester']===(int)$term['semester'],'The current scope follows the administrator term and linked faculty college.');
-    $otherCollege=$conn->query("SELECT college_id FROM tbl_college WHERE status='active' AND college_id<>{$college} LIMIT 1")->fetch_assoc();
-    $conn->query('UPDATE tbl_useraccount SET college_id='.(int)$otherCollege['college_id']." WHERE user_id={$user_id}");
-    $check((int)synk_professor_evaluation_current_scope($conn)['college_id']===(int)$otherCollege['college_id'],'An explicitly assigned account college takes precedence over the linked profile.');
-    $conn->query("UPDATE tbl_useraccount SET college_id=NULL WHERE user_id={$user_id}");
+    $current=synk_professor_evaluation_current_term($conn);
+    $check(synk_evaluation_is_current($current,$term),'The report uses the administrator term.');
+    $otherCollege=$conn->query("SELECT c.college_id FROM tbl_college c JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active' WHERE c.status='active' AND c.college_id<>{$college} LIMIT 1")->fetch_assoc();
+    $conn->query("UPDATE tbl_faculty SET campus_id=NULL,college_id=NULL WHERE faculty_id={$faculty_id}");
     synk_evaluation_query($conn,'INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,faculty_released) VALUES (?,?,?,0) ON DUPLICATE KEY UPDATE faculty_released=0','iii',array_values($scope));
     $check(synk_professor_evaluation_options($conn,$faculty_id)===[],'Hidden periods have no options.');
     $check(synk_professor_evaluation_subjects($conn,$scope)===[],'A direct request cannot list hidden-period subjects.');
@@ -66,6 +64,40 @@ try {
         [$studentEvaluation,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text']]);
     $student=synk_professor_evaluation_results($conn,$scope);
     $check(count($student)===1 && $student[0]['score']['percentage']===80.0,'Student results remain separate from supervisor scores.');
+    $check(synk_professor_evaluation_consolidated_results($conn,$term)['groups'][0]['submitted_count']===1,
+        'An active linked professor with blank home and account colleges sees released results.');
+    $conn->query('SAVEPOINT cross_college_evaluation_qa');
+    $otherCollegeId=(int)$otherCollege['college_id'];
+    $conn->query("UPDATE tbl_useraccount SET college_id={$otherCollegeId} WHERE user_id={$user_id}");
+    $otherScope=['college_id'=>$otherCollegeId]+$scope;
+    synk_evaluation_query($conn,'INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,faculty_released) VALUES (?,?,?,1) ON DUPLICATE KEY UPDATE faculty_released=1','iii',array_values($otherScope));
+    $crossToken=bin2hex(random_bytes(16));
+    synk_evaluation_query($conn,'INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,college_id,ay_id,semester,faculty_name,instrument_version,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token,comment_text) VALUES (?,?,?,?,?,\'QA Faculty\',?,15,30,2,?,\'submitted\',?,\'OTHER_COLLEGE_QA\')','iiiiisss',
+        [$students['active'],$faculty_id,$otherCollegeId,$term['ay_id'],$term['semester'],$version,$crossToken,$crossToken]);
+    $crossEvaluation=(int)$conn->insert_id;
+    foreach (synk_student_faculty_evaluation_flat_questions($version) as $question) {
+        synk_evaluation_query($conn,'INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,2)','isssis',
+            [$crossEvaluation,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text']]);
+    }
+    $crossCollege=synk_professor_evaluation_consolidated_results($conn,$term);
+    $check(count($crossCollege['colleges'])===2 && $crossCollege['groups'][0]['submitted_count']===2
+        && $crossCollege['groups'][0]['total_points']===90.0 && $crossCollege['groups'][0]['answer_count']===30
+        && $crossCollege['groups'][0]['categories']['teaching_learning']['score']['mean']===3.0
+        && in_array('OTHER_COLLEGE_QA',$crossCollege['groups'][0]['comments'],true),
+        'A second released college contributes its own submission and raw scores even without a current class card.');
+    try {
+        synk_professor_evaluation_class_detail($conn,(int)$offerings[0]['offering_id'],'pending',$otherScope);
+        $check(false,'A class from a different released college was exposed under the wrong scope.');
+    } catch (DomainException $error) {
+        $check($error->getCode()===404,'A pending list or CSV still requires the class to belong to the requested released college.');
+    }
+    synk_evaluation_query($conn,'UPDATE tbl_college_evaluation_settings SET faculty_released=0 WHERE college_id=? AND ay_id=? AND semester=?','iii',array_values($otherScope));
+    $crossCollege=synk_professor_evaluation_consolidated_results($conn,$term);
+    $check(count($crossCollege['colleges'])===1 && $crossCollege['groups'][0]['submitted_count']===1
+        && !in_array('OTHER_COLLEGE_QA',$crossCollege['groups'][0]['comments'],true),
+        'Hiding one college suppresses its scores and comments while the other college remains visible.');
+    $conn->query('ROLLBACK TO SAVEPOINT cross_college_evaluation_qa');
+    $conn->query('RELEASE SAVEPOINT cross_college_evaluation_qa');
     $counts=synk_professor_evaluation_completion($conn,$scope,$subjects);
     $check($counts[$offerings[0]['offering_id']]===['total'=>3,'evaluated'=>1,'not_evaluated'=>2],'Counts use the three actual current students, not the recorded total of 260. Withdrawn and other-term rows are excluded.');
     if ($expected===2) $check($counts[$offerings[1]['offering_id']]===['total'=>2,'evaluated'=>1,'not_evaluated'=>1],'A shared student counts once in each class they attend.');
@@ -115,11 +147,11 @@ try {
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',[json_encode($snapshotSubjects),$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['combined_count']===1,'Combined-subject responses are explicitly counted for disclosure.');
     $consolidated=synk_professor_evaluation_consolidated_results($conn,$scope);
-    $check($consolidated['combined_count']===1 && $consolidated['submitted_count']===1 && $consolidated['groups'][0]['response_count']===1,'A combined-subject response is disclosed and counted only once in the consolidated report.');
+    $check($consolidated['groups'][0]['submitted_count']===1 && $consolidated['groups'][0]['response_count']===1,'A combined-subject response counts once in the consolidated report.');
     $snapshotSubjects[0]['subject_id']=999999998;
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',[json_encode($snapshotSubjects),$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['groups']===[],'Another subject snapshot cannot enter the selected subject results.');
-    $check(synk_professor_evaluation_consolidated_results($conn,$scope)['groups']===[],'Responses linked only to unassigned subjects cannot enter consolidation.');
+    $check(synk_professor_evaluation_consolidated_results($conn,$scope)['groups'][0]['submitted_count']===1,'The consolidated report retains an owned, released response after its subject link no longer matches.');
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',['[]',$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['groups']===[],'Missing subject associations are not inferred from current enrollments.');
     synk_evaluation_capture_subject_scope($conn,$studentEvaluation,$students['active'],$faculty_id,$college,$term['ay_id'],$term['semester'],$label);
@@ -141,7 +173,7 @@ try {
     $check(synk_professor_evaluation_options($conn,$faculty_id)===[] && synk_professor_evaluation_subjects($conn,$scope)===[] && synk_professor_evaluation_results($conn,$scope)===[] && synk_professor_supervisor_results($conn,$scope)===[],'Hiding results suppresses both report types and subject cards.');
     $check(synk_professor_evaluation_completion($conn,$scope,$subjects)===[],'Hidden releases suppress completion counts too.');
     try { synk_professor_evaluation_class_detail($conn,$first,'pending',$scope); $check(false,'A hidden release was exported.'); } catch (DomainException $error) { $check($error->getCode()===403,'Hiding results blocks panel reads and exports.'); }
-    try { synk_professor_evaluation_consolidated_results($conn,$scope); $check(false,'Hidden consolidated scores were exposed.'); } catch (DomainException $error) { $check($error->getCode()===403,'Hiding results also blocks consolidated scores.'); }
+    $check(synk_professor_evaluation_consolidated_results($conn,$scope)['groups']===[],'Hiding the only released college leaves the consolidated report empty.');
     synk_evaluation_query($conn,'UPDATE tbl_college_evaluation_settings SET faculty_released=1 WHERE college_id=? AND ay_id=? AND semester=?','iii',array_values($scope));
     $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$user_id}");
     try { synk_professor_supervisor_results($conn,$scope); $check(false,'Revoked Professor access can read results.'); }
@@ -155,7 +187,7 @@ try {
         $_SERVER['REQUEST_METHOD']='GET'; $_SERVER['PHP_SELF']='/synk/professor/faculty-evaluations.php';
         chdir(dirname(__DIR__).'/professor'); ob_start(); require 'faculty-evaluations.php'; $html=ob_get_clean();
         $check(strpos($html,'Warning:')===false && strpos($html,'Fatal error')===false,'The results page renders without PHP errors.');
-        $check((int)$evaluationSelected['college_id']===$college && (int)$evaluationSelected['ay_id']===(int)$term['ay_id'] && (int)$evaluationSelected['semester']===(int)$term['semester'],'Old query parameters cannot override the account or administrator term.');
+        $check(synk_evaluation_is_current($evaluationTerm,$term),'Old query parameters cannot override the administrator term.');
         $check(strpos($html,'evaluation-period-form')===false && strpos($html,'id="evaluation-period"')===false && strpos($html,'evaluation-release-status')===false,'The redundant selection controls and release banner are removed.');
         $check(substr_count($html,' data-offering-id=')===($evaluationType==='student'?$expected:0),'Only the Student tab renders subject cards.');
         $check($evaluationType==='supervisor' ? strpos($html,'evaluation-supervisor-placeholder')!==false : substr_count($html,'class="evaluation-student-counts"')===$expected && substr_count($html,'class="evaluation-card-panel"')===$expected,'Student cards have their own expandable panel; Supervisor remains a placeholder.');
