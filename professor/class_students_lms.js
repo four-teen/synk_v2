@@ -2,6 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id),root=$('classStudentsRoster');if(!root)return;
   const config=JSON.parse($('classStudentsConfig').textContent),feedback=window.synkLmsFeedback,modal=new bootstrap.Modal($('csrStatusModal'));
+  const canEditEmail=Boolean($('csrEmailModal'));
   const state={roster:config.roster,filter:'all',page:1,size:25,busy:false,pending:null,target:null,stale:false};
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fold=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -17,7 +18,8 @@
     const pages=Math.max(1,Math.ceil(rows.length/state.size));state.page=Math.min(pages,state.page);const start=(state.page-1)*state.size;
     $('csrStudents').innerHTML=rows.slice(start,start+state.size).map(row=>{
       const drop=row.class_status==='dropped',excluded=row.class_status==='excluded',restore=drop||excluded,disabled=!state.roster.status_ready||state.busy?' disabled':'';
-      return `<li class="csr-student${drop?' is-dropped':''}${excluded?' is-excluded':''}" data-csr-student="${row.student_id}"><div class="csr-identity"><img src="${escape(row.photo_url)}" alt="" width="44" height="44" loading="lazy" decoding="async"><div><strong>${escape(row.full_name)}</strong><span>${escape(row.student_number)}</span></div></div><div class="csr-status"><span class="csr-badge is-${excluded?'excluded':drop?'dropped':'enrolled'}"><i class="bx ${restore?'bx-user-x':'bx-check-circle'}" aria-hidden="true"></i>${excluded?'Excluded':drop?'Dropped':'Enrolled'}</span>${row.status_reason?`<p class="csr-reason">${escape(row.status_reason)}</p>`:''}</div><div class="csr-row-actions"><button type="button" class="csr-status-action${restore?' is-restore':''}" data-csr-action="${row.student_id}" data-csr-target="${restore?'enrolled':'dropped'}" aria-label="${escape((restore?'Restore to enrolled: ':'Mark as dropped: ')+row.full_name)}"${disabled}><i class="bx ${restore?'bx-undo':'bx-user-minus'}" aria-hidden="true"></i>${restore?'Restore to enrolled':'Mark as dropped'}</button>${!excluded?`<button type="button" class="csr-exclude-action" data-csr-action="${row.student_id}" data-csr-target="excluded" aria-label="${escape('Exclude from roster: '+row.full_name)}"${disabled}><i class="bx bx-hide" aria-hidden="true"></i>Exclude</button>`:''}</div></li>`;
+      const emailAction=canEditEmail?`<button type="button" class="btn btn-sm btn-outline-primary" data-csr-email="${row.student_id}" aria-label="${escape('Edit email: '+row.full_name)}"${state.busy?' disabled':''}><i class="bx bx-envelope" aria-hidden="true"></i> Edit email</button>`:'';
+      return `<li class="csr-student${drop?' is-dropped':''}${excluded?' is-excluded':''}" data-csr-student="${row.student_id}"><div class="csr-identity"><img src="${escape(row.photo_url)}" alt="" width="44" height="44" loading="lazy" decoding="async"><div><strong>${escape(row.full_name)}</strong><span>${escape(row.student_number)}</span></div></div><div class="csr-status"><span class="csr-badge is-${excluded?'excluded':drop?'dropped':'enrolled'}"><i class="bx ${restore?'bx-user-x':'bx-check-circle'}" aria-hidden="true"></i>${excluded?'Excluded':drop?'Dropped':'Enrolled'}</span>${row.status_reason?`<p class="csr-reason">${escape(row.status_reason)}</p>`:''}</div><div class="csr-row-actions"><button type="button" class="csr-status-action${restore?' is-restore':''}" data-csr-action="${row.student_id}" data-csr-target="${restore?'enrolled':'dropped'}" aria-label="${escape((restore?'Restore to enrolled: ':'Mark as dropped: ')+row.full_name)}"${disabled}><i class="bx ${restore?'bx-undo':'bx-user-minus'}" aria-hidden="true"></i>${restore?'Restore to enrolled':'Mark as dropped'}</button>${!excluded?`<button type="button" class="csr-exclude-action" data-csr-action="${row.student_id}" data-csr-target="excluded" aria-label="${escape('Exclude from roster: '+row.full_name)}"${disabled}><i class="bx bx-hide" aria-hidden="true"></i>Exclude</button>`:''}${emailAction}</div></li>`;
     }).join('');
     $('csrResult').textContent=`Showing ${rows.length?start+1:0}–${Math.min(start+state.size,rows.length)} of ${rows.length} students`;
     $('csrPage').textContent=`Page ${state.page} of ${pages}`;$('csrPrevious').disabled=state.busy||state.page===1;$('csrNext').disabled=state.busy||state.page===pages;
@@ -45,5 +47,14 @@
   $('csrRefresh').addEventListener('click',async()=>{if(state.busy)return;busy(true);try{state.roster=await api('list');}catch(error){feedback.error(error.message||'The roster could not be refreshed. Your last loaded list is shown.');}finally{busy(false);}});
   $('csrStatusForm').addEventListener('submit',async event=>{event.preventDefault();if(state.busy||state.stale||!state.pending)return;const student=state.pending,status=state.target;busy(true);$('csrStatusError').textContent='';try{state.roster=await api('set_status',{student_id:student.student_id,status,version:student.status_version,reason:$('csrStatusReason').value});modal.hide();feedback.toast(status==='dropped'?'Student marked as dropped.':status==='excluded'?'Account excluded from roster and counts.':'Student restored to enrolled.');}catch(error){state.stale=error.status===409;$('csrStatusError').textContent=state.stale?'This status changed. Close this dialog and refresh the roster before trying again.':error.message||'Status could not be saved. Try again.';}finally{busy(false);}});
   $('csrStatusModal').addEventListener('hidden.bs.modal',()=>{const button=root.querySelector(`[data-csr-action="${state.pending?.student_id}"]`);(button||$('csrSearch')).focus({preventScroll:true});state.pending=null;});
+  window.synkStudentEmailEditor(root,{
+    csrfToken:config.csrf_token,
+    fallbackFocus:$('csrSearch'),
+    getStudent(button){
+      const student=[...state.roster.students,...(state.roster.excluded_students||[])].find(row=>row.student_id===Number(button.dataset.csrEmail));
+      return student && {id:student.student_id,name:student.full_name,number:student.student_number,context:config.context};
+    },
+    onSaved(){feedback.toast('Student email saved.');}
+  });
   render();
 })();

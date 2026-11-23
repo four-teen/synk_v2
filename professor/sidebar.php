@@ -29,6 +29,15 @@ $professorSidebarItems = [
         'pages' => ['workload.php', 'class_lms.php'],
     ],
     [
+        'key' => 'student_roster',
+        'href' => 'student-roster.php',
+        'icon_bg' => 'bg-label-primary',
+        'icon' => 'bx-group',
+        'title' => 'Student Roster',
+        'description' => 'Find students and correct school emails',
+        'pages' => ['student-roster.php'],
+    ],
+    [
         'key' => 'researches',
         'href' => 'oracle-research.php',
         'icon_bg' => 'bg-label-success',

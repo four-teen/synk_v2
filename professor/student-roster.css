@@ -1,0 +1,38 @@
+.student-roster-card{overflow:hidden;border:1px solid #e4eaf3;border-radius:16px}
+.student-roster-toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:1.3rem 1.5rem}
+.student-roster-toolbar h2{font-size:1.05rem;color:#263a56;margin:0 0 .25rem}
+.student-roster-toolbar p{font-size:.8rem;color:#5a6e87;margin:0}
+.student-roster-search{position:relative;width:min(100%,23rem)}
+.student-roster-search .bx{position:absolute;top:50%;left:.8rem;transform:translateY(-50%);color:#526782;pointer-events:none}
+.student-roster-search input{padding-left:2.2rem;min-height:44px;background:#f8faff}
+.student-roster-columns,.student-roster-row{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.08fr) minmax(0,.9fr) auto;align-items:center;gap:1.25rem;padding:.95rem 1.5rem}
+.student-roster-columns{background:#f4f7fc;color:#50657f;font-size:.75rem;font-weight:600;border-block:1px solid #e9eef6;padding-block:.65rem}
+.student-roster-list{padding:0;margin:0;list-style:none}
+.student-roster-row+.student-roster-row{border-top:1px solid #edf1f7}
+.student-roster-row:hover,.student-roster-row:focus-within{background:#fbfcff}
+.student-roster-identity{display:flex;gap:.7rem;align-items:center;min-width:0;overflow-wrap:anywhere}
+.student-roster-icon{display:grid;place-items:center;flex:0 0 36px;height:36px;background:#eeefff;color:#5352ab;border-radius:10px;font-size:1.12rem}
+.student-roster-identity strong{display:block;color:#273c59;font-weight:600;font-size:.86rem}
+.student-roster-identity small,.student-roster-classes{color:#536880;font-size:.76rem}
+.student-roster-email{font-size:.82rem;color:#344d6c;overflow-wrap:anywhere}
+.student-roster-classes{overflow-wrap:anywhere}
+.student-roster-missing{display:inline-block;padding:.18rem .45rem;color:#81571f;background:#fff3df;border-radius:5px}
+.student-roster-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.student-roster-edit{white-space:nowrap;min-height:38px}
+.student-roster-empty{text-align:center;padding:2rem 1rem}
+.student-roster-pagination{display:flex;justify-content:flex-end;align-items:center;gap:.8rem;padding:.85rem 1.5rem;border-top:1px solid #edf1f7;color:#536880;font-size:.78rem}
+.student-roster-saved{color:#176744;background:#edf8f1;border-radius:8px;padding:.6rem .85rem;margin:0 1.5rem 1rem}
+#professorStudentRoster [hidden]{display:none!important}
+@media(max-width:767.98px){
+  .student-roster-toolbar{align-items:stretch;flex-direction:column;padding:1rem}
+  .student-roster-search{width:100%}
+  .student-roster-columns{display:none}
+  .student-roster-list{border-top:1px solid #e9eef6}
+  .student-roster-row{grid-template-columns:minmax(0,1fr) auto;gap:.6rem .8rem;padding:1rem}
+  .student-roster-email,.student-roster-classes{grid-column:1/-1}
+  .student-roster-label{position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;display:block;color:#536880;font-size:.7rem;font-weight:600;margin-bottom:.2rem}
+  .student-roster-edit{grid-column:2;grid-row:1;min-height:44px}
+  .student-roster-pagination{justify-content:space-between;padding:.85rem 1rem}
+  .student-roster-pagination button{min-height:44px}
+  .student-roster-saved{margin-inline:1rem}
+}

@@ -60,7 +60,7 @@ catch (Throwable $error) { http_response_code(500); error_log('Professor evaluat
   <?php endif; ?>
   <?php if (!$evaluationError && $evaluationType==='supervisor'): ?>
     <div class="card workload-empty evaluation-supervisor-placeholder"><i class="bx bx-user-check" aria-hidden="true"></i><h2>Supervisor evaluation</h2><p>The supervisor evaluation view will be added later.</p></div>
-  <?php elseif (!$evaluationError && !$evaluationSubjects && !$consolidated['groups']): ?>
+  <?php elseif (!$evaluationError && !$consolidated['colleges']): ?>
     <div class="card workload-empty evaluation-locked"><i class="bx bx-lock-alt" aria-hidden="true"></i><h2>No released results yet</h2><p>You have no released student evaluation results for <?= synk_professor_evaluation_h($evaluationTerm['term_text']) ?>.</p></div>
   <?php elseif (!$evaluationError): ?>
     <?php if ($evaluationSubjects): ?>
@@ -94,15 +94,22 @@ catch (Throwable $error) { http_response_code(500); error_log('Professor evaluat
     <p class="evaluation-counts-note">Class counts use the current roster and submissions for that class’s college and term.</p>
     <div class="card workload-empty" id="evaluation-no-matches" hidden><i class="bx bx-search" aria-hidden="true"></i><h2>No matching subjects</h2><p>Try another subject, section, or room.</p><button type="button" id="evaluation-clear-search" class="btn btn-outline-primary">Clear search</button></div>
     <?php endif; ?>
-    <section class="card evaluation-consolidated" id="evaluation-consolidated" aria-labelledby="evaluation-consolidated-title">
-      <header class="evaluation-consolidated-heading"><span class="evaluation-consolidated-icon"><i class="bx bx-bar-chart-alt-2" aria-hidden="true"></i></span><div><span class="workload-eyebrow">RELEASED RESULTS</span><h2 id="evaluation-consolidated-title">Consolidated evaluation results</h2><p><?php if ($evaluationSubjects): ?><?= count($evaluationSubjects)===1?'1 assigned class':count($evaluationSubjects).' assigned classes' ?> · <?php endif; ?><?= synk_professor_evaluation_h($evaluationTerm['ay_label'].' / '.$evaluationTerm['semester_label']) ?></p></div></header>
-      <p class="evaluation-panel-note">Includes your submitted responses from released colleges, even if a response no longer matches a current class. Each response is counted once.</p>
-      <?php if ($evaluationSubjects): ?>
-      <dl class="evaluation-consolidated-counts"><div><dt>Unique roster students</dt><dd><?= (int)$consolidated['counts']['total'] ?></dd></div><div><dt>Evaluated</dt><dd><?= (int)$consolidated['counts']['evaluated'] ?></dd></div><div><dt>Not evaluated</dt><dd><?= (int)$consolidated['counts']['not_evaluated'] ?></dd></div></dl>
-      <?php if ($multipleColleges): ?><p class="evaluation-panel-note">Students with classes in multiple released colleges are counted as evaluated after submitting in each applicable college.</p><?php endif; ?>
+    <?php foreach ($consolidated['colleges'] as $collegeReport): ?>
+    <?php $reportId=$collegeReport['college_id']; ?>
+    <section class="card evaluation-consolidated" data-evaluation-college-report="<?= (int)$reportId ?>" aria-labelledby="evaluation-consolidated-title-<?= (int)$reportId ?>">
+      <header class="evaluation-consolidated-heading">
+        <span class="evaluation-consolidated-icon"><i class="bx bx-bar-chart-alt-2" aria-hidden="true"></i></span>
+        <div>
+          <span class="workload-eyebrow"><?= synk_professor_evaluation_h($collegeReport['college_name']) ?></span>
+          <h2 id="evaluation-consolidated-title-<?= (int)$reportId ?>">Consolidated evaluation results</h2>
+          <p><?= synk_professor_evaluation_h($evaluationTerm['ay_label'].' / '.$evaluationTerm['semester_label']) ?></p>
+        </div>
+      </header>
+      <?php if ($collegeReport['class_count']): ?>
+      <dl class="evaluation-consolidated-counts"><div><dt>Unique roster students</dt><dd><?= (int)$collegeReport['counts']['total'] ?></dd></div><div><dt>Evaluated</dt><dd><?= (int)$collegeReport['counts']['evaluated'] ?></dd></div><div><dt>Not evaluated</dt><dd><?= (int)$collegeReport['counts']['not_evaluated'] ?></dd></div></dl>
       <?php endif; ?>
-      <?php if (!$consolidated['groups']): ?><p class="evaluation-panel-empty" role="status">There are no submitted evaluations in your released colleges for this term yet.</p><?php endif; ?>
-      <?php foreach ($consolidated['groups'] as $summary): ?>
+      <?php if (!$collegeReport['groups']): ?><p class="evaluation-panel-empty" role="status">No submitted evaluations for this college and term yet.</p><?php endif; ?>
+      <?php foreach ($collegeReport['groups'] as $summary): ?>
       <div class="evaluation-consolidated-score" data-consolidated-instrument="<?= synk_professor_evaluation_h($summary['instrument_version']) ?>">
         <h3><?= synk_professor_evaluation_h($summary['instrument']['label']) ?></h3>
         <dl><div><dt>Evaluations included in score</dt><dd><?= (int)$summary['response_count'] ?></dd></div><div><dt>Overall mean</dt><dd><?= $summary['score'] ? number_format($summary['score']['mean'],2).'<small> / 5.00</small>' : '&mdash;' ?></dd></div><div class="is-score"><dt>Normalized score</dt><dd><?= $summary['score'] ? number_format($summary['score']['percentage'],2).'<small>%</small>' : '&mdash;' ?></dd></div></dl>
@@ -110,25 +117,11 @@ catch (Throwable $error) { http_response_code(500); error_log('Professor evaluat
         <?php if ($summary['submitted_count']>$summary['response_count']): ?><p class="evaluation-panel-note"><?= (int)($summary['submitted_count']-$summary['response_count']) ?> submitted evaluations are excluded from scores under the evaluation eligibility rules.</p><?php endif; ?>
       </div>
       <?php endforeach; ?>
-      <?php if (count($consolidated['colleges'])>1): ?>
-      <div class="table-responsive mt-3">
-        <table class="table">
-          <caption class="caption-top">Results by college</caption>
-          <thead><tr><th scope="col">College</th><th scope="col">Questionnaire</th><th scope="col">Submitted</th><th scope="col">Included in score</th><th scope="col">Normalized score</th></tr></thead>
-          <tbody>
-            <?php foreach ($consolidated['colleges'] as $collegeResult): ?>
-              <?php foreach ($collegeResult['groups'] as $summary): ?>
-              <tr><th scope="row"><?= synk_professor_evaluation_h($collegeResult['college_name']) ?></th><td><?= synk_professor_evaluation_h($summary['instrument']['label']) ?></td><td><?= (int)$summary['submitted_count'] ?></td><td><?= (int)$summary['response_count'] ?></td><td><?= $summary['score'] ? number_format($summary['score']['percentage'],2).'%' : '&mdash;' ?></td></tr>
-              <?php endforeach; ?>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-      <?php endif; ?>
-      <?php if ($consolidated['groups']): ?>
-      <details class="evaluation-consolidated-details"><summary><span>View category scores, statements and comments</span><i class="bx bx-chevron-down" aria-hidden="true"></i></summary><div class="evaluation-consolidated-report"><?php $evaluationDetail=$consolidated; $evaluationView='consolidated'; require __DIR__.'/faculty-evaluation-panel.php'; ?></div></details>
+      <?php if ($collegeReport['groups']): ?>
+      <details class="evaluation-consolidated-details"><summary><span>View category scores, statements and comments</span><i class="bx bx-chevron-down" aria-hidden="true"></i></summary><div class="evaluation-consolidated-report"><?php $evaluationDetail=$collegeReport; $evaluationView='consolidated'; require __DIR__.'/faculty-evaluation-panel.php'; ?></div></details>
       <?php endif; ?>
     </section>
+    <?php endforeach; ?>
   <?php endif; ?>
 </main><?php include '../footer.php'; ?><div class="content-backdrop fade"></div>
 </div></div></div><div class="layout-overlay layout-menu-toggle"></div></div>

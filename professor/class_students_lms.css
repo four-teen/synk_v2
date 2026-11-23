@@ -46,6 +46,7 @@
 .csr-status-action.is-restore{border-color:#c7d6eb;color:#44659e;background:#f6f9ff}
 .csr-status-action:disabled{opacity:.5}
 .csr-row-actions{display:grid;justify-items:end;gap:5px;min-width:0}
+@media(max-width:767.98px){.csr-row-actions [data-csr-email]{min-height:44px}}
 .csr-exclude-action{display:inline-flex;align-items:center;justify-content:center;gap:5px;background:transparent;border:0;color:#7a879b;padding:6px 10px;font-size:11px;min-height:36px}
 .csr-exclude-action:hover{background:#f0f3f8;color:#42546b;border-radius:6px}
 .csr-exclude-action:disabled{opacity:.5}

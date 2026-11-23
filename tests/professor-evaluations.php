@@ -9,7 +9,7 @@ $checks=0;
 $check=static function(bool $ok,string $message)use(&$checks):void { if (!$ok) throw new RuntimeException($message); $checks++; };
 $snapshot=static function()use($conn):string {
     $data=[];
-    foreach (['tbl_faculty','tbl_useraccount','tbl_useraccount_roles','tbl_useraccount_faculty_links','tbl_faculty_workload_sched',
+    foreach (['tbl_faculty','tbl_college_faculty','tbl_useraccount','tbl_useraccount_roles','tbl_useraccount_faculty_links','tbl_faculty_workload_sched',
         'tbl_student_management','tbl_student_management_enrolled_subjects','tbl_offering_enrollee_counts','tbl_student_login_activity',
         'tbl_student_faculty_evaluations','tbl_student_faculty_evaluation_answers','tbl_student_faculty_evaluation_subject_scope','tbl_college_evaluation_subject_exclusions','tbl_college_evaluation_settings',
         'tbl_supervisor_evaluation_assignments','tbl_supervisor_evaluations',synk_schedule_merge_table_name(),'tbl_academic_settings'] as $table) {
@@ -24,10 +24,16 @@ try {
     $_SESSION=['user_id'=>$user_id,'role'=>'professor'];
     $college=(int)$offerings[0]['college_id'];
     $scope=['college_id'=>$college,'ay_id'=>(int)$term['ay_id'],'semester'=>(int)$term['semester']];
+    $reportForCollege=static function (array $period) use ($conn,$college):array {
+        $reports=array_column(synk_professor_evaluation_consolidated_results($conn,$period)['colleges'],null,'college_id');
+        return $reports[$college] ?? ['groups'=>[]];
+    };
     $current=synk_professor_evaluation_current_term($conn);
     $check(synk_evaluation_is_current($current,$term),'The report uses the administrator term.');
     $otherCollege=$conn->query("SELECT c.college_id FROM tbl_college c JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active' WHERE c.status='active' AND c.college_id<>{$college} LIMIT 1")->fetch_assoc();
     $conn->query("UPDATE tbl_faculty SET campus_id=NULL,college_id=NULL WHERE faculty_id={$faculty_id}");
+    synk_evaluation_query($conn,"INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semester,status)
+        VALUES (?,?,?,?,'active')",'iiii',[$college,$faculty_id,$term['ay_id'],$term['semester']]);
     synk_evaluation_query($conn,'INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,faculty_released) VALUES (?,?,?,0) ON DUPLICATE KEY UPDATE faculty_released=0','iii',array_values($scope));
     $check(synk_professor_evaluation_options($conn,$faculty_id)===[],'Hidden periods have no options.');
     $check(synk_professor_evaluation_subjects($conn,$scope)===[],'A direct request cannot list hidden-period subjects.');
@@ -39,6 +45,9 @@ try {
         [$assignment,$college,$term['ay_id'],$term['semester'],$faculty_id,$user_id,$faculty_id+1,synk_sef_version(),json_encode($answers),'SUPERVISOR <img src=x onerror=bad()> feedback']);
     $record=(int)$conn->insert_id;
     synk_evaluation_query($conn,'UPDATE tbl_college_evaluation_settings SET faculty_released=1 WHERE college_id=? AND ay_id=? AND semester=?','iii',array_values($scope));
+    $rosterOnly=$reportForCollege($term);
+    $check((int)$rosterOnly['college_id']===$college && $rosterOnly['groups']===[],
+        'The released Scheduler roster college is available with blank home fields and before any evaluations are submitted.');
     $check(synk_professor_supervisor_results($conn,$scope)===[],'Supervisor drafts never appear, even in released periods.');
     $conn->query("UPDATE tbl_supervisor_evaluations SET submission_status='submitted' WHERE evaluation_id={$record}");
     $check(count(synk_professor_evaluation_options($conn,$faculty_id))===1,'A supervisor-only period is available without student results.');
@@ -64,13 +73,23 @@ try {
         [$studentEvaluation,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text']]);
     $student=synk_professor_evaluation_results($conn,$scope);
     $check(count($student)===1 && $student[0]['score']['percentage']===80.0,'Student results remain separate from supervisor scores.');
-    $check(synk_professor_evaluation_consolidated_results($conn,$term)['groups'][0]['submitted_count']===1,
+    $check($reportForCollege($term)['groups'][0]['submitted_count']===1,
         'An active linked professor with blank home and account colleges sees released results.');
     $conn->query('SAVEPOINT cross_college_evaluation_qa');
     $otherCollegeId=(int)$otherCollege['college_id'];
     $conn->query("UPDATE tbl_useraccount SET college_id={$otherCollegeId} WHERE user_id={$user_id}");
     $otherScope=['college_id'=>$otherCollegeId]+$scope;
     synk_evaluation_query($conn,'INSERT INTO tbl_college_evaluation_settings (college_id,ay_id,semester,faculty_released) VALUES (?,?,?,1) ON DUPLICATE KEY UPDATE faculty_released=1','iii',array_values($otherScope));
+    $otherRoster=[$otherCollegeId,$faculty_id,$term['ay_id'],$term['semester']];
+    synk_evaluation_query($conn,"INSERT INTO tbl_college_faculty (college_id,faculty_id,ay_id,semester,status)
+        VALUES (?,?,?,?,'active')",'iiii',$otherRoster);
+    $rosterReports=array_column(synk_professor_evaluation_consolidated_results($conn,$term)['colleges'],null,'college_id');
+    $check(isset($rosterReports[$otherCollegeId]) && $rosterReports[$otherCollegeId]['class_count']===0
+        && !$rosterReports[$otherCollegeId]['groups'],'An active Scheduler roster entry makes a released college visible before assignments or submissions.');
+    synk_evaluation_query($conn,"UPDATE tbl_college_faculty SET status='inactive'
+        WHERE college_id=? AND faculty_id=? AND ay_id=? AND semester=?",'iiii',$otherRoster);
+    $rosterReports=array_column(synk_professor_evaluation_consolidated_results($conn,$term)['colleges'],null,'college_id');
+    $check(!isset($rosterReports[$otherCollegeId]),'An inactive Scheduler roster and account college alone do not make a college eligible.');
     $crossToken=bin2hex(random_bytes(16));
     synk_evaluation_query($conn,'INSERT INTO tbl_student_faculty_evaluations (student_id,faculty_id,college_id,ay_id,semester,faculty_name,instrument_version,question_count,total_score,average_rating,evaluation_token,submission_status,final_submission_token,comment_text) VALUES (?,?,?,?,?,\'QA Faculty\',?,15,30,2,?,\'submitted\',?,\'OTHER_COLLEGE_QA\')','iiiiisss',
         [$students['active'],$faculty_id,$otherCollegeId,$term['ay_id'],$term['semester'],$version,$crossToken,$crossToken]);
@@ -79,12 +98,14 @@ try {
         synk_evaluation_query($conn,'INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,2)','isssis',
             [$crossEvaluation,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text']]);
     }
-    $crossCollege=synk_professor_evaluation_consolidated_results($conn,$term);
-    $check(count($crossCollege['colleges'])===2 && $crossCollege['groups'][0]['submitted_count']===2
-        && $crossCollege['groups'][0]['total_points']===90.0 && $crossCollege['groups'][0]['answer_count']===30
-        && $crossCollege['groups'][0]['categories']['teaching_learning']['score']['mean']===3.0
-        && in_array('OTHER_COLLEGE_QA',$crossCollege['groups'][0]['comments'],true),
-        'A second released college contributes its own submission and raw scores even without a current class card.');
+    $crossCollege=array_column(synk_professor_evaluation_consolidated_results($conn,$term)['colleges'],null,'college_id');
+    $homeReport=$crossCollege[$college]['groups'][0];
+    $otherReport=$crossCollege[$otherCollegeId]['groups'][0];
+    $check(count($crossCollege)===2 && $homeReport['submitted_count']===1 && $otherReport['submitted_count']===1
+        && $homeReport['score']['percentage']===80.0 && $otherReport['score']['percentage']===40.0
+        && $otherReport['categories']['teaching_learning']['score']['mean']===2.0
+        && !in_array('OTHER_COLLEGE_QA',$homeReport['comments'],true) && in_array('OTHER_COLLEGE_QA',$otherReport['comments'],true),
+        'Each college reports its own scores and comments, including an owned release without a current Scheduler roster entry.');
     try {
         synk_professor_evaluation_class_detail($conn,(int)$offerings[0]['offering_id'],'pending',$otherScope);
         $check(false,'A class from a different released college was exposed under the wrong scope.');
@@ -93,8 +114,8 @@ try {
     }
     synk_evaluation_query($conn,'UPDATE tbl_college_evaluation_settings SET faculty_released=0 WHERE college_id=? AND ay_id=? AND semester=?','iii',array_values($otherScope));
     $crossCollege=synk_professor_evaluation_consolidated_results($conn,$term);
-    $check(count($crossCollege['colleges'])===1 && $crossCollege['groups'][0]['submitted_count']===1
-        && !in_array('OTHER_COLLEGE_QA',$crossCollege['groups'][0]['comments'],true),
+    $check(count($crossCollege['colleges'])===1 && (int)$crossCollege['colleges'][0]['college_id']===$college
+        && !in_array('OTHER_COLLEGE_QA',$crossCollege['colleges'][0]['groups'][0]['comments'],true),
         'Hiding one college suppresses its scores and comments while the other college remains visible.');
     $conn->query('ROLLBACK TO SAVEPOINT cross_college_evaluation_qa');
     $conn->query('RELEASE SAVEPOINT cross_college_evaluation_qa');
@@ -107,12 +128,12 @@ try {
     $result=synk_professor_evaluation_class_detail($conn,$first,'results',$scope);
     $check(count($result['groups'])===1 && $result['groups'][0]['score']['percentage']===80.0 && $result['combined_count']===0,'A subject panel contains only its associated submitted response.');
     $check(strpos(json_encode($result),'student_number')===false && strpos(json_encode($result),'full_name')===false,'Subject results expose no individual evaluator identities.');
-    $consolidated=synk_professor_evaluation_consolidated_results($conn,$scope);
+    $consolidated=$reportForCollege($scope);
     $check(count($consolidated['groups'])===1 && $consolidated['groups'][0]['response_count']===1 && $consolidated['groups'][0]['total_points']===60.0 && $consolidated['groups'][0]['answer_count']===15,'A response shared by multiple class cards contributes its raw points and answers only once.');
     if ($expected===2) $check($consolidated['counts']===['total'=>4,'evaluated'=>1,'not_evaluated'=>3],'Consolidated completion totals count shared roster students once.');
     $conn->query('SAVEPOINT consolidated_eligibility_qa');
     synk_evaluation_query($conn,'INSERT INTO tbl_college_evaluation_subject_exclusions (college_id,ay_id,semester,subject_id,excluded,reason,updated_by) VALUES (?,?,?,?,1,\'Consolidated score QA\',?) ON DUPLICATE KEY UPDATE excluded=1','iiiii',[$college,$term['ay_id'],$term['semester'],$offerings[0]['sub_id'],$user_id]);
-    $excluded=synk_professor_evaluation_consolidated_results($conn,$scope);
+    $excluded=$reportForCollege($scope);
     $check($excluded['groups'][0]['response_count']===0 && $excluded['groups'][0]['score']===null && $excluded['counts']['evaluated']===1 && count($excluded['groups'][0]['comments'])===1,'Score exclusions do not change completion or comments, and all-excluded responses have no artificial zero score.');
     $conn->query('ROLLBACK TO SAVEPOINT consolidated_eligibility_qa');
     $conn->query('RELEASE SAVEPOINT consolidated_eligibility_qa');
@@ -122,7 +143,7 @@ try {
     $legacyId=(int)$conn->insert_id;
     foreach (synk_student_faculty_evaluation_flat_questions('legacy-20') as $question) synk_evaluation_query($conn,'INSERT INTO tbl_student_faculty_evaluation_answers (evaluation_id,category_key,category_title,question_key,question_order,question_text,rating) VALUES (?,?,?,?,?,?,3)','isssis',[$legacyId,$question['category_key'],$question['category_title'],$question['question_key'],$question['question_order'],$question['question_text']]);
     synk_evaluation_capture_subject_scope($conn,$legacyId,$students['inactive'],$faculty_id,$college,$term['ay_id'],$term['semester'],$label);
-    $versions=array_column(synk_professor_evaluation_consolidated_results($conn,$scope)['groups'],null,'instrument_version');
+    $versions=array_column($reportForCollege($scope)['groups'],null,'instrument_version');
     $check(count($versions)===2 && $versions[$version]['score']['percentage']===80.0 && $versions['legacy-20']['score']['percentage']===60.0,'Consolidated scores never blend different questionnaire versions.');
     $conn->query('ROLLBACK TO SAVEPOINT consolidated_versions_qa');
     $conn->query('RELEASE SAVEPOINT consolidated_versions_qa');
@@ -135,7 +156,7 @@ try {
         $firstReport=synk_professor_evaluation_class_detail($conn,$first,'results',$scope);
         $secondReport=synk_professor_evaluation_class_detail($conn,(int)$offerings[1]['offering_id'],'results',$scope);
         $check($firstReport['groups'][0]['score']['percentage']===80.0 && strpos(json_encode($firstReport),'OTHER_SECTION_ONLY')===false && strpos(json_encode($secondReport),'OTHER_SECTION_ONLY')!==false,'A different class roster cannot change the first class score or comments, even when both classes teach the same subject.');
-        $consolidated=synk_professor_evaluation_consolidated_results($conn,$scope);
+        $consolidated=$reportForCollege($scope);
         $group=$consolidated['groups'][0];
         $check($group['response_count']===2 && $group['total_points']===75.0 && $group['answer_count']===30 && $group['score']['mean']===2.5 && $group['score']['percentage']===50.0,'Consolidation uses 75 raw points / 30 answers, not an average of overlapping subject-card means.');
         $check(count($group['comments'])===2 && $group['categories']['teaching_learning']['score']['mean']===2.5,'Consolidated category means and comments use the same distinct response set.');
@@ -146,12 +167,12 @@ try {
     $snapshotSubjects=[['subject_id'=>(int)$offerings[0]['sub_id'],'label'=>$label],['subject_id'=>999999999,'label'=>'Other subject']];
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',[json_encode($snapshotSubjects),$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['combined_count']===1,'Combined-subject responses are explicitly counted for disclosure.');
-    $consolidated=synk_professor_evaluation_consolidated_results($conn,$scope);
+    $consolidated=$reportForCollege($scope);
     $check($consolidated['groups'][0]['submitted_count']===1 && $consolidated['groups'][0]['response_count']===1,'A combined-subject response counts once in the consolidated report.');
     $snapshotSubjects[0]['subject_id']=999999998;
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',[json_encode($snapshotSubjects),$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['groups']===[],'Another subject snapshot cannot enter the selected subject results.');
-    $check(synk_professor_evaluation_consolidated_results($conn,$scope)['groups'][0]['submitted_count']===1,'The consolidated report retains an owned, released response after its subject link no longer matches.');
+    $check($reportForCollege($scope)['groups'][0]['submitted_count']===1,'The consolidated report retains an owned, released response after its subject link no longer matches.');
     synk_evaluation_query($conn,'UPDATE tbl_student_faculty_evaluation_subject_scope SET subjects_json=? WHERE evaluation_id=?','si',['[]',$studentEvaluation]);
     $check(synk_professor_evaluation_class_detail($conn,$first,'results',$scope)['groups']===[],'Missing subject associations are not inferred from current enrollments.');
     synk_evaluation_capture_subject_scope($conn,$studentEvaluation,$students['active'],$faculty_id,$college,$term['ay_id'],$term['semester'],$label);
@@ -173,7 +194,7 @@ try {
     $check(synk_professor_evaluation_options($conn,$faculty_id)===[] && synk_professor_evaluation_subjects($conn,$scope)===[] && synk_professor_evaluation_results($conn,$scope)===[] && synk_professor_supervisor_results($conn,$scope)===[],'Hiding results suppresses both report types and subject cards.');
     $check(synk_professor_evaluation_completion($conn,$scope,$subjects)===[],'Hidden releases suppress completion counts too.');
     try { synk_professor_evaluation_class_detail($conn,$first,'pending',$scope); $check(false,'A hidden release was exported.'); } catch (DomainException $error) { $check($error->getCode()===403,'Hiding results blocks panel reads and exports.'); }
-    $check(synk_professor_evaluation_consolidated_results($conn,$scope)['groups']===[],'Hiding the only released college leaves the consolidated report empty.');
+    $check($reportForCollege($scope)['groups']===[],'Hiding the only released college leaves the consolidated report empty.');
     synk_evaluation_query($conn,'UPDATE tbl_college_evaluation_settings SET faculty_released=1 WHERE college_id=? AND ay_id=? AND semester=?','iii',array_values($scope));
     $conn->query("UPDATE tbl_useraccount_roles SET status='inactive' WHERE user_id={$user_id}");
     try { synk_professor_supervisor_results($conn,$scope); $check(false,'Revoked Professor access can read results.'); }
@@ -191,7 +212,7 @@ try {
         $check(strpos($html,'evaluation-period-form')===false && strpos($html,'id="evaluation-period"')===false && strpos($html,'evaluation-release-status')===false,'The redundant selection controls and release banner are removed.');
         $check(substr_count($html,' data-offering-id=')===($evaluationType==='student'?$expected:0),'Only the Student tab renders subject cards.');
         $check($evaluationType==='supervisor' ? strpos($html,'evaluation-supervisor-placeholder')!==false : substr_count($html,'class="evaluation-student-counts"')===$expected && substr_count($html,'class="evaluation-card-panel"')===$expected,'Student cards have their own expandable panel; Supervisor remains a placeholder.');
-        $check($evaluationType==='supervisor' ? strpos($html,'id="evaluation-consolidated"')===false : strpos($html,'id="evaluation-consolidated"')>strpos($html,'class="evaluation-subject-list"') && strpos($html,'STUDENT &lt;script&gt;bad()&lt;/script&gt; feedback')!==false,'The Student tab renders consolidated results below the subject list, with escaped comments; Supervisor has no consolidated report.');
+        $check($evaluationType==='supervisor' ? strpos($html,'data-evaluation-college-report=')===false : strpos($html,'data-evaluation-college-report=')>strpos($html,'class="evaluation-subject-list"') && strpos($html,'STUDENT &lt;script&gt;bad()&lt;/script&gt; feedback')!==false,'The Student tab renders consolidated results below the subject list, with escaped comments; Supervisor has no consolidated report.');
         $check(strpos($html,$evaluationType==='supervisor' ? 'STUDENT &lt;script&gt;' : 'SUPERVISOR &lt;img')===false,'The unselected evaluation type is not sent to the browser.');
         $html=str_replace('<head>','<head><base href="/synk/professor/">',$html);
         if ($evaluationType==='student') {

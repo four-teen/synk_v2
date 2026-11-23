@@ -2,8 +2,9 @@
 
 `professor/faculty-evaluations.php` follows the administrator's current academic
 year and semester. The signed-in account's active faculty link identifies the
-report owner. The page discovers the faculty member's results across colleges
-without requiring a home campus, home college, or college selector. Each owning
+report owner. Active Scheduler college faculty entries determine the professor's
+current-term colleges. An owned submission also keeps its college eligible after
+the assignment ends. The page needs no home campus, home college, or college selector. Each owning
 college's **Faculty results** release applies independently of whether student
 collection is open. The server revalidates the active Professor account, faculty
 link, term and release. No-cache headers apply to the result page.
@@ -56,12 +57,10 @@ score-exclusion and anonymous-comment rules still apply. Reports contain categor
 and statement scores, the original scale, and escaped submitted comments, without
 student identities or individual-response links.
 
-**Consolidated evaluation results** appears below the full subject list, with
-unique roster completion counts and one combined score per questionnaire version.
-A college breakdown appears when more than one college contributes results.
-A roster student in several colleges counts as
-evaluated after submitting in each applicable released college. Category,
-statement and anonymous-comment details expand beneath the summary.
+**Consolidated evaluation results** appears below the subject list in a named
+report for each released college. Each report shows its own unique roster
+completion counts and score per questionnaire version. Category, statement,
+and anonymous-comment details belong to that same college.
 
 Each submitted evaluation owned by a released college in the current term
 contributes once, even if it no longer matches a current class roster. Legacy
