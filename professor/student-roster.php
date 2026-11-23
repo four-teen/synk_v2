@@ -91,11 +91,13 @@ $canEditStudentEmail=$error==='' && !empty($roster['students']);
                 <?php foreach ($roster['students'] as $student): ?>
                 <li class="student-roster-row" data-roster-row>
                   <div class="student-roster-identity">
-                    <span class="student-roster-icon"><i class="bx bx-user" aria-hidden="true"></i></span>
+                    <button type="button" class="student-roster-avatar" data-roster-photo aria-haspopup="dialog" aria-controls="student-roster-photo-modal" aria-label="<?= synk_professor_h('View photo: '.$student['name']) ?>">
+                      <img src="<?= synk_professor_h($student['photo_url']) ?>" alt="" width="44" height="44" loading="lazy" decoding="async">
+                    </button>
                     <div><strong data-roster-name><?= synk_professor_h($student['name']) ?></strong><small data-roster-number><?= synk_professor_h($student['student_number']) ?></small></div>
                   </div>
                   <div class="student-roster-email"><span class="student-roster-label">School email</span><span data-roster-email class="<?= $student['email']===''?'student-roster-missing':'' ?>"><?= synk_professor_h($student['email'] ?: 'No email on file') ?></span></div>
-                  <div class="student-roster-classes"><span class="student-roster-label">Classes</span><?= synk_professor_h(implode(' / ',$student['classes'])) ?></div>
+                  <div class="student-roster-classes"><span class="student-roster-label">Classes</span><span data-roster-classes><?= synk_professor_h(implode(' / ',$student['classes'])) ?></span></div>
                   <button type="button" class="btn btn-sm btn-outline-primary student-roster-edit" data-csr-email="<?= $student['student_id'] ?>" data-roster-offering="<?= (int)key($student['classes']) ?>" aria-label="<?= synk_professor_h('Edit email: '.$student['name']) ?>"><i class="bx bx-edit-alt" aria-hidden="true"></i> Edit email</button>
                 </li>
                 <?php endforeach; ?>
@@ -110,6 +112,24 @@ $canEditStudentEmail=$error==='' && !empty($roster['students']);
               </nav>
             </section>
             <?php require __DIR__.'/student-email-dialog.php'; ?>
+            <div class="modal fade" id="student-roster-photo-modal" tabindex="-1" aria-labelledby="student-roster-photo-name">
+              <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content student-roster-photo-dialog">
+                  <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="student-roster-photo-name"></h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close photo"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div class="student-roster-photo-stage"><img id="student-roster-photo-image" alt=""></div>
+                    <dl class="student-roster-photo-details">
+                      <div><dt>Student ID</dt><dd id="student-roster-photo-number"></dd></div>
+                      <div><dt>School email</dt><dd id="student-roster-photo-email"></dd></div>
+                      <div><dt>Classes</dt><dd id="student-roster-photo-classes"></dd></div>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            </div>
             <script id="student-roster-config" type="application/json"><?= json_encode(['contexts'=>$roster['contexts'],'csrf_token'=>$_SESSION['lms_class_students_csrf']],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
           <?php endif; ?>
         </main>

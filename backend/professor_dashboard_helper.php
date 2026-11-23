@@ -2,6 +2,47 @@
 
 require_once __DIR__ . '/professor_portal_helper.php';
 require_once __DIR__ . '/faculty_profile_helper.php';
+require_once __DIR__ . '/professor_workload_students_helper.php';
+
+function synk_professor_dashboard_student_signins(mysqli $conn, array $classes, array $term, DateTimeImmutable $now): array
+{
+    $members = [];
+    foreach (synk_professor_workload_student_memberships($conn,$classes,(int)$term['ay_id'],(int)$term['semester']) as $roster) {
+        $members += $roster;
+    }
+    $total = count($members);
+    $data = ['total'=>$total,'days'=>[],'available'=>synk_student_login_activity_ready($conn)];
+    if (!$total || !$data['available']) return $data;
+
+    $utc = new DateTimeZone('UTC');
+    $today = $now->setTimezone(new DateTimeZone('Asia/Manila'))->setTime(0,0);
+    $start = $today->modify('-6 days');
+    $startUtc = $start->setTimezone($utc)->format('Y-m-d H:i:s');
+    $endUtc = $today->modify('+1 day')->setTimezone($utc)->format('Y-m-d H:i:s');
+    for ($day=$start; $day<=$today; $day=$day->modify('+1 day')) {
+        $data['days'][$day->format('Y-m-d')] = ['weekday'=>$day->format('D'),'date'=>$day->format('M j'),'count'=>0];
+    }
+
+    // The roster supplies unique IDs. Disjoint batches preserve exact daily totals.
+    foreach (array_chunk(array_keys($members),500) as $ids) {
+        $marks = implode(',',array_fill(0,count($ids),'?'));
+        $stmt = $conn->prepare("SELECT DATE(occurred_at + INTERVAL 8 HOUR) AS local_day,
+            COUNT(DISTINCT student_id) AS students
+            FROM tbl_student_login_activity
+            WHERE outcome='success' AND occurred_at>=? AND occurred_at<? AND student_id IN ({$marks})
+            GROUP BY local_day");
+        if (!$stmt) throw new RuntimeException('Unable to prepare the daily student sign-in query.');
+        try {
+            $params = array_merge([$startUtc,$endUtc],$ids);
+            synk_bind_dynamic_params($stmt,'ss'.str_repeat('i',count($ids)),$params);
+            if (!$stmt->execute()) throw new RuntimeException('Unable to load daily student sign-ins.');
+            foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                $data['days'][$row['local_day']]['count'] += (int)$row['students'];
+            }
+        } finally { $stmt->close(); }
+    }
+    return $data;
+}
 
 function synk_professor_dashboard_term_summary(array $terms, array $currentTerm, ?array $currentRows = null): array
 {

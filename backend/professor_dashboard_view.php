@@ -33,6 +33,7 @@
   </section>
 
   <div class="dashboard-columns">
+    <div class="dashboard-main-column">
     <section class="card dashboard-research" id="dashboardResearch" aria-labelledby="dashboardResearchTitle" aria-busy="true">
       <div class="dashboard-card-heading">
         <div><span class="dashboard-eyebrow">RESEARCH PORTFOLIO</span><h2 id="dashboardResearchTitle">My researches</h2></div>
@@ -71,6 +72,33 @@
       <p class="visually-hidden" id="dashboardResearchStatus" role="status" aria-live="polite" aria-atomic="true">Loading your Oracle research.</p>
       <noscript><p class="dashboard-noscript">Open <a href="oracle-research.php">My Researches</a> to view your complete Oracle portfolio.</p></noscript>
     </section>
+
+      <section class="card dashboard-signins" aria-labelledby="dashboard-signins-title">
+        <div class="dashboard-card-heading">
+          <div><h2 id="dashboard-signins-title">Student sign-ins</h2><p>Last 7 days · Philippine time</p></div>
+          <a href="student-roster.php" class="dashboard-text-link">Student Roster<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
+        </div>
+        <?php if (empty($dashboardStudentSignins['available'])): ?>
+          <p class="dashboard-chart-note">Student sign-in activity is unavailable.</p>
+        <?php elseif (!$dashboardStudentSignins['total']): ?>
+          <p class="dashboard-chart-note">No students are listed in your current classes.</p>
+        <?php else: ?>
+          <figure class="dashboard-signins-figure">
+            <figcaption><strong><?= number_format($dashboardStudentSignins['total']) ?></strong> unique students across your current classes</figcaption>
+            <ol class="dashboard-signins-bars" aria-label="Unique students who signed in by day">
+              <?php foreach ($dashboardStudentSignins['days'] as $date=>$day): ?>
+              <li>
+                <span class="dashboard-signins-value"><?= number_format($day['count']) ?><span class="visually-hidden"> students on </span></span>
+                <span class="dashboard-signins-track" aria-hidden="true"><span style="height:<?= round(100*$day['count']/$dashboardStudentSignins['total'],2) ?>%"></span></span>
+                <time datetime="<?= synk_professor_h($date) ?>"><strong><?= synk_professor_h($day['weekday']) ?></strong><span><?= synk_professor_h($day['date']) ?></span></time>
+              </li>
+              <?php endforeach; ?>
+            </ol>
+            <p class="dashboard-chart-note">Each student counts once per day. A full bar represents the entire roster.</p>
+          </figure>
+        <?php endif; ?>
+      </section>
+    </div>
 
     <div class="dashboard-aside">
       <section class="card dashboard-teaching" aria-labelledby="dashboard-teaching-title">

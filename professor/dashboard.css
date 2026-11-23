@@ -17,6 +17,21 @@
 .dashboard-metric > strong { color: var(--dashboard-ink); font-size: 1.85rem; letter-spacing: -.055em; line-height: 1.2; margin: .4rem 0 .45rem; }
 .dashboard-metric-note { color: #8a96a1; font-size: .65rem; line-height: 1.6; }
 .dashboard-columns { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(280px, 1fr); gap: 1.3rem; align-items: start; }
+.dashboard-main-column { display: grid; gap: 1.3rem; min-width: 0; }
+.dashboard-signins { min-width: 0; padding: clamp(.9rem, 3vw, 1.4rem); border-top: 3px solid #3879cf !important; }
+.dashboard-signins .dashboard-card-heading { flex-wrap: wrap; }
+.dashboard-signins .dashboard-card-heading p { margin: .25rem 0 0; font-size: .78rem; color: #566b86; }
+.dashboard-signins-figure { margin: 0; }
+.dashboard-signins-figure figcaption { margin: .65rem 0 1rem; color: #526580; font-size: .83rem; }
+.dashboard-signins-figure figcaption strong { color: #244771; font-size: 1rem; }
+.dashboard-signins-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: clamp(.25rem, 1vw, .75rem); padding: 0; margin: 0 0 .85rem; list-style: none; }
+.dashboard-signins-bars li { display: grid; justify-items: center; gap: .35rem; text-align: center; min-width: 0; }
+.dashboard-signins-value { color: #244771; font-weight: 700; font-size: .85rem; font-variant-numeric: tabular-nums; }
+.dashboard-signins-track { display: flex; align-items: end; width: min(100%, 2.8rem); height: clamp(4.5rem, 14vw, 8rem); border-radius: 8px; background: #edf3fb; overflow: hidden; }
+.dashboard-signins-track > span { width: 100%; border-radius: 8px; background: linear-gradient(180deg, #4086d8, #3258af); }
+.dashboard-signins-bars time { display: grid; gap: .1rem; color: #526580; font-size: .68rem; }
+.dashboard-signins-bars time strong { color: #334968; font-size: .74rem; }
+.dashboard-signins .dashboard-chart-note { margin-bottom: 0; }
 .professor-dashboard-page .card { border: 1px solid #e2e8ed; border-radius: 15px; box-shadow: 0 4px 18px #283c5003; }
 .dashboard-research, .dashboard-teaching, .dashboard-attention { min-width: 0; padding: 1.4rem; }
 .dashboard-research { border-top: 3px solid #7367f0 !important; }

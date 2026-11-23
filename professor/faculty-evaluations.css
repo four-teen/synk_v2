@@ -31,7 +31,11 @@
 .evaluation-pending-list{max-height:420px;overflow:auto;border:1px solid #e7ebf2;border-radius:10px}.evaluation-pending-list .table{margin:0}.evaluation-pending-list thead th{position:sticky;top:0;background:#f7f9fc;font-size:.7rem}.evaluation-pending-list td{font-size:.8rem;white-space:normal;overflow-wrap:anywhere}.evaluation-pending-list td:first-child{width:30%}
 .evaluation-instrument{padding:1rem 0;min-width:0}.evaluation-instrument+.evaluation-instrument{border-top:1px solid #e7ebf2}.evaluation-instrument h4{font-size:1rem}.evaluation-instrument h5{font-size:.9rem;line-height:1.6}
 .evaluation-instrument .badge{white-space:normal;line-height:1.6;text-align:left}.evaluation-score-table{min-width:520px}.evaluation-score-table th{font-size:.69rem}.evaluation-score-table td{font-size:.8rem}.evaluation-score-table td:first-child{white-space:normal}
-.evaluation-comment{border-top:1px solid #edf0f5;padding-top:1rem;font-size:.84rem;line-height:1.7;overflow-wrap:anywhere}.evaluation-combined-note{padding:.8rem 1rem;background:#fff7ec;border-radius:8px;color:#8c652f}
+.evaluation-comment-list{margin:0;padding:.35rem .85rem .35rem 2.6rem;list-style:decimal;border:1px solid #e4e9f2;border-radius:9px;background:#f8faff}
+.evaluation-comment{padding:.55rem 0 .55rem .25rem;font-size:.84rem;line-height:1.65;white-space:pre-line;overflow-wrap:anywhere}
+.evaluation-comment+.evaluation-comment{border-top:1px solid #e4e9f2}
+.evaluation-comment::marker{color:#526781;font-weight:600;font-variant-numeric:tabular-nums}
+.evaluation-combined-note{padding:.8rem 1rem;background:#fff7ec;border-radius:8px;color:#8c652f}
 .evaluation-counts-note{font-size:.73rem;line-height:1.7;color:#6d7f94;margin:1rem .2rem 0}
 .evaluation-supervisor-placeholder,.evaluation-locked{margin-top:1.25rem}
 #evaluation-no-matches{margin-top:1rem}

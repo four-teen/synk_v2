@@ -28,6 +28,12 @@ $workloadTermOptions = $facultyId > 0
 $dashboardCurrentWorkload = $facultyId > 0 && $facultyIsActive && (int)$currentTerm['ay_id'] > 0 && (int)$currentTerm['semester'] > 0
     ? synk_professor_fetch_workload_rows($conn, $facultyId, (int)$currentTerm['ay_id'], (int)$currentTerm['semester']) : [];
 $dashboardWorkloadChart = synk_professor_dashboard_workload_chart($dashboardCurrentWorkload, $currentTerm);
+$dashboardStudentSignins = null;
+try {
+    $dashboardStudentSignins = synk_professor_dashboard_student_signins($conn,$dashboardCurrentWorkload,$currentTerm,new DateTimeImmutable());
+} catch (Throwable $exception) {
+    error_log('Professor dashboard student sign-ins failed: '.$exception->getMessage());
+}
 $teachingSummary = synk_professor_dashboard_term_summary($workloadTermOptions, $currentTerm, $dashboardCurrentWorkload);
 $dashboardProfile = null;
 try {
