@@ -1,14 +1,12 @@
 # Professor evaluation results
 
 `professor/faculty-evaluations.php` follows the administrator's current academic
-year and semester. College comes from the signed-in account's college assignment,
-falling back to its linked faculty record when the account has no college set.
-There is no college or academic-term selector; obsolete URL parameters cannot
-override this context. Student results require the Dean's **Faculty results**
-release for that exact college and term, independently of collection being open. The
-server revalidates the active Professor account and faculty link on every request;
-request-supplied faculty IDs never select the report's owner. No-cache headers and
-a final release check also apply to the result page.
+year and semester. The signed-in account's active faculty link identifies the
+report owner. The page discovers the faculty member's results across colleges
+without requiring a home campus, home college, or college selector. Each owning
+college's **Faculty results** release applies independently of whether student
+collection is open. The server revalidates the active Professor account, faculty
+link, term and release. No-cache headers apply to the result page.
 
 The Student evaluation and Supervisor evaluation tabs remain visible. The
 Supervisor tab is a placeholder for later work; it loads no subjects, completion
@@ -17,8 +15,9 @@ counts, or reports. No schema changes are required.
 Assigned classes appear as one full-width card per class, with the exact workload
 subject summary: subject code and orange title, meeting times, rooms and section.
 The page reuses `workload-class-summary.php`, `workload.css`, and the existing
-workload read/merge logic, then scopes classes by college ID. Subject search works
-across title, code, section, schedule and room. Mobile cards remain a single column.
+workload read/merge logic and labels classes by college when multiple colleges
+are shown. Subject
+search includes the college name. Mobile cards remain a single column.
 
 Each Student card displays **Total students**, **Evaluated**, and **Not evaluated**.
 Totals use distinct students from the actual current class roster, including the
@@ -58,19 +57,18 @@ and statement scores, the original scale, and escaped submitted comments, withou
 student identities or individual-response links.
 
 **Consolidated evaluation results** appears below the full subject list, with
-unique roster completion counts and one score summary per questionnaire version.
-It covers all assigned classes regardless of the subject search filter. Category,
+unique roster completion counts and one combined score per questionnaire version.
+A college breakdown appears when more than one college contributes results.
+A roster student in several colleges counts as
+evaluated after submitting in each applicable released college. Category,
 statement and anonymous-comment details expand beneath the summary.
 
-Consolidation unions the exact submitted response IDs used by the subject panels.
-A response linked to several subjects or sections contributes once, rather than
-being counted once for every card. Responses not linked to an assigned subject and
-its current roster, drafts, other faculty, other colleges and other terms are
-excluded. Score eligibility rules are then applied to that distinct response set;
-excluded responses still count toward completion, and their submitted comments
-remain available under the existing release rules. The current faculty, class
-assignments, college, administrator term and Dean release are rechecked before
-returning the consolidated report. No response or score is written by this view.
+Each submitted evaluation owned by a released college in the current term
+contributes once, even if it no longer matches a current class roster. Legacy
+evaluations need unambiguous evidence of college ownership. Score exclusions
+still apply, and submitted comments follow the existing release rules. The
+faculty link, administrator term and college releases are rechecked before
+returning the report.
 
 For each questionnaire version, calculations use raw totals:
 

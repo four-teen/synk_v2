@@ -16,21 +16,14 @@ function synk_professor_evaluation_identity(mysqli $conn): array
     return $portal;
 }
 
-// The viewing scope follows the administrator's term and the linked account.
-// Older query-string selectors never override this context.
-function synk_professor_evaluation_current_scope(mysqli $conn): array
+// The administrator's term applies regardless of the professor's affiliation.
+function synk_professor_evaluation_current_term(mysqli $conn): array
 {
-    $portal=synk_professor_evaluation_identity($conn);
     $term=synk_fetch_current_academic_term($conn);
-    $rows=synk_evaluation_query($conn,"SELECT c.college_id,c.college_name,ay.ay_id,ay.ay AS ay_label
-        FROM tbl_useraccount u JOIN tbl_useraccount_faculty_links l ON l.user_id=u.user_id
-        JOIN tbl_faculty f ON f.faculty_id=l.faculty_id
-        JOIN tbl_college c ON c.college_id=COALESCE(NULLIF(u.college_id,0),f.college_id) AND c.status='active'
-        JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
-        JOIN tbl_academic_years ay ON ay.ay_id=?
-        WHERE u.user_id=? AND f.faculty_id=?",'iii',[(int)($term['ay_id'] ?? 0),(int)$portal['user_id'],(int)$portal['faculty_id']]);
-    if (!$rows || !in_array((int)($term['semester'] ?? 0),[1,2,3],true)) throw new DomainException('Ask your administrator to check your linked college and the current academic term.');
-    return $rows[0]+['semester'=>(int)$term['semester']];
+    if (!$term['ay_id'] || $term['ay_label']==='' || !in_array($term['semester'],[1,2,3],true)) {
+        throw new DomainException('Ask your administrator to check the current academic term.');
+    }
+    return $term;
 }
 
 function synk_professor_evaluation_h($value): string { return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8'); }
@@ -49,12 +42,23 @@ function synk_professor_evaluation_submitted_students(mysqli $conn,array $term):
 // Every report, panel and export resolves the current account/term/release again.
 function synk_professor_evaluation_require_scope(mysqli $conn,array $expected): array
 {
-    $scope=synk_professor_evaluation_current_scope($conn);
-    foreach (['college_id','ay_id','semester'] as $field) {
-        if ((int)($expected[$field] ?? 0)!==(int)$scope[$field]) throw new DomainException('Your college or academic term has changed. Reload the page before continuing.',409);
+    synk_professor_evaluation_identity($conn);
+    $term=synk_professor_evaluation_current_term($conn);
+    if (!synk_evaluation_is_current($expected,$term)) {
+        throw new DomainException('The academic term has changed. Reload the page before continuing.',409);
     }
-    if (empty(synk_evaluation_settings($conn,(int)$scope['college_id'],(int)$scope['ay_id'],(int)$scope['semester'])['faculty_released'])) throw new DomainException('Your Dean has hidden these evaluation results. Reload the page for the latest status.',403);
-    return $scope;
+    $college=(int)($expected['college_id'] ?? 0);
+    $rows=synk_evaluation_query($conn,"SELECT c.college_id,c.college_name,s.faculty_released,s.version AS release_version
+        FROM tbl_college c
+        JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
+        LEFT JOIN tbl_college_evaluation_settings s ON s.college_id=c.college_id AND s.ay_id=? AND s.semester=?
+        WHERE c.college_id=? AND c.status='active'",
+        'iii',[$term['ay_id'],$term['semester'],$college]);
+    if (!$rows) throw new DomainException('The college is no longer available. Reload the page before continuing.',409);
+    if (empty($rows[0]['faculty_released'])) {
+        throw new DomainException('These college results are unavailable. Reload the page for the latest status.',403);
+    }
+    return $term+$rows[0];
 }
 
 function synk_professor_evaluation_class_context(mysqli $conn,int $offeringId,array $expected): array
@@ -66,9 +70,7 @@ function synk_professor_evaluation_class_context(mysqli $conn,int $offeringId,ar
     throw new DomainException('This class is no longer available in your assigned workload.',404);
 }
 
-// One union of response IDs, using exactly the same subject/roster matching for
-// individual class panels and the consolidated report. A shared response enters
-// this union once, regardless of how many class cards contain it.
+// Subject cards use the saved subject association and each class's current roster.
 function synk_professor_evaluation_subject_response_ids(mysqli $conn,array $scope,array $classes): array
 {
     $portal=synk_professor_evaluation_identity($conn);
@@ -115,22 +117,53 @@ function synk_professor_evaluation_subject_response_ids(mysqli $conn,array $scop
 
 function synk_professor_evaluation_consolidated_results(mysqli $conn,array $expected): array
 {
-    $scope=synk_professor_evaluation_require_scope($conn,$expected);
+    $term=synk_professor_evaluation_current_term($conn);
     $portal=synk_professor_evaluation_identity($conn);
-    $classes=synk_professor_evaluation_subjects($conn,$scope);
-    $linked=synk_professor_evaluation_subject_response_ids($conn,$scope,$classes);
-    $groups=synk_professor_evaluation_results($conn,$scope,$linked['ids']);
-    $members=[];
-    foreach (synk_professor_workload_student_memberships($conn,$classes,(int)$scope['ay_id'],(int)$scope['semester']) as $roster) $members+=$roster;
-    $submitted=synk_professor_evaluation_submitted_students($conn,$scope);
-    $evaluated=count(array_intersect_key($members,$submitted));
-    synk_professor_evaluation_require_scope($conn,$expected);
+    if (!synk_evaluation_is_current($expected,$term)) {
+        throw new DomainException('The academic term has changed. Reload the page before continuing.',409);
+    }
+    $facultyId=(int)$portal['faculty_id'];
+    $scopes=synk_professor_evaluation_options($conn,$facultyId,$term);
+    $collegeIds=array_map('intval',array_column($scopes,'college_id'));
+    $classes=[]; $classIdsByCollege=[]; $counts=[]; $members=[]; $pending=[]; $colleges=[];
+    $eligibleSql=$collegeIds ? synk_evaluation_score_predicate(synk_evaluation_score_states($conn,$term['ay_id'],$term['semester'])) : '1=1';
+    foreach ($scopes as $scope) {
+        $collegeId=(int)$scope['college_id'];
+        $collegeGroups=synk_professor_evaluation_result_groups($conn,$facultyId,$term,[$collegeId],$eligibleSql);
+        if ($collegeGroups) $colleges[]=['college_id'=>$collegeId,'college_name'=>$scope['college_name'],'groups'=>$collegeGroups];
+        $collegeClasses=synk_professor_evaluation_subjects($conn,$scope);
+        $classIdsByCollege[$collegeId]=array_column($collegeClasses,'offering_id');
+        if (!$collegeClasses) continue;
+        $submitted=synk_professor_evaluation_submitted_students($conn,$scope);
+        $rosters=synk_professor_workload_student_memberships($conn,$collegeClasses,$term['ay_id'],$term['semester']);
+        foreach ($collegeClasses as $class) {
+            $offeringId=(int)$class['offering_id'];
+            $classes[]=$class+['evaluation_college_id'=>$collegeId,'evaluation_college_name'=>$scope['college_name']];
+            $roster=$rosters[$offeringId] ?? [];
+            $missing=array_diff_key($roster,$submitted);
+            $members+=$roster;
+            $pending+=$missing;
+            $counts[$offeringId]=['total'=>count($roster),'evaluated'=>count($roster)-count($missing),'not_evaluated'=>count($missing)];
+        }
+    }
+    $groups=count($colleges)>1
+        ? synk_professor_evaluation_result_groups($conn,$facultyId,$term,$collegeIds,$eligibleSql)
+        : ($colleges[0]['groups'] ?? []);
+    foreach ($scopes as $scope) {
+        $latestClassIds=array_column(synk_professor_evaluation_subjects($conn,$scope),'offering_id');
+        $loadedClassIds=$classIdsByCollege[(int)$scope['college_id']];
+        if (array_diff($loadedClassIds,$latestClassIds) || array_diff($latestClassIds,$loadedClassIds)) {
+            throw new DomainException('Your teaching assignments have changed. Reload the page for current results.',409);
+        }
+    }
     $latestPortal=synk_professor_evaluation_identity($conn);
-    $latestClasses=synk_professor_evaluation_subjects($conn,$scope);
-    $before=array_column($classes,'offering_id'); $after=array_column($latestClasses,'offering_id'); sort($before); sort($after);
-    if ((int)$latestPortal['faculty_id']!==(int)$portal['faculty_id'] || $before!==$after) throw new DomainException('Your teaching assignments have changed. Reload the page for current results.',409);
-    return ['scope'=>$scope,'groups'=>$groups,'class_count'=>count($classes),'combined_count'=>$linked['combined_count'],
-        'submitted_count'=>count($linked['ids']),'counts'=>['total'=>count($members),'evaluated'=>$evaluated,'not_evaluated'=>count($members)-$evaluated]];
+    if ((int)$latestPortal['faculty_id']!==$facultyId
+        || !synk_evaluation_is_current($term,synk_professor_evaluation_current_term($conn))
+        || $scopes!==synk_professor_evaluation_options($conn,$facultyId,$term)) {
+        throw new DomainException('Evaluation access changed. Reload the page for current results.',409);
+    }
+    return ['groups'=>$groups,'colleges'=>$colleges,'classes'=>$classes,'class_counts'=>$counts,
+        'counts'=>['total'=>count($members),'evaluated'=>count($members)-count($pending),'not_evaluated'=>count($pending)]];
 }
 
 function synk_professor_evaluation_class_detail(mysqli $conn,int $offeringId,string $view,array $expected): array
@@ -162,6 +195,9 @@ function synk_professor_evaluation_class_detail(mysqli $conn,int $offeringId,str
     // Recheck assignment, release, college and term after loading sensitive data.
     $latest=synk_professor_evaluation_class_context($conn,$offeringId,$expected);
     if ((int)$latest['class']['faculty_id']!==(int)$portal['faculty_id']) throw new DomainException('Your linked faculty record has changed. Reload the page before continuing.',409);
+    if ($latest['scope']['release_version']!==$scope['release_version']) {
+        throw new DomainException('Evaluation access changed. Reload the page for current results.',409);
+    }
     return $context;
 }
 
@@ -219,21 +255,23 @@ function synk_professor_evaluation_completion(mysqli $conn,array $term,array $cl
     return $counts;
 }
 
-// Only the Dean's released college/term combinations are returned.
-function synk_professor_evaluation_options(mysqli $conn, int $facultyId): array
+// A supplied Student term excludes supervisor-only releases and other terms.
+function synk_professor_evaluation_options(mysqli $conn,int $facultyId,?array $studentTerm=null): array
 {
     if (!synk_evaluation_table_exists($conn,'tbl_college_evaluation_settings')
         || !synk_evaluation_has_ownership($conn)) return [];
     $assignmentSource=synk_professor_workload_assignment_source_sql();
-    $supervisorExists=synk_evaluation_table_exists($conn,'tbl_supervisor_evaluations')
+    $supervisorExists=$studentTerm===null && synk_evaluation_table_exists($conn,'tbl_supervisor_evaluations')
         && synk_evaluation_table_exists($conn,'tbl_supervisor_evaluation_assignments')
         ? "OR EXISTS (SELECT 1 FROM tbl_supervisor_evaluations se
             JOIN tbl_supervisor_evaluation_assignments sa ON sa.assignment_id=se.assignment_id AND sa.revision=se.assignment_revision
             WHERE se.faculty_id={$facultyId} AND se.college_id=s.college_id AND se.ay_id=s.ay_id AND se.semester=s.semester AND se.submission_status='submitted')" : '';
-    return synk_evaluation_query($conn,"SELECT s.college_id,s.ay_id,s.semester,c.college_name,ay.ay AS ay_label
+    $termFilter=$studentTerm===null ? '' : 'AND s.ay_id=? AND s.semester=?';
+    $params=$studentTerm===null ? [$facultyId] : [$studentTerm['ay_id'],$studentTerm['semester'],$facultyId];
+    return synk_evaluation_query($conn,"SELECT s.college_id,s.ay_id,s.semester,c.college_name,ay.ay AS ay_label,s.version AS release_version
         FROM tbl_college_evaluation_settings s JOIN tbl_college c ON c.college_id=s.college_id
         JOIN tbl_campus cp ON cp.campus_id=c.campus_id JOIN tbl_academic_years ay ON ay.ay_id=s.ay_id
-        WHERE s.faculty_released=1 AND c.status='active' AND cp.status='active'
+        WHERE s.faculty_released=1 AND c.status='active' AND cp.status='active' {$termFilter}
         AND (EXISTS (SELECT 1 FROM tbl_student_faculty_evaluations e
             WHERE e.faculty_id=? AND e.submission_status='submitted' AND e.ay_id=s.ay_id AND e.semester=s.semester
             AND (e.college_id=s.college_id OR (e.college_id=0
@@ -244,7 +282,7 @@ function synk_professor_evaluation_options(mysqli $conn, int $facultyId): array
         {$supervisorExists}
         OR EXISTS (SELECT 1 {$assignmentSource} JOIN tbl_program p ON p.program_id=po.program_id
             WHERE fw.faculty_id={$facultyId} AND fw.ay_id=s.ay_id AND fw.semester=s.semester AND p.college_id=s.college_id))
-        ORDER BY ay.ay DESC,s.ay_id DESC,s.semester DESC,c.college_name",'i',[$facultyId]);
+        ORDER BY ay.ay DESC,s.ay_id DESC,s.semester DESC,c.college_name,c.college_id",str_repeat('i',count($params)),$params);
 }
 
 // Reuse the workload's subject presentation and merge rules, scoped by college ID.
@@ -258,6 +296,7 @@ function synk_professor_evaluation_subjects(mysqli $conn,array $term): array
         JOIN tbl_college_evaluation_settings s ON s.college_id=p.college_id AND s.ay_id=fw.ay_id AND s.semester=fw.semester AND s.faculty_released=1
         WHERE fw.faculty_id=? AND fw.ay_id=? AND fw.semester=? AND p.college_id=?",'iiii',
         [$facultyId,(int)$term['ay_id'],(int)$term['semester'],(int)$term['college_id']]);
+    if (!$allowed) return [];
     $ids=array_fill_keys(array_column($allowed,'offering_id'),true);
     $rows=synk_professor_fetch_subject_rows_by_academic_year($conn,$facultyId,(int)$term['ay_id'],(int)$term['semester']);
     return array_values(array_filter($rows,static function(array $row)use($ids):bool { return isset($ids[$row['offering_id']]); }));
@@ -300,22 +339,35 @@ function synk_professor_supervisor_results(mysqli $conn,array $term): array
 
 function synk_professor_evaluation_results(mysqli $conn, array $term,?array $evaluationIds=null): array
 {
-    // Re-read account and faculty link here. A supplied faculty_id is never trusted.
     $portal=synk_professor_evaluation_identity($conn);
-    $facultyId=(int)$portal['faculty_id']; $collegeId=(int)$term['college_id'];
-    $owner=synk_evaluation_owner_sql($conn,'e',$collegeId);
+    $collegeId=(int)$term['college_id'];
+    $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,(int)$term['ay_id'],(int)$term['semester']));
+    $groups=synk_professor_evaluation_result_groups($conn,(int)$portal['faculty_id'],$term,[$collegeId],$eligibleSql,$evaluationIds);
+    // A concurrent hide must suppress the already-read result as well.
+    if (empty(synk_evaluation_settings($conn,$collegeId,(int)$term['ay_id'],(int)$term['semester'])['faculty_released'])) return [];
+    return $groups;
+}
+
+// Callers resolve faculty identity server-side and recheck release before responding.
+function synk_professor_evaluation_result_groups(mysqli $conn,int $facultyId,array $term,array $collegeIds,string $eligibleSql,?array $evaluationIds=null): array
+{
+    $owners=[];
+    foreach ($collegeIds as $collegeId) {
+        $collegeId=(int)$collegeId;
+        $owners[]="(s.college_id={$collegeId} AND ".synk_evaluation_owner_sql($conn,'e',$collegeId).')';
+    }
+    $ownerFilter=implode(' OR ',$owners);
     // Release is checked in each data query, including comments and question means.
     $source="FROM tbl_student_faculty_evaluations e
-        JOIN tbl_college_evaluation_settings s ON s.college_id={$collegeId} AND s.ay_id=e.ay_id AND s.semester=e.semester AND s.faculty_released=1
+        JOIN tbl_college_evaluation_settings s ON s.ay_id=e.ay_id AND s.semester=e.semester AND s.faculty_released=1 AND ({$ownerFilter})
         JOIN tbl_college c ON c.college_id=s.college_id AND c.status='active'
         JOIN tbl_campus cp ON cp.campus_id=c.campus_id AND cp.status='active'
-        WHERE e.faculty_id=? AND e.ay_id=? AND e.semester=? AND e.submission_status='submitted' AND {$owner}";
+        WHERE e.faculty_id=? AND e.ay_id=? AND e.semester=? AND e.submission_status='submitted'";
     $params=[$facultyId,(int)$term['ay_id'],(int)$term['semester']];
     if ($evaluationIds!==null) {
         $ids=array_values(array_unique(array_filter(array_map('intval',$evaluationIds),static function(int $id):bool{return $id>0;})));
         $source.=' AND e.evaluation_id IN ('.($ids?implode(',',$ids):'0').')';
     }
-    $eligibleSql=synk_evaluation_score_predicate(synk_evaluation_score_states($conn,(int)$term['ay_id'],(int)$term['semester']));
     $headers=synk_evaluation_query($conn,"SELECT e.instrument_version,COUNT(*) AS submitted_count,
         SUM(CASE WHEN {$eligibleSql} THEN 1 ELSE 0 END) AS response_count,
         SUM(CASE WHEN {$eligibleSql} THEN e.total_score ELSE 0 END) AS points,
@@ -344,7 +396,5 @@ function synk_professor_evaluation_results(mysqli $conn, array $term,?array $eva
     foreach ($groups as &$group) foreach ($group['categories'] as &$category) $category['score']=synk_student_faculty_evaluation_score($category['points'],$category['answers']);
     unset($group,$category);
     foreach ($comments as $comment) if (isset($groups[$comment['instrument_version']])) $groups[$comment['instrument_version']]['comments'][]=$comment['comment_text'];
-    // A concurrent hide must suppress the already-read result as well.
-    if (empty(synk_evaluation_settings($conn,$collegeId,(int)$term['ay_id'],(int)$term['semester'])['faculty_released'])) return [];
     return array_values($groups);
 }
