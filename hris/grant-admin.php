@@ -18,7 +18,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require __DIR__ . '/../backend/db.php';
 $inTransaction = false;
 try {
-    foreach (['schema.sql', 'faculty-review.sql', 'faculty-status.sql', 'personnel.sql', 'employee-accounts.sql'] as $file) {
+    foreach (['schema.sql', 'faculty-review.sql', 'faculty-status.sql', 'personnel.sql', 'employee-accounts.sql', 'account-permissions.sql'] as $file) {
         $schema = file_get_contents(__DIR__ . '/' . $file);
         if ($schema === false) {
             throw new RuntimeException('HRIS schema file is unavailable.');
@@ -44,7 +44,9 @@ try {
         $stmt->close();
     }
     if (($existing['role_code'] ?? null) !== SYNK_HRIS_ADMIN || (int)($existing['synk_user_id'] ?? 0) !== $userId) {
-        synk_hris_write_account($conn, $existing, $facultyId ?: null, $userId, $email, SYNK_HRIS_ADMIN, null);
+        $existingRoles = synk_hris_assigned_roles($existing ?? []);
+        synk_hris_write_account($conn, $existing, $facultyId ?: null, $userId, $email, SYNK_HRIS_ADMIN, null,
+            synk_hris_user_permissions($existing ?? []), in_array(SYNK_HRIS_USER, $existingRoles, true));
     }
     $conn->commit();
     $inTransaction = false;

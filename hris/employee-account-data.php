@@ -7,6 +7,16 @@ function synk_hris_employee_accounts_ready(mysqli $conn): bool
     return synk_table_exists($conn, 'tbl_hr_employee_accounts');
 }
 
+function synk_hris_account_permissions_ready(mysqli $conn): bool
+{
+    return synk_table_has_column($conn, 'tbl_hr_employee_accounts', 'user_permissions');
+}
+
+function synk_hris_secondary_role_ready(mysqli $conn): bool
+{
+    return synk_table_has_column($conn, 'tbl_hr_employee_accounts', 'secondary_role_code');
+}
+
 function synk_hris_official_email($value, string $domain, bool $optional = false): string
 {
     $email = is_string($value) ? synk_normalize_email($value) : '';

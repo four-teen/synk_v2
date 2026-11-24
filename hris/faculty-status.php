@@ -7,7 +7,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     exit;
 }
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('employee_manage', true);
 require_once __DIR__ . '/faculty-data.php';
 require_once __DIR__ . '/faculty-status-data.php';
 

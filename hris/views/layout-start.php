@@ -2,8 +2,10 @@
 if (!isset($account, $token, $pageTitle, $view, $views)) { http_response_code(404); return; }
 $accountEmail = (string)$account['email'];
 $accountName = trim((string)$account['username']) ?: $accountEmail;
-$roleLabel = synk_hris_role_labels()[(string)($account['role_code'] ?? '')] ?? 'HRIS User';
-$homeUrl = (string)($account['role_code'] ?? '') === SYNK_HRIS_USER ? 'workspace.php' : './';
+$headerRoleLabels = synk_hris_role_labels();
+$activeRole = synk_hris_active_role($account);
+$roleLabel = $headerRoleLabels[$activeRole];
+$alternateRole = array_values(array_diff(synk_hris_assigned_roles($account), [$activeRole]))[0] ?? null;
 $avatarFallback = synk_default_user_avatar_path();
 $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatarFallback;
 ?>
@@ -32,20 +34,22 @@ $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatar
     <?php endif; ?>
     <link rel="stylesheet" href="assets/dashboard.css?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/dashboard.css') ?>">
     <script src="assets/dashboard.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/dashboard.js') ?>" defer></script>
-    <?php if ($hasManagementMenu): ?>
+    <?php if ($canManagePositions): ?>
         <script src="assets/position-catalog.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/position-catalog.js') ?>" defer></script>
     <?php endif; ?>
     <?php if ($view === 'faculty' && isset($visibleRecords)): ?>
         <script src="assets/faculty-search.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/faculty-search.js') ?>" defer></script>
-        <script src="assets/delete-employee.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/delete-employee.js') ?>" defer></script>
+        <?php if ($canDeleteEmployees): ?>
+            <script src="assets/delete-employee.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/delete-employee.js') ?>" defer></script>
+        <?php endif; ?>
         <?php if (isset($positionCatalog)): ?>
             <script src="assets/new-employee.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/new-employee.js') ?>" defer></script>
         <?php endif; ?>
-        <?php if (isset($facultyStatuses)): ?>
+        <?php if ($canManageEmployees && isset($facultyStatuses)): ?>
             <script src="assets/faculty-status.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/faculty-status.js') ?>" defer></script>
         <?php endif; ?>
     <?php endif; ?>
-    <?php if ($view === 'faculty' && (isset($visibleRecords) || isset($previewUrl))): ?>
+    <?php if ($canManageEmployees && $view === 'faculty' && (isset($visibleRecords) || isset($previewUrl))): ?>
         <script src="assets/work-experience.js?v=<?= (int)filemtime(dirname(__DIR__) . '/assets/work-experience.js') ?>" defer></script>
     <?php endif; ?>
     <?php if ($view === 'faculty' && isset($previewUrl)): ?>
@@ -59,7 +63,7 @@ $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatar
     <a class="hris-skip" href="#main-content">Skip to content</a>
     <div class="hris-shell">
         <aside id="layout-menu" class="hris-sidebar">
-            <a class="hris-brand hris-sidebar-brand" href="<?= synk_hris_h($homeUrl) ?>" aria-label="Kawani workspace">
+            <a class="hris-brand hris-sidebar-brand" href="./" aria-label="Kawani workspace">
                 <img src="assets/sksu-seal.webp" alt="" width="36" height="36">
                 <span class="synk-wordmark">kawan<span class="hris-brand-accent">i</span></span>
             </a>
@@ -74,15 +78,13 @@ $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatar
                         </span>
                     </a>
                 <?php endforeach; ?>
-                <?php if ($hasManagementMenu): ?>
-                    <?php $mobileManagement = false; require __DIR__ . '/management-navigation.php'; ?>
-                <?php endif; ?>
+                <?php $mobileManagement = false; require __DIR__ . '/management-navigation.php'; ?>
             </nav>
         </aside>
         <div class="hris-workspace">
             <header class="hris-navbar">
                 <div class="hris-navbar-context">
-                    <a class="hris-brand hris-mobile-brand" href="<?= synk_hris_h($homeUrl) ?>" aria-label="Kawani workspace">
+                    <a class="hris-brand hris-mobile-brand" href="./" aria-label="Kawani workspace">
                         <img src="assets/sksu-seal.webp" alt="" width="36" height="36">
                         <span class="synk-wordmark">kawan<span class="hris-brand-accent">i</span></span>
                     </a>
@@ -110,9 +112,16 @@ $avatarUrl = synk_faculty_profile_image_url((int)$account['user_id']) ?: $avatar
                                     <?php if ($accountName !== $accountEmail): ?><small><?= synk_hris_h($accountEmail) ?></small><?php endif; ?>
                                 </div>
                             </div>
+                            <?php if ($alternateRole !== null): ?>
+                                <form method="post" action="switch-account.php">
+                                    <input type="hidden" name="csrf_token" value="<?= synk_hris_h($token) ?>">
+                                    <input type="hidden" name="role_code" value="<?= synk_hris_h($alternateRole) ?>">
+                                    <button class="hris-account-action" type="submit"><i class="bx bx-transfer-alt" aria-hidden="true"></i> Switch to <?= synk_hris_h($headerRoleLabels[$alternateRole]) ?></button>
+                                </form>
+                            <?php endif; ?>
                             <form method="post" action="logout.php">
                                 <input type="hidden" name="csrf_token" value="<?= synk_hris_h($token) ?>">
-                                <button class="hris-sign-out" type="submit"><i class="bx bx-power-off" aria-hidden="true"></i> Sign out</button>
+                                <button class="hris-account-action" type="submit"><i class="bx bx-power-off" aria-hidden="true"></i> Sign out</button>
                             </form>
                         </div>
                     </details>

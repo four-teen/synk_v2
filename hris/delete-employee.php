@@ -14,7 +14,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     header('Allow: POST');
     $reply(405, ['message' => 'Use the Delete employee confirmation.']);
 }
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('employee_delete', true);
 if (!synk_hris_valid_post()) {
     $reply(403, ['message' => 'This form expired. Reload Employee Profiles before trying again.']);
 }

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../backend/auth_google.php';
 require_once __DIR__ . '/employee-account-data.php';
+require_once __DIR__ . '/permissions.php';
 
 const SYNK_HRIS_ADMIN = 'hris_admin';
 const SYNK_HRIS_USER = 'hris_user';
@@ -197,7 +198,9 @@ function synk_hris_require_account(): array
         error_log('HRIS access check failed: ' . get_class($error));
         synk_auth_status_redirect('hris_unavailable', 'login.php');
     }
-    if (!$account || (string)$account['google_sub'] === '' || !hash_equals((string)$account['google_sub'], (string)($identity['google_sub'] ?? ''))
+    $activeRole = $identity['active_role'] ?? ($account['role_code'] ?? null);
+    if (!$account || !in_array($activeRole, synk_hris_assigned_roles($account), true)
+        || (string)$account['google_sub'] === '' || !hash_equals((string)$account['google_sub'], (string)($identity['google_sub'] ?? ''))
         || (!empty($account['synk_google_sub']) && !hash_equals($account['synk_google_sub'], $account['google_sub']))
         || !synk_is_allowed_email_domain($account['email'], $domain)) {
         unset($_SESSION['hris_identity']);
@@ -206,19 +209,24 @@ function synk_hris_require_account(): array
     if ((int)$account['account_id'] > 0 && !isset($identity['account_id'])) {
         $_SESSION['hris_identity'] = ['account_id' => (int)$account['account_id'], 'revision' => (int)$account['revision']] + $identity;
     }
+    $account['active_role'] = $activeRole;
     return [$conn, $account];
 }
 
-function synk_hris_require_admin(): array
+function synk_hris_set_session_role(string $role): void
+{
+    $_SESSION['hris_identity']['active_role'] = $role;
+    unset($_SESSION['hris_csrf'], $_SESSION['hris_account_flash'], $_SESSION['hris_employee_delete_review']);
+}
+
+function synk_hris_require_permission(string $permission, bool $json = false): array
 {
     [$conn, $account] = synk_hris_require_account();
-    if ($account['role_code'] !== SYNK_HRIS_ADMIN) {
-        if (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['GET', 'HEAD'], true)) {
-            header('Location: workspace.php', true, 302);
-            exit;
-        }
+    if (!synk_hris_can($account, $permission)) {
+        $message = 'This operation is not assigned to your Kawani account.';
         http_response_code(403);
-        exit('Kawani Administrator access is required.');
+        header('Content-Type: ' . ($json ? 'application/json' : 'text/plain') . '; charset=utf-8');
+        exit($json ? json_encode(['message' => $message]) : $message);
     }
     return [$conn, $account];
 }

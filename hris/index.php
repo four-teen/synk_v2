@@ -1,13 +1,32 @@
 <?php
 session_start();
 require_once __DIR__ . '/auth.php';
-$view = $_GET['view'] ?? '';
-$view = is_string($view) && in_array($view, ['dashboard', 'faculty', 'pds'], true) ? $view : 'dashboard';
-$chartStyleNonce = $view === 'dashboard' ? base64_encode(random_bytes(18)) : '';
-synk_hris_headers($chartStyleNonce);
-[$conn, $account] = synk_hris_require_admin();
+synk_hris_headers();
+[$conn, $account] = synk_hris_require_account();
 require __DIR__ . '/views/navigation.php';
+$requestedView = $_GET['view'] ?? '';
+$view = is_string($requestedView) && isset($viewPermissions[$requestedView]) ? $requestedView : (key($views) ?: 'workspace');
+if ($view !== 'workspace' && !isset($views[$view])) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit('This page is not assigned to your Kawani account.');
+}
+if ($view === 'workspace' && $canManageAccounts) {
+    header('Location: accounts.php', true, 302);
+    exit;
+}
+if ($view === 'dashboard') {
+    $chartStyleNonce = base64_encode(random_bytes(18));
+    synk_hris_headers($chartStyleNonce);
+}
+$canSeeProfiles = isset($views['faculty']);
+$canSeePdsTracker = isset($views['pds']);
 $token = synk_hris_csrf();
+$flash = null;
+if (($_GET['partial'] ?? '') === '' && !empty($_SESSION['hris_account_flash']['workspace'])) {
+    $flash = $_SESSION['hris_account_flash'];
+    unset($_SESSION['hris_account_flash']);
+}
 $facultyFlash = null;
 if ($view === 'faculty' && ($_GET['partial'] ?? '') !== 'results') {
     $facultyFlash = !empty($_SESSION['hris_employee_registered'])
@@ -23,8 +42,31 @@ if ($view === 'faculty' && ($_GET['partial'] ?? '') !== 'results') {
 }
 session_write_close();
 
-require_once __DIR__ . '/faculty-data.php';
 require_once __DIR__ . '/../backend/user_avatar_helper.php';
+if ($view === 'workspace') {
+    $pageTitle = 'Human Resources';
+    require __DIR__ . '/views/layout-start.php';
+    ?>
+    <main id="main-content" class="hris-main" tabindex="-1">
+        <?php require __DIR__ . '/views/account-alert.php'; ?>
+        <section class="hris-hero">
+            <div>
+                <h1>Human Resources</h1>
+                <?php if ($canManagePositions): ?>
+                    <p>Manage non-teaching positions for Kawani.</p>
+                    <div class="hris-hero-actions">
+                        <button type="button" class="hris-action hris-action-primary" data-open-position-catalog aria-haspopup="dialog" aria-controls="position-catalog">Open Position Catalog</button>
+                    </div>
+                <?php else: ?>
+                    <p>Your account has no tools assigned. Contact your Kawani administrator to request access.</p>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php
+    require __DIR__ . '/views/layout-end.php';
+    exit;
+}
+require_once __DIR__ . '/faculty-data.php';
 
 $viewTitle = $views[$view]['title'];
 $sectionTitles = array_column(synk_faculty_pds_preview_sections(), 'title', 'key');
@@ -53,7 +95,7 @@ if ($view !== 'pds') {
     $personnelCategories = synk_hris_personnel_categories();
     try {
         $personnelDetails = synk_hris_load_personnel_details($conn);
-        if ($view === 'faculty' && $personnelDetails !== null) $positionCatalog = synk_hris_position_catalog($conn);
+        if ($view === 'faculty' && $canManageEmployees && $personnelDetails !== null) $positionCatalog = synk_hris_position_catalog($conn);
     } catch (mysqli_sql_exception $error) {
         error_log('Kawani could not load personnel details. Database error ' . $error->getCode());
     }
@@ -107,15 +149,15 @@ if ($view === 'dashboard') {
     $metrics[] = ['Total Employee', 'Active, Enactive, and Retired', 'bx-group', 'neutral',
         $analyticsAvailable ? array_sum(array_intersect_key($employeeCounts, $employeeMetrics)) : null, '?view=faculty&filter=reviewed'];
     $followUps = [
-        ['Missing employee ID', 'No ID saved in either source', 'bx-id-card', 'amber',
+        ['Missing employee ID', 'No ID saved in either source', 'bx-id-card', 'amber', 'faculty',
             '?view=faculty&filter=active-missing-id', $analyticsAvailable ? count(array_filter($activeRecords, static function (array $record): bool {
                 return $record['employee_id'] === '';
             })) : null],
-        ['Employee ID conflicts', 'Different or duplicate IDs', 'bx-error-circle', 'neutral',
+        ['Employee ID conflicts', 'Different or duplicate IDs', 'bx-error-circle', 'neutral', 'faculty',
             '?view=faculty&filter=active-id-review', $analyticsAvailable ? count(array_filter($activeRecords, static function (array $record): bool {
                 return $record['id_mismatch'] || $record['duplicate_id'];
             })) : null],
-        ['PDS link review', 'Drafts that need a faculty link checked', 'bx-link-alt', 'blue',
+        ['PDS link review', 'Drafts that need a faculty link checked', 'bx-link-alt', 'blue', 'pds',
             '?view=pds&filter=active-link-review', $analyticsAvailable ? count(array_filter(array_column($activeRecords, 'link_issue'))) : null],
     ];
 } else {
@@ -200,7 +242,7 @@ if ($view === 'faculty' && ($_GET['partial'] ?? '') === 'results') {
     exit;
 }
 $employeeFields = [];
-if ($view === 'faculty') {
+if ($view === 'faculty' && $canManageEmployees) {
     require_once __DIR__ . '/employee-data.php';
     try {
         if ($positionCatalog !== null && synk_faculty_record_profiles_ready($conn)) {
@@ -216,6 +258,7 @@ $pageTitle = $viewTitle;
 require __DIR__ . '/views/layout-start.php';
 ?>
         <main id="main-content" class="hris-main" tabindex="-1">
+            <?php require __DIR__ . '/views/account-alert.php'; ?>
             <?php if ($unavailable): ?>
                 <p class="hris-notice" role="status"><i class="bx bx-info-circle" aria-hidden="true"></i>
                     <?= synk_hris_h(implode(' and ', $unavailable)) ?> could not be loaded. Refresh the page to try again.
@@ -226,11 +269,13 @@ require __DIR__ . '/views/layout-start.php';
                 <section class="hris-hero" aria-labelledby="dashboard-title">
                     <div>
                         <h1 id="dashboard-title">Human Resources Dashboard</h1>
-                        <p>Review faculty profiles and track Personal Data Sheets saved in Synk.</p>
-                        <div class="hris-hero-actions">
-                            <a class="hris-action hris-action-primary" href="?view=pds"><i class="bx bx-file" aria-hidden="true"></i> Open PDS tracker</a>
-                            <a class="hris-action" href="?view=faculty">Browse employees <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a>
-                        </div>
+                        <p>Review employee totals, employment trends, and PDS progress.</p>
+                        <?php if ($canSeePdsTracker || $canSeeProfiles): ?>
+                            <div class="hris-hero-actions">
+                                <?php if ($canSeePdsTracker): ?><a class="hris-action hris-action-primary" href="?view=pds"><i class="bx bx-file" aria-hidden="true"></i> Open PDS tracker</a><?php endif; ?>
+                                <?php if ($canSeeProfiles): ?><a class="hris-action" href="?view=faculty">Browse employees <i class="bx bx-right-arrow-alt" aria-hidden="true"></i></a><?php endif; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="hris-hero-art" aria-hidden="true">
                         <span class="hris-hero-document"><i class="bx bx-file"></i></span>
@@ -243,7 +288,7 @@ require __DIR__ . '/views/layout-start.php';
                             <span class="hris-icon"><i class="bx <?= $icon ?>" aria-hidden="true"></i></span>
                             <div class="hris-metric-label">
                                 <h2>
-                                    <?php if ($count === null): ?><?= synk_hris_h($label) ?>
+                                    <?php if ($count === null || !$canSeeProfiles): ?><?= synk_hris_h($label) ?>
                                     <?php else: ?><a href="<?= synk_hris_h($url) ?>"><?= synk_hris_h($label) ?></a><?php endif; ?>
                                 </h2>
                                 <p><?= $count === null ? 'Data unavailable' : synk_hris_h($description) ?></p>
@@ -267,7 +312,11 @@ require __DIR__ . '/views/layout-start.php';
                             <ul class="hris-progress-list">
                                 <?php foreach ($pdsStatuses as $key => [$label, $tone]): $count = $statusCounts[$key] ?? 0; ?>
                                     <li>
-                                        <div><a href="?view=pds&amp;filter=active-<?= $key ?>"><?= synk_hris_h($label) ?></a><strong><?= number_format($count) ?></strong></div>
+                                        <div>
+                                            <?php if ($canSeePdsTracker): ?><a href="?view=pds&amp;filter=active-<?= $key ?>"><?= synk_hris_h($label) ?></a>
+                                            <?php else: ?><span><?= synk_hris_h($label) ?></span><?php endif; ?>
+                                            <strong><?= number_format($count) ?></strong>
+                                        </div>
                                         <progress class="hris-progress hris-progress-<?= $tone ?>" max="<?= max(1, $activeCount) ?>" value="<?= $count ?>" aria-label="<?= synk_hris_h($label) ?>"></progress>
                                     </li>
                                 <?php endforeach; ?>
@@ -276,10 +325,12 @@ require __DIR__ . '/views/layout-start.php';
                         <?php else: ?><p class="hris-empty">PDS status is unavailable.</p><?php endif; ?>
                     </section>
 
+                    <?php if ($canSeeProfiles || $canSeePdsTracker): ?>
                     <section class="hris-card hris-panel" aria-labelledby="follow-up-title">
                         <div class="hris-panel-heading"><div><h2 id="follow-up-title">Needs follow-up</h2><p>ID and PDS link checks for active employees</p></div></div>
                         <ul class="hris-follow-ups">
-                            <?php foreach ($followUps as [$label, $description, $icon, $tone, $url, $count]): ?>
+                            <?php foreach ($followUps as [$label, $description, $icon, $tone, $targetView, $url, $count]): ?>
+                                <?php if (!isset($views[$targetView])) continue; ?>
                                 <li>
                                     <a href="<?= synk_hris_h($url) ?>">
                                         <span class="hris-icon hris-tone-<?= $tone ?>"><i class="bx <?= $icon ?>" aria-hidden="true"></i></span>
@@ -291,8 +342,10 @@ require __DIR__ . '/views/layout-start.php';
                             <?php endforeach; ?>
                         </ul>
                     </section>
+                    <?php endif; ?>
                 </div>
 
+                <?php if ($canSeePdsTracker): ?>
                 <section class="hris-card hris-panel" aria-labelledby="recent-pds-title">
                     <div class="hris-panel-heading">
                         <div><h2 id="recent-pds-title">Recently saved PDS</h2><p>Latest section saves by active employees</p></div>
@@ -312,11 +365,12 @@ require __DIR__ . '/views/layout-start.php';
                         </ul>
                     <?php else: ?><p class="hris-empty"><?= $analyticsAvailable ? 'No PDS saves from active employees yet.' : 'Recent saves are unavailable.' ?></p><?php endif; ?>
                 </section>
+                <?php endif; ?>
             <?php else: ?>
                 <header class="hris-view-heading">
                     <div class="hris-view-heading-row">
                         <h1><?= synk_hris_h($viewTitle) ?></h1>
-                        <?php if (!$trackingPds): ?>
+                        <?php if (!$trackingPds && $canManageEmployees): ?>
                             <div class="hris-directory-actions">
                                 <button type="button" class="hris-action hris-action-primary" data-new-employee aria-haspopup="dialog"<?= $employeeFields ? '' : ' disabled' ?>>
                                     <i class="bx bx-user-plus" aria-hidden="true"></i> New Employee
@@ -333,7 +387,7 @@ require __DIR__ . '/views/layout-start.php';
                         <span><?= synk_hris_h($facultyFlash['message']) ?></span>
                     </div>
                 <?php endif; ?>
-                <?php if (!$trackingPds && !$employeeFields): ?>
+                <?php if (!$trackingPds && $canManageEmployees && !$employeeFields): ?>
                     <p class="hris-notice" role="status"><i class="bx bx-info-circle" aria-hidden="true"></i> New employee registration is unavailable.</p>
                 <?php endif; ?>
                 <?php if ($facultyStatuses === null && ($needsHrStatus || (!$trackingPds && $directoryAvailable))): ?>
@@ -382,11 +436,11 @@ require __DIR__ . '/views/layout-start.php';
                 <i class="bx bx-check-circle" aria-hidden="true"></i><span></span>
             </div>
         </div>
-        <?php require __DIR__ . '/views/delete-employee-dialog.php'; ?>
+        <?php if ($canDeleteEmployees) require __DIR__ . '/views/delete-employee-dialog.php'; ?>
     <?php endif; ?>
     <?php if ($employeeFields) require __DIR__ . '/views/new-employee-dialog.php'; ?>
     <?php if ($positionCatalog !== null && $directoryAvailable) require __DIR__ . '/views/employee-personnel-dialog.php'; ?>
-    <?php if ($facultyStatuses !== null && $directoryAvailable) require __DIR__ . '/views/faculty-status-dialog.php'; ?>
-    <?php require __DIR__ . '/views/work-experience.php'; ?>
+    <?php if ($canManageEmployees && $facultyStatuses !== null && $directoryAvailable) require __DIR__ . '/views/faculty-status-dialog.php'; ?>
+    <?php if ($canManageEmployees) require __DIR__ . '/views/work-experience.php'; ?>
 <?php endif; ?>
 <?php require __DIR__ . '/views/layout-end.php'; ?>

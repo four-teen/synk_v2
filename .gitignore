@@ -80,6 +80,7 @@ synk-research-api.php
 !/hris/faculty-status.sql
 !/hris/personnel.sql
 !/hris/employee-accounts.sql
+!/hris/account-permissions.sql
 !/sql_create_tbl_faculty_workload_simulation.sql
 !/sql_create_tbl_offering_enrollee_counts.sql
 
