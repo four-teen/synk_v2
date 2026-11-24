@@ -1,4 +1,26 @@
 (() => {
+    document.querySelectorAll('[data-account-roles]').forEach((roles) => {
+        const userRole = roles.querySelector('input[type="checkbox"][value="hris_user"]');
+        const permissions = roles.form.querySelector('[data-user-permissions]');
+        const profiles = permissions.querySelector('[value="employee_profiles"]');
+        const profileActions = [...permissions.querySelectorAll('[value="employee_manage"], [value="employee_delete"]')];
+        const updatePermissions = () => {
+            permissions.hidden = !userRole.checked;
+            permissions.disabled = permissions.hidden;
+        };
+        userRole.addEventListener('change', updatePermissions);
+        updatePermissions();
+
+        if (profiles && profileActions.length) {
+            permissions.addEventListener('change', ({target}) => {
+                if (target === profiles && !profiles.checked) {
+                    profileActions.forEach(action => { action.checked = false; });
+                }
+                if (profileActions.includes(target) && target.checked) profiles.checked = true;
+            });
+        }
+    });
+
     const field = document.querySelector('[data-employee-picker]');
     const $ = window.jQuery;
     const employeeSelect = field?.querySelector('select');

@@ -182,7 +182,7 @@ button { cursor: pointer; }
 .hris-account-profile strong, .hris-account-profile span:not(.hris-avatar), .hris-account-profile small { display: block; }
 .hris-account-profile span:not(.hris-avatar) { margin-block: .1rem; color: var(--hris-primary); font-size: .78rem; }
 .hris-account-dropdown form { margin: .35rem 0 0; padding-top: .35rem; border-top: 1px solid var(--hris-border); }
-.hris-sign-out {
+.hris-account-action {
     display: flex;
     align-items: center;
     gap: .5rem;
@@ -197,8 +197,8 @@ button { cursor: pointer; }
     font-weight: 600;
     white-space: nowrap;
 }
-.hris-sign-out i { font-size: 1.1rem; }
-.hris-sign-out:hover { background: var(--hris-green-tint); color: var(--hris-primary); }
+.hris-account-action i { font-size: 1.1rem; }
+.hris-account-action:hover { background: var(--hris-green-tint); color: var(--hris-primary); }
 
 .hris-main { width: 100%; min-width: 0; padding: .95rem var(--hris-gutter) 6.5rem; }
 .hris-main > * + * { margin-top: .9rem; }
@@ -328,6 +328,7 @@ button { cursor: pointer; }
 .hris-tone-neutral { --hris-tone-bg: var(--hris-stone-tint); --hris-tone-ink: #5c544d; }
 
 .hris-dashboard-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: .9rem; }
+.hris-dashboard-columns > :only-child { grid-column: 1 / -1; }
 .hris-panel { padding: clamp(1rem, 2.4vw, 1.35rem); }
 .hris-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
 .hris-panel-heading p { margin-top: .2rem; color: var(--hris-muted); font-size: .84rem; line-height: 1.45; }
@@ -756,11 +757,29 @@ button { cursor: pointer; }
 .hris-directory-feedback [hidden], .hris-status-form [data-status-error][hidden] { display: none; }
 .hris-account-assignment { padding: clamp(.9rem, 2vw, 1.2rem); }
 .hris-account-select, .hris-role-form { display: grid; align-items: end; gap: .7rem; margin-top: .95rem; }
-.hris-account-select { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(8rem, .55fr) auto; }
+.hris-account-select { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(9.5rem, .55fr) auto; }
 .hris-role-form { grid-template-columns: minmax(0, 23rem) minmax(8rem, 12rem) auto; justify-content: start; }
 .hris-account-field { display: grid; gap: .32rem; min-width: 0; }
 .hris-account-field label { color: var(--hris-ink); font-size: .82rem; font-weight: 650; }
 .hris-account-field input, .hris-account-field select { width: 100%; min-height: 44px; padding: .55rem .7rem; border: 1px solid #d8d2cd; border-radius: 9px; background: #fff; color: var(--hris-ink); font-size: .88rem; }
+.hris-account-role-picker { margin: 0; padding: 0; border: 0; }
+.hris-account-role-picker legend { margin-bottom: .32rem; padding: 0; color: var(--hris-ink); font-size: .82rem; font-weight: 650; }
+.hris-account-role-option {
+    display: flex;
+    align-items: center;
+    gap: .48rem;
+    min-height: 32px;
+    padding: .32rem .54rem;
+    border: 1px solid var(--hris-border);
+    border-radius: 7px;
+    background: #fff;
+    cursor: pointer;
+}
+.hris-account-role-option:has(input:checked) { border-color: #b8d4bc; background: var(--hris-green-tint); }
+.hris-account-role-option:has(input:disabled) { cursor: default; }
+.hris-account-role-option input { flex: none; width: .95rem; min-height: 0; height: .95rem; margin: 0; padding: 0; accent-color: var(--hris-primary); }
+.hris-account-role-picker small { color: var(--hris-muted); font-size: .75rem; }
+.hris-account-role-tags { display: flex; flex-wrap: wrap; gap: .32rem; }
 .hris-account-field[data-employee-picker] { position: relative; }
 .hris-account-select .select2-container { max-width: 100%; min-width: 0; }
 .hris-account-select .select2-container--default .select2-selection--single { height: 44px; border-color: #d8d2cd; border-radius: 9px; }
@@ -774,6 +793,37 @@ button { cursor: pointer; }
 .hris-account-select .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable { background: var(--hris-primary); }
 .hris-account-select .select2-results__option { padding: .55rem .65rem; overflow-wrap: anywhere; }
 .hris-role-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.hris-user-permissions {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin: .38rem 0 0;
+    padding: .85rem;
+    border: 1px solid var(--hris-border);
+    border-radius: 10px;
+    background: #fbfaf9;
+}
+.hris-user-permissions[hidden] { display: none; }
+.hris-user-permissions legend { padding: 0 .3rem; color: var(--hris-ink); font-size: .87rem; font-weight: 700; }
+.hris-permission-note { margin: 0 0 .65rem; color: var(--hris-muted); font-size: .8rem; }
+.hris-permission-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: .5rem; }
+.hris-permission-option {
+    display: flex;
+    align-items: flex-start;
+    gap: .58rem;
+    padding: .62rem .66rem;
+    border: 1px solid var(--hris-border);
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+}
+.hris-permission-option:has(input:checked) { border-color: #b8d4bc; background: var(--hris-green-tint); }
+.hris-permission-option:focus-within { outline: 2px solid var(--hris-primary); outline-offset: 2px; }
+.hris-permission-option input { flex: none; width: 1rem; height: 1rem; margin: .13rem 0 0; accent-color: var(--hris-primary); }
+.hris-permission-option strong, .hris-permission-option small { display: block; line-height: 1.35; }
+.hris-permission-option strong { color: var(--hris-ink); font-size: .82rem; font-weight: 650; }
+.hris-permission-option small { margin-top: .15rem; color: var(--hris-muted); font-size: .76rem; }
+.hris-user-permissions:not([hidden]) + .hris-account-submit,
+.hris-user-permissions:not([hidden]) + .hris-role-actions { grid-column: 1 / -1; justify-self: end; }
 .hris-action-danger { border-color: #e7b9b1; background: #fff; color: #873b2e; }
 .hris-action-danger:hover { border-color: #dba39a; background: #fff2ef; color: #713126; }
 .hris-action-danger-primary { border-color: #873b2e; background: #873b2e; color: #fff; }
@@ -783,10 +833,7 @@ button { cursor: pointer; }
 .hris-account-selected-info { display: grid; min-width: 0; flex: 1; gap: .12rem; }
 .hris-account-selected-info strong { color: var(--hris-ink); font-size: .9rem; }
 .hris-account-selected-info small { color: var(--hris-muted); font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
-.hris-account-selected > .hris-status { flex: none; }
-.hris-account-protection { display: inline-flex; align-items: center; gap: .4rem; color: #76571c; font-size: .8rem; line-height: 1.45; }
-.hris-account-protection i { color: #9a6c17; font-size: 1rem; }
-.hris-account-assignment > .hris-account-protection { margin-top: .75rem; }
+.hris-account-selected > .hris-account-role-tags { flex: none; }
 .hris-assigned-heading { align-items: center; padding: 1.05rem 1.15rem; }
 .hris-assigned-count { flex: none; padding: .28rem .55rem; border-radius: 999px; background: var(--hris-green-tint); color: var(--hris-primary-dark); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hris-assigned-identity { gap: .7rem; }
@@ -970,12 +1017,6 @@ button { cursor: pointer; }
 .hris-status-verification { display: flex; align-items: flex-start; gap: .55rem; margin-top: .75rem; padding: .7rem .8rem; border-radius: 8px; background: var(--hris-green-tint); color: var(--hris-primary-dark); font-size: .85rem; line-height: 1.45; }
 .hris-status-verification[hidden] { display: none; }
 .hris-status-verification input { flex: none; margin: .24em 0 0; accent-color: var(--hris-primary); }
-.hris-user-welcome { min-height: 210px; }
-.hris-user-eyebrow { display: inline-flex; align-items: center; gap: .35rem; margin-bottom: .7rem; color: var(--hris-primary); font-size: .8rem; font-weight: 700; }
-.hris-user-welcome p { max-width: 46rem; }
-.hris-user-access { display: flex; align-items: flex-start; gap: .8rem; padding: 1rem; }
-.hris-user-access .hris-icon { flex: none; }
-.hris-user-access p { margin-top: .3rem; color: var(--hris-muted); font-size: .88rem; line-height: 1.5; }
 
 @media (min-width: 52rem) {
     .hris-dashboard-columns { grid-template-columns: minmax(0, 1.18fr) minmax(0, 1fr); }
@@ -1042,7 +1083,7 @@ button { cursor: pointer; }
     .hris-assigned-actions { justify-content: flex-start; }
     .hris-assigned-heading { padding-inline: .9rem; }
     .hris-account-selected { align-items: flex-start; flex-wrap: wrap; }
-    .hris-account-selected > .hris-status { margin-inline-start: calc(42px + .75rem); }
+    .hris-account-selected > .hris-account-role-tags { margin-inline-start: calc(42px + .75rem); }
     .hris-position-table tbody tr { grid-template-columns: minmax(0, 1fr) auto; align-items: end; padding: .7rem .45rem; }
     .hris-position-table .hris-position-actions-cell::before { display: none; }
     .hris-position-table .hris-position-actions { flex-wrap: nowrap; }
@@ -1074,7 +1115,7 @@ button { cursor: pointer; }
     .hris-position-table tbody td { min-width: 0; }
     .hris-position-table .hris-position-actions { gap: .25rem; }
     .hris-position-actions .hris-action { min-width: 0; }
-    .hris-account-selected > .hris-status { margin-inline-start: 0; }
+    .hris-account-selected > .hris-account-role-tags { margin-inline-start: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

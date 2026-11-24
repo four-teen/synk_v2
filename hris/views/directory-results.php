@@ -104,6 +104,8 @@ if (!$trackingPds) {
                                             <span>HR status</span>
                                             <?php if ($facultyStatuses === null): ?>
                                                 <span class="hris-status hris-tone-neutral">Unavailable</span>
+                                            <?php elseif (!$canManageEmployees): ?>
+                                                <span class="hris-status hris-tone-<?= $statusTone ?>"><?= synk_hris_h($statusLabel) ?></span>
                                             <?php else: ?>
                                                 <?php
                                                 $reviewDetail = $hrStatus
@@ -165,8 +167,10 @@ if (!$trackingPds) {
                             <td class="hris-faculty-actions-cell" role="cell" data-label="Actions">
                                 <div class="hris-faculty-actions">
                                     <a class="hris-action hris-action-pill hris-tone-green" href="preview-faculty.php<?= synk_hris_h($recordQuery . $reviewQuery) ?>" aria-label="Review details for <?= synk_hris_h($record['directory_name']) ?>"><i class="bx bx-show" aria-hidden="true"></i> Review Details</a>
-                                    <button class="hris-action hris-action-pill hris-work-action" type="button" data-work-record="<?= synk_hris_h($record['owner']) ?>" data-work-name="<?= synk_hris_h($record['directory_name']) ?>" aria-haspopup="dialog" aria-label="Work experience for <?= synk_hris_h($record['directory_name']) ?>"><i class="bx bx-briefcase-alt" aria-hidden="true"></i> Work Experience</button>
-                                    <?php if ($record['photo_faculty_id'] > 0): ?>
+                                    <?php if ($canManageEmployees): ?>
+                                        <button class="hris-action hris-action-pill hris-work-action" type="button" data-work-record="<?= synk_hris_h($record['owner']) ?>" data-work-name="<?= synk_hris_h($record['directory_name']) ?>" aria-haspopup="dialog" aria-label="Work experience for <?= synk_hris_h($record['directory_name']) ?>"><i class="bx bx-briefcase-alt" aria-hidden="true"></i> Work Experience</button>
+                                    <?php endif; ?>
+                                    <?php if ($canDeleteEmployees && $record['photo_faculty_id'] > 0): ?>
                                         <button class="hris-action hris-action-pill hris-action-danger" type="button" data-delete-employee
                                             data-faculty-id="<?= $record['photo_faculty_id'] ?>" data-employee-name="<?= synk_hris_h($record['directory_name']) ?>"
                                             data-employee-id="<?= synk_hris_h($record['employee_id']) ?>" data-return-query="<?= synk_hris_h($pageUrl($page)) ?>"

@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/auth.php';
 synk_hris_headers();
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('employee_manage', true);
 require_once __DIR__ . '/employee-data.php';
 
 header('Content-Type: application/json; charset=utf-8');

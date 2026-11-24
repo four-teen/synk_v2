@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/auth.php';
 synk_hris_headers();
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('employee_manage', true);
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 require_once __DIR__ . '/faculty-data.php';
 

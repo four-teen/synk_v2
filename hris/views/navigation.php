@@ -1,5 +1,5 @@
 <?php
-$adminViews = [
+$views = [
     'dashboard' => [
         'title' => 'Dashboard', 'description' => 'Employee records at a glance', 'mobile_label' => 'Home',
         'icon' => 'bx-home-circle', 'tone' => 'green', 'url' => './',
@@ -13,10 +13,12 @@ $adminViews = [
         'icon' => 'bx-file', 'tone' => 'amber', 'url' => './?view=pds',
     ],
 ];
-$hasManagementMenu = ($account['role_code'] ?? '') === SYNK_HRIS_ADMIN;
-$views = $hasManagementMenu ? $adminViews : [
-    'workspace' => [
-        'title' => 'HR Workspace', 'description' => 'Your Kawani access', 'mobile_label' => 'Workspace',
-        'icon' => 'bx-home-circle', 'tone' => 'green', 'url' => 'workspace.php',
-    ],
-];
+$permissions = array_fill_keys(synk_hris_account_permissions($account), true);
+$viewPermissions = ['dashboard' => 'dashboard', 'faculty' => 'employee_profiles', 'pds' => 'pds_tracker'];
+foreach ($viewPermissions as $key => $permission) {
+    if (!isset($permissions[$permission])) unset($views[$key]);
+}
+$canManageAccounts = isset($permissions['accounts']);
+$canManagePositions = isset($permissions['position_catalog']);
+$canManageEmployees = isset($permissions['employee_manage']);
+$canDeleteEmployees = isset($permissions['employee_delete']);

@@ -30,7 +30,7 @@ $previewHeading = $showProfile ? $profileLabel : $sections[$sectionKey]['title']
                 <?php endforeach; ?>
             </nav>
             <section class="hris-panel hris-preview-data" id="pds-preview" data-preview-panel aria-labelledby="pds-preview-title">
-                <?php if ($sectionKey === 'work' && preg_match('/\A(?:faculty|account):/', $record['owner'])): ?>
+                <?php if ($canManageEmployees && $sectionKey === 'work' && preg_match('/\A(?:faculty|account):/', $record['owner'])): ?>
                     <header class="hris-preview-title hris-preview-work-heading">
                         <h2 id="pds-preview-title"><?= synk_hris_h($previewHeading) ?></h2>
                         <button class="hris-action hris-action-pill hris-work-action" type="button"

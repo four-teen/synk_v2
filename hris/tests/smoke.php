@@ -85,7 +85,8 @@ function hris_test_sign_in_rejected(mysqli $conn, array $google, array $settings
     }
 }
 
-check_hris(synk_hris_employee_accounts_ready($conn), 'Apply employee-accounts.sql before testing account approvals.');
+check_hris(synk_hris_account_permissions_ready($conn) && synk_hris_secondary_role_ready($conn),
+    'Apply the Kawani account migrations before testing account approvals.');
 $_SESSION = ['user_id' => 17, 'role' => 'professor', 'auth_method' => 'google'];
 $email = 'hris-test-' . bin2hex(random_bytes(6)) . '@' . $settings['allowed_domain'];
 $google = ['email' => $email, 'sub' => 'hris-test-' . bin2hex(random_bytes(14)), 'email_verified' => true];
@@ -108,6 +109,12 @@ try {
     check_hris($_SESSION['user_id'] === 17 && $_SESSION['role'] === 'professor', 'The Kawani session must preserve the Synk role and identity.');
     check_hris($conn->query("SELECT * FROM tbl_useraccount WHERE user_id = {$userId}")->fetch_assoc() === $original, 'Kawani must preserve every field of the Synk account.');
     hris_test_sign_in_rejected($conn, array_replace($google, ['sub' => 'different-subject']), $settings, 'google_identity_mismatch');
+    synk_hris_write_account($conn, $approval, null, $userId, $email, SYNK_HRIS_ADMIN, $userId, ['employee_profiles'], true);
+    $approval = synk_hris_employee_account($conn, 'email', $email);
+    check_hris(synk_hris_assigned_roles($approval) === [SYNK_HRIS_ADMIN, SYNK_HRIS_USER]
+        && synk_hris_can($approval, 'accounts')
+        && synk_hris_account_permissions(['active_role' => SYNK_HRIS_USER] + $approval) === ['employee_profiles'],
+        'The User role uses its saved permissions on the same approved Google account.');
     synk_hris_write_account($conn, $approval, null, $userId, $email, null, $userId);
     hris_test_sign_in_rejected($conn, $google, $settings, 'hris_access_denied');
 
@@ -118,12 +125,15 @@ try {
     synk_hris_record_employee_email($conn, $facultyId, $employeeEmail, $userId);
     hris_test_sign_in_rejected($conn, $employeeGoogle, $settings, 'hris_access_denied');
     $recorded = synk_hris_employee_account($conn, 'faculty_id', $facultyId);
-    synk_hris_write_account($conn, $recorded, $facultyId, null, $employeeEmail, SYNK_HRIS_USER, $userId);
+    synk_hris_write_account($conn, $recorded, $facultyId, null, $employeeEmail, SYNK_HRIS_USER, $userId, ['employee_profiles']);
     hris_test_sign_in_rejected($conn, array_replace($employeeGoogle, ['email_verified' => false]), $settings, 'hris_access_denied');
     synk_hris_complete_login($conn, $employeeGoogle, $settings);
     $employee = synk_hris_employee_account($conn, 'faculty_id', $facultyId);
     check_hris($employee['synk_user_id'] === null && $employee['role_code'] === SYNK_HRIS_USER
         && $employee['google_sub'] === $employeeGoogle['sub'], 'Approved employees can sign in to Kawani without a shared account or faculty login link.');
+    check_hris(synk_hris_account_permissions($employee) === ['employee_profiles']
+        && !synk_hris_can($employee, 'employee_manage') && !synk_hris_can($employee, 'accounts'),
+        'A User receives only the operations assigned to their role.');
     check_hris(synk_hris_matching_synk_account($conn, $employeeEmail) === null, 'A Kawani-only sign-in must not create a Synk account.');
     synk_hris_write_account($conn, $employee, $facultyId, null, $employeeEmail, 'conflict', $userId);
     hris_test_sign_in_rejected($conn, $employeeGoogle, $settings, 'hris_access_denied');

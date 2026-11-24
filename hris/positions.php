@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/position-catalog-data.php';
 synk_hris_headers();
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('position_catalog', true);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $reading = in_array($method, ['GET', 'HEAD'], true);

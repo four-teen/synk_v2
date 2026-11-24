@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/../backend/db_lms.php';
 require_once __DIR__ . '/../backend/faculty_profile_image_helper.php';
+require_once __DIR__ . '/auth.php';
 
 function synk_hris_delete_identifier(string $value): string
 {
@@ -273,7 +274,7 @@ function synk_hris_employee_deletion_preview(array $groups, array $profileData):
         'tbl_hr_faculty_reviews' => ['review_status' => 'Review status'],
         'tbl_hr_employee_accounts' => ['email' => 'Official SKSU email', 'role_code' => 'Kawani role'],
     ];
-    $displayValues = ['hris_admin' => 'Administrator', 'hris_user' => 'User', 'non_teaching' => 'Non-teaching'];
+    $displayValues = synk_hris_role_labels() + ['conflict' => 'Role review needed', 'non_teaching' => 'Non-teaching'];
     $records = [];
     foreach ($titles as $table => $title) {
         if (!isset($groups[$table])) continue;
@@ -283,7 +284,10 @@ function synk_hris_employee_deletion_preview(array $groups, array $profileData):
         foreach ($visible[$table] ?? [] as $name => $label) {
             $value = $first[$name] ?? null;
             if (!is_scalar($value) || $value === '') continue;
-            if (in_array($name, ['personnel_category', 'status', 'review_status', 'role_code'], true)) {
+            if ($table === 'tbl_hr_employee_accounts' && $name === 'role_code') {
+                $labels = array_intersect_key(synk_hris_role_labels(), array_flip(synk_hris_assigned_roles($first)));
+                $value = $labels ? implode(', ', $labels) : ($displayValues[$value] ?? $value);
+            } elseif (in_array($name, ['personnel_category', 'status', 'review_status'], true)) {
                 $value = $displayValues[$value] ?? ucfirst((string)$value);
             }
             $fields[] = ['label' => $label, 'value' => (string)$value];
@@ -314,19 +318,28 @@ function synk_hris_employee_deletion(mysqli $conn, int $facultyId, array $actor,
         $identity = synk_hris_delete_group($conn, $tables, 'tbl_faculty', ['faculty_id' => $facultyId], $rowLock);
         if (!$identity) throw new DomainException('This employee record is no longer available.', 404);
         $actorAccountId = (int)$actor['account_id'];
+        $actorRole = synk_hris_active_role($actor);
+        $canManageAccounts = $actorRole === SYNK_HRIS_ADMIN;
         if ($deleting && isset($tables['tbl_hr_employee_accounts'])) {
             // Match the lock order used when assigning or removing administrator access.
             $result = $conn->query("SELECT account_id, revision FROM tbl_hr_employee_accounts
                 WHERE role_code = 'hris_admin' ORDER BY account_id FOR UPDATE");
             $administrators = array_column($result->fetch_all(MYSQLI_ASSOC), 'revision', 'account_id');
             $result->close();
-            if (!isset($administrators[$actorAccountId]) || (int)$administrators[$actorAccountId] !== (int)$actor['revision']) {
-                throw new DomainException('Your Kawani administrator access changed. Sign in again.', 403);
+            $currentRevision = $administrators[$actorAccountId] ?? null;
+            if (!$canManageAccounts) {
+                $current = synk_hris_employee_account($conn, 'account_id', $actorAccountId, true);
+                $currentRevision = $current && $actorRole === SYNK_HRIS_USER
+                    && synk_hris_can(['active_role' => $actorRole] + $current, 'employee_delete')
+                    ? $current['revision'] : null;
+            }
+            if ($currentRevision === null || (int)$currentRevision !== (int)$actor['revision']) {
+                throw new DomainException('Your Kawani access changed. Sign in again.', 403);
             }
         } elseif ($deleting) {
             $grant = synk_hris_delete_query($conn, "SELECT user_id FROM tbl_hr_user_roles
-                WHERE user_id = ? AND role_code = 'hris_admin' AND status = 'active' LOCK IN SHARE MODE", 'i', [(int)$actor['user_id']]);
-            if (!$grant) throw new DomainException('Your Kawani administrator access changed. Sign in again.', 403);
+                WHERE user_id = ? AND role_code = ? AND status = 'active' LOCK IN SHARE MODE", 'is', [(int)$actor['user_id'], $actorRole]);
+            if (!$grant) throw new DomainException('Your Kawani access changed. Sign in again.', 403);
         }
 
         $owner = 'faculty:' . $facultyId;
@@ -350,6 +363,11 @@ function synk_hris_employee_deletion(mysqli $conn, int $facultyId, array $actor,
         $account = $groups['tbl_hr_employee_accounts']['rows'][0] ?? [];
         $accountId = (int)($account['account_id'] ?? 0);
         $legacyUserId = (int)($account['legacy_user_id'] ?? 0);
+        // An email saved during registration can follow the employee record. Managing prior or current access requires an administrator.
+        $protectedAccount = !$canManageAccounts && $accountId > 0 && (
+            $account['role_code'] !== null || $account['google_sub'] !== null || $account['synk_user_id'] !== null
+            || $legacyUserId > 0 || (int)$account['revision'] !== 1
+        );
         if ($legacyUserId > 0) {
             $roles = synk_hris_delete_group($conn, $tables, 'tbl_hr_user_roles', ['user_id' => $legacyUserId], $rowLock);
             if ($roles) $groups['tbl_hr_user_roles'] = $roles;
@@ -378,7 +396,9 @@ function synk_hris_employee_deletion(mysqli $conn, int $facultyId, array $actor,
         [$foreignReferences, $children] = synk_hris_employee_foreign_references($conn, $groups, $deleting);
         $protected += $foreignReferences;
         if ($accountId > 0 && $accountId === $actorAccountId) {
-            $protected['own login'] = ['title' => 'Your own Kawani administrator account', 'table' => 'tbl_hr_employee_accounts'];
+            $protected['own login'] = ['title' => 'Your own Kawani account', 'table' => 'tbl_hr_employee_accounts'];
+        } elseif ($protectedAccount) {
+            $protected['account access'] = ['title' => 'A Kawani administrator must handle this linked account', 'table' => 'tbl_hr_employee_accounts'];
         }
         if (is_file(synk_faculty_record_image_path($facultyId))) {
             $protected['profile photo'] = ['title' => 'Faculty profile photo saved outside the database', 'table' => ''];
@@ -405,6 +425,7 @@ function synk_hris_employee_deletion(mysqli $conn, int $facultyId, array $actor,
         $fingerprint = hash('sha256', serialize($snapshot));
         if (!$deleting) {
             $conn->rollback();
+            if ($protectedAccount) unset($groups['tbl_hr_employee_accounts'], $groups['tbl_hr_user_roles']);
             return [
                 'fingerprint' => $fingerprint,
                 'records' => synk_hris_employee_deletion_preview($groups, $profileData),

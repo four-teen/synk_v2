@@ -2,7 +2,8 @@
 session_start();
 require_once __DIR__ . '/auth.php';
 synk_hris_headers();
-[$conn, $account] = synk_hris_require_admin();
+[$conn, $account] = synk_hris_require_permission('employee_profiles');
+$canManageEmployees = synk_hris_can($account, 'employee_manage');
 $owner = $_GET['record'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if (!in_array($method, ['GET', 'HEAD'], true)) {
@@ -147,5 +148,5 @@ try {
 
 require __DIR__ . '/views/layout-start.php';
 require __DIR__ . '/views/preview-faculty.php';
-require __DIR__ . '/views/work-experience.php';
+if ($canManageEmployees) require __DIR__ . '/views/work-experience.php';
 require __DIR__ . '/views/layout-end.php';
