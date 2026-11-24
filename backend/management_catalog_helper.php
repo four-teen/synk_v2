@@ -60,13 +60,13 @@ function synk_management_execute(mysqli $conn, string $sql, string $types = '', 
     } finally { $stmt->close(); }
 }
 
-function synk_management_input_text(array $input, string $key, int $limit, bool $required = true): string
+function synk_management_input_text(array $input, string $key, int $limit, bool $required = true, bool $uppercase = true): string
 {
     $value = $input[$key] ?? '';
     if (!is_scalar($value)) throw new DomainException('Enter a valid ' . str_replace('_', ' ', $key) . '.');
     $value = trim((string)$value);
     if (!preg_match('//u', $value) || preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/u', $value)) throw new DomainException('Enter valid text.');
-    $value = mb_strtoupper($value, 'UTF-8');
+    if ($uppercase) $value = mb_strtoupper($value, 'UTF-8');
     if (($required && $value === '') || mb_strlen($value, 'UTF-8') > $limit) throw new DomainException('Enter ' . str_replace('_',' ', $key) . ' using up to ' . $limit . ' characters.');
     return $value;
 }
@@ -353,7 +353,8 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
             $writeTerm=['ay_id'=>(int)$existing['ay_id'],'semester'=>(int)$existing['semester'],'exam_term'=>$existing['exam_term'],
                 'key'=>$existing['ay_id'].':'.$existing['semester']];
         } elseif ($flagRaising) {
-            $writeTerm=synk_management_attendance_date_period($currentTerm,synk_management_input_date($input['event_date'] ?? ''));
+            $importedTerm=$existing && synk_management_attendance_import_template($existing)==='FRC' ? $existing['exam_term'] : null;
+            $writeTerm=synk_management_attendance_date_period($currentTerm,synk_management_input_date($input['event_date'] ?? ''),$importedTerm);
         } elseif ($editImported) {
             $writeTerm=array_replace($currentTerm,['exam_term'=>$existing['exam_term']]);
         }

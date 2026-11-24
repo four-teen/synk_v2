@@ -20,11 +20,13 @@
   const duplicatesList = document.getElementById('past-attendance-duplicate-rows');
   const eventLink = document.getElementById('past-attendance-event-link');
   const save = document.getElementById('past-attendance-save');
+  const examTerm = form.elements.import_exam_term;
   const number = new Intl.NumberFormat();
   const currency = new Intl.NumberFormat('en-PH', {style: 'currency', currency: 'PHP'});
   let busy = false;
   let reviewed = null;
   let refreshUrl = '';
+  let termChosen = false;
 
   function clearResult() {
     error.hidden = true;
@@ -126,9 +128,11 @@
 
   form.addEventListener('input', clearResult);
   form.addEventListener('change', clearResult);
+  examTerm.addEventListener('change', () => { termChosen = Boolean(examTerm.value); });
   form.elements.event_date.addEventListener('change', () => {
+    if (termChosen) return;
     const month = Number(form.elements.event_date.value.slice(5, 7));
-    form.elements.import_exam_term.value = !month || month === 7 ? ''
+    examTerm.value = !month || month === 7 ? ''
       : (month >= 11 || (month >= 4 && month <= 6) ? 'FINAL' : 'MIDTERM');
   });
   form.addEventListener('submit', async event => {
@@ -184,6 +188,7 @@
       return;
     }
     form.reset();
+    termChosen = false;
     clearResult();
   });
 })();

@@ -81,7 +81,7 @@ try {
         ['event_date',date('Y-m-d',strtotime($date.' +1 day')),422,'match the workbook date'],
         ['import_ay_id','0',409,'academic year or semester'],
         ['import_semester','3',409,'academic year or semester'],
-        ['import_exam_term','FINAL',422,'Choose Midterm'],
+        ['import_exam_term','PRELIM',422,'Choose Midterm or Final'],
     ] as [$field,$value,$status,$message]) {
         $rejected=$upload('preview',$original,'attendance_past_preview',null,[$field=>$value]);
         $check($rejected['status']===$status && strpos($rejected['response']['message'],$message)!==false && $rejected['before']===$rejected['after'],
@@ -92,6 +92,12 @@ try {
         && count($saved['after']['tbl_management_events'])===count($saved['before']['tbl_management_events'])+1
         && count($saved['after']['tbl_management_attendance_logs'])===count($saved['before']['tbl_management_attendance_logs'])+1,
         'The first upload did not save exactly one event and one present student.');
+    $finalFrc=$upload('save',$original,'attendance_past_save',null,['import_exam_term'=>'FINAL']);
+    $finalFrcId=$finalFrc['response']['event_id'] ?? 0;
+    $finalFrcTerms=array_column($finalFrc['after']['tbl_management_events'],'exam_term','event_id');
+    $check($finalFrc['status']===200 && $finalFrc['response']['exam_term']==='FINAL' && ($finalFrcTerms[$finalFrcId] ?? null)==='FINAL'
+        && $finalFrc['before']['tbl_management_period_settings']===$finalFrc['after']['tbl_management_period_settings'],
+        'The FRC upload did not save to the explicitly selected Final term.');
     $recheck=$upload('corrected_preview',$corrected,'attendance_past_preview',$original);
     $check($recheck['status']===200 && $recheck['response']['preview']['existing_event']
         && $recheck['response']['preview']['new_present']===1 && $recheck['response']['preview']['already_present']===1
@@ -136,6 +142,21 @@ try {
         && $receipt['present']===1 && $receipt['absent']===$cudPlan['absent'] && $attendance['attendance_status']==='CLOSED'
         && $attendance['absence_fine']==='25.50' && count($cudSaved['after']['tbl_management_attendance_logs'])===count($cudSaved['before']['tbl_management_attendance_logs'])+1,
         'CUD did not save exactly one present student or failed to close attendance with the fine.');
+    $finalEventInput=['import_exam_term'=>'FINAL','confirm'=>'1']+$cudInputs;
+    $finalEventPreview=$upload('preview',$cud,'attendance_past_preview',null,$finalEventInput);
+    $check($finalEventPreview['status']===200 && $finalEventPreview['response']['preview']['exam_term']==='FINAL'
+        && substr($finalEventPreview['response']['preview']['period'],-8)===' - Final',
+        'The EVENT preview did not show the selected Final term.');
+    $finalEvent=$upload('save',$cud,'attendance_past_save',null,$finalEventInput);
+    $finalEventId=$finalEvent['response']['event_id'] ?? 0;
+    $finalEventTerms=array_column($finalEvent['after']['tbl_management_events'],'exam_term','event_id');
+    $finalAttendanceTerms=array_column($finalEvent['after']['tbl_management_attendance_events'],'exam_term','event_id');
+    $check($finalEvent['status']===200 && $finalEvent['response']['exam_term']==='FINAL'
+        && ($finalEventTerms[$finalEventId] ?? null)==='FINAL' && ($finalAttendanceTerms[$finalEventId] ?? null)==='FINAL'
+        && $finalEvent['before']['tbl_management_period_settings']===$finalEvent['after']['tbl_management_period_settings'],
+        'The EVENT upload did not save both the event and finalized attendance to the selected term.');
+    $staleTerm=$upload('cud_stale_term',$cud,'attendance_past_save',null,$finalEventInput);
+    $check($staleTerm['status']===409 && $staleTerm['before']===$staleTerm['after'],'The EVENT upload accepted a term changed after preview.');
     $replay=$upload('cud_replay',$cud,'attendance_past_save',null,$cudInputs+['confirm'=>'1']);
     $check($replay['status']===409 && $replay['before']===$replay['after'],'Repeating the save changed closed CUD attendance.');
     $roster=$upload('cud_roster',$cud,'attendance_roster',null,$cudInputs+['confirm'=>'1']);
@@ -146,7 +167,9 @@ try {
     $correctedCud=$upload('cud_correction',$cud,'attendance_correct',null,$cudInputs+['confirm'=>'1']);
     $check($correctedCud['status']===200 && $correctedCud['response']['attendance']['attendance_status']==='CLOSED'
         && $correctedCud['response']['attendance']['present']===2 && $correctedCud['response']['attendance']['revision']==='3'
-        && count($correctedCud['after']['tbl_management_attendance_corrections'])===count($correctedCud['before']['tbl_management_attendance_corrections'])+1,
+        && count($correctedCud['after']['tbl_management_attendance_corrections'])===count($correctedCud['before']['tbl_management_attendance_corrections'])+1
+        && $correctedCud['before']['tbl_management_attendance_checkpoints']===$correctedCud['after']['tbl_management_attendance_checkpoints']
+        && end($correctedCud['after']['tbl_management_attendance_corrections'])['reason']==='Verified paper attendance',
         'The HTTP correction did not retain closed attendance, update presence or record the correction.');
 
     if (isset($argv[1])) {

@@ -277,11 +277,12 @@ if ($importMode) {
         $preview=synk_management_record_past_attendance($conn,$scope,'attendance_past_preview',$_POST,$initial)['preview'];
         synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST+['preview_token'=>$preview['token']],$initial);
     }
-    if (in_array($importMode,['save','corrected_save','cud_replay','cud_stale_fine','cud_roster','cud_correction'],true)) {
+    if (in_array($importMode,['save','corrected_save','cud_replay','cud_stale_fine','cud_stale_term','cud_roster','cud_correction'],true)) {
         $uploaded=synk_management_read_attendance_upload($_FILES['workbook'] ?? null,$_POST['template']);
         $_POST['preview_token']=synk_management_record_past_attendance($conn,$scope,'attendance_past_preview',$_POST,$uploaded)['preview']['token'];
         if ($importMode==='cud_replay') synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST,$uploaded);
         if ($importMode==='cud_stale_fine') $_POST['absence_fine']='31.00';
+        if ($importMode==='cud_stale_term') $_POST['import_exam_term']='MIDTERM';
         if (in_array($importMode,['cud_roster','cud_correction'],true)) {
             $recorded=synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST,$uploaded);
             $_POST['event_id']=(string)$recorded['event_id'];
@@ -291,7 +292,7 @@ if ($importMode) {
             $_POST['action']=$importMode==='cud_roster' ? 'attendance_roster' : 'attendance_correct';
             if ($importMode==='cud_correction') {
                 $student=synk_management_query($conn,'SELECT student_id FROM tbl_student_management WHERE student_number=?','s',[$uploadPost['second_number']])[0];
-                $_POST+=['student_id'=>(string)$student['student_id'],'attendance_revision'=>'2','checked_in'=>'1','checked_out'=>'1','reason'=>'Verified paper attendance'];
+                $_POST+=['student_id'=>(string)$student['student_id'],'attendance_revision'=>'2','corrected_status'=>'PRESENT','reason'=>'Verified paper attendance'];
             }
         }
     }

@@ -270,6 +270,16 @@ try {
         $check(!synk_management_catalog_list($db,$scope,$current,'flag_raising',[])['rows'],
             'A faculty supervisor could not delete a ceremony.');
 
+        $finalInput=array_replace($pastInput,['title'=>$tag.' IMPORTED FINAL','import_exam_term'=>'FINAL']);
+        $finalPreview=synk_management_record_past_attendance($db,$scope,'attendance_past_preview',$finalInput,$workbook)['preview'];
+        $finalSaved=synk_management_record_past_attendance($db,$scope,'attendance_past_save',$finalInput+['preview_token'=>$finalPreview['token']],$workbook);
+        $finalRecord=synk_management_catalog_get($db,$scope,'flag_raising',$finalSaved['event_id']);
+        synk_management_catalog_write($db,$scope,'flag_raising','save',$finalInput+['record_id'=>$finalSaved['event_id'],
+            'version'=>$finalRecord['version'],'term'=>$finalSaved['term'],'description'=>'Final ceremony details']);
+        $finalEdited=synk_management_catalog_get($db,$scope,'flag_raising',$finalSaved['event_id']);
+        $check($finalEdited['exam_term']==='FINAL' && $finalEdited['description']==='FINAL CEREMONY DETAILS',
+            'Editing a ceremony changed or rejected the term chosen during import.');
+
         $cud=synk_management_parse_event_attendance_rows([
             1=>['D'=>'IN','E'=>'OUT'],
             2=>['D'=>$presentNumber,'E'=>$presentNumber],
@@ -334,11 +344,28 @@ try {
             ['attendance_revision'=>$fixed['revision'],'checked_out'=>'0','reason'=>'OUT record belongs to another student']))['attendance'];
         $checked=synk_management_closed_attendance_roster($db,$cudRecord,['roster_search'=>$pendingNumber])['rows'][0];
         $check($reversed['present']===1 && $reversed['closed_at']===$fixed['closed_at'] && $checked['checked_in'] && !$checked['checked_out']
-            && $checked['attendance_status']==='ABSENT' && $checked['correction_reason']==='OUT RECORD BELONGS TO ANOTHER STUDENT'
+            && $checked['attendance_status']==='ABSENT' && $checked['correction_reason']==='OUT record belongs to another student'
             && $cudCharge($pastPending)['amount_due']==='25.50','The correction did not preserve IN, the closing time, or the reason for a changed absence.');
         $audit=synk_management_query($db,'SELECT previous_present,corrected_present,previous_in,previous_out,recorded_by FROM tbl_management_attendance_corrections WHERE event_id=? ORDER BY correction_id','i',[$draft]);
         $check(count($audit)===2 && (int)$audit[0]['previous_present']===0 && (int)$audit[0]['previous_in']===1
             && (int)$audit[0]['previous_out']===1 && (int)$audit[0]['recorded_by']===$user,'The correction lost its original evidence or editor.');
+        $statusOnly=$historical+['event_id'=>$draft,'student_id'=>$pastPending,'attendance_revision'=>$reversed['revision'],
+            'corrected_status'=>'PRESENT','reason'=>'  Confirmed with the cleanup lead.  '];
+        try {
+            synk_management_attendance_write($db,$scope,'attendance_correct',array_replace($statusOnly,['reason'=>'   ']));
+            $check(false,'A blank comment was accepted for a status correction.');
+        } catch (DomainException $error) { $check(strpos($error->getMessage(),'comment')!==false,'The missing-comment error was unclear.'); }
+        $override=synk_management_attendance_write($db,$scope,'attendance_correct',$statusOnly)['attendance'];
+        $markedPresent=synk_management_closed_attendance_roster($db,$cudRecord,['roster_search'=>$pendingNumber,'roster_status'=>'PRESENT'])['rows'][0];
+        $check($override['attendance_status']==='CLOSED' && $override['present']===2 && $markedPresent['checked_in'] && !$markedPresent['checked_out']
+            && $markedPresent['correction_reason']==='Confirmed with the cleanup lead.' && $cudCharge($pastPending)['amount_due']==='0.00',
+            'Directly marking Present modified the checkpoint evidence or failed to save the comment and clear the unpaid fine.');
+        $finalStatus=synk_management_attendance_write($db,$scope,'attendance_correct',array_replace($statusOnly,
+            ['attendance_revision'=>$override['revision'],'corrected_status'=>'ABSENT','reason'=>'The sign-in was for a different event.']))['attendance'];
+        $markedAbsent=synk_management_closed_attendance_roster($db,$cudRecord,['roster_search'=>$pendingNumber,'roster_status'=>'ABSENT'])['rows'][0];
+        $check($finalStatus['present']===1 && $markedAbsent['checked_in'] && !$markedAbsent['checked_out']
+            && $markedAbsent['correction_reason']==='The sign-in was for a different event.' && $cudCharge($pastPending)['amount_due']==='25.50',
+            'Directly marking Absent did not preserve checkpoints, show the latest comment, or restore the fine.');
         try {
             synk_management_attendance_write($db,$scope,'attendance_reopen',$historical+['event_id'=>$draft,'attendance_revision'=>'2','confirm'=>'1']);
             $check(false,'CUD could be reopened for a single attendance scan.');
@@ -356,7 +383,7 @@ try {
             'selected'=>json_encode(['E:'.$draft]),'account_version'=>$balance['account_version'],'request_key'=>bin2hex(random_bytes(32))]);
         try {
             synk_management_attendance_write($db,$scope,'attendance_correct',$midInput+['event_id'=>$draft,'student_id'=>$late,
-                'attendance_revision'=>$reversed['revision'],'checked_in'=>'1','checked_out'=>'1','reason'=>'Verified after payment']);
+                'attendance_revision'=>$finalStatus['revision'],'corrected_status'=>'PRESENT','reason'=>'Verified after payment']);
             $check(false,'A correction invalidated a paid absence fine.');
         } catch (SynkManagementConflict $error) {
             $check(strpos($error->getMessage(),'payment')!==false && synk_management_payment_receipt($db,$paid['payment_id'],null,$scope)['items'][0]['amount']==='25.50',
