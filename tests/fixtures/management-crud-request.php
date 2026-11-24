@@ -19,7 +19,12 @@ class ManagementCrudConnection extends mysqli
 }
 $conn->close(); $conn = new ManagementCrudConnection($servername,$username,$password,$dbase); $conn->set_charset('utf8mb4'); $conn->start();
 $scenario = (string)($_GET['scenario'] ?? 'get_contribution');
-$scopes = $conn->query("SELECT c.college_id,c.college_code,c.college_name,c.campus_id,cp.campus_name FROM tbl_college c JOIN tbl_campus cp ON cp.campus_id=c.campus_id WHERE c.status='active' AND cp.status='active' ORDER BY c.college_id LIMIT 2")->fetch_all(MYSQLI_ASSOC);
+$importMode = strpos($scenario,'attendance_import_http_')===0 ? substr($scenario,strlen('attendance_import_http_')) : '';
+$uploadPost = $importMode ? $_POST : [];
+$order = $importMode==='attached'
+    ? "(c.college_id=(SELECT college_id FROM tbl_management_organizations WHERE organization_code='CSSO' LIMIT 1)) DESC,c.college_id"
+    : 'c.college_id';
+$scopes = $conn->query("SELECT c.college_id,c.college_code,c.college_name,c.campus_id,cp.campus_name FROM tbl_college c JOIN tbl_campus cp ON cp.campus_id=c.campus_id WHERE c.status='active' AND cp.status='active' ORDER BY ".$order." LIMIT 2")->fetch_all(MYSQLI_ASSOC);
 if (count($scopes)<2) throw new RuntimeException('Two colleges required.');
 $scope=$scopes[0]; $foreign=$scopes[1];
 foreach (['college_id','campus_id'] as $key) { $scope[$key]=(int)$scope[$key]; $foreign[$key]=(int)$foreign[$key]; }
@@ -33,6 +38,10 @@ $userId=$insert('tbl_useraccount',['username'=>$tag,'email'=>str_replace(' ','',
 synk_persist_useraccount_roles($conn,$userId,['management'],'management');
 $org=$insert('tbl_management_organizations',['college_id'=>$scope['college_id'],'organization_code'=>'QA'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag]);
 $scope['organization_id']=$org; $scope['organization_code']='QA ORG'; $scope['organization_name']=$tag;
+if ($importMode) {
+    $insert('tbl_management_period_settings',['college_id'=>$scope['college_id'],'organization_id'=>$org,
+        'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'current_exam_term'=>'FINAL']);
+}
 $term=synk_management_fetch_current_period($conn,$scope);
 $conn->query('UPDATE tbl_useraccount SET management_organization_id='.$org.' WHERE user_id='.$userId);
 $foreignOrg=$insert('tbl_management_organizations',['college_id'=>$foreign['college_id'],'organization_code'=>'QA'.substr(str_replace(' ','',$tag),-10),'organization_name'=>$tag]);
@@ -251,6 +260,42 @@ if (strpos($scenario,'attendance_http_')===0) {
     if ($scenario==='attendance_http_stale') $_POST['current_period_version']='999';
     if ($scenario==='attendance_http_array') $_POST['qr_code']=['unexpected'];
 }
+if ($importMode) {
+    require_once $root.'/backend/management_attendance_workbook_helper.php';
+    require_once $root.'/backend/management_past_attendance_helper.php';
+    $_POST=array_intersect_key($post,array_flip(['csrf_token','college_id','campus_id','organization_id','current_term','current_exam_term','current_period_version']))
+        +array_intersect_key($uploadPost,array_flip(['action','template','title','event_date','import_ay_id','import_semester','import_exam_term','absence_fine','description','confirm']));
+    if ($importMode!=='attached') {
+        $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
+        foreach (['first_number','second_number'] as $key) {
+            $insert('tbl_student_management',['student_number'=>synk_student_identity_number($uploadPost[$key]),'first_name'=>'FRC','last_name'=>'TEST',
+                'source_sheet_name'=>'DEAN MANUAL','program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+        }
+    }
+    if (strpos($importMode,'corrected_')===0) {
+        $initial=synk_management_read_attendance_upload($_FILES['initial_workbook'] ?? null,$_POST['template']);
+        $preview=synk_management_record_past_attendance($conn,$scope,'attendance_past_preview',$_POST,$initial)['preview'];
+        synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST+['preview_token'=>$preview['token']],$initial);
+    }
+    if (in_array($importMode,['save','corrected_save','cud_replay','cud_stale_fine','cud_roster','cud_correction'],true)) {
+        $uploaded=synk_management_read_attendance_upload($_FILES['workbook'] ?? null,$_POST['template']);
+        $_POST['preview_token']=synk_management_record_past_attendance($conn,$scope,'attendance_past_preview',$_POST,$uploaded)['preview']['token'];
+        if ($importMode==='cud_replay') synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST,$uploaded);
+        if ($importMode==='cud_stale_fine') $_POST['absence_fine']='31.00';
+        if (in_array($importMode,['cud_roster','cud_correction'],true)) {
+            $recorded=synk_management_record_past_attendance($conn,$scope,'attendance_past_save',$_POST,$uploaded);
+            $_POST['event_id']=(string)$recorded['event_id'];
+            $_POST['term']=$recorded['term'];
+            $_POST['exam_term']=$recorded['exam_term'];
+            $_POST['roster_search']=$uploadPost['second_number'];
+            $_POST['action']=$importMode==='cud_roster' ? 'attendance_roster' : 'attendance_correct';
+            if ($importMode==='cud_correction') {
+                $student=synk_management_query($conn,'SELECT student_id FROM tbl_student_management WHERE student_number=?','s',[$uploadPost['second_number']])[0];
+                $_POST+=['student_id'=>(string)$student['student_id'],'attendance_revision'=>'2','checked_in'=>'1','checked_out'=>'1','reason'=>'Verified paper attendance'];
+            }
+        }
+    }
+}
 if (strpos($scenario,'exemption_http_')===0) {
     require_once $root.'/backend/management_exemptions_helper.php';
     $program=(int)$conn->query('SELECT program_id FROM tbl_program WHERE college_id='.$scope['college_id'].' ORDER BY program_id LIMIT 1')->fetch_assoc()['program_id'];
@@ -350,7 +395,7 @@ $take=static function()use($conn,$scope,$foreign):array {
     $data=[];
     foreach(['tbl_management_organizations','tbl_management_contributions','tbl_management_events','tbl_management_event_sessions','tbl_management_violations','tbl_management_period_settings'] as $table) $data[$table]=$conn->query('SELECT * FROM '.$table.' WHERE college_id IN ('.$scope['college_id'].','.$foreign['college_id'].') ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     $data['tbl_academic_settings']=$conn->query('SELECT * FROM tbl_academic_settings ORDER BY setting_id')->fetch_all(MYSQLI_ASSOC);
-    foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
+    foreach(['tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_attendance_checkpoints','tbl_management_attendance_corrections','tbl_management_student_qr_tokens']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1,2')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_payments','tbl_management_payment_items']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_officers','tbl_management_officer_audit','tbl_management_student_violations']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
     foreach(['tbl_management_exemption_lists','tbl_management_exemption_list_members','tbl_management_exemptions','tbl_management_exemption_audit']as$table)$data[$table]=$conn->query('SELECT * FROM '.$table.' ORDER BY 1')->fetch_all(MYSQLI_ASSOC);
@@ -364,7 +409,7 @@ register_shutdown_function(static function()use($conn,$take,$before,$tag,$scope,
         if(session_status()===PHP_SESSION_ACTIVE)session_destroy(); header_remove(); http_response_code(200);
         if(defined('SYNK_MANAGEMENT_CRUD_RENDER') && strpos($body,'<!DOCTYPE html>')!==false) {
             header('Content-Type: text/html; charset=utf-8'); echo str_replace('<head>','<head><base href="/synk/management/">',$body);
-        } else { header('Content-Type: application/json'); echo json_encode(['status'=>$status,'response'=>$fixtureResult ?? (json_decode($body,true) ?? $body),
+        } else { header('Content-Type: application/json'); echo json_encode(['status'=>$status,'php_version'=>PHP_VERSION,'response'=>$fixtureResult ?? (json_decode($body,true) ?? $body),
             'before'=>$before,'after'=>$after,'scope'=>$scope,'foreign'=>$foreign,'tag'=>$tag,'ids'=>['contribution'=>$contribution,'event'=>$event,'session'=>$session,'violation'=>$violation,'org'=>$org,'user'=>$userId]]); }
     } catch(Throwable $error) { $conn->discard(); http_response_code(500); echo json_encode(['fixture_error'=>$error->getMessage(),'body'=>substr($body,0,1500)]); }
 });

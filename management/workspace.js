@@ -42,7 +42,7 @@
     try { const message = sessionStorage.getItem(flashKey); if (message) { notice(pageNotice,message); sessionStorage.removeItem(flashKey); } } catch (_) { /* Optional feedback storage. */ }
   }
   const automaticFilters = config.page === 'students' ? $('management-student-filters') : $('management-catalog-filters');
-  if (['contributions','events','students'].includes(config.page) && automaticFilters) {
+  if (['contributions','events','flag_raising','students'].includes(config.page) && automaticFilters) {
     let searchTimer;
     const applyFilters = () => { clearTimeout(searchTimer); automaticFilters.requestSubmit(); };
     automaticFilters.querySelectorAll('select').forEach(select => select.addEventListener('change',applyFilters));
@@ -57,8 +57,9 @@
   }
   const catalog = $('management-catalog');
   if (catalog) {
-    const isEvents = catalog.dataset.kind === 'events', isViolation = catalog.dataset.kind === 'violations';
-    const kind = catalog.dataset.kind, label = isViolation ? 'Violation' : (isEvents ? 'Event' : 'Contribution');
+    const kind = catalog.dataset.kind, flagRaising = kind === 'flag_raising';
+    const isEvents = kind === 'events' || flagRaising, isViolation = kind === 'violations';
+    const label = flagRaising ? 'Flag Raising Ceremony' : (isViolation ? 'Violation' : (isEvents ? 'Event' : 'Contribution'));
     const recordKey = isViolation ? 'violation_id' : (isEvents ? 'event_id' : 'contribution_id');
     const form = $('management-record-form'), fields = $('management-editor-fields');
     const editorElement = $('management-editor'), deleteElement = $('management-delete-modal');
@@ -88,15 +89,20 @@
         if (option.value) option.hidden = option.disabled = option.dataset.term !== form.elements.record_term.value;
       }
       if (!record) {
+        if (flagRaising) form.elements.title.value = 'Flag Raising Ceremony';
         form.elements[isEvents ? 'event_date' : 'contribution_date'].value = config.today;
         form.elements.status.value = 'ACTIVE'; form.elements.audience_mode.value = 'ALL';
       }
     }
-    async function openEditor(id) {
+    async function openEditor(id, imported = false) {
       if (busy) return;
       editorOpener=document.activeElement;
       const current = ++generation;
       notice($('management-editor-error'),''); fill(null);
+      if (isEvents) {
+        form.elements.event_date.readOnly = imported;
+        form.elements.status.disabled = imported;
+      }
       $('management-editor-title').textContent = `${id ? 'Edit' : 'Add'} ${label}`;
       editor.show();
       if (!id) { setTimeout(() => $('record-title').focus(),250); return; }
@@ -121,32 +127,49 @@
       finally { lock(false); saveButton.textContent = `Save ${label}`; }
     });
     let deleteBusy = false;
-    function lockDelete(value) { deleteBusy=value; deleteElement.querySelectorAll('button').forEach(button=>{ button.disabled=value; }); }
+    const ceremonyConfirmation = $('management-delete-ceremony-confirmation');
+    function syncDeleteButton() {
+      const linked = isEvents && Number(deleteRecord?.linked_contributions) > 0;
+      if (ceremonyConfirmation) ceremonyConfirmation.disabled = deleteBusy || !deleteRecord || linked;
+      deleteButton.disabled = deleteBusy || !deleteRecord || linked || Boolean(ceremonyConfirmation && !ceremonyConfirmation.checked);
+    }
+    function lockDelete(value) {
+      deleteBusy = value;
+      deleteElement.querySelectorAll('[data-bs-dismiss]').forEach(button => { button.disabled = value; });
+      syncDeleteButton();
+    }
+    ceremonyConfirmation?.addEventListener('change', syncDeleteButton);
     deleteElement.addEventListener('hide.bs.modal',event=>{ if (deleteBusy) event.preventDefault(); });
     async function openDelete(id) {
       if (deleteBusy) return;
       deleteOpener=document.activeElement;
       deleteRecord = null; notice($('management-delete-error'),'');
-      $('management-delete-name').textContent = 'Loading…'; deleteButton.disabled = true; deletion.show(); lockDelete(true);
+      if (ceremonyConfirmation) ceremonyConfirmation.checked = false;
+      $('management-delete-explanation').textContent = '';
+      $('management-delete-name').textContent = 'Loading…'; deletion.show(); lockDelete(true);
       try {
         const data = await request('get',{ kind,record_id:id }); deleteRecord=data.record;
         $('management-delete-name').textContent = isViolation ? deleteRecord.violation_type : deleteRecord.title;
+        if (flagRaising) $('management-delete-name').textContent += ` (${deleteRecord.event_date})`;
         const linked = isEvents ? Number(deleteRecord.linked_contributions) : 0;
         $('management-delete-explanation').textContent = linked
           ? `This event is linked to ${linked} contribution(s). Remove those event links first, or set the event status to Inactive.`
-          : `This permanently removes the ${label.toLowerCase()}${isEvents ? ` and its ${deleteRecord.sessions.length} session(s)` : ''}.`;
-        lockDelete(false); deleteButton.disabled = linked > 0;
-      } catch (error) { notice($('management-delete-error'),error.message); lockDelete(false); deleteButton.disabled=true; }
+          : (flagRaising ? 'This permanently removes the ceremony, its roster, attendance records, exemptions, and sessions.'
+            : `This permanently removes the ${label.toLowerCase()}${kind === 'events' ? ` and its ${deleteRecord.sessions.length} session(s)` : ''}.`);
+      } catch (error) { notice($('management-delete-error'),error.message); }
+      finally { lockDelete(false); }
     }
     catalog.addEventListener('click',event=>{
       const edit = event.target.closest('[data-edit]'), remove = event.target.closest('[data-delete]');
-      if (edit) openEditor(edit.dataset.edit);
+      if (edit) openEditor(edit.dataset.edit,edit.hasAttribute('data-edit-import'));
       if (remove) openDelete(remove.dataset.delete);
     });
     deleteButton.addEventListener('click',async()=>{
-      if (!deleteRecord || deleteBusy) return;
+      if (deleteButton.disabled) return;
+      const values = {kind,record_id:deleteRecord[recordKey],version:deleteRecord.version};
+      if (ceremonyConfirmation?.checked) values.confirm = '1';
       notice($('management-delete-error'),''); lockDelete(true);
-      try { const result = await request('delete',{ kind,record_id:deleteRecord[recordKey],version:deleteRecord.version }); complete(result.message); }
+      try { const result = await request('delete',values); complete(result.message); }
       catch (error) { notice($('management-delete-error'),error.message); }
       finally { lockDelete(false); }
     });

@@ -69,6 +69,9 @@ try{
   $foreignId=$insert('tbl_management_'.$kind,['college_id'=>$scope['college_id'],'organization_id'=>$siblingOrg,'ay_id'=>$period['ay_id'],'semester'=>$period['semester']]+($kind==='violations'?['violation_type'=>$tag,'amount'=>'1']:['title'=>$tag,($kind==='events'?'event_date':'contribution_date')=>date('Y-m-d'),'exam_term'=>$period['exam_term']]+($kind==='contributions'?['amount'=>'1']:[])));
   $reject(static function()use($write,$kind,$payload,$foreignId){$payload['record_id']=(string)$foreignId;$write($kind,'delete',$payload);},'Officer changed a sibling organization record.');
   if($kind==='events'){
+   $ceremony=$write('flag_raising','save',$input(['title'=>$tag.' CEREMONY','event_date'=>date('Y-m-d')]))['record_id'];
+   $ceremonyDelete=$input(['record_id'=>$ceremony,'version'=>$get('flag_raising',$ceremony)['version'],'confirm'=>'1']);
+   $reject(static function()use($write,$ceremonyDelete){$write('flag_raising','delete',$ceremonyDelete);},'A student event manager could delete a ceremony.');
    $opened=synk_management_attendance_write($db,$scope,'attendance_open',$input(['event_id'=>$id]));
    $check($opened['attendance']['attendance_status']==='OPEN','Event manager cannot open attendance.');
    $reject(static function()use($db,$scope,$input,$id,$qr){synk_management_attendance_write($db,$scope,'attendance_scan',$input(['event_id'=>$id,'qr_code'=>$qr]));},'Event management implicitly enabled scanning.');
@@ -95,7 +98,38 @@ try{
  $db->query("UPDATE tbl_student_management SET email_address='changed@sksu.edu.ph' WHERE student_id=".$student);$check(!synk_management_account_has_access($db,synk_find_useraccount_by_id($db,$officer)),'Directory identity change did not stop access.');$db->query("UPDATE tbl_student_management SET email_address='".strtolower($tag)."@sksu.edu.ph' WHERE student_id=".$student);
  $db->query('UPDATE tbl_management_officers SET semester=IF(semester=1,2,1) WHERE user_id='.$officer);$check(!synk_management_account_has_access($db,synk_find_useraccount_by_id($db,$officer)),'Previous semester grant remains active.');$db->query('UPDATE tbl_management_officers SET semester='.$period['semester'].' WHERE user_id='.$officer);
  $second=$insert('tbl_useraccount',['username'=>'Second faculty','email'=>strtolower($tag).'second@sksu.edu.ph','password'=>'unused','role'=>'management','status'=>'active','management_college_id'=>$college['college_id'],'management_organization_id'=>$org]);synk_persist_useraccount_roles($db,$second,['management'],'management');$secondFaculty=$insert('tbl_faculty',['first_name'=>'Second','last_name'=>$tag,'status'=>'active']);$insert('tbl_useraccount_faculty_links',['user_id'=>$second,'faculty_id'=>$secondFaculty]);
- $session($second);$check(synk_management_officers_list($db,$scope)===[],'A sibling supervisor sees another faculty manager\'s officers.');$reject(static function()use($db,$scope,$grantInput){synk_management_officer_write($db,$scope,'officer_save',$grantInput);},'Sibling supervisor took over a student officer.');
+ $session($second);
+ $shared=synk_management_officers_list($db,$scope);
+ $check(count($shared)===1 && (int)$shared[0]['student_id']===$student && $shared[0]['supervisor_name']==='Faculty manager'
+     && !$shared[0]['can_manage_access'],'A supervisor cannot see their colleague’s officer in the same organization.');
+ $reject(static function()use($db,$scope,$grantInput){synk_management_officer_write($db,$scope,'officer_save',$grantInput);},'A colleague could change another supervisor’s authorization.');
+ $reject(static function()use($db,$scope,$grantInput){synk_management_officer_write($db,$scope,'officer_revoke',$grantInput);},'A colleague could revoke another supervisor’s authorization.');
+ $peerStudent=$insert('tbl_student_management',['student_number'=>$tag.'S','first_name'=>'Peer','last_name'=>$tag,
+     'email_address'=>strtolower($tag).'peer@sksu.edu.ph','source_sheet_name'=>'DEAN MANUAL',
+     'program_id'=>$college['program_id'],'ay_id'=>$period['ay_id'],'semester'=>$period['semester']]);
+ $grantStudent=static function(int $id)use($grantInput): array {
+     return ['student_id'=>(string)$id]+array_diff_key($grantInput,['revision'=>true]);
+ };
+ synk_management_officer_write($db,$scope,'officer_save',$grantStudent($peerStudent));
+ $secondRows=array_column(synk_management_officers_list($db,$scope),'can_manage_access','student_id');
+ $session($manager);
+ $managerRows=array_column(synk_management_officers_list($db,$scope),'can_manage_access','student_id');
+ $check(count($secondRows)===2 && count($managerRows)===2 && $secondRows[$student]===false && $secondRows[$peerStudent]===true
+     && $managerRows[$student]===true && $managerRows[$peerStudent]===false,'Both supervisors did not see the same accounts with their respective controls.');
+
+ $outsideScope=array_replace($scope,['organization_id'=>$siblingOrg]);
+ $outsideStudent=$insert('tbl_student_management',['student_number'=>$tag.'X','first_name'=>'Outside','last_name'=>$tag,
+     'email_address'=>strtolower($tag).'outside@sksu.edu.ph','source_sheet_name'=>'DEAN MANUAL',
+     'program_id'=>$college['program_id'],'ay_id'=>$period['ay_id'],'semester'=>$period['semester']]);
+ synk_management_execute($db,'UPDATE tbl_useraccount SET management_organization_id=? WHERE user_id=?','ii',[$siblingOrg,$second]);
+ $session($second);
+ synk_management_officer_write($db,$outsideScope,'officer_save',$grantStudent($outsideStudent));
+ $outsideRows=synk_management_officers_list($db,$outsideScope);
+ $check(count($outsideRows)===1 && (int)$outsideRows[0]['student_id']===$outsideStudent,'The list showed accounts across organizations in the same college.');
+ $reject(static function()use($db,$scope){synk_management_officers_list($db,$scope);},'A supervisor listed an organization outside their assignment.');
+ $session($manager);
+ $insideRows=array_column(synk_management_officers_list($db,$scope),'student_id');
+ $check(count($insideRows)===2 && !in_array((string)$outsideStudent,array_map('strval',$insideRows),true),'Another organization’s officer appeared in the list.');
  $session($manager);$existing=$insert('tbl_useraccount',['username'=>'Existing staff','email'=>strtolower($tag).'payer@sksu.edu.ph','password'=>'unused','role'=>'professor','status'=>'active']);$reject(static function()use($db,$scope,$grantInput,$other){$grantInput['student_id']=(string)$other;unset($grantInput['revision']);synk_management_officer_write($db,$scope,'officer_save',$grantInput);},'Existing shared account was taken over.');
  $check(count(synk_student_login_find_directory($db,strtolower($tag).'@sksu.edu.ph'))===1,'Delegation modified the student profile.');
 }finally{$db->discard();$db->close();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();}

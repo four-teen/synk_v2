@@ -28,7 +28,8 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         FROM tbl_management_events e LEFT JOIN tbl_management_attendance_events a ON a.event_id=e.event_id
         LEFT JOIN tbl_management_attendance_roster r ON r.event_id=e.event_id AND r.student_id=?
         LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
-        WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=? AND e.status=\'ACTIVE\' ORDER BY e.event_id DESC',
+        WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=? AND e.status=\'ACTIVE\'
+        AND NOT '.synk_management_flag_raising_sql('e.source_metadata').' ORDER BY e.event_id DESC',
         'iiiiis',array_merge([$studentId],$values));
     $violationReady=synk_management_student_violations_ready($conn);
     $violations=$violationReady?synk_management_query($conn,'SELECT student_violation_id,violation_id,violation_type AS title,occurred_on AS date,amount,notes,recorded_by_name,recorded_at FROM tbl_management_student_violations WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND student_id=? ORDER BY occurred_on DESC,student_violation_id DESC','iiiisi',array_merge($values,[$studentId])):[];

@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__.'/../backend/management_officers_helper.php';
 $officers=synk_management_officers_list($conn,$scope);$audit=synk_management_officer_audit($conn,$scope);$ready=synk_management_officers_ready($conn);
+$editableOfficers=array_values(array_filter($officers,static function(array $officer): bool {
+    return $officer['can_manage_access'];
+}));
 $auditSummary=static function(array $row):string{
     $data=json_decode($row['details'],true) ?: [];
     if($row['action']==='PAYMENT')return 'Payment received: ₱'.number_format((float)($data['amount'] ?? 0),2).' · Receipt '.($data['receipt'] ?? '');
@@ -13,7 +16,7 @@ $auditSummary=static function(array $row):string{
 };
 ?>
 <section class="card management-panel management-officers" id="management-officers">
-<div class="management-panel-heading"><div><p class="card-section-title mb-1">FACULTY SUPERVISION</p><h1 class="fs-4">Student Officers</h1><p>Authorize students for <?= synk_management_h($scope['organization_name']) ?> under <?= synk_management_h($accountName) ?>.</p></div></div>
+<div class="management-panel-heading"><div><p class="card-section-title mb-1">FACULTY SUPERVISION</p><h1 class="fs-4">Student Officers</h1><p>Review and authorize student officers for <?= synk_management_h($scope['organization_name']) ?>.</p></div></div>
 <div class="p-4">
 <?php if(!$ready): ?><div class="alert alert-warning">Student officer storage has not been prepared. Run the Management officers setup before adding accounts.</div><?php else: ?>
 <p>Find an enrolled student, select their permitted operations, then set an expiry date. Access also ends when the academic semester changes. Students use their own school Google account at <a href="login.php">Management sign in</a>.</p>
@@ -34,12 +37,12 @@ $auditSummary=static function(array $row):string{
 <p class="small text-muted mt-2">These operations apply to your assigned organization. Students receive only the permissions you enable. Officers cannot delegate access or change Management settings. Existing payment and attendance protections still apply.</p>
 <div class="d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">Save student access</button><button class="btn btn-outline-secondary" type="button" id="officer-cancel">Cancel</button></div>
 </form>
-<h2 class="fs-5 mt-4">Students you supervise</h2>
+<h2 class="fs-5 mt-4">Student officer accounts</h2>
 <?php if(!$officers): ?><p class="text-muted">No student officers assigned yet. Search above to add one.</p><?php endif; ?>
 <div class="management-officer-list"><?php foreach($officers as$officer): ?>
-<article><div><h3 class="fs-6"><?= synk_management_h($officer['first_name'].' '.$officer['last_name']) ?></h3><p><?= synk_management_h($officer['student_number'].' · '.$officer['email']) ?></p><p class="small">Status: <strong><?= synk_management_h($officer['effective_status']) ?></strong> · Expires <?= synk_management_h($officer['expires_on']) ?></p><p class="small">Operations: <?= synk_management_h(synk_management_operation_summary($officer,'can_')) ?></p></div>
-<div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-primary" type="button" data-officer-edit="<?= (int)$officer['student_id'] ?>">Edit permissions / Renew</button><?php if($officer['status']==='ACTIVE'): ?><button class="btn btn-outline-danger" type="button" data-officer-revoke="<?= (int)$officer['student_id'] ?>">Revoke access</button><?php endif; ?></div></article>
+<article><div><h3 class="fs-6"><?= synk_management_h($officer['first_name'].' '.$officer['last_name']) ?></h3><p><?= synk_management_h($officer['student_number'].' · '.$officer['email']) ?></p><p class="small">Supervised by <?= synk_management_h($officer['supervisor_name']) ?></p><p class="small">Status: <strong><?= synk_management_h($officer['effective_status']) ?></strong> · Expires <?= synk_management_h($officer['expires_on']) ?></p><p class="small">Operations: <?= synk_management_h(synk_management_operation_summary($officer,'can_')) ?></p></div>
+<?php if($officer['can_manage_access']): ?><div class="d-flex flex-wrap gap-2"><button class="btn btn-outline-primary" type="button" data-officer-edit="<?= (int)$officer['student_id'] ?>">Edit permissions / Renew</button><?php if($officer['status']==='ACTIVE'): ?><button class="btn btn-outline-danger" type="button" data-officer-revoke="<?= (int)$officer['student_id'] ?>">Revoke access</button><?php endif; ?></div><?php endif; ?></article>
 <?php endforeach; ?></div>
-<details class="mt-4"><summary class="fw-semibold">Recent officer activity and permission changes</summary><ul class="management-officer-audit"><?php foreach($audit as$row): ?><li><strong><?= synk_management_h($row['first_name'].' '.$row['last_name'].' · '.str_replace('_',' ',$row['action'])) ?></strong><span><?= synk_management_h($row['actor_name']) ?> · <?= synk_management_h((new DateTimeImmutable($row['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A')) ?></span><small><?= synk_management_h($auditSummary($row)) ?></small></li><?php endforeach; ?><?php if(!$audit): ?><li>No activity recorded yet.</li><?php endif; ?></ul></details>
-<script type="application/json" id="management-officer-data"><?= json_encode($officers,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
+<details class="mt-4"><summary class="fw-semibold">Recent activity for students you supervise</summary><ul class="management-officer-audit"><?php foreach($audit as$row): ?><li><strong><?= synk_management_h($row['first_name'].' '.$row['last_name'].' · '.str_replace('_',' ',$row['action'])) ?></strong><span><?= synk_management_h($row['actor_name']) ?> · <?= synk_management_h((new DateTimeImmutable($row['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A')) ?></span><small><?= synk_management_h($auditSummary($row)) ?></small></li><?php endforeach; ?><?php if(!$audit): ?><li>No activity recorded yet.</li><?php endif; ?></ul></details>
+<script type="application/json" id="management-officer-data"><?= json_encode($editableOfficers,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <?php endif; ?></div></section>

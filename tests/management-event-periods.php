@@ -91,11 +91,11 @@ try {
     $otherYear=$db->query('SELECT ay_id FROM tbl_academic_years WHERE ay_id<>'.$next['ay_id'].' LIMIT 1')->fetch_assoc();
     if($otherYear)$insert(['ay_id'=>(int)$otherYear['ay_id']]);
     foreach(['term','all','unassigned']as$catalogScope)$check(array_map('intval',array_column($list($next,['catalog_scope'=>$catalogScope])['rows'],'event_id'))===[$third],'An event scope parameter exposed another year, semester or unknown term.');
-    $html=(static function(array $scope,array $catalog,array $term,array $currentTerm):string {
+    $html=(static function(array $scope,array $catalog,array $term,array $currentTerm,array $permissions):string {
         $page='events';$pageTitle='Events';$catalogOptions=['events'=>[]];
         $pageUrl=static function(string $file,array $params=[])use($term):string { return $file.'?'.http_build_query(array_merge(['term'=>$term['key'],'exam_term'=>$term['exam_term']],$params)); };
         ob_start();require __DIR__.'/../management/catalog-view.php';return ob_get_clean();
-    })($scope,$list($period),$period,$next);
+    })($scope,$list($period),$period,$next,synk_management_permissions($db,$scope));
     $document=new DOMDocument();@$document->loadHTML($html);
     $check($document->getElementById('management-add')->hasAttribute('disabled') && strpos($html,'data-edit=')===false && strpos($html,'data-delete=')===false,'Past event periods expose mutation controls.');
     synk_management_catalog_write($db,$scope,'events','save',$input($next,['record_id'=>$third,'version'=>$record['version'],'title'=>$prefix.' EDITED','status'=>'INACTIVE','sessions'=>json_encode($record['sessions'])]));
