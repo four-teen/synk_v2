@@ -127,35 +127,38 @@
       finally { lock(false); saveButton.textContent = `Save ${label}`; }
     });
     let deleteBusy = false;
-    const ceremonyConfirmation = $('management-delete-ceremony-confirmation');
+    const eventConfirmation = $('management-delete-event-confirmation');
     function syncDeleteButton() {
-      const linked = isEvents && Number(deleteRecord?.linked_contributions) > 0;
-      if (ceremonyConfirmation) ceremonyConfirmation.disabled = deleteBusy || !deleteRecord || linked;
-      deleteButton.disabled = deleteBusy || !deleteRecord || linked || Boolean(ceremonyConfirmation && !ceremonyConfirmation.checked);
+      const unavailable = deleteBusy || !deleteRecord || Boolean(deleteRecord.delete_block);
+      if (eventConfirmation) eventConfirmation.disabled = unavailable;
+      deleteButton.disabled = unavailable || Boolean(eventConfirmation && !eventConfirmation.checked);
     }
     function lockDelete(value) {
       deleteBusy = value;
       deleteElement.querySelectorAll('[data-bs-dismiss]').forEach(button => { button.disabled = value; });
       syncDeleteButton();
     }
-    ceremonyConfirmation?.addEventListener('change', syncDeleteButton);
+    eventConfirmation?.addEventListener('change', syncDeleteButton);
     deleteElement.addEventListener('hide.bs.modal',event=>{ if (deleteBusy) event.preventDefault(); });
     async function openDelete(id) {
       if (deleteBusy) return;
       deleteOpener=document.activeElement;
       deleteRecord = null; notice($('management-delete-error'),'');
-      if (ceremonyConfirmation) ceremonyConfirmation.checked = false;
+      if (eventConfirmation) eventConfirmation.checked = false;
       $('management-delete-explanation').textContent = '';
       $('management-delete-name').textContent = 'Loading…'; deletion.show(); lockDelete(true);
       try {
-        const data = await request('get',{ kind,record_id:id }); deleteRecord=data.record;
+        const data = await request('get',{kind,record_id:id,for_delete:'1'}); deleteRecord=data.record;
         $('management-delete-name').textContent = isViolation ? deleteRecord.violation_type : deleteRecord.title;
-        if (flagRaising) $('management-delete-name').textContent += ` (${deleteRecord.event_date})`;
+        if (isEvents) $('management-delete-name').textContent += ` (${deleteRecord.event_date})`;
         const linked = isEvents ? Number(deleteRecord.linked_contributions) : 0;
-        $('management-delete-explanation').textContent = linked
-          ? `This event is linked to ${linked} contribution(s). Remove those event links first, or set the event status to Inactive.`
-          : (flagRaising ? 'This permanently removes the ceremony, its roster, attendance records, exemptions, and sessions.'
-            : `This permanently removes the ${label.toLowerCase()}${kind === 'events' ? ` and its ${deleteRecord.sessions.length} session(s)` : ''}.`);
+        let explanation = `This permanently removes the ${label.toLowerCase()}.`;
+        if (isEvents) {
+          const subject = flagRaising ? 'ceremony' : 'event';
+          explanation = `This permanently removes the ${subject}, its roster, attendance records, exemptions, and sessions.`;
+          if (linked) explanation += ` It also removes ${linked} linked contribution${linked === 1 ? '' : 's'} and their exemptions.`;
+        }
+        $('management-delete-explanation').textContent = deleteRecord.delete_block || explanation;
       } catch (error) { notice($('management-delete-error'),error.message); }
       finally { lockDelete(false); }
     }
@@ -167,7 +170,7 @@
     deleteButton.addEventListener('click',async()=>{
       if (deleteButton.disabled) return;
       const values = {kind,record_id:deleteRecord[recordKey],version:deleteRecord.version};
-      if (ceremonyConfirmation?.checked) values.confirm = '1';
+      if (eventConfirmation?.checked) values.confirm = '1';
       notice($('management-delete-error'),''); lockDelete(true);
       try { const result = await request('delete',values); complete(result.message); }
       catch (error) { notice($('management-delete-error'),error.message); }

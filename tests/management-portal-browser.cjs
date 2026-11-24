@@ -38,7 +38,7 @@ async function main() {
   await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
   let sequence = 0; const pending = new Map(); const errors = []; const saves = [], catalogRequests = [], organizationRequests = [];
   let organizationContext = {}, organizationInUse = false;
-  let catalogFailure = false, linkedContributions = 0, catalogTerm = '2:1';
+  let catalogFailure = false, linkedContributions = 0, eventDeleteBlock = '', catalogTerm = '2:1';
   let attendanceStatus='NOT_STARTED',attendancePresent=0,attendanceRevision=1;
   let cleanupEventId = 0, cleanupPresent = false, cleanupRevision = 2, cleanupComment = null;
   let attendanceScanFailures=1;
@@ -68,7 +68,7 @@ async function main() {
         const data = requestFields(msg.params.request); catalogRequests.push(data);
         const [ay_id,semester] = catalogTerm.split(':');
         const common = { title:'BROWSER CATALOG RECORD', description:'RECORD DESCRIPTION', organization_id:'1', ay_id, semester, status:'ACTIVE', audience_mode:'ALL', version:'A'.repeat(64) };
-        const record = data.kind === 'violations' ? { ...common,violation_id:data.record_id,violation_type:'BROWSER VIOLATION',amount:'75.25',version:'A'.repeat(64) } : data.kind === 'events' ? { ...common,event_id:data.record_id,event_date:'2026-10-26',absence_fine:'25.25',latitude:null,longitude:null,attendance_radius_m:null,linked_contributions:linkedContributions,
+        const record = data.kind === 'violations' ? { ...common,violation_id:data.record_id,violation_type:'BROWSER VIOLATION',amount:'75.25',version:'A'.repeat(64) } : data.kind === 'events' ? { ...common,event_id:data.record_id,event_date:'2026-10-26',absence_fine:'25.25',latitude:null,longitude:null,attendance_radius_m:null,linked_contributions:linkedContributions,delete_block:eventDeleteBlock,
           sessions:[{ session_id:'123',title:'MORNING SESSION',starts_at:'2026-10-26 08:00:00',ends_at:'2026-10-26 12:00:00',fine_per_minute:'0.1250',grace_minutes:'15',potential_fine:'28.12',status:'ACTIVE' }] }
           : data.kind === 'flag_raising' ? { ...common,event_id:data.record_id,title:'FLAG RAISING CEREMONY QA',event_date:'2026-10-10',linked_contributions:0,sessions:[] }
           : { ...common,status:'ACTIVE',contribution_id:data.record_id,contribution_date:'2026-10-26',amount:'123.45',event_id:null };
@@ -311,16 +311,16 @@ async function main() {
     await navigate('imported_event_default');
     const ceremonyId = await evaluate('document.querySelector("[data-delete]").dataset.delete');
     await evaluate('new Promise(resolve=>{document.getElementById("management-delete-modal").addEventListener("shown.bs.modal",()=>resolve(true),{once:true});document.querySelector("[data-delete]").click()})');
-    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-ceremony-confirmation").disabled');
+    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-event-confirmation").disabled');
     check(await evaluate('document.getElementById("management-delete-confirm").disabled && document.getElementById("management-delete-explanation").textContent.includes("roster, attendance records, exemptions, and sessions") && document.getElementById("management-delete-name").textContent.includes("2026-10-10")'),
       'Ceremony deletion did not identify the record and require confirmation.');
-    await evaluate('document.getElementById("management-delete-ceremony-confirmation").click();document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');
+    await evaluate('document.getElementById("management-delete-event-confirmation").click();document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');
     await until('document.getElementById("management-delete-modal").getAttribute("aria-hidden")==="true"');
     check(!catalogRequests.some(row=>row.action==='delete' && row.kind==='flag_raising'), 'Cancelling ceremony deletion submitted a request.');
     await evaluate('new Promise(resolve=>{document.getElementById("management-delete-modal").addEventListener("shown.bs.modal",()=>resolve(true),{once:true});document.querySelector("[data-delete]").click()})');
-    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-ceremony-confirmation").disabled');
-    check(await evaluate('document.getElementById("management-delete-confirm").disabled && !document.getElementById("management-delete-ceremony-confirmation").checked'), 'Confirmation carried over after cancellation.');
-    await evaluate('document.getElementById("management-delete-ceremony-confirmation").click();document.getElementById("management-delete-confirm").click()');
+    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-event-confirmation").disabled');
+    check(await evaluate('document.getElementById("management-delete-confirm").disabled && !document.getElementById("management-delete-event-confirmation").checked'), 'Confirmation carried over after cancellation.');
+    await evaluate('document.getElementById("management-delete-event-confirmation").click();document.getElementById("management-delete-confirm").click()');
     await until('performance.getEntriesByType("navigation")[0]?.type==="reload" && document.readyState==="complete"');
     check(catalogRequests.some(row=>row.action==='delete' && row.kind==='flag_raising' && row.record_id===ceremonyId && row.version.length===64 && row.confirm==='1'),
       'Confirmed deletion did not send the selected record and its version.');
@@ -546,9 +546,17 @@ async function main() {
   await resize(1440);await evaluate('document.querySelector("[data-edit]").click()');await until('document.getElementById("management-record-form").elements.record_id.value && !document.getElementById("management-editor-fields").disabled');await delay(300);
   check(await evaluate('document.getElementById("record-absence").value==="25.25" && document.getElementById("management-record-form").elements.version.value.length===64'),'Editing lost the saved absence fine or record version.');
   await evaluate('document.querySelector("#management-editor [data-bs-dismiss]").click()');await delay(350);linkedContributions=1;
-  await evaluate('document.querySelector("[data-delete]").click()');await until('document.getElementById("management-delete-explanation").textContent.includes("linked to 1")');
-  check(await evaluate('document.getElementById("management-delete-confirm").disabled'),'A linked event can be deleted from the confirmation dialog.');
-  await evaluate('document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');await delay(350);linkedContributions=0;
+  await evaluate('document.querySelector("[data-delete]").click()');await until('document.getElementById("management-delete-explanation").textContent.includes("1 linked contribution")');await delay(300);
+  check(await evaluate('document.getElementById("management-delete-confirm").disabled && !document.getElementById("management-delete-event-confirmation").disabled'),'Linked records were not disclosed or an event could be deleted without confirmation.');
+  const deletes=catalogRequests.filter(row=>row.action==='delete').length;
+  await evaluate('document.getElementById("management-delete-event-confirmation").click();document.getElementById("management-delete-confirm").click()');
+  for(let i=0;i<100 && catalogRequests.filter(row=>row.action==='delete').length===deletes;i++)await delay(50);
+  check(catalogRequests.some(row=>row.action==='delete' && row.kind==='events' && row.confirm==='1' && row.version.length===64),'Event deletion lost its confirmation or record version.');
+  await until('document.readyState==="complete" && !document.querySelector(".modal.show")');
+  eventDeleteBlock='This event or a linked contribution has recorded payments.';
+  await evaluate('document.querySelector("[data-delete]").click()');await until('document.getElementById("management-delete-explanation").textContent.includes("recorded payments")');await delay(300);
+  check(await evaluate('document.getElementById("management-delete-confirm").disabled && document.getElementById("management-delete-event-confirmation").disabled'),'The paid event showed an enabled delete action.');
+  await evaluate('document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');await delay(350);linkedContributions=0;eventDeleteBlock='';
   await navigate('students');
   check(await evaluate('!document.getElementById("student-directory-term") && !document.getElementById("student-program") && !document.getElementById("student-section") && !document.getElementById("student-email-status") && !document.getElementById("student-sort") && document.querySelectorAll("#management-student-filters select").length===1 && document.querySelectorAll("#student-page-size option").length===3 && !document.querySelector("#management-student-filters button, #management-student-filters a")'),'Simplified student search retained removed filters or actions.');
   check(await evaluate('document.querySelector("[data-student]").textContent.trim()==="Financial overview"'),'Student action does not explain the financial overview.');

@@ -80,13 +80,58 @@ if ($scenario==='old_session_status') $sessions[0]['status']='OPEN';
 if ($scenario==='add_contribution' || $scenario==='add_event') { $post['record_id']=''; $post['version']=''; if($kind==='events')$sessions[0]['session_id']=''; }
 if ($scenario==='delete_contribution' || $scenario==='delete_event' || $scenario==='delete_linked_event') {
     $post['action']='delete';
+    if ($kind==='events') $post['confirm']='1';
     if ($scenario==='delete_event') {
         $conn->query('UPDATE tbl_management_contributions SET event_id=NULL WHERE contribution_id='.$contribution);
         $record=synk_management_catalog_get($conn,$scope,$kind,$recordId); $post['version']=$record['version'];
     }
 }
 if ($scenario==='stale_contribution') { $post['version']=str_repeat('0',64); }
-if ($scenario==='stale_delete_event') { $post['action']='delete'; $post['version']=str_repeat('0',64); }
+if ($scenario==='stale_delete_event') { $post['action']='delete'; $post['confirm']='1'; $post['version']=str_repeat('0',64); }
+if ($scenario==='delete_event_unconfirmed') $post['action']='delete';
+if ($scenario==='delete_event_paid' || $scenario==='delete_event_link_paid') {
+    require_once $root.'/backend/management_attendance_helper.php';
+    require_once $root.'/backend/management_payment_helper.php';
+    synk_persist_useraccount_roles($conn,$userId,['management','admin'],'management');
+    if ($scenario==='delete_event_paid') {
+        synk_management_execute($conn,'UPDATE tbl_management_events SET absence_fine=25.50 WHERE event_id=?','i',[$event]);
+        $opened=synk_management_attendance_write($conn,$scope,'attendance_open',$post)['attendance'];
+        synk_management_attendance_write($conn,$scope,'attendance_close',$post+['confirm'=>'1','attendance_revision'=>$opened['revision']]);
+        $chargeKey='E:'.$event;
+    } else {
+        synk_management_execute($conn,"UPDATE tbl_management_contributions SET status='ACTIVE',audience_mode='ALL' WHERE contribution_id=?",'i',[$contribution]);
+        $chargeKey='C:'.$contribution;
+    }
+    $program=(int)synk_management_query($conn,'SELECT MIN(program_id) AS program_id FROM tbl_program WHERE college_id=?','i',[$scope['college_id']])[0]['program_id'];
+    $studentId=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'PAYMENT','last_name'=>'TEST','source_sheet_name'=>'DEAN MANUAL',
+        'program_id'=>$program,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']]);
+    if ($scenario==='delete_event_paid') {
+        synk_management_execute($conn,'INSERT INTO tbl_management_attendance_roster (event_id,student_id) VALUES (?,?)','ii',[$event,$studentId]);
+    }
+    $overview=synk_management_student_financial_overview($conn,$scope,$term,$studentId);
+    synk_management_payment_post($conn,$scope,array_replace($post,['student_id'=>(string)$studentId,'allocation_mode'=>'SELECTED','amount'=>'25.50',
+        'selected'=>json_encode([$chargeKey]),'account_version'=>$overview['account_version'],'request_key'=>bin2hex(random_bytes(32)),'exam_term'=>$term['exam_term']]));
+    $post['action']='delete';
+    $post['confirm']='1';
+    $post['version']=synk_management_catalog_get($conn,$scope,'events',$event)['version'];
+}
+if ($scenario==='delete_event_records') {
+    require_once $root.'/backend/management_attendance_helper.php';
+    synk_persist_useraccount_roles($conn,$userId,['management','admin'],'management');
+    $post['action']='delete';
+    $post['confirm']='1';
+    $opened=synk_management_attendance_write($conn,$scope,'attendance_open',$post);
+    $roster=synk_management_query($conn,'SELECT student_id FROM tbl_management_attendance_roster WHERE event_id=? ORDER BY student_id LIMIT 2','i',[$event]);
+    $studentId=(int)$roster[0]['student_id'];
+    synk_management_attendance_write($conn,$scope,'attendance_scan',$post+['qr_code'=>synk_management_student_qr($conn,$studentId)]);
+    $closed=synk_management_attendance_write($conn,$scope,'attendance_close',$post+['attendance_revision'=>$opened['attendance']['revision']]);
+    synk_management_attendance_write($conn,$scope,'attendance_correct',$post+['student_id'=>(string)$roster[1]['student_id'],
+        'attendance_revision'=>$closed['attendance']['revision'],'corrected_status'=>'PRESENT','reason'=>'Verified attendance']);
+    synk_management_execute($conn,'INSERT INTO tbl_management_attendance_checkpoints (event_id,student_id,checked_in,checked_out) VALUES (?,?,1,1)','ii',[$event,$studentId]);
+    synk_management_exemption_grant($conn,$scope,$term,$studentId,'events',$event,'Event duty',null);
+    synk_management_exemption_grant($conn,$scope,$term,$studentId,'contributions',$contribution,'Linked event duty',null,$event);
+    synk_management_exemption_grant($conn,$scope,$term,(int)$roster[1]['student_id'],'contributions',$contribution,'Contribution waiver',null);
+}
 if ($scenario==='foreign_contribution' || $scenario==='foreign_event') $post['record_id']=$kind==='events' ? $foreignEvent : $foreignContribution;
 if ($scenario==='foreign_org') $post['organization_id']=$foreignOrg;
 if ($scenario==='foreign_event_link') { $kind='contributions'; $post['kind']=$kind; $post['status']='ACTIVE'; $post['record_id']=$contribution; $post['version']=synk_management_catalog_get($conn,$scope,$kind,$contribution)['version']; $post['event_id']=$foreignEvent; }
@@ -352,7 +397,7 @@ if(strpos($scenario,'officer_http_')===0 || strpos($scenario,'officer_catalog_')
         $_POST=array_merge($post,['kind'=>$catalogKind,'action'=>'save','record_id'=>$catalogId,'version'=>$catalogRecord['version'],'violation_type'=>$tag.' HTTP VIOLATION']);unset($_POST['sessions']);
         if($mode==='get')$_POST['action']='get';
         if($mode==='add'){$_POST['record_id']='';$_POST['version']='';}
-        if($mode==='delete'){$_POST['action']='delete';if($catalogKind==='events'){$conn->query('UPDATE tbl_management_contributions SET event_id=NULL WHERE contribution_id='.$contribution);$_POST['version']=synk_management_catalog_get($conn,$scope,'events',$event)['version'];}}
+        if($mode==='delete'){$_POST['action']='delete';if($catalogKind==='events'){$conn->query('UPDATE tbl_management_contributions SET event_id=NULL WHERE contribution_id='.$contribution);$_POST['version']=synk_management_catalog_get($conn,$scope,'events',$event)['version'];$_POST['confirm']='1';}}
         if($mode==='denied'){$_POST['kind']=$catalogKind==='events'?'contributions':'events';}
         if($mode==='stale')$_POST['version']=str_repeat('0',64);
         if($mode==='foreign')$_POST['record_id']=['contributions'=>$foreignContribution,'events'=>$foreignEvent,'violations'=>$foreignViolation][$catalogKind];

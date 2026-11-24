@@ -72,7 +72,7 @@ try {
     $reject('attendance_scan',['event_id'=>$event,'qr_code'=>$qr]);
     $record=synk_management_catalog_get($db,$scope,'events',$event);
     try{synk_management_catalog_write($db,$scope,'events','save',$input(['record_id'=>$event,'version'=>$record['version'],'title'=>$tag,'event_date'=>date('Y-m-d'),'absence_fine'=>'100.00']));$check(false,'An attendance event fine was changed.');}catch(SynkManagementConflict $error){$check(true,'');}
-    try{synk_management_catalog_write($db,$scope,'events','delete',$input(['record_id'=>$event,'version'=>$record['version']]));$check(false,'An event with attendance was deleted.');}catch(SynkManagementConflict $error){$check(true,'');}
+    try{synk_management_catalog_write($db,$scope,'events','delete',$input(['record_id'=>$event,'version'=>$record['version'],'confirm'=>'1']));$check(false,'An unauthorized account deleted an event with attendance.');}catch(SynkManagementPermissionDenied $error){$check(true,'');}
     $reopened=synk_management_attendance_write($db,$scope,'attendance_reopen',$input(['event_id'=>$event,'attendance_revision'=>$closed['attendance']['revision'],'confirm'=>'1']));
     $check($overview($absent)['summary']['total_to_pay']==='0.30','Reopening did not remove provisional absence fines.');
     $absentQr=synk_management_student_qr($db,$absent);

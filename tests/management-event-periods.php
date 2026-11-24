@@ -81,7 +81,7 @@ try {
     $reject($input($period,['title'=>$prefix.' STALE']));
     $reject($input($next,['exam_term'=>$period['exam_term'],'title'=>$prefix.' WRONG VIEW']));
     $reject($input($next,['record_id'=>$first,'version'=>$old['version'],'title'=>$old['title']]));
-    $reject($input($next,['record_id'=>$first,'version'=>$old['version']]),'delete');
+    $reject($input($next,['record_id'=>$first,'version'=>$old['version'],'confirm'=>'1']),'delete');
     $check(synk_management_catalog_get($db,$scope,'events',$first)===$old,'A rejected event write changed its sessions or original period.');
     $insert=static function(array $values)use($db,$scope,$next,$prefix):void {
         $row=array_merge(['college_id'=>$scope['college_id'],'organization_id'=>$scope['organization_id'],'ay_id'=>$next['ay_id'],'semester'=>$next['semester'],'exam_term'=>$next['exam_term'],'title'=>$prefix.' EXCLUDED','event_date'=>'2026-10-27'],$values);
