@@ -5,6 +5,12 @@ $studentUrl = static function (array $changes = []) use ($pageUrl,$filters): str
     return $pageUrl('students.php',array_merge(['search'=>$filters['search'],'page_size'=>$filters['page_size']],$changes));
 };
 $canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] === $currentTerm['period_key'];
+$evaluationLabels = [
+    'SUBMITTED'=>'Submitted',
+    'PENDING'=>'Not submitted',
+    'NO_LINKED_FACULTY'=>'No linked faculty',
+    'UNAVAILABLE'=>'Unavailable',
+];
 ?>
 <h1 class="visually-hidden">Students</h1>
 <section class="management-stats management-catalog-stats management-student-stats" aria-label="Student overview"><?php foreach([['students','Unique students','bx-group','primary'],['classes','Imported classes','bx-book-open','success'],['programs','Programs','bx-buildings','info']] as $stat): ?><article class="card management-stat"><span class="management-stat-icon bg-label-<?= $stat[3] ?>"><i class="bx <?= $stat[2] ?>" aria-hidden="true"></i></span><div><span><?= $stat[1] ?></span><strong><?= number_format($directory['summary'][$stat[0]]) ?></strong></div></article><?php endforeach; ?></section>
@@ -25,10 +31,11 @@ $canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] 
         <thead role="rowgroup">
           <tr role="row">
             <th scope="col" role="columnheader" class="management-student-photo">Photo</th>
-            <th scope="col" role="columnheader">Student Name</th>
-            <th scope="col" role="columnheader" class="management-student-course">Course / Section</th>
-            <th scope="col" role="columnheader" class="management-student-subjects">Total subjects</th>
-            <th scope="col" role="columnheader" class="management-student-balance">Remaining balance</th>
+            <th scope="col" role="columnheader">Student<br> Name</th>
+            <th scope="col" role="columnheader" class="management-student-course">Course /<br> Section</th>
+            <th scope="col" role="columnheader" class="management-student-subjects">Total<br> subjects</th>
+            <th scope="col" role="columnheader" class="management-student-balance">Remaining<br> balance</th>
+            <th scope="col" role="columnheader" class="management-student-evaluation">Faculty<br> evaluation</th>
             <th scope="col" role="columnheader" class="management-student-action-cell text-end">Actions</th>
           </tr>
         </thead>
@@ -38,6 +45,11 @@ $canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] 
               $balance = $directory['balances'][$studentId] ?? null;
               $balanceStatus = $balance['payment_status'] ?? 'UNAVAILABLE';
               $balanceText = ['PAID'=>'Paid','NO_CHARGES'=>'No charges','UNAVAILABLE'=>'—'][$balanceStatus] ?? synk_management_account_money($balance['total_to_pay']);
+              $evaluation = $directory['evaluation_progress'][$studentId] ?? [];
+              $evaluationStatus = $evaluation['status'] ?? 'UNAVAILABLE';
+              $evaluationText = $evaluationStatus === 'PARTIAL'
+                  ? sprintf('%d of %d submitted', $evaluation['submitted_count'], $evaluation['faculty_count'])
+                  : $evaluationLabels[$evaluationStatus];
           ?>
             <tr role="row">
               <td role="cell" class="management-student-photo">
@@ -60,6 +72,10 @@ $canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] 
               <td role="cell" class="management-student-balance">
                 <div class="management-student-field-label" aria-hidden="true">Remaining balance</div>
                 <span class="badge management-student-balance-value" data-student-balance data-balance-status="<?= synk_management_h($balanceStatus) ?>"><?= synk_management_h($balanceText) ?></span>
+              </td>
+              <td role="cell" class="management-student-evaluation">
+                <div class="management-student-field-label" aria-hidden="true">Faculty evaluation</div>
+                <span class="badge management-student-evaluation-value" data-evaluation-status="<?= synk_management_h($evaluationStatus) ?>"><?= synk_management_h($evaluationText) ?></span>
               </td>
               <td role="cell" class="management-student-action-cell">
                 <div class="management-student-actions">

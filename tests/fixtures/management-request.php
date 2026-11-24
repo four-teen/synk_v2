@@ -135,6 +135,49 @@ if (strpos($scenario,'account_')===0) {
 } else {
     if($scenario==='login') { $handler='management/login.php'; $_SESSION=[]; }
     if($scenario==='students' || strpos($scenario,'students_')===0) { $handler='management/students.php'; $_GET['search']=$tag; }
+    if (in_array($scenario, ['students','students_evaluation_midterm','students_evaluation_history'], true)) {
+        [$faculty, $secondFaculty, $retainedFaculty] = array_map('intval', array_column($conn->query(
+            "SELECT faculty_id FROM tbl_faculty WHERE status='active' ORDER BY faculty_id LIMIT 3"
+        )->fetch_all(MYSQLI_ASSOC), 'faculty_id'));
+        $college = $scope['college_id'];
+        $otherCollege = $otherScope['college_id'];
+        $semester = $term['semester'];
+        $otherSemester = $semester === 1 ? 2 : 1;
+        $clone('tbl_management_period_settings', [], ['college_id'=>$college, 'organization_id'=>$organizationId,
+            'ay_id'=>$term['ay_id'], 'semester'=>$semester, 'current_exam_term'=>'FINAL']);
+        $conn->query("UPDATE tbl_student_management_enrolled_subjects SET faculty_id={$faculty}
+            WHERE college_id={$college} AND student_id IN (".implode(',', array_slice($students,0,8)).')');
+        $conn->query('UPDATE tbl_student_management_enrolled_subjects SET faculty_id=0 WHERE student_id='.$students[3]);
+        $enroll = static function (int $student, array $template, array $overrides) use ($clone, $students, $tag): void {
+            $clone('tbl_student_management_enrolled_subjects', $template,
+                $overrides + ['student_id'=>$students[$student], 'source_file_name'=>$tag.'.xlsx']);
+        };
+        $enroll(2, $templates[1], ['faculty_id'=>$secondFaculty]);
+        $enroll(2, $foreignTemplate, ['faculty_id'=>$secondFaculty]);
+        $enroll(5, $foreignTemplate, ['faculty_id'=>$faculty]);
+        $enroll(6, $templates[1], ['faculty_id'=>$secondFaculty, 'is_active'=>0]);
+        $otherTermEnrollment = ['semester'=>$otherSemester, 'offering_id'=>0, 'section_id'=>0];
+        $enroll(7, $templates[0], ['faculty_id'=>$faculty] + $otherTermEnrollment);
+        $enroll(7, $templates[1], ['faculty_id'=>$secondFaculty, 'is_active'=>0] + $otherTermEnrollment);
+        foreach ([
+            [0,$faculty,$college,$semester,'submitted'],
+            [1,$faculty,$college,$semester,'draft'],
+            [2,$faculty,$college,$semester,'submitted'],
+            [2,$secondFaculty,$otherCollege,$semester,'submitted'],
+            [4,$faculty,0,$semester,'submitted'],
+            [5,$faculty,0,$semester,'submitted'],
+            [6,$faculty,$college,$semester,'submitted'],
+            [7,$faculty,$college,$otherSemester,'submitted'],
+            [7,$retainedFaculty,$college,$otherSemester,'submitted'],
+        ] as [$student,$instructor,$owner,$evaluationSemester,$status]) {
+            $clone('tbl_student_faculty_evaluations', [], ['student_id'=>$students[$student], 'faculty_id'=>$instructor,
+                'college_id'=>$owner, 'ay_id'=>$term['ay_id'], 'semester'=>$evaluationSemester, 'submission_status'=>$status,
+                'question_count'=>15, 'comment_text'=>'QA comment', 'evaluation_token'=>bin2hex(random_bytes(16)),
+                'final_submitted_at'=>$status==='submitted' ? date('Y-m-d H:i:s') : null]);
+        }
+        $_GET['exam_term'] = $scenario === 'students_evaluation_midterm' ? 'MIDTERM' : 'FINAL';
+        if ($scenario === 'students_evaluation_history') $_GET['term'] = $term['ay_id'].':'.$otherSemester;
+    }
     if($scenario==='students_page')$_GET['page']=2;
     if($scenario==='students_foreign')$_GET['program_id']=$foreignProgram['program_id'];
     if($scenario==='students_array')$_GET['search']=['invalid'];

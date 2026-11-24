@@ -42,7 +42,7 @@ try {
         require_once __DIR__.'/../backend/management_student_permits_helper.php';
         $permits = synk_management_student_permits($conn,$scope,$term,$_GET);
     }
-    $analytics = in_array($page,['reports','student_permits'],true) ? [] : synk_management_analytics($conn,$scope,$term);
+    $analytics = $page === 'dashboard' ? synk_management_analytics($conn,$scope,$term) : [];
     $collectionTotals = null;
     if ($page === 'dashboard' && synk_management_operation_allowed($permissions,'records')) {
         require_once __DIR__.'/../backend/management_collection_helper.php';
@@ -54,8 +54,10 @@ try {
         // active through bookmarked directory/program/section filter values.
         $directoryInput = array_intersect_key($_GET,array_flip(['term','exam_term','view_ay_id','view_semester','search','page','page_size']));
         $directory = synk_management_directory($conn, $scope, $directoryInput);
+        $studentIds = array_column($directory['rows'], 'student_id');
         require_once __DIR__.'/../backend/management_collection_helper.php';
-        $directory['balances'] = synk_management_student_balances($conn,$scope,$term,array_column($directory['rows'],'student_id'));
+        $directory['balances'] = synk_management_student_balances($conn, $scope, $term, $studentIds);
+        $directory['evaluation_progress'] = synk_management_student_evaluation_progress($conn, $scope, $term, $currentTerm, $studentIds);
     }
     $violations = null;
     if ($page === 'violations') {
