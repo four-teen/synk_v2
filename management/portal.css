@@ -119,7 +119,8 @@
 #management-catalog[data-kind="flag_raising"] .management-catalog-table th { white-space: normal; }
 .management-table .badge { display: inline-flex; }
 .management-student-table { min-width: 0; width: 100%; table-layout: fixed; }
-.management-student-table :is(th,td) { padding: .75rem 1rem; }
+.management-student-table :is(th,td) { padding: .75rem; }
+.management-student-table th { vertical-align: middle; }
 .management-student-table .management-student-photo { width: 7rem; text-align: center; }
 .management-student-avatar {
   display: block;
@@ -135,17 +136,31 @@
 .management-student-table .management-record-title { min-width: 0; max-width: none; }
 .management-student-table :is(.dean-student-id,.dean-student-full-name,.dean-student-contact) { white-space: normal; overflow-wrap: anywhere; }
 .management-student-table .dean-student-full-name { color: var(--dean-heading); font-size: 1rem; margin-block: .2rem; }
-.management-student-course { width: 20%; overflow-wrap: anywhere; }
+.management-student-course { width: 16%; text-align: left; overflow-wrap: anywhere; }
 .management-student-course > strong { color: var(--dean-heading); }
 .management-student-table .management-student-course > small { margin-top: .2rem; color: var(--dean-muted); font-size: .875rem; }
-.management-student-subjects { width: 7.5rem; text-align: center; }
+.management-student-subjects { width: 9%; text-align: center; }
 .management-student-subject-count { justify-content: center; min-width: 2.5rem; padding: .45rem .6rem; color: #115e59; background: #e6f5ef; font-size: .875rem; font-weight: 600; }
-.management-student-table .management-student-balance { width: 8.5rem; text-align: right; white-space: normal; }
+.management-student-balance { width: 12%; text-align: center; }
 .management-student-balance-value { padding: .45rem .6rem; color: #982f28; background: #fff0ef; font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
 .management-student-balance-value[data-balance-status="PAID"] { color: #216743; background: #e8f7ee; }
 .management-student-balance-value:is([data-balance-status="NO_CHARGES"],[data-balance-status="UNAVAILABLE"]) { color: var(--dean-muted); background: #f1f3f8; }
+.management-student-evaluation { width: 15%; text-align: center; }
+.management-student-evaluation-value {
+  justify-content: center;
+  max-width: 100%;
+  padding: .45rem .6rem;
+  color: var(--dean-muted);
+  background: #f1f3f8;
+  font-size: .8125rem;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.management-student-evaluation-value[data-evaluation-status="SUBMITTED"] { color: #216743; background: #e8f7ee; }
+.management-student-evaluation-value:is([data-evaluation-status="PENDING"],[data-evaluation-status="PARTIAL"]) { color: #854d0e; background: #fff4dd; }
 .management-student-field-label { display: none; }
-.management-student-action-cell { width: 13rem; }
+.management-student-action-cell { width: 18%; }
 .management-student-actions { display: grid; gap: .375rem; }
 .management-student-actions .btn {
   display: flex;
@@ -171,8 +186,8 @@
   .management-student-table > tbody:not(:first-child) { display: grid; gap: .75rem; padding: .75rem; border-top: 0; }
   .management-student-table tbody tr {
     display: grid;
-    grid-template-columns: 4.5rem minmax(0,1fr) auto;
-    grid-template-areas: "photo name name" "course course subjects" "balance balance balance" "actions actions actions";
+    grid-template-columns: 4.5rem repeat(2,minmax(0,1fr)) 4.5rem;
+    grid-template-areas: "photo name name name" "course course subjects subjects" "balance balance evaluation evaluation" "actions actions actions actions";
     gap: .75rem;
     padding: .75rem;
     border: 1px solid var(--dean-border);
@@ -184,8 +199,17 @@
   .management-student-table .management-record-title { grid-area: name; align-self: center; }
   .management-student-course { grid-area: course; }
   .management-student-subjects { grid-area: subjects; }
-  .management-student-table tbody td.management-student-balance { grid-area: balance; display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: auto; padding-top: .55rem; border-top: 1px solid var(--dean-border); text-align: left; }
-  .management-student-balance .management-student-field-label { margin-bottom: 0; }
+  .management-student-balance { grid-area: balance; }
+  .management-student-evaluation { grid-area: evaluation; }
+  .management-student-table tbody :is(.management-student-balance,.management-student-evaluation) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: .55rem;
+    border-top: 1px solid var(--dean-border);
+  }
+  .management-student-balance-value { max-width: 100%; padding-inline: .45rem; font-size: .8125rem; line-height: 1.2; }
   .management-student-action-cell { grid-area: actions; }
   .management-student-field-label { display: block; margin-bottom: .25rem; color: var(--dean-muted); font-size: .8125rem; }
 }

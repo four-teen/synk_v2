@@ -2,6 +2,7 @@
 require_once __DIR__ . '/management_portal_helper.php';
 require_once __DIR__ . '/college_dean_students_helper.php';
 require_once __DIR__ . '/management_student_avatar_helper.php';
+require_once __DIR__ . '/evaluation_access_helper.php';
 
 // Reuse the Dean's read-only directory queries, not its account or write routes.
 function synk_management_directory_filters(mysqli $conn, array $scope, array $input): array
@@ -33,8 +34,67 @@ function synk_management_directory(mysqli $conn, array $scope, array $input): ar
     $filters = synk_management_directory_filters($conn,$scope,$input);
     if (!synk_management_students_ready($conn)) return ['rows'=>[],'summary'=>['students'=>0,'classes'=>0,'programs'=>0],
         'pagination'=>['page'=>1,'pages'=>1,'page_size'=>$filters['page_size'],'total'=>0,'from'=>0,'to'=>0],
-        'options'=>['programs'=>[],'sections'=>[],'terms'=>[]],'filters'=>$filters];
-    return synk_dean_students_list($conn,$scope,$filters) + ['options'=>synk_dean_students_options($conn,$scope),'filters'=>$filters];
+        'filters'=>$filters];
+    return synk_dean_students_list($conn,$scope,$filters) + ['filters'=>$filters];
+}
+
+function synk_management_student_evaluation_progress(
+    mysqli $conn, array $scope, array $term, array $currentTerm, array $studentIds
+): array {
+    if (!$studentIds) return [];
+
+    try {
+        $table = 'tbl_student_faculty_evaluations';
+        if (!synk_table_has_column($conn, $table, 'submission_status')) return [];
+
+        $isCurrent = synk_evaluation_is_current($term, $currentTerm);
+        $owner = synk_evaluation_owner_sql($conn, 'e', (int)$scope['college_id']);
+        $slots = implode(',', array_fill(0, count($studentIds), '?'));
+        $studentTypes = str_repeat('i', count($studentIds));
+        $academicTerm = [$term['ay_id'], $term['semester']];
+        $types = 'iiii' . $studentTypes;
+        $params = array_merge([$scope['college_id'], $scope['campus_id']], $academicTerm, $studentIds);
+        $roster = "SELECT es.student_id, es.faculty_id, es.ay_id, es.semester
+            FROM tbl_student_management_enrolled_subjects es
+            WHERE es.college_id=? AND es.campus_id=? AND es.ay_id=? AND es.semester=?
+                AND es.faculty_id>0 AND es.student_id IN ({$slots})";
+        if ($isCurrent) {
+            $roster .= ' AND es.is_active=1';
+        } else {
+            // Historical faculty lists also retain saved evaluations after roster changes.
+            $roster .= " UNION ALL
+                SELECT e.student_id, e.faculty_id, e.ay_id, e.semester
+                FROM {$table} e
+                WHERE e.ay_id=? AND e.semester=? AND e.faculty_id>0
+                    AND e.student_id IN ({$slots}) AND {$owner}";
+            $types .= 'ii' . $studentTypes;
+            $params = array_merge($params, $academicTerm, $studentIds);
+        }
+
+        $rows = synk_management_query($conn, "SELECT roster.student_id,
+                COUNT(DISTINCT roster.faculty_id) AS faculty_count,
+                COUNT(DISTINCT e.faculty_id) AS submitted_count
+            FROM ({$roster}) roster
+            LEFT JOIN {$table} e ON e.student_id=roster.student_id AND e.faculty_id=roster.faculty_id
+                AND e.ay_id=roster.ay_id AND e.semester=roster.semester
+                AND e.submission_status='submitted' AND {$owner}
+            GROUP BY roster.student_id", $types, $params);
+    } catch (RuntimeException $error) {
+        error_log('Management student evaluation status: ' . $error->getMessage());
+        return [];
+    }
+
+    $progress = array_fill_keys($studentIds, ['status'=>'NO_LINKED_FACULTY', 'faculty_count'=>0, 'submitted_count'=>0]);
+    foreach ($rows as $row) {
+        $facultyCount = (int)$row['faculty_count'];
+        $submittedCount = (int)$row['submitted_count'];
+        $progress[(int)$row['student_id']] = [
+            'status'=>$submittedCount === $facultyCount ? 'SUBMITTED' : ($submittedCount > 0 ? 'PARTIAL' : 'PENDING'),
+            'faculty_count'=>$facultyCount,
+            'submitted_count'=>$submittedCount,
+        ];
+    }
+    return $progress;
 }
 
 function synk_management_original_student_placement(mysqli $conn, array $scope, int $studentId): array

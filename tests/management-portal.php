@@ -15,8 +15,17 @@ $request=static function(string$scenario)use($name,$token):array {
     $body=file_get_contents('http://localhost/synk/tmp/'.$name.'?qa='.$token.'&scenario='.rawurlencode($scenario),false,$context);
     $data=json_decode((string)$body,true);if(!is_array($data)||isset($data['fixture_error']))throw new RuntimeException($scenario.': '.substr((string)$body,0,2400));return $data;
 };
+$evaluationStatuses = static function (string $html): array {
+    preg_match_all('/data-evaluation-status="([^"]+)">([^<]*)</', $html, $matches, PREG_SET_ORDER);
+    return array_map(static fn(array $match): array => [$match[1],$match[2]], $matches);
+};
+$expectedEvaluations = [
+    ['SUBMITTED','Submitted'], ['PENDING','Not submitted'], ['PARTIAL','1 of 2 submitted'],
+    ['NO_LINKED_FACULTY','No linked faculty'], ['SUBMITTED','Submitted'],
+    ['PENDING','Not submitted'], ['SUBMITTED','Submitted'], ['PENDING','Not submitted'],
+];
 try {
-    $r=$request('officers_page');$check($r['status']===200&&strpos($r['response'],'officer-search-form')!==false&&strpos($r['response'],'Students you supervise')!==false,'Faculty Student Officers page did not render.');
+    $r=$request('officers_page');$check($r['status']===200&&strpos($r['response'],'officer-search-form')!==false&&strpos($r['response'],'Recent activity for students you supervise')!==false,'Faculty Student Officers page did not render.');
     $r=$request('officers_denied');$check($r['status']===403,'Student officer accessed faculty delegation page.');
     $r=$request('officers_attendance');$check($r['status']===200&&strpos($r['response'],'Scan attendance')!==false&&strpos($r['response'],'id="management-add" disabled')!==false,'Attendance officer cannot view scan operations or still edits events.');
     $check(strpos($r['response'],'officers.php?')===false&&strpos($r['response'],'id="management-current-period-settings" hidden')!==false,'Officer navigation exposes delegation or period administration.');
@@ -39,13 +48,24 @@ try {
         $check((int)$r['session']['college_id']===$r['scope']['college_id'],'Management trusted a stale session college.');
         foreach(['Financial','Contributions','Events','Violations','Students','Dashboard']as$menu)$check(strpos($html,$menu)!==false,'A Management menu is missing: '.$menu);
         if($scenario==='financial')$check(strpos($html,'id="financial-fresh-start"')!==false && strpos($html,'No financial records yet')!==false,'Financial retained imported history instead of a fresh workspace.');
-        if($scenario==='students')$check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr role="row">')===26,'Directory scope or pagination is incorrect.');
+        if ($scenario==='students') {
+            $check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr role="row">')===26,'Directory scope or pagination is incorrect.');
+            $check(array_slice($evaluationStatuses($html),0,8)===$expectedEvaluations,
+                'Evaluation status miscounted duplicate faculty, drafts, partial submissions, legacy ownership, or semester/college scope.');
+            $check(strpos($html,'QA comment')===false, 'Student directory exposed evaluation comments.');
+        }
         if($scenario==='students_page')$check(substr_count($html,'<tr role="row">')===4 && strpos($html,'Page 2 of 2')!==false,'Student directory did not deduplicate or paginate correctly.');
         if($scenario==='contributions'||$scenario==='events')$check(strpos($html,'id="management-add"')!==false && strpos($html,'id="management-record-form"')!==false,'Catalog management forms are missing.');
     }
     $r=$request('analytics');$check($r['response']['students']===$r['baseline']['students']+28,'Analytics counted duplicate memberships or foreign-only students.');
     $check($r['response']['enrollments']===$r['baseline']['enrollments']+29,'Analytics included foreign-college imported classes.');
     $r=$request('students_empty');$check($r['status']===200&&strpos($r['response'],'No matching students')!==false,'Student empty-search state is missing.');
+    $r=$request('students_evaluation_midterm');
+    $check($r['status']===200 && array_slice($evaluationStatuses($r['response']),0,8)===$expectedEvaluations,
+        'Changing the financial exam period changed evaluation completion for the same semester.');
+    $r=$request('students_evaluation_history');
+    $check($r['status']===200 && $evaluationStatuses($r['response'])===[['PARTIAL','2 of 3 submitted']],
+        'The historical evaluation count omitted inactive enrollments or retained submissions.');
     foreach(['students_wildcard','students_otherterm']as$scenario){$r=$request($scenario);$check($r['status']===200&&strpos($r['response'],'No matching students')!==false,$scenario.': search matched unintended memberships.');}
     $r=$request('students_xss');$check($r['status']===200&&strpos($r['response'],'<img src=x onerror=alert(1)>')===false&&strpos($r['response'],'&lt;img src=x onerror=alert(1)&gt;')!==false,'Search text is not escaped.');
     foreach(['forged_college'=>403,'forged_campus'=>403,'bad_term'=>400,'students_array'=>400,'bad_exam_term'=>400,'array_exam_term'=>400]as$scenario=>$status){$r=$request($scenario);$check($r['status']===$status,$scenario.': invalid scope/filter was accepted.');}
