@@ -142,6 +142,23 @@ if (strpos($scenario,'account_')===0) {
     if($scenario==='students_wildcard')$_GET['search']=$tag.'%';
     if($scenario==='students_xss')$_GET['search']='<img src=x onerror=alert(1)>';
     if($scenario==='students_otherterm')$_GET['term']=$term['ay_id'].':'.($term['semester']===1?2:1);
+    if (strpos($scenario,'permits')===0) {
+        $handler='management/student-permits.php';
+        $clone('tbl_management_period_settings',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,
+            'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'current_exam_term'=>'FINAL']);
+        $programId=(int)$templates[0]['program_id'];
+        $sectionId=$clone('tbl_sections',[],['program_id'=>$programId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],
+            'year_level'=>2,'section_name'=>'2-QA','full_section'=>'Permit QA '.$tag,'status'=>'active']);
+        $fixtureStudents=array_slice($students,0,5);
+        $conn->query("UPDATE tbl_student_management SET middle_name='',suffix_name='' WHERE student_id IN (".implode(',',$fixtureStudents).')');
+        $conn->query("UPDATE tbl_student_management SET last_name='DE LA CRUZ',first_name='JUAN MIGUEL',middle_name='SANTOS' WHERE student_id=".$fixtureStudents[0]);
+        $conn->query('UPDATE tbl_student_management_enrolled_subjects SET section_id='.$sectionId.',year_level=2 WHERE student_id IN ('.implode(',',$fixtureStudents).') AND offering_id='.(int)$templates[0]['offering_id']);
+        $conn->query("UPDATE tbl_student_management_enrolled_subjects SET subject_code='QA-ELECTIVE' WHERE student_id=".$students[0].' AND offering_id='.(int)$templates[1]['offering_id']);
+        if ($scenario!=='permits') $_GET+=['generate'=>'1','program_id'=>(string)$programId,'year_level'=>'2','section_id'=>(string)$sectionId];
+        if ($scenario==='permits_midterm') $_GET['exam_term']='MIDTERM';
+        if ($scenario==='permits_wrong_year') $_GET['year_level']='1';
+        if ($scenario==='permits_anonymous') $_SESSION=[];
+    }
     if($scenario==='contributions') {
         $handler='management/contributions.php';
         $clone('tbl_management_contributions',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>strtoupper($tag).' CONTRIBUTION','contribution_date'=>'2026-10-26','amount'=>'25.50']);

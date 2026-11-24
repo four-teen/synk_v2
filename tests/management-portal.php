@@ -39,8 +39,8 @@ try {
         $check((int)$r['session']['college_id']===$r['scope']['college_id'],'Management trusted a stale session college.');
         foreach(['Financial','Contributions','Events','Violations','Students','Dashboard']as$menu)$check(strpos($html,$menu)!==false,'A Management menu is missing: '.$menu);
         if($scenario==='financial')$check(strpos($html,'id="financial-fresh-start"')!==false && strpos($html,'No financial records yet')!==false,'Financial retained imported history instead of a fresh workspace.');
-        if($scenario==='students')$check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr>')===26,'Directory scope or pagination is incorrect.');
-        if($scenario==='students_page')$check(substr_count($html,'<tr>')===4 && strpos($html,'Page 2 of 2')!==false,'Student directory did not deduplicate or paginate correctly.');
+        if($scenario==='students')$check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr role="row">')===26,'Directory scope or pagination is incorrect.');
+        if($scenario==='students_page')$check(substr_count($html,'<tr role="row">')===4 && strpos($html,'Page 2 of 2')!==false,'Student directory did not deduplicate or paginate correctly.');
         if($scenario==='contributions'||$scenario==='events')$check(strpos($html,'id="management-add"')!==false && strpos($html,'id="management-record-form"')!==false,'Catalog management forms are missing.');
     }
     $r=$request('analytics');$check($r['response']['students']===$r['baseline']['students']+28,'Analytics counted duplicate memberships or foreign-only students.');

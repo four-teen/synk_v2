@@ -1,0 +1,102 @@
+.management-permit-controls { padding: 1.25rem 1.5rem; }
+.management-permit-filters {
+  display: grid;
+  grid-template-columns: minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);
+  gap: .85rem;
+}
+.management-permit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; }
+.management-permit-actions .btn { min-height: 44px; }
+.management-permit-paper-note, #management-permit-stale { color: var(--dean-muted); font-size: .875rem; }
+.management-permit-paper-note { margin: .85rem 0 0; }
+.management-permit-controls .alert { margin-top: 1rem; }
+#management-permit-preview { margin-top: 1.5rem; }
+.management-permit-preview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; width: min(100%,7.9in); margin: 0 auto .65rem; }
+.management-permit-preview-heading h2 { color: var(--dean-heading); font-size: 1rem; margin: 0; }
+.management-permit-preview-heading span { color: var(--dean-muted); font-size: .875rem; }
+.management-permit-sheet {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  grid-template-rows: repeat(2,minmax(0,1fr));
+  width: min(100%,7.9in);
+  min-height: 12.35in;
+  margin: 0 auto 1.5rem;
+  background: #fff;
+  color: #16191e;
+  box-shadow: var(--dean-shadow);
+}
+.management-permit-sheet::before, .management-permit-sheet::after { position: absolute; content: ''; pointer-events: none; }
+.management-permit-sheet::before { inset: 0 auto 0 50%; border-left: .5pt dashed #8a9099; }
+.management-permit-sheet::after { inset: 50% 0 auto 0; border-top: .5pt dashed #8a9099; }
+.management-permit-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2.4mm;
+  padding: 5mm;
+  font: 10pt/1.24 Arial, sans-serif;
+  overflow-wrap: anywhere;
+}
+.management-permit-card header { text-align: center; }
+.management-permit-card h3 { color: inherit; font: bold 12pt/1.15 Arial, sans-serif; margin: 0 0 1mm; }
+.management-permit-card header p { margin: 0; }
+.management-permit-student { display: grid; gap: .8mm; margin: 0; }
+.management-permit-student > div { display: grid; grid-template-columns: 27mm minmax(0,1fr); gap: 1.25mm; }
+.management-permit-student dt { font-weight: 600; }
+.management-permit-student dd { border-bottom: .5pt solid currentColor; margin: 0; padding: 0 0 .55mm; }
+.management-permit-name > span { display: block; min-height: 1.24em; }
+.management-permit-given-names { font-size: 8.5pt; }
+.management-permit-subjects { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.management-permit-subjects th, .management-permit-subjects td { height: 6mm; border: .65pt solid #222; padding: .65mm 1.35mm; text-align: left; }
+.management-permit-subjects th { font-weight: 700; }
+.management-permit-signature {
+  align-self: center;
+  min-width: 46mm;
+  margin-top: auto;
+  padding-top: 6.5mm;
+  text-align: center;
+  font-weight: 700;
+}
+.management-permit-signature::before { content: ''; display: block; border-top: .65pt solid #222; margin-bottom: .7mm; }
+.management-permit-reminder { margin: 0; font-size: 8pt; line-height: 1.3; }
+
+@media screen and (max-width: 767.98px) {
+  .management-permit-controls { padding: 1rem; }
+  .management-permit-filters { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .75rem; }
+  .management-permit-sheet { width: min(100%,4.4in); min-height: 0; grid-template-columns: minmax(0,1fr); grid-template-rows: none; gap: .75rem; background: transparent; box-shadow: none; }
+  .management-permit-sheet::before, .management-permit-sheet::after { display: none; }
+  .management-permit-card { background: #fff; border: 1px solid var(--dean-border); border-radius: .5rem; }
+}
+
+@page { size: 8.5in 13in; margin: .3in; }
+@media print {
+  html, body.management-portal { height: auto !important; overflow: visible !important; background: #fff !important; }
+  .layout-wrapper, .layout-container, .layout-page, .management-portal .layout-page .content-wrapper, #main-content {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+  }
+  .layout-navbar-fixed .layout-wrapper:not(.layout-horizontal):not(.layout-without-menu) .layout-page { padding-top: 0 !important; }
+  #layout-menu, #layout-navbar, .management-mobile-nav, .management-mobile-more, .management-skip,
+  .layout-overlay, .content-backdrop, .modal, footer, .management-main > :not(#management-permit-preview),
+  .management-permit-preview-heading { display: none !important; }
+  #management-permit-preview { margin: 0; }
+  .management-permit-sheet {
+    width: 100%;
+    height: 12.35in;
+    min-height: 0;
+    margin: 0;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .management-permit-sheet + .management-permit-sheet { break-before: page; }
+  .management-permit-card { break-inside: avoid; }
+}

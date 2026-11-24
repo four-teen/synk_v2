@@ -180,11 +180,27 @@
   const studentForm = $('management-student-filters');
   if (studentForm) {
     const modalElement = $('management-student-detail'), modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    const receiptKey = `synk-management-next-receipt-${config.organization_id}-${config.user_id}`;
+    let nextReceipt = { paymentId: 0, number: '' };
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(receiptKey));
+      if (Number.isSafeInteger(stored?.paymentId) && typeof stored.number === 'string' && /^\d{0,40}$/.test(stored.number)) nextReceipt = stored;
+    } catch (_) { /* The browser may restrict storage. */ }
+    function rememberReceipt(receipt) {
+      const paymentId = Number(receipt?.payment_id);
+      const number = String(receipt?.receipt_number ?? '');
+      if (!Number.isSafeInteger(paymentId) || paymentId <= nextReceipt.paymentId || !/^\d{1,40}$/.test(number)) return;
+      const incremented = (BigInt(number) + 1n).toString().padStart(number.length, '0');
+      nextReceipt = { paymentId, number: incremented.length <= 40 ? incremented : '' };
+      try { sessionStorage.setItem(receiptKey,JSON.stringify(nextReceipt)); }
+      catch (_) { /* Keep the suggestion in memory on this page. */ }
+    }
     let generation = 0, detailOpener = null;
     modalElement.addEventListener('hide.bs.modal',()=>{ generation++; });
     modalElement.addEventListener('hidden.bs.modal',()=>detailOpener?.focus());
     document.addEventListener('click',async event=>{
       const button = event.target.closest('[data-student]'); if (!button) return;
+      const balance = button.closest('tr')?.querySelector('[data-student-balance]');
       detailOpener=button;
       const current = ++generation;
       $('management-student-detail-title').textContent = 'Financial overview';
@@ -195,12 +211,20 @@
         const content=$('management-student-detail-content');
         const show=(detail,saved=null)=>{
           if(current!==generation)return;
-          content.innerHTML=window.SynkManagementFinancial.render(detail);
+          if (balance) window.SynkManagementFinancial.updateDirectoryBalance(balance,detail.financial.summary);
+          content.innerHTML=window.SynkManagementFinancial.render(detail,saved);
           window.SynkManagementFinancial.bind(detail,content,request,async receipt=>{
+            rememberReceipt(receipt);
             const updated=await request('student_detail',{directory_term:config.directory_term,student_id:button.dataset.student});
             show(updated,receipt);
-          });
-          if(saved){const notice=document.createElement('div');notice.className='alert alert-success';notice.setAttribute('role','status');if(saved.receipt_number)notice.innerHTML=`Payment recorded: ${escape(saved.receipt_number)}. <a href="payment-receipt.php?payment_id=${encodeURIComponent(saved.payment_id)}" target="_blank" rel="noopener">View receipt</a>`;else notice.textContent=saved.message || 'Student account updated.';content.querySelector('.management-financial-main').prepend(notice);}
+          },()=>nextReceipt.number);
+          if (saved && !saved.receipt_number) {
+            const notice = document.createElement('div');
+            notice.className = 'alert alert-success';
+            notice.setAttribute('role','status');
+            notice.textContent = saved.message || 'Student account updated.';
+            content.querySelector('.management-financial-main').prepend(notice);
+          }
         };
         show(data);
       } catch (error) { if (current === generation) $('management-student-detail-content').innerHTML = `<div class="alert alert-danger" role="alert">${escape(error.message)}</div>`; }

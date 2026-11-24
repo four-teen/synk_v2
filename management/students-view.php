@@ -4,6 +4,7 @@ $filters = $directory['filters']; $pagination = $directory['pagination'];
 $studentUrl = static function (array $changes = []) use ($pageUrl,$filters): string {
     return $pageUrl('students.php',array_merge(['search'=>$filters['search'],'page_size'=>$filters['page_size']],$changes));
 };
+$canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] === $currentTerm['period_key'];
 ?>
 <h1 class="visually-hidden">Students</h1>
 <section class="management-stats management-catalog-stats management-student-stats" aria-label="Student overview"><?php foreach([['students','Unique students','bx-group','primary'],['classes','Imported classes','bx-book-open','success'],['programs','Programs','bx-buildings','info']] as $stat): ?><article class="card management-stat"><span class="management-stat-icon bg-label-<?= $stat[3] ?>"><i class="bx <?= $stat[2] ?>" aria-hidden="true"></i></span><div><span><?= $stat[1] ?></span><strong><?= number_format($directory['summary'][$stat[0]]) ?></strong></div></article><?php endforeach; ?></section>
@@ -16,7 +17,64 @@ $studentUrl = static function (array $changes = []) use ($pageUrl,$filters): str
 </section>
 
 <section class="card dean-page-card management-panel" aria-label="Student directory">
-  <?php if (!$directory['rows']): ?><div class="management-empty"><i class="bx bx-search" aria-hidden="true"></i><h3>No matching students</h3><p>Try another student ID or name, or change the viewing period in the header.</p></div><?php else: ?><div class="management-table-scroll" role="region" aria-label="Student directory" tabindex="0"><table class="table dean-students-table management-table management-student-table"><thead><tr><th scope="col" class="management-student-photo">Photo</th><th scope="col">Student Name</th><th scope="col" class="text-end">Actions</th></tr></thead><tbody><?php foreach($directory['rows'] as $student): ?><tr><td class="management-student-photo"><img class="management-student-avatar" src="<?= synk_management_h(synk_management_student_avatar_url((int)$student['student_id'])) ?>" alt="" width="48" height="48" loading="lazy" decoding="async" fetchpriority="low" data-fallback="../student/profile-placeholder.svg"></td><td class="management-record-title dean-student-name"><div class="dean-student-id"><?= synk_management_h($student['student_number']) ?></div><div class="dean-student-full-name" title="<?= synk_management_h($student['student_name']) ?>"><?= synk_management_h($student['student_name']) ?></div><div class="dean-student-contact"><em><?= synk_management_h($student['email_address'] ?: 'Email not provided') ?></em></div></td><td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary management-financial-open" data-student="<?= $student['student_id'] ?>">Financial overview</button><?php if($permissions['manage_exemptions'] && $term['period_key']===$currentTerm['period_key']): ?><button type="button" class="btn btn-sm btn-outline-primary mt-1" data-exempt-open data-exempt-student="<?= (int)$student['student_id'] ?>" data-exempt-name="<?= synk_management_h($student['student_name']) ?>" data-exempt-number="<?= synk_management_h($student['student_number']) ?>">Exempt from events / contributions</button><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?>
+  <?php if (!$directory['rows']): ?>
+    <div class="management-empty"><i class="bx bx-search" aria-hidden="true"></i><h3>No matching students</h3><p>Try another student ID or name, or change the viewing period in the header.</p></div>
+  <?php else: ?>
+    <div class="management-table-scroll" role="region" aria-label="Student directory" tabindex="0">
+      <table class="table dean-students-table management-table management-student-table" role="table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader" class="management-student-photo">Photo</th>
+            <th scope="col" role="columnheader">Student Name</th>
+            <th scope="col" role="columnheader" class="management-student-course">Course / Section</th>
+            <th scope="col" role="columnheader" class="management-student-subjects">Total subjects</th>
+            <th scope="col" role="columnheader" class="management-student-balance">Remaining balance</th>
+            <th scope="col" role="columnheader" class="management-student-action-cell text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          <?php foreach ($directory['rows'] as $index => $student):
+              $studentId = (int)$student['student_id'];
+              $balance = $directory['balances'][$studentId] ?? null;
+              $balanceStatus = $balance['payment_status'] ?? 'UNAVAILABLE';
+              $balanceText = ['PAID'=>'Paid','NO_CHARGES'=>'No charges','UNAVAILABLE'=>'—'][$balanceStatus] ?? synk_management_account_money($balance['total_to_pay']);
+          ?>
+            <tr role="row">
+              <td role="cell" class="management-student-photo">
+                <img class="management-student-avatar" src="<?= synk_management_h(synk_management_student_avatar_url($studentId)) ?>" alt="" width="80" height="80" loading="<?= $index < 3 ? 'eager' : 'lazy' ?>" decoding="async" data-fallback="../student/profile-placeholder.svg">
+              </td>
+              <td role="cell" class="management-record-title dean-student-name">
+                <div class="dean-student-id"><?= synk_management_h($student['student_number']) ?></div>
+                <div class="dean-student-full-name"><?= synk_management_h($student['student_name']) ?></div>
+                <div class="dean-student-contact"><em><?= synk_management_h($student['email_address'] ?: 'Email not provided') ?></em></div>
+              </td>
+              <td role="cell" class="management-student-course">
+                <div class="management-student-field-label" aria-hidden="true">Course / Section</div>
+                <strong><?= synk_management_h($student['programs'] ?: '—') ?></strong>
+                <small><?= synk_management_h($student['sections'] ?: 'No section recorded') ?></small>
+              </td>
+              <td role="cell" class="management-student-subjects">
+                <div class="management-student-field-label" aria-hidden="true">Total subjects</div>
+                <span class="badge management-student-subject-count"><?= number_format($student['subject_count']) ?></span>
+              </td>
+              <td role="cell" class="management-student-balance">
+                <div class="management-student-field-label" aria-hidden="true">Remaining balance</div>
+                <span class="badge management-student-balance-value" data-student-balance data-balance-status="<?= synk_management_h($balanceStatus) ?>"><?= synk_management_h($balanceText) ?></span>
+              </td>
+              <td role="cell" class="management-student-action-cell">
+                <div class="management-student-actions">
+                  <button type="button" class="btn management-financial-open" data-student="<?= $studentId ?>"><i class="bx bx-receipt" aria-hidden="true"></i><span>Financial overview</span></button>
+                  <?php if ($canManageExemptions): ?>
+                    <button type="button" class="btn management-student-exemptions" data-exempt-open data-exempt-student="<?= $studentId ?>" data-exempt-name="<?= synk_management_h($student['student_name']) ?>" data-exempt-number="<?= synk_management_h($student['student_number']) ?>"><i class="bx bx-shield-quarter" aria-hidden="true"></i><span>Exemptions</span></button>
+                  <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php endif; ?>
   <nav class="management-pagination" aria-label="Student result pages"><span>Page <?= $pagination['page'] ?> of <?= $pagination['pages'] ?> · <?= number_format($pagination['total']) ?> students<?php if($pagination['total']): ?> · Showing <?= $pagination['from'] ?>–<?= $pagination['to'] ?><?php endif; ?></span><div><?php foreach(['Previous'=>-1,'Next'=>1] as $label=>$step): $next=$pagination['page']+$step; ?><a class="btn btn-sm btn-outline-primary<?= $next<1 || $next>$pagination['pages'] ? ' disabled' : '' ?>"<?= $next<1 || $next>$pagination['pages'] ? ' aria-disabled="true" tabindex="-1"' : '' ?> href="<?= synk_management_h($studentUrl(['page'=>max(1,$next)])) ?>"><?= $label ?></a><?php endforeach; ?></div></nav>
   <p class="management-directory-note"><i class="bx bx-info-circle" aria-hidden="true"></i>Students appear once per selected scope, using the same directory source as the Dean's module.</p>
 </section>

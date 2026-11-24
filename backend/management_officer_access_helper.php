@@ -19,7 +19,7 @@ function synk_management_operation_allowed(array $permissions,string $operation)
 {
     if($operation==='reports')return $permissions['view']||$permissions['payments']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
     if($operation==='records')return $permissions['view']||$permissions['payments']||!empty($permissions['manage_exemptions']);
-    if($operation==='student_records')return $permissions['view']||$permissions['payments']||$permissions['manage_violations']||!empty($permissions['manage_exemptions']);
+    if($operation==='student_records' || $operation==='student_permits')return $permissions['view']||$permissions['payments']||$permissions['manage_violations']||!empty($permissions['manage_exemptions']);
     if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation]||($operation==='contributions' && !empty($permissions['manage_exemptions']));
     if($operation==='events' || $operation==='flag_raising')return $permissions['view']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
     if($operation==='exemptions')return $permissions['view']||!empty($permissions['manage_exemptions']);

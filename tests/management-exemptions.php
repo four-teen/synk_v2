@@ -9,6 +9,7 @@ require_once __DIR__.'/../backend/management_payment_helper.php';
 require_once __DIR__.'/../backend/management_reports_helper.php';
 require_once __DIR__.'/../backend/management_officers_helper.php';
 require_once __DIR__.'/../backend/management_student_account_helper.php';
+require_once __DIR__.'/../backend/management_collection_helper.php';
 class ManagementExemptionsTestConnection extends mysqli {
     public function start():void { parent::begin_transaction(); }
     public function discard():void { parent::rollback(); }
@@ -44,7 +45,10 @@ try {
     $list=synk_management_exemption_data($db,$scope,$period)['lists'][0];$listId=(int)$list['list_id'];
     $apply=static function(int $event,array $list)use($write):array{return $write('exemption_apply',['list_id'=>$list['list_id'],'list_revision'=>(string)$list['revision'],'event_ids'=>json_encode([$event])]);};
     $beforeVersion=$overview($students[9])['account_version'];
+    $expectedBefore=synk_management_money_cents((string)synk_management_collection_totals($db,$scope,$period)['expected']);
     $apply($events[0],$list);
+    $expectedAfter=synk_management_money_cents((string)synk_management_collection_totals($db,$scope,$period)['expected']);
+    $check($expectedBefore-$expectedAfter===100000,'Expected Collections did not deduct ten exempted ₱100 contributions.');
     $catalog=synk_management_catalog_list($db,$scope,$period,'events',[])['rows'];$eventOne=array_values(array_filter($catalog,static function($row)use($events){return (int)$row['event_id']===$events[0];}))[0];
     $check($eventOne['attendance_exempted']===10,'Unopened event did not show its saved exempted count.');
     $check($db->query('SELECT COUNT(*) AS n FROM tbl_management_exemptions WHERE event_id='.$events[0]." AND status='ACTIVE'")->fetch_assoc()['n']==='10','Event 1 did not snapshot ten students.');
@@ -62,6 +66,8 @@ try {
     $removed=$overview($students[9]);$kept=$overview($students[0]);
     $check($removed['summary']['total_to_pay']==='155.00' && $removed['summary']['absence_count']===1,'Removed student lost Event 1 exemption or wrongly gained Event 2 exemption.');
     $check($kept['summary']['total_to_pay']==='30.00' && $kept['summary']['absence_count']===0,'Retained students were fined or unrelated contributions were waived.');
+    $balances=synk_management_student_balances($db,$scope,$period,[$students[0],$students[9]]);
+    $check($balances[$students[0]]['total_to_pay']==='30.00' && $balances[$students[9]]['total_to_pay']==='155.00','Directory balances did not deduct exempt contributions and finalized absence fines correctly.');
     $studentAccount=synk_management_student_account($db,$students[0]);$check($studentAccount['attendance']['exempted']>=2,'Student account did not recognize exempted attendance.');
     $report=synk_management_report_attendance($db,$scope,$period,$events[1]);$check(count($report['groups']['exempted'])===9 && in_array($students[9],array_map('intval',array_column($report['groups']['absent'],'student_id')),true),'Attendance report misclassified exemptions.');
     $fines=synk_management_report_absence_fines($db,$scope,$period,$events[1]);$check(!in_array($students[0],array_map('intval',array_column($fines['rows'],'student_id')),true),'Fine report included an exempted student.');

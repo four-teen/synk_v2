@@ -74,8 +74,8 @@ async function main() {
           : { ...common,status:'ACTIVE',contribution_id:data.record_id,contribution_date:'2026-10-26',amount:'123.45',event_id:null };
         let payload = data.action === 'get' ? { status:'ok',record } : { status:'ok',message:'Record saved.',record_id:1 };
         if (data.action === 'student_detail') payload = {
-          status:'ok',student:{ first_name:'JUAN MIGUEL',last_name:'DELA CRUZ',student_name:'DELA CRUZ, JUAN MIGUEL',student_number:'2026-00123',email_address:'juan.delacruz@sksu.edu.ph',home_section:'BSCS 1A' },
-          subjects:[{ subject_code:'CS 101',descriptive_title:'PROGRAMMING',section_label:'BSCS 1A',program_label:'BSCS',program_name:'Bachelor of Science in Computer Science',year_level:1,term_label:'2026-2027 - 1st Semester',faculty_name:'ASSIGNED FACULTY' }],
+          status:'ok',student:{ first_name:'JUAN MIGUEL',last_name:'DELA CRUZ',student_name:'DELA CRUZ, JUAN MIGUEL',student_number:'2026-00123',email_address:'juan.delacruz@sksu.edu.ph',home_section:'BSCS 3A',original_section:'BSCS 1A',original_year_level:1 },
+          subjects:[{ subject_code:'CS 101',descriptive_title:'PROGRAMMING',section_label:'BSCS 2B',program_label:'BSCS',program_name:'Bachelor of Science in Computer Science',year_level:2,term_label:'2026-2027 - 1st Semester',faculty_name:'ASSIGNED FACULTY' }],
           financial:{ period:{key:'2:1:FINAL',text:'2026-2027 - 1st Semester - Final'},organization:{code:'CSSO',name:'CSSO',college:'COLLEGE OF COMPUTER STUDIES',campus:'ISULAN CAMPUS'},
             contributions:[{contribution_id:2,title:'CCS TEAM JERSEY (INTRAMURALS 2026)',contribution_date:'2026-10-27',amount:'350.00',audience_mode:'ALL'},{contribution_id:1,title:'PAISULABAN 2026',contribution_date:'2026-10-27',amount:'150.00',audience_mode:'ALL'}],
             events:[{event_id:3,title:'ATTENDED EVENT',event_date:'2026-11-01',absence_fine:'25.00',student_attendance:'PRESENT',amount_due:'0.00'},{event_id:2,title:'PAISULABAN 2026',event_date:'2026-11-06',absence_fine:'50.00',student_attendance:'PENDING',amount_due:'0.00'},{event_id:1,title:'CCS GENERAL ASSEMBLY',event_date:'2026-11-03',absence_fine:'25.00',student_attendance:'ABSENT',amount_due:'25.00'}],violations:[],payments:[],
@@ -345,11 +345,67 @@ async function main() {
   for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Management login overflows ${width}px.`); }
   await screenshot('management-login-320.png');
   await resize(1440); await navigate('dashboard');
-  check(await evaluate('document.querySelectorAll("[data-stat]").length===4 && document.querySelectorAll(".management-nav a").length===9 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard analytics/navigation are missing.');
+  check(await evaluate('[...document.querySelectorAll("[data-stat]")].map(node=>node.dataset.stat).join("|")==="students|expected|collected|outstanding" && document.querySelector("[data-stat=expected]").parentElement.textContent.includes("After exemptions") && document.querySelectorAll(".management-nav a").length===10 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard collection totals or navigation are missing.');
   check(await evaluate('document.documentElement.classList.contains("layout-menu-fixed") && document.getElementById("layout-menu").classList.contains("bg-menu-theme") && document.getElementById("layout-navbar").classList.contains("navbar-detached") && !document.querySelector(".management-nav a:not(.college-dean-menu-card)")'), 'Management is not using the shared module layout/header/card navigation.');
   check(await evaluate('getComputedStyle(document.querySelector(".college-dean-menu-title")).fontSize==="13.92px" && getComputedStyle(document.querySelector(".college-dean-menu-icon")).width==="34px" && getComputedStyle(document.querySelector(".college-dean-menu-card")).borderTopWidth==="1px"'), 'Sidebar fonts, icon sizes, or card borders differ from the Dean template.');
   check(await evaluate('document.compatMode==="CSS1Compat" && document.querySelectorAll("script[src*=jquery]").length===0'), 'Management dashboard is not in standards mode or loads duplicate libraries.');
   await screenshot('management-dashboard-1440.png');
+  await navigate('permits');
+  check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Print Student Permit") && document.getElementById("permit-exam-term").value==="FINAL" && document.getElementById("management-permit-print").disabled'), 'The permit menu, Final default, or initial print state is wrong.');
+  check(await evaluate(`(() => {
+    const course = document.getElementById('permit-course'), year = document.getElementById('permit-year-level'), section = document.getElementById('permit-section');
+    if (!year.disabled || !section.disabled) return false;
+    for (const option of [...course.options].slice(1)) {
+      course.value = option.value; course.dispatchEvent(new Event('change', {bubbles:true}));
+      if (![...year.options].some(option => option.value === '2')) continue;
+      year.value = '2'; year.dispatchEvent(new Event('change', {bubbles:true}));
+      const fixture = [...section.options].find(option => option.textContent.startsWith('Permit QA '));
+      if (!fixture) continue;
+      if (![...section.options].slice(1).every(option => option.dataset.program === course.value && option.dataset.year === year.value)) return false;
+      section.value = fixture.value; section.dispatchEvent(new Event('change', {bubbles:true}));
+      return !document.getElementById('management-permit-generate').disabled;
+    }
+    return false;
+  })()`), 'Course and year level did not filter the permit sections.');
+  await navigate('permits_final');
+  check(await evaluate('document.querySelector("#management-permit-preview").textContent.includes("QA-ELECTIVE") && [...document.querySelectorAll(".management-permit-sheet")].map(sheet=>sheet.querySelectorAll("article").length).join() === "4,1" && [...document.querySelectorAll(".management-permit-card h3")].every(h=>h.textContent==="FINAL EXAMINATION PERMIT")'), 'Permits omitted an enrolled elective, duplicated students, or used the wrong term or pagination.');
+  check(await evaluate(`(() => {
+    const section = document.getElementById('permit-section').selectedOptions[0].textContent.trim();
+    const program = document.getElementById('permit-course').selectedOptions[0].textContent.trim().split(' - ')[0];
+    const cards = [...document.querySelectorAll('.management-permit-card')];
+    const name = cards[0].querySelector('.management-permit-name');
+    const [lastName, givenNames] = name.children;
+    if (lastName.textContent !== 'DE LA CRUZ' || givenNames.textContent !== 'JUAN MIGUEL SANTOS') return false;
+    const originalSize = parseFloat(getComputedStyle(lastName).fontSize);
+    if (Math.abs(originalSize - 40 / 3) > 0.1 || parseFloat(getComputedStyle(givenNames).fontSize) >= originalSize || lastName.getBoundingClientRect().bottom > givenNames.getBoundingClientRect().top) return false;
+    const tables = cards.map(card => card.querySelector('.management-permit-subjects').getBoundingClientRect());
+    const tableOffset = tables[0].top - cards[0].getBoundingClientRect().top;
+    return cards.every((card, index) => {
+      const fields = card.querySelectorAll('.management-permit-student dd');
+      const table = card.querySelector('.management-permit-subjects');
+      const offset = tables[index].top - card.getBoundingClientRect().top;
+      return fields[0].children.length === 2 && fields[1].textContent === section && fields[2].textContent === program
+        && table.tBodies[0].rows.length === 10 && [...table.rows].every(row => row.cells.length === 2)
+        && Math.abs(offset - tableOffset) <= 1 && Math.abs(tables[index].height - tables[0].height) <= 1;
+    });
+  })()`), 'Permit names, section and program labels, or subject table sizes are inconsistent.');
+  for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Permit filters or preview overflow ${width}px.`); }
+  await evaluate('window.printCalls=0;window.print=()=>window.printCalls++;document.getElementById("management-permit-print").click()');
+  check(await evaluate('printCalls===1'), 'Print permits did not invoke the print dialog.');
+  const pdfFolder = path.join(root,'tmp','pdfs');
+  fs.mkdirSync(pdfFolder,{recursive:true});
+  const permitPrint = await call('Page.printToPDF',{printBackground:true,preferCSSPageSize:true,displayHeaderFooter:false},sessionId);
+  const permitPdf = Buffer.from(permitPrint.data,'base64');
+  fs.writeFileSync(path.join(pdfFolder,'management-student-permits-qa.pdf'),permitPdf);
+  const pdfStructure = permitPdf.toString('latin1');
+  check((pdfStructure.match(/\/Type\s*\/Page\b/g) || []).length===2 && /\/MediaBox\s*\[0 0 612 936\]/.test(pdfStructure), 'The print PDF did not fit five permits on two 8.5 × 13-inch sheets.');
+  await evaluate('document.getElementById("permit-exam-term").value="MIDTERM";document.getElementById("permit-exam-term").dispatchEvent(new Event("change",{bubbles:true}))');
+  check(await evaluate('document.getElementById("management-permit-print").disabled&&document.getElementById("management-permit-preview").hidden&&!document.getElementById("management-permit-stale").hidden'), 'Changing the term left the old permit preview printable.');
+  await navigate('permits_midterm');
+  check(await evaluate('document.querySelector(".management-permit-card h3").textContent==="MIDTERM EXAMINATION PERMIT"&&JSON.parse(document.getElementById("management-config").textContent).current_exam_term==="FINAL"'), 'Printing Midterm changed the saved Final period.');
+  await navigate('permits_wrong_year');
+  check(await evaluate('!document.getElementById("management-permit-preview")&&document.getElementById("management-permit-form").querySelector("[role=alert]").textContent.includes("Choose a course")'), 'A mismatched year still produced permits for a section.');
+  await resize(1440); await navigate('dashboard');
   await evaluate('document.getElementById("management-term-settings").click()');await until('document.getElementById("management-term-modal").classList.contains("show")');await delay(300);
   check(await evaluate('document.getElementById("management-term").value===JSON.parse(document.getElementById("management-config").textContent).term'),'Header term settings did not show the selected viewing term.');
   check(await evaluate('JSON.stringify([...document.getElementById("management-view-exam-term").options].map(o=>o.value))===JSON.stringify(["MIDTERM","FINAL"])'),'Management must offer exactly Midterm and Final terms.');
@@ -393,12 +449,14 @@ async function main() {
   check(await evaluate('!document.querySelector(".management-heading") && document.querySelector("#main-content > section").classList.contains("management-student-stats") && document.querySelectorAll(".management-student-stats article").length===3'),'Student summary cards did not replace the page title card below the header.');
   check(await evaluate('document.querySelector(".management-sidebar-college strong").textContent.trim().length>0 && document.querySelector("#layout-menu").lastElementChild.classList.contains("management-sidebar-college")'),'The assigned college is missing from the bottom of the sidebar.');
   check(await evaluate('Math.abs(document.getElementById("student-search").getBoundingClientRect().bottom-document.getElementById("student-page-size").getBoundingClientRect().bottom)<2 && document.getElementById("student-search").getBoundingClientRect().width>document.getElementById("student-page-size").getBoundingClientRect().width*2'),'Student search is not wider and aligned with its page-size selector.');
-  check(await evaluate('document.getElementById("directory-filters-title").textContent.trim()==="DIRECTORY|Student listing" && !document.getElementById("directory-title") && !document.querySelector(".management-student-listing .management-panel-heading p") && [...document.querySelectorAll(".management-student-table th")].map(th=>th.textContent.trim()).join("|")==="Photo|Student Name|Actions"'),'Student heading or table retained removed text and columns.');
+  check(await evaluate('document.getElementById("directory-filters-title").textContent.trim()==="DIRECTORY|Student listing" && !document.getElementById("directory-title") && !document.querySelector(".management-student-listing .management-panel-heading p") && [...document.querySelectorAll(".management-student-table th")].map(th=>th.textContent.trim()).join("|")==="Photo|Student Name|Course / Section|Total subjects|Remaining balance|Actions"'),'Student heading or directory columns are incorrect.');
   await screenshot('management-students-1440.png');
   check(await evaluate('getComputedStyle(document.querySelector(".management-table")).fontSize==="14px" && getComputedStyle(document.querySelector(".management-table th")).fontSize==="12px" && getComputedStyle(document.querySelector(".management-table th")).backgroundColor==="rgb(242, 242, 255)" && getComputedStyle(document.querySelector(".dean-student-id")).color==="rgb(105, 108, 255)"'), 'Student list typography, colors, or header background differ from the Dean template.');
   check(await evaluate('document.querySelector(".management-record-title").firstElementChild.classList.contains("dean-student-id") && document.querySelector(".dean-student-contact em")'), 'Student ID/name/email order does not follow the Dean format.');
   check(await evaluate('document.querySelectorAll("tbody tr").length===25 && document.querySelector(".management-pagination").textContent.includes("28 students")'), 'Imported-student pagination/deduplication failed.');
-  for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Student page overflows ${width}px.`); }
+  check(await evaluate('document.querySelector(".management-student-course strong").textContent.trim() && document.querySelectorAll(".management-student-subject-count")[1].textContent.trim()==="1"'),'The directory is missing course or subject information.');
+  check(await evaluate('(()=>{const photo=document.querySelector(".management-student-avatar"),[finance,exempt]=document.querySelector(".management-student-actions").children;return photo.getBoundingClientRect().width===80 && getComputedStyle(photo).borderRadius==="50%" && photo.loading==="eager" && document.querySelectorAll(".management-student-avatar")[3].loading==="lazy" && exempt.textContent.trim()==="Exemptions" && finance.querySelector(".bx") && exempt.querySelector(".bx") && finance.offsetWidth===exempt.offsetWidth && finance.getBoundingClientRect().bottom<exempt.getBoundingClientRect().top})()'),'Student photos or stacked actions are styled incorrectly.');
+  for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('(()=>{const region=document.querySelector(".management-student-table").parentElement;return document.documentElement.scrollWidth<=innerWidth && region.scrollWidth<=region.clientWidth+1})()'), `Student page overflows ${width}px.`); }
   await screenshot('management-students-320.png');
   await navigate('students_page'); check(await evaluate('document.querySelectorAll("tbody tr").length===3 && document.querySelector(".management-pagination").textContent.includes("Page 2 of 2")'), 'Student second page is incorrect.');
   await evaluate('window.studentFilterSubmissions=[];window.captureStudentFilter=event=>{event.preventDefault();studentFilterSubmissions.push(Object.fromEntries(new FormData(event.target)))};document.getElementById("management-student-filters").addEventListener("submit",captureStudentFilter);document.getElementById("student-search").value="new name";document.getElementById("student-search").dispatchEvent(new Event("input"))');
