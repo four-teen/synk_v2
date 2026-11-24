@@ -83,9 +83,14 @@ combined `management_live_install.sql` also includes these tables. No existing
 period settings, shared profiles, old imports, or balances are populated.
 
 Pay is available only for the assigned organization, an eligible student and the
-current Management period. Distribute is the default. It divides an entered
-whole-peso amount fairly across outstanding charges, caps shares at each charge's
-remaining whole pesos, and redistributes the remainder in stable date/ID order.
+current Management period. Pay opens in **Distribute payment** with the amount
+available in whole pesos filled in and focus on **Receipt number**. After a
+numeric receipt is recorded, the next number is suggested for subsequent
+payments in the same browser tab, including after a refresh.
+
+**Distribute payment** divides an entered whole-peso amount fairly across
+outstanding charges, caps shares at each charge's remaining whole pesos, and
+redistributes the remainder in stable date/ID order.
 For example, ₱500 across three equal large balances becomes ₱167, ₱167 and ₱166.
 Across ₱150/₱400/₱400 balances it becomes ₱150/₱175/₱175. Payments exceeding the
 available capacity are rejected. A centavo balance can be settled with Selected.

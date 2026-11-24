@@ -1,17 +1,7 @@
 <?php
 require_once __DIR__ . '/management_portal_helper.php';
 require_once __DIR__ . '/college_dean_students_helper.php';
-require_once __DIR__ . '/student_profile_image_helper.php';
-
-function synk_management_student_avatar_url(int $studentId): string
-{
-    // Directory rows need only file metadata, not a content hash or image decode.
-    $path=synk_student_profile_image_path($studentId);
-    $modified=@filemtime($path);
-    $size=$modified!==false ? @filesize($path) : false;
-    if($modified===false || !$size)return '../student/profile-placeholder.svg';
-    return '../uploads/student-profile/'.basename($path).'?v='.$modified.'-'.$size;
-}
+require_once __DIR__ . '/management_student_avatar_helper.php';
 
 // Reuse the Dean's read-only directory queries, not its account or write routes.
 function synk_management_directory_filters(mysqli $conn, array $scope, array $input): array
@@ -47,6 +37,25 @@ function synk_management_directory(mysqli $conn, array $scope, array $input): ar
     return synk_dean_students_list($conn,$scope,$filters) + ['options'=>synk_dean_students_options($conn,$scope),'filters'=>$filters];
 }
 
+function synk_management_original_student_placement(mysqli $conn, array $scope, int $studentId): array
+{
+    $original = synk_management_query($conn,"SELECT s.ay_id,s.semester,s.year_level,
+        COALESCE(NULLIF(TRIM(es.section_text),''),NULLIF(TRIM(sec.full_section),'')) AS section_label
+        FROM tbl_student_management s LEFT JOIN tbl_student_management_enrolled_subjects es ON es.student_id=s.student_id
+        AND es.college_id=? AND es.campus_id=? AND es.ay_id=s.ay_id AND es.semester=s.semester
+        AND es.program_id=s.program_id AND es.year_level=s.year_level AND es.source_file_name=s.source_file_name
+        AND es.source_row_number=s.source_row_number AND (s.source_file_name<>'' OR s.source_row_number>0)
+        LEFT JOIN tbl_sections sec ON sec.section_id=es.section_id AND sec.program_id=es.program_id
+        AND sec.ay_id=es.ay_id AND sec.semester=es.semester
+        WHERE s.student_id=? ORDER BY es.student_enrollment_id LIMIT 1",'iii',[$scope['college_id'],$scope['campus_id'],$studentId])[0] ?? [];
+    $section = $original['section_label'] ?? '';
+    if ($section === '' && !empty($original['ay_id']) && !empty($original['semester'])) {
+        $approved = synk_dean_students_verified_home_sections($conn,$scope,$original,[$studentId])[$studentId] ?? '';
+        if (!in_array($approved,['Not verified','Needs verification'],true)) $section = $approved;
+    }
+    return ['original_section'=>$section,'original_year_level'=>(int)($original['year_level'] ?? 0)];
+}
+
 function synk_management_students_detail(mysqli $conn, array $scope, array $input): array
 {
     $permissions=synk_management_require_permission($conn,$scope,'student_records');
@@ -64,6 +73,7 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
     // Membership is checked before returning this organization's period catalog.
     require_once __DIR__.'/student_profile_image_helper.php';
     $detail['student']['photo_url']=synk_student_profile_image_url($id);
+    $detail['student']+=synk_management_original_student_placement($conn,$scope,$id);
     $financial=synk_management_student_financial_overview($conn,$scope,$period,$id);
     $financial['can_pay']=$financial['can_pay'] && $permissions['payments'] && (!$permissions['is_officer'] || $permissions['student_id']!==$id);
     $current=synk_management_fetch_current_period($conn,$scope);

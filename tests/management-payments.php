@@ -6,6 +6,7 @@ require __DIR__.'/../backend/db.php';
 require __DIR__.'/../backend/management_payment_helper.php';
 require __DIR__.'/../backend/management_attendance_helper.php';
 require __DIR__.'/../backend/management_student_account_helper.php';
+require __DIR__.'/../backend/management_collection_helper.php';
 class PaymentQAConnection extends mysqli {
     public $failItems=false;
     public function start():void{parent::begin_transaction();}
@@ -34,6 +35,8 @@ try{
     $student=$insert('tbl_student_management',['student_number'=>$tag,'first_name'=>'TEST','last_name'=>'PAYMENT','email_address'=>'paymentqa-'.bin2hex(random_bytes(4)).'@sksu.edu.ph','source_sheet_name'=>'DEAN MANUAL','program_id'=>$college['program_id'],'ay_id'=>$period['ay_id'],'semester'=>$period['semester'],'year_level'=>2]);
     $contributions=[];foreach(['150.00','400.00','400.00']as$i=>$amount)$contributions[]=synk_management_catalog_write($db,$scope,'contributions','save',$input(['title'=>$tag.' ITEM '.$i,'contribution_date'=>date('Y-m-d'),'amount'=>$amount]))['record_id'];
     $overview=static function()use($db,$scope,$period,$student):array{return synk_management_student_financial_overview($db,$scope,$period,$student);};
+    $directoryBalance=static function()use($db,$scope,$period,$student):array{return synk_management_student_balances($db,$scope,$period,[$student])[$student];};
+    $check($directoryBalance()['total_to_pay']==='950.00' && $directoryBalance()['payment_status']==='UNPAID','The directory missed the assessed balance.');
     $make=static function(string $amount,string $mode='DISTRIBUTE',array $selected=[])use($input,$student,$overview):array{return $input(['student_id'=>(string)$student,'allocation_mode'=>$mode,'amount'=>$amount,'selected'=>json_encode($selected),'account_version'=>$overview()['account_version'],'request_key'=>bin2hex(random_bytes(32))]);};
     $payment=$make('500');$preview=synk_management_payment_preview($db,$scope,$payment);
     $check(array_column($preview['items'],'amount')===['150.00','175.00','175.00'],'Distribute did not cap the small charge and redistribute whole pesos.');
@@ -50,8 +53,15 @@ try{
     $reject(static function()use($db,$scope,$make){synk_management_payment_post($db,$scope,$make('-10'));},'Negative payment was accepted.');
     $db->failItems=true;try{synk_management_payment_post($db,$scope,$payment);$check(false,'Partial ledger write was accepted.');}catch(RuntimeException $error){$check(strpos($error->getMessage(),'Deliberate')!==false,'Wrong simulated storage error.');}finally{$db->failItems=false;}
     $check(count(synk_management_payment_history($db,$student))===0 && $overview()['summary']['amount_paid']==='0.00','Failed allocation left a payment header or reduced the balance.');
-    $posted=synk_management_payment_post($db,$scope,$payment);$check(!$posted['duplicate'],'First payment was marked duplicate.');
+    $posted=synk_management_payment_post($db,$scope,$payment);$check(!$posted['duplicate'] && strpos($posted['receipt_number'],'SQ-')===0,'First payment was marked duplicate or did not generate a receipt number.');
     $check($overview()['summary']['amount_paid']==='500.00' && $overview()['summary']['total_to_pay']==='450.00' && $overview()['summary']['payment_status']==='PARTIALLY_PAID','Posted payment did not update the account.');
+    $check($directoryBalance()['total_to_pay']==='450.00' && $directoryBalance()['payment_status']==='PARTIALLY_PAID','The directory missed the partial payment.');
+    $studentsSource=synk_dean_students_source($scope,['ay_id'=>$period['ay_id'],'semester'=>$period['semester']],$db);
+    $eligible=(int)synk_management_query($db,'SELECT COUNT(DISTINCT s.student_id) AS n '.$studentsSource['sql'],$studentsSource['types'],$studentsSource['params'])[0]['n'];
+    $totals=array_map('synk_management_money_cents',synk_management_collection_totals($db,$scope,$period));
+    $check($totals===['expected'=>$eligible*95000,'collected'=>50000,'outstanding'=>$eligible*95000-50000],'Dashboard collections did not count each eligible student and posted receipt once.');
+    $midterm=synk_management_view_term($db,['term'=>$period['key'],'exam_term'=>'MIDTERM'],$scope);
+    $check(array_map('synk_management_money_cents',synk_management_collection_totals($db,$scope,$midterm))===['expected'=>0,'collected'=>0,'outstanding'=>0] && synk_management_student_balances($db,$scope,$midterm,[$student])[$student]['payment_status']==='NO_CHARGES','Final collections leaked into Midterm.');
     $duplicate=synk_management_payment_post($db,$scope,$payment);$check($duplicate['duplicate'] && $duplicate['payment_id']==$posted['payment_id'] && count(synk_management_payment_history($db,$student))===1,'Retry created a second payment.');
     $reject(static function()use($db,$scope,$payment){$payment['amount']='501';synk_management_payment_post($db,$scope,$payment);},'Reused request key accepted a different amount.');
     $reject(static function()use($db,$scope,$payment){$payment['request_key']=bin2hex(random_bytes(32));synk_management_payment_post($db,$scope,$payment);},'Stale balance accepted a concurrent second payment.');
@@ -61,12 +71,22 @@ try{
     $keys=['C:'.$contributions[1],'C:'.$contributions[2]];
     $reject(static function()use($db,$scope,$make,$keys){synk_management_payment_post($db,$scope,$make('449','SELECTED',$keys));},'Selected accepted an amount that does not settle the checked charges.');
     $reject(static function()use($db,$scope,$make,$keys){synk_management_payment_post($db,$scope,$make('450','SELECTED',[$keys[0],$keys[0]]));},'A duplicate selected charge was accepted.');
-    $settled=synk_management_payment_post($db,$scope,$make('450','SELECTED',$keys));
+    $receiptNumber = '0001-'.strtoupper(bin2hex(random_bytes(8)));
+    $selectedPayment = $make('450','SELECTED',$keys) + ['receipt_number'=>' '.$receiptNumber.' '];
+    $badReceipt = array_replace($selectedPayment,['receipt_number'=>str_repeat('R',41)]);
+    $reject(static function()use($db,$scope,$badReceipt){synk_management_payment_preview($db,$scope,$badReceipt);},'Preview accepted an oversized receipt number.');
+    $reject(static function()use($db,$scope,$badReceipt){synk_management_payment_post($db,$scope,$badReceipt);},'Payment accepted an oversized receipt number.');
+    $settled=synk_management_payment_post($db,$scope,$selectedPayment);
+    $selectedRetry = synk_management_payment_post($db,$scope,array_replace($selectedPayment,['receipt_number'=>$receiptNumber]));
+    $check($settled['receipt_number']===$receiptNumber && $selectedRetry['duplicate'] && $selectedRetry['payment_id']===$settled['payment_id'],'The entered receipt number or retry was not preserved.');
+    $reject(static function()use($db,$scope,$selectedPayment){synk_management_payment_post($db,$scope,array_replace($selectedPayment,['receipt_number'=>'OTHER-RECEIPT']));},'Reused request key accepted a different receipt number.');
     $check($overview()['summary']['total_to_pay']==='0.00' && $overview()['summary']['payment_status']==='PAID' && !$overview()['can_pay'],'Selected did not fully settle the account.');
+    $check($directoryBalance()['total_to_pay']==='0.00' && $directoryBalance()['payment_status']==='PAID','The directory did not mark the settled account Paid.');
     $check(count(synk_management_payment_history($db,$student,$scope,$period))===2,'Management history omitted a receipt.');
     $account=synk_management_student_account($db,$student);$check(count($account['payments'])===2 && $account['totals']['paid']==='950.00','Student history or current paid total differs from Management.');
     $receipt=synk_management_payment_receipt($db,(int)$posted['payment_id'],$student);
     $check(count($receipt['items'])===3 && $receipt['amount']==='500.00' && $receipt['balance_after']==='450.00','Receipt itemization or snapshots differ from the posted payment.');
+    $check(synk_management_payment_receipt($db,(int)$settled['payment_id'],$student)['receipt_number']===$receiptNumber && $account['payments'][0]['reference']===$receiptNumber,'Receipt or payment history did not show the entered number.');
     $reject(static function()use($db,$posted,$student){synk_management_payment_receipt($db,(int)$posted['payment_id'],$student+1);},'Another student accessed a receipt.');
     $reject(static function()use($db,$posted,$scope){$scope['organization_id']++;synk_management_payment_receipt($db,(int)$posted['payment_id'],null,$scope);},'Another organization accessed a receipt.');
     $db->query("UPDATE tbl_student_management SET first_name='CHANGED FIXTURE' WHERE student_id=".$student);
@@ -81,7 +101,12 @@ try{
     $event=synk_management_catalog_write($db,$scope,'events','save',$input(['title'=>$tag.' FINE','event_date'=>date('Y-m-d'),'absence_fine'=>'80.00']))['record_id'];
     $opened=synk_management_attendance_write($db,$scope,'attendance_open',$input(['event_id'=>$event]));
     synk_management_attendance_write($db,$scope,'attendance_close',$input(['event_id'=>$event,'attendance_revision'=>$opened['attendance']['revision'],'confirm'=>'1']));
-    $fine=synk_management_payment_post($db,$scope,$make('80','SELECTED',['E:'.$event]));
+    $finePayment = $make('80','SELECTED',['E:'.$event]);
+    $duplicateReceipt = $finePayment + ['receipt_number'=>$receiptNumber];
+    $reject(static function()use($db,$scope,$duplicateReceipt){synk_management_payment_preview($db,$scope,$duplicateReceipt);},'Preview allowed a receipt number that was already used.');
+    $reject(static function()use($db,$scope,$duplicateReceipt){synk_management_payment_post($db,$scope,$duplicateReceipt);},'Posting allowed a receipt number that was already used.');
+    $check($overview()['summary']['total_to_pay']==='80.00','A rejected receipt changed the balance.');
+    $fine=synk_management_payment_post($db,$scope,$finePayment);
     $check($overview()['summary']['total_to_pay']==='0.00' && $overview()['events'][0]['amount_due']==='0.00','A paid absence fine still appears outstanding.');
     $reject(static function()use($db,$scope,$input,$event){synk_management_attendance_write($db,$scope,'attendance_reopen',$input(['event_id'=>$event,'attendance_revision'=>'2','confirm'=>'1']));},'Attendance reopened after its fine was paid.');
     $db->query("UPDATE tbl_management_period_settings SET current_exam_term='MIDTERM' WHERE organization_id=".$org);

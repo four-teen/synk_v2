@@ -90,12 +90,28 @@ function synk_management_payment_plan(array $financial,array $input): array
     return ['items'=>$items,'amount'=>synk_management_money_text($amount),'balance_after'=>synk_management_money_text(synk_management_money_cents($financial['summary']['total_to_pay'])-$amount)];
 }
 
+function synk_management_payment_receipt_number(array $input): ?string
+{
+    $value = $input['receipt_number'] ?? '';
+    if (!is_string($value)) throw new DomainException('Enter a valid receipt number.');
+    $number = trim($value, " \t");
+    if ($number === '') return null;
+    if (!preg_match('/\A[\x20-\x7E]{1,40}\z/', $number)) {
+        throw new DomainException('Use up to 40 letters, numbers, or punctuation characters for the receipt number.');
+    }
+    return $number;
+}
+
 function synk_management_payment_preview(mysqli $conn,array $scope,array $input): array
 {
     synk_management_require_permission($conn,$scope,'payments',(int)($input['student_id'] ?? 0));
     if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
     $period=synk_management_fetch_current_period($conn,$scope);
     $id=synk_management_payment_context($conn,$scope,$input,$period);
+    $number = synk_management_payment_receipt_number($input);
+    if ($number !== null && synk_management_query($conn,'SELECT payment_id FROM tbl_management_payments WHERE receipt_number=?','s',[$number])) {
+        throw new SynkManagementConflict('That receipt number is already in use. Enter a different number.');
+    }
     return synk_management_payment_plan(synk_management_student_financial_overview($conn,$scope,$period,$id),$input);
 }
 
@@ -106,7 +122,10 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
     if (!is_string($key) || !preg_match('/^[a-f0-9]{64}$/D',$key)) throw new DomainException('Reload the payment form before saving.');
     $amount=synk_management_input_money($input['amount'] ?? '');
     $mode=(string)($input['allocation_mode'] ?? 'DISTRIBUTE');
-    $hash=hash('sha256',json_encode([$input['student_id'] ?? null,$mode,$amount,synk_management_payment_selection($input),$input['account_version'] ?? null]));
+    $receiptNumber = synk_management_payment_receipt_number($input);
+    $fingerprint = [$input['student_id'] ?? null,$mode,$amount,synk_management_payment_selection($input),$input['account_version'] ?? null];
+    if ($receiptNumber !== null) $fingerprint[] = $receiptNumber;
+    $hash = hash('sha256',json_encode($fingerprint));
     $conn->begin_transaction();
     try {
         // Catalog, attendance and period writes also lock this organization.
@@ -125,9 +144,14 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
         $plan=synk_management_payment_plan($financial,$input);
         $student=synk_management_query($conn,'SELECT student_number,first_name,last_name,middle_name,suffix_name FROM tbl_student_management WHERE student_id=? FOR UPDATE','i',[$id])[0];
         $name=trim(implode(' ',array_filter([$student['first_name'],$student['middle_name'],$student['last_name'],$student['suffix_name']])));
-        $number='SQ-'.date('Ymd').'-'.strtoupper(bin2hex(random_bytes(6)));
+        $number = $receiptNumber ?? ('SQ-'.date('Ymd').'-'.strtoupper(bin2hex(random_bytes(6))));
         $values=[$number,$key,$hash,$scope['college_id'],$scope['organization_id'],$id,$period['ay_id'],$period['semester'],$period['exam_term'],$mode,$plan['amount'],$financial['summary']['total_to_pay'],$plan['balance_after'],$student['student_number'],$name,$scope['organization_code'] ?? '',$scope['organization_name'] ?? '',$period['period_text'],(int)$_SESSION['user_id'],(string)($_SESSION['username'] ?? '')];
-        synk_management_execute($conn,'INSERT INTO tbl_management_payments (receipt_number,request_key,payload_hash,college_id,organization_id,student_id,ay_id,semester,exam_term,allocation_mode,amount,balance_before,balance_after,student_number,student_name,organization_code,organization_name,period_text,recorded_by,recorded_by_name,recorded_at) VALUES ('.implode(',',array_fill(0,20,'?')).',UTC_TIMESTAMP())',str_repeat('s',20),$values);
+        try {
+            synk_management_execute($conn,'INSERT INTO tbl_management_payments (receipt_number,request_key,payload_hash,college_id,organization_id,student_id,ay_id,semester,exam_term,allocation_mode,amount,balance_before,balance_after,student_number,student_name,organization_code,organization_name,period_text,recorded_by,recorded_by_name,recorded_at) VALUES ('.implode(',',array_fill(0,20,'?')).',UTC_TIMESTAMP())',str_repeat('s',20),$values);
+        } catch (DomainException $error) {
+            if ($receiptNumber !== null) throw new SynkManagementConflict('That receipt number is already in use. Enter a different number.',0,$error);
+            throw $error;
+        }
         $paymentId=(int)$conn->insert_id;
         foreach ($plan['items'] as $item) {
             $chargeId=(int)substr($item['key'],2);
