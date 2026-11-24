@@ -7,7 +7,7 @@ $exemptionCanWrite=$permissions['manage_exemptions'] && $term['period_key']===$c
   <aside class="management-exemption-notes" aria-label="Exemption notes"><strong>Notes</strong><div>
     <p>Maintain reusable student lists, then apply them to selected events or contributions.</p>
     <p>Each application saves its students. Removing a student from a list never changes exemptions already granted. Event exemptions also waive linked contributions.</p>
-    <?php if (!$exemptionCanWrite): ?><p class="management-exemption-readonly">Viewing saved exemptions. Changes require Manage exemptions permission and the current Management period.</p><?php endif; ?>
+    <?php if (!$exemptionCanWrite && $permissions['manage_exemptions']): ?><p class="management-exemption-readonly">To add exemptions for an imported event from this semester, choose Exempt students on the event.</p><?php endif; ?>
   </div></aside>
   <div class="alert alert-danger mx-4" id="exemption-page-error" role="alert" hidden></div>
   <div class="alert alert-success mx-4" id="exemption-page-notice" role="status" hidden></div>

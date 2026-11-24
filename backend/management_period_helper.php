@@ -19,6 +19,22 @@ function synk_management_period_ready(mysqli $conn): bool
     return synk_table_exists($conn, 'tbl_management_period_settings');
 }
 
+function synk_management_attendance_date_period(array $current, string $eventDate): array
+{
+    $year=(int)substr($eventDate,0,4);
+    $month=(int)substr($eventDate,5,2);
+    if ($month===7) throw new DomainException('July dates need a Management period review.');
+    $semester=$month>=8 ? 1 : 2;
+    $startYear=$semester===1 ? $year : $year-1;
+    if ($current['ay_label']!==$startYear.'-'.($startYear+1) || $current['semester']!==$semester) {
+        throw new DomainException('The attendance date must belong to the current academic year and semester.');
+    }
+    $examTerm=$month>=11 || ($month>=4 && $month<=6) ? 'FINAL' : 'MIDTERM';
+    $label=synk_management_exam_term_options()[$examTerm];
+    return array_replace($current,['exam_term'=>$examTerm,'exam_term_label'=>$label,
+        'period_key'=>$current['key'].':'.$examTerm,'period_text'=>$current['term_text'].' - '.$label]);
+}
+
 function synk_management_fetch_current_period(mysqli $conn, array $scope, bool $lock = false): array
 {
     // Read the existing year/semester; never write shared Academic Settings.

@@ -60,6 +60,18 @@ function synk_management_exemption_data(mysqli $conn,array $scope,array $period,
     $values=synk_management_exemption_period_values($scope,$period);
     $lists=synk_management_query($conn,'SELECT l.*,(SELECT COUNT(*) FROM tbl_management_exemption_list_members m WHERE m.list_id=l.list_id) AS member_count FROM tbl_management_exemption_lists l WHERE l.college_id=? AND l.organization_id=? AND l.ay_id=? AND l.semester=? AND l.exam_term=? ORDER BY l.title,l.list_id','iiiis',$values);
     $events=synk_management_query($conn,"SELECT e.event_id,e.title,e.event_date,(SELECT COUNT(*) FROM tbl_management_contributions c WHERE c.event_id=e.event_id AND c.status='ACTIVE') AS contribution_count FROM tbl_management_events e WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=? AND e.status='ACTIVE' ORDER BY e.event_id DESC",'iiiis',$values);
+    $editableImports=[];
+    $current=synk_management_fetch_current_period($conn,$scope);
+    if (!synk_management_catalog_in_period($period,$current) && $period['ay_id']===$current['ay_id']
+        && $period['semester']===$current['semester'] && synk_table_exists($conn,'tbl_management_attendance_events')) {
+        $recordedEvents=synk_management_query($conn,"SELECT e.event_id,e.ay_id,e.semester,e.status,e.source_metadata
+            FROM tbl_management_events e LEFT JOIN tbl_management_attendance_events a ON a.event_id=e.event_id
+            WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=? AND e.status='ACTIVE'
+            AND (a.event_id IS NOT NULL OR ".synk_management_flag_raising_sql('e.source_metadata').')','iiiis',$values);
+        foreach ($recordedEvents as $event) {
+            if (synk_management_is_flag_raising($event) || synk_management_imported_event_in_current_semester($event,$current)) $editableImports[]=(int)$event['event_id'];
+        }
+    }
     $contributions=synk_management_query($conn,"SELECT contribution_id,title,amount,event_id FROM tbl_management_contributions WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND status='ACTIVE' ORDER BY contribution_id DESC",'iiiis',$values);
     $extra='';$extraTypes='';$extraValues=[];
     foreach (['event_id','contribution_id','student_id'] as $key) {
@@ -83,7 +95,8 @@ function synk_management_exemption_data(mysqli $conn,array $scope,array $period,
     $audit=synk_management_query($conn,'SELECT a.action,a.details,a.recorded_at,u.username AS actor_name FROM tbl_management_exemption_audit a LEFT JOIN tbl_useraccount u ON u.user_id=a.actor_user_id WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=? ORDER BY a.audit_id DESC LIMIT 30','iiiis',$values);
     foreach ($audit as &$entry) $entry['recorded_at']=(new DateTimeImmutable($entry['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A').' PHT';
     unset($entry);
-    return ['lists'=>$lists,'events'=>$events,'contributions'=>$contributions,'grants'=>$grants,'audit'=>$audit,'pagination'=>['page'=>$page,'pages'=>$pages,'total'=>$total]];
+    return ['lists'=>$lists,'events'=>$events,'contributions'=>$contributions,'grants'=>$grants,'audit'=>$audit,'editable_imports'=>$editableImports,
+        'pagination'=>['page'=>$page,'pages'=>$pages,'total'=>$total]];
 }
 
 function synk_management_exemption_audit(mysqli $conn,array $scope,array $period,string $action,array $details): void
@@ -130,6 +143,16 @@ function synk_management_exemption_inherit_contribution(mysqli $conn,array $scop
     if ($ids) synk_management_exemption_audit($conn,$scope,$period,'INHERIT',['contribution_id'=>$contributionId,'event_id'=>$eventId,'student_ids'=>$ids]);
 }
 
+function synk_management_require_import_for_exemption(mysqli $conn, array $event, array $current): void
+{
+    if (synk_management_is_flag_raising($event) && $event['status']==='ACTIVE' && synk_management_same_academic_semester($event,$current)) return;
+    $attendance=synk_management_query($conn,'SELECT attendance_status FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE',
+        'i',[(int)$event['event_id']])[0] ?? null;
+    if (!$attendance || !synk_management_imported_event_in_current_semester($event,$current)) {
+        throw new SynkManagementConflict('Choose an imported event from the current academic semester.');
+    }
+}
+
 function synk_management_exemption_write(mysqli $conn,array $scope,string $action,array $input): array
 {
     if (!synk_management_exemptions_ready($conn)) throw new RuntimeException('Management exemption storage has not been prepared.');
@@ -137,8 +160,14 @@ function synk_management_exemption_write(mysqli $conn,array $scope,string $actio
     try {
         synk_management_lock_assignment($conn,$scope);
         $permissions=synk_management_require_permission($conn,$scope,'manage_exemptions');
-        $period=synk_management_lock_current_term($conn,$input,$scope);
-        if (($input['term'] ?? $period['key'])!==$period['key'] || ($input['exam_term'] ?? $period['exam_term'])!==$period['exam_term']) throw new SynkManagementConflict('Switch to the current Management period before changing exemptions.');
+        $current=synk_management_lock_current_term($conn,$input,$scope);
+        $examTerm=synk_management_exam_term($input['exam_term'] ?? $current['exam_term']);
+        $historical=$examTerm!==$current['exam_term'];
+        if (($input['term'] ?? $current['key'])!==$current['key'] || ($historical && (
+            !in_array($action,['exemption_apply','exemption_revoke'],true) || !synk_table_exists($conn,'tbl_management_attendance_events')))) {
+            throw new SynkManagementConflict('Switch to the current Management period before changing exemptions.');
+        }
+        $period=array_replace($current,['exam_term'=>$examTerm]);
         $values=synk_management_exemption_period_values($scope,$period);
         if ($action==='exemption_list_save') {
             $id=synk_management_input_id($input['list_id'] ?? '',true);
@@ -167,12 +196,17 @@ function synk_management_exemption_write(mysqli $conn,array $scope,string $actio
             $eventIds=synk_management_exemption_ids($input['event_ids'] ?? '[]',true);
             $contributionIds=synk_management_exemption_ids($input['contribution_ids'] ?? '[]',true);
             if (!$eventIds && !$contributionIds) throw new DomainException('Select at least one event or contribution.');
+            if ($historical && $contributionIds) throw new SynkManagementConflict('Select an imported event for past-period exemptions.');
             $charges=[];
             foreach (['events'=>$eventIds,'contributions'=>$contributionIds] as $kind=>$ids) foreach ($ids as $id) {
                 $charge=synk_management_catalog_get($conn,$scope,$kind,$id,true);
-                if (!synk_management_catalog_in_period($charge,$period) || $charge['status']!=='ACTIVE') throw new DomainException('Select active events and contributions in the current Management period.');
+                if (!synk_management_catalog_in_period($charge,$period) || $charge['status']!=='ACTIVE') {
+                    if ($historical) throw new SynkManagementConflict('Select an imported event in the viewing period.');
+                    throw new DomainException('Select active events and contributions in the current Management period.');
+                }
+                if ($historical) synk_management_require_import_for_exemption($conn,$charge,$current);
                 $charges[$kind.':'.$id]=['kind'=>$kind,'id'=>$id,'source_event_id'=>null];
-                if ($kind==='events') foreach (synk_management_query($conn,"SELECT contribution_id FROM tbl_management_contributions WHERE event_id=? AND college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND status='ACTIVE'",'iiiiis',array_merge([$id],$values)) as $linked) {
+                if ($kind==='events' && !synk_management_is_flag_raising($charge)) foreach (synk_management_query($conn,"SELECT contribution_id FROM tbl_management_contributions WHERE event_id=? AND college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND status='ACTIVE'",'iiiiis',array_merge([$id],$values)) as $linked) {
                     $linkedId=(int)$linked['contribution_id'];$charges['contributions:'.$linkedId]=['kind'=>'contributions','id'=>$linkedId,'source_event_id'=>$id];
                 }
             }
@@ -186,6 +220,12 @@ function synk_management_exemption_write(mysqli $conn,array $scope,string $actio
             $id=synk_management_input_id($input['exemption_id'] ?? '');
             $rows=synk_management_query($conn,'SELECT * FROM tbl_management_exemptions WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND exemption_id=? FOR UPDATE','iiiisi',array_merge($values,[$id]));
             if (!$rows) throw new OutOfBoundsException('This exemption is unavailable.');$row=$rows[0];
+            if ($historical) {
+                if (!$row['event_id']) throw new SynkManagementConflict('Select an imported event for past-period exemptions.');
+                $event=synk_management_catalog_get($conn,$scope,'events',(int)$row['event_id'],true);
+                if (!synk_management_catalog_in_period($event,$period)) throw new SynkManagementConflict('The event period has changed.');
+                synk_management_require_import_for_exemption($conn,$event,$current);
+            }
             if ($permissions['is_officer'] && (int)$row['student_id']===$permissions['student_id']) throw new SynkManagementPermissionDenied('Ask your faculty manager or another authorized officer to change exemptions on your own account.');
             if ($row['status']!=='ACTIVE' || (string)($input['revision'] ?? '')!==(string)$row['revision']) throw new SynkManagementConflict('This exemption changed. Reload before continuing.');
             $reason=synk_management_input_text($input,'reason',1000);

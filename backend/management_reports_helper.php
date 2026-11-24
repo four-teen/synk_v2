@@ -20,13 +20,14 @@ function synk_management_report_period_values(array $scope,array $period): array
     return [$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']];
 }
 
-function synk_management_report_events(mysqli $conn,array $scope,array $period): array
+function synk_management_report_events(mysqli $conn,array $scope,array $period,bool $fineReport=false): array
 {
     if(!synk_management_catalog_ready($conn))return [];
     return synk_management_query($conn,'SELECT e.event_id,e.title,e.event_date,a.attendance_status
         FROM tbl_management_events e LEFT JOIN tbl_management_attendance_events a ON a.event_id=e.event_id
-        WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=?
-        ORDER BY e.event_date,e.title,e.event_id','iiiis',synk_management_report_period_values($scope,$period));
+        WHERE e.college_id=? AND e.organization_id=? AND e.ay_id=? AND e.semester=? AND e.exam_term=?'
+        .($fineReport?' AND NOT '.synk_management_flag_raising_sql('e.source_metadata'):'').
+        ' ORDER BY e.event_date,e.title,e.event_id','iiiis',synk_management_report_period_values($scope,$period));
 }
 
 function synk_management_report_collections(mysqli $conn,array $scope,array $period,bool $details): array
@@ -82,11 +83,12 @@ function synk_management_report_absence_fines(mysqli $conn,array $scope,array $p
 {
     if(!synk_management_attendance_ready($conn) || !synk_management_payments_ready($conn))throw new RuntimeException('Attendance and payment storage are required.');
     $values=synk_management_report_period_values($scope,$period);
-    $where=' WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=?';
+    $where=' WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=? AND NOT '.synk_management_flag_raising_sql('e.source_metadata');
     if($eventId){$where.=' AND a.event_id=?';$values[]=$eventId;}
     $types='iiiis'.($eventId?'i':'');
+    $states=synk_management_query($conn,'SELECT a.attendance_status,COUNT(*) AS events FROM tbl_management_attendance_events a
+        JOIN tbl_management_events e ON e.event_id=a.event_id'.$where.' GROUP BY a.attendance_status',$types,$values);
     if (synk_management_exemptions_ready($conn)) $where.=" AND NOT EXISTS (SELECT 1 FROM tbl_management_exemptions x WHERE x.event_id=a.event_id AND x.student_id=r.student_id AND x.status='ACTIVE')";
-    $states=synk_management_query($conn,'SELECT a.attendance_status,COUNT(*) AS events FROM tbl_management_attendance_events a WHERE a.college_id=? AND a.organization_id=? AND a.ay_id=? AND a.semester=? AND a.exam_term=?'.($eventId?' AND a.event_id=?':'').' GROUP BY a.attendance_status',$types,$values);
     $rows=synk_management_query($conn,"SELECT a.event_id,e.title,e.event_date,s.student_id,s.student_number,CONCAT_WS(' ',s.last_name,s.first_name,NULLIF(s.middle_name,''),NULLIF(s.suffix_name,'')) AS student_name,a.absence_fine AS assessed,COALESCE(paid.amount,0) AS collected
         FROM tbl_management_attendance_events a JOIN tbl_management_events e ON e.event_id=a.event_id
         JOIN tbl_management_attendance_roster r ON r.event_id=a.event_id JOIN tbl_student_management s ON s.student_id=r.student_id
@@ -108,7 +110,7 @@ function synk_management_reports_prepare(mysqli $conn,array $scope,array $period
     if(!isset($types[$type]))throw new SynkManagementPermissionDenied('This report type is unavailable for your account.');
     if(isset($input['generate']) && (string)$input['generate']!=='1')throw new DomainException('Choose Generate report.');
     $eventId=synk_management_input_id($input['event_id'] ?? '',true);
-    $events=in_array($type,['event_attendance','absence_fines'],true)?synk_management_report_events($conn,$scope,$period):[];
+    $events=in_array($type,['event_attendance','absence_fines'],true)?synk_management_report_events($conn,$scope,$period,$type==='absence_fines'):[];
     if($eventId && $events && !in_array($eventId,array_map('intval',array_column($events,'event_id')),true))throw new OutOfBoundsException('Choose an event in your organization and selected Management period.');
     if($eventId && in_array($type,['event_attendance','absence_fines'],true) && !$events)throw new OutOfBoundsException('No matching event in this Management period.');
     $header=[];

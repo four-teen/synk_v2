@@ -27,9 +27,21 @@ function synk_management_officers_list(mysqli $conn,array $scope): array
 {
     synk_management_require_permission($conn,$scope,'officers');
     if(!synk_management_officers_ready($conn))return [];
-    $rows=synk_management_query($conn,"SELECT o.*,s.student_number,s.first_name,s.last_name,u.email FROM tbl_management_officers o JOIN tbl_student_management s ON s.student_id=o.student_id JOIN tbl_useraccount u ON u.user_id=o.user_id WHERE o.supervisor_user_id=? AND o.organization_id=? AND o.college_id=? ORDER BY s.last_name,s.first_name",'iii',[(int)$_SESSION['user_id'],$scope['organization_id'],$scope['college_id']]);
-    foreach($rows as &$row){$account=synk_find_useraccount_by_id($conn,(int)$row['user_id']);$row['effective_status']=$row['status']==='REVOKED'?'Revoked':(synk_management_account_has_access($conn,$account)?'Active':'Expired or unavailable');}
-    unset($row);return $rows;
+    $rows=synk_management_query($conn,'SELECT o.*,s.student_number,s.first_name,s.last_name,u.email,supervisor.username AS supervisor_name
+        FROM tbl_management_officers o
+        JOIN tbl_student_management s ON s.student_id=o.student_id
+        JOIN tbl_useraccount u ON u.user_id=o.user_id
+        JOIN tbl_useraccount supervisor ON supervisor.user_id=o.supervisor_user_id
+        WHERE o.organization_id=? AND o.college_id=?
+        ORDER BY s.last_name,s.first_name,s.student_id','ii',[$scope['organization_id'],$scope['college_id']]);
+    $viewerId=(int)$_SESSION['user_id'];
+    foreach($rows as &$row) {
+        $account=synk_find_useraccount_by_id($conn,(int)$row['user_id']);
+        $row['effective_status']=$row['status']==='REVOKED'?'Revoked':(synk_management_account_has_access($conn,$account)?'Active':'Expired or unavailable');
+        $row['can_manage_access']=(int)$row['supervisor_user_id']===$viewerId;
+    }
+    unset($row);
+    return $rows;
 }
 
 function synk_management_officer_audit(mysqli $conn,array $scope): array

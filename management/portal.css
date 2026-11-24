@@ -104,7 +104,7 @@
 .management-table td > span:not(.badge), .management-table td > small { display: block; font-size: .8rem; color: var(--dean-text); }
 .management-catalog-table { min-width: 720px; }
 .management-record-title .management-event-date{font-style:italic;text-transform:lowercase;font-size:.75rem;font-weight:400;margin-top:.35rem;color:var(--dean-muted)}
-.management-event-attendance-count{display:flex;align-items:center;gap:.5rem;font-size:1rem}
+.management-event-attendance-count{display:flex;align-items:center;flex-wrap:wrap;gap:.25rem .65rem;font-size:.875rem}
 .management-attendance-present{color:#28794c}
 .management-attendance-remaining{color:#b44545}
 .management-table .management-event-attendance-state[data-event-attendance-status]{display:inline-flex;align-items:center;gap:.35rem;border-radius:.35rem;padding:.4rem .6rem;background:#f1f3f8;color:var(--dean-muted);font-size:.75rem;white-space:nowrap}
@@ -114,6 +114,8 @@
 .management-financial-pending.management-financial-absent{color:#b44545;background:#ffeded}
 .management-financial-event-totals strong[data-financial-absence-count]{color:#b44545}
 .management-record-title { min-width: 15rem; max-width: 25rem; overflow-wrap: anywhere; }
+#management-catalog[data-kind="flag_raising"] .management-record-title { min-width: 0; }
+#management-catalog[data-kind="flag_raising"] .management-catalog-table th { white-space: normal; }
 .management-table .badge { display: inline-flex; }
 .management-student-table { min-width: 0; width: 100%; table-layout: fixed; }
 .management-student-table .management-student-photo { width: 80px; padding-left: 1rem; padding-right: 1rem; text-align: center; }
@@ -139,14 +141,14 @@
 .management-row-actions { display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
 .management-row-actions .btn { display: inline-flex; align-items: center; gap: .25rem; white-space: nowrap; }
 .management-row-actions .bx { font-size: 1rem; }
-#management-catalog[data-kind="events"] .management-record-actions { text-align: right; }
-#management-catalog[data-kind="events"] .management-event-actions { display: inline-grid; grid-template-columns: repeat(2,minmax(max-content,1fr)) max-content; gap: .4rem; vertical-align: middle; }
-#management-catalog[data-kind="events"] .management-event-actions .management-exemption-row-actions,
-#management-catalog[data-kind="events"] .management-event-actions .management-row-actions { display: contents; }
-#management-catalog[data-kind="events"] .management-event-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: .25rem; width: 100%; }
-#management-catalog[data-kind="events"] .management-event-actions [data-attendance] { grid-column: 3; grid-row: 1 / span 2; align-self: stretch; }
-#management-catalog[data-kind="events"] .management-event-actions > .text-muted { grid-column: 1 / -1; }
-#management-catalog[data-kind="events"] .management-event-actions:not(:has(.management-exemption-row-actions,.management-row-actions)) { display: inline-flex; }
+#management-catalog .management-record-actions:has(.management-event-actions) { text-align: right; }
+#management-catalog .management-event-actions { display: inline-grid; grid-template-columns: repeat(2,minmax(max-content,1fr)) max-content; gap: .4rem; vertical-align: middle; }
+#management-catalog .management-event-actions .management-exemption-row-actions,
+#management-catalog .management-event-actions .management-row-actions { display: contents; }
+#management-catalog .management-event-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: .25rem; width: 100%; }
+#management-catalog .management-event-actions [data-attendance] { grid-column: 3; grid-row: 1 / span 2; align-self: stretch; }
+#management-catalog .management-event-actions > .text-muted { grid-column: 1 / -1; }
+#management-catalog .management-event-actions:not(:has(.management-exemption-row-actions,.management-row-actions)) { display: inline-flex; }
 .management-attendance-summary { display: flex; gap: 1rem; flex-wrap: wrap; padding: .8rem; background: #f7f8fc; border-radius: .4rem; margin-bottom: 1rem; }
 .management-attendance-summary span { display: flex; flex-direction: column; min-width: 75px; font-size: .75rem; color: var(--dean-muted); }
 .management-attendance-summary strong { font-size: 1rem; color: var(--dean-heading); }
@@ -158,6 +160,19 @@
 .management-attendance-camera p { font-size: .85rem; margin: .75rem 1.25rem; }
 .management-attendance-close { padding: 1rem; border: 1px solid #e1e4ed; border-radius: .5rem; }
 .management-attendance-reader-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:1.5rem}
+.management-attendance-reader-grid.management-attendance-history{grid-template-columns:minmax(0,1fr)}
+.management-attendance-history .management-attendance-camera-column{display:none}
+#management-attendance [hidden] { display: none !important; }
+.management-attendance-times { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: 0 0 1rem; font-size: .8rem; }
+.management-attendance-times div { display: flex; align-items: baseline; gap: .5rem; }
+.management-attendance-times dd { margin: 0; }
+.management-attendance-roster-filter { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,13rem) auto; gap: .75rem; align-items: end; }
+.management-attendance-correction { padding: 1rem; border: 1px solid var(--dean-border); border-radius: .5rem; }
+.management-attendance-correction select { max-width: 16rem; }
+.management-attendance-roster-table td { overflow-wrap: anywhere; }
+@media (max-width:575.98px) {
+  .management-attendance-roster-filter { grid-template-columns: minmax(0,1fr); gap: .5rem; }
+}
 .management-attendance-reader-grid>div{min-width:0}
 .management-attendance-camera-status{font-size:.75rem;color:var(--dean-primary);margin:.65rem 0;min-height:1.2rem}
 .management-attendance-result{padding:1rem;border:1px solid #bde5cd;border-radius:.5rem;background:#f0fbf4;display:flex;gap:1rem;align-items:center;margin-bottom:1rem}
@@ -494,8 +509,8 @@
   .management-mobile-records .management-row-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
   .management-mobile-records .management-row-actions .btn { justify-content: center; white-space: normal; padding: .5rem; }
   .management-mobile-records .management-row-actions [data-attendance] { grid-column: 1/-1; }
-  #management-catalog[data-kind="events"] .management-event-actions { width: 100%; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; }
-  #management-catalog[data-kind="events"] .management-event-actions .btn { min-width: 0; min-height: 44px; padding: .5rem .35rem; white-space: normal; overflow-wrap: anywhere; }
+  #management-catalog .management-event-actions { width: 100%; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; }
+  #management-catalog .management-event-actions .btn { min-width: 0; min-height: 44px; padding: .5rem .35rem; white-space: normal; overflow-wrap: anywhere; }
   .management-mobile-records .management-event-attendance-state { min-height: 44px; }
   .management-mobile-records .management-record-actions > .text-muted { float: none !important; }
   .management-financial-table { display: block; width: 100%; min-width: 0; }

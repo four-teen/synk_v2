@@ -28,10 +28,37 @@ function synk_management_attendance_summary(mysqli $conn,array $scope,int $event
     $counts=synk_management_query($conn,'SELECT COUNT(*) AS eligible,COUNT(l.student_id) AS present FROM tbl_management_attendance_roster r LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id WHERE r.event_id=?','i',[$eventId])[0];
     $exempted=synk_management_exemptions_ready($conn)?(int)synk_management_query($conn,"SELECT COUNT(*) AS n FROM tbl_management_attendance_roster r JOIN tbl_management_exemptions x ON x.event_id=r.event_id AND x.student_id=r.student_id AND x.status='ACTIVE' LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id WHERE r.event_id=? AND l.student_id IS NULL",'i',[$eventId])[0]['n']:0;
     $recent=synk_management_query($conn,'SELECT s.student_number,CONCAT_WS(\' \',s.first_name,s.middle_name,s.last_name,s.suffix_name) AS student_name,l.recorded_at FROM tbl_management_attendance_logs l JOIN tbl_student_management s ON s.student_id=l.student_id WHERE l.event_id=? ORDER BY l.recorded_at DESC,s.student_id DESC LIMIT 10','i',[$eventId]);
-    return ['event_id'=>$eventId,'title'=>$event['title'],'event_date'=>$event['event_date'],
-        'attendance_status'=>$settings[0]['attendance_status'] ?? 'NOT_STARTED','absence_fine'=>$settings[0]['absence_fine'] ?? ($event['absence_fine'] ?? '0.00'),
+    $flagRaising=synk_management_is_flag_raising($event);
+    $twoCheckpoints=synk_management_attendance_import_template($event)==='EVENT';
+    return ['event_id'=>$eventId,'title'=>$event['title'],'event_date'=>$event['event_date'],'flag_raising'=>$flagRaising,
+        'two_checkpoints'=>$twoCheckpoints,'imported_cud'=>$twoCheckpoints,
+        'opened_at'=>$settings[0]['opened_at'] ?? null,'closed_at'=>$settings[0]['closed_at'] ?? null,
+        'active'=>$event['status']==='ACTIVE',
+        'attendance_status'=>$settings[0]['attendance_status'] ?? 'NOT_STARTED','absence_fine'=>$flagRaising ? '0.00' : ($settings[0]['absence_fine'] ?? $event['absence_fine'] ?? '0.00'),
         'revision'=>(string)($settings[0]['revision'] ?? '0'),'eligible'=>(int)$counts['eligible'],'present'=>(int)$counts['present'],
         'exempted'=>$exempted,'absent'=>($settings[0]['attendance_status'] ?? '')==='CLOSED' ? (int)$counts['eligible']-(int)$counts['present']-$exempted : 0,'recent'=>$recent];
+}
+
+function synk_management_attendance_open_roster(mysqli $conn, array $scope, array $event): void
+{
+    $eventId = (int)$event['event_id'];
+    $semester = ['ay_id'=>(int)$event['ay_id'], 'semester'=>(int)$event['semester']];
+    synk_management_execute($conn, 'INSERT INTO tbl_management_attendance_events
+        (event_id,college_id,organization_id,ay_id,semester,exam_term,absence_fine,opened_by) VALUES (?,?,?,?,?,?,?,?)',
+        'iiiiissi', [$eventId,$scope['college_id'],$scope['organization_id'],$semester['ay_id'],$semester['semester'],
+            $event['exam_term'],synk_management_is_flag_raising($event) ? '0.00' : ($event['absence_fine'] ?? '0.00'),(int)$_SESSION['user_id']]);
+
+    $source = synk_dean_students_source($scope,$semester,$conn);
+    $count = synk_management_execute($conn, 'INSERT INTO tbl_management_attendance_roster (event_id,student_id) SELECT DISTINCT ?,s.student_id ' . $source['sql'],
+        'i' . $source['types'], array_merge([$eventId],$source['params']));
+    if (!$count) throw new SynkManagementConflict('There are no eligible students for this event period.');
+}
+
+function synk_management_attendance_set_state(mysqli $conn,int $eventId,string $next): void
+{
+    $closed=$next==='CLOSED';
+    synk_management_execute($conn,'UPDATE tbl_management_attendance_events SET attendance_status=?,closed_by=?,closed_at='.($closed?'CURRENT_TIMESTAMP':'NULL').',revision=revision+1 WHERE event_id=?',
+        'sii',[$next,$closed?(int)$_SESSION['user_id']:null,$eventId]);
 }
 
 function synk_management_attendance_write(mysqli $conn,array $scope,string $action,array $input): array
@@ -44,18 +71,30 @@ function synk_management_attendance_write(mysqli $conn,array $scope,string $acti
         synk_management_require_permission($conn,$scope,$action==='attendance_scan'?'attendance':'manage_events');
         $period=synk_management_lock_current_term($conn,$input,$scope);
         $event=synk_management_catalog_get($conn,$scope,'events',$eventId,true);
-        if (!synk_management_catalog_in_period($event,$period) || $event['status']!=='ACTIVE') throw new SynkManagementConflict('Attendance requires an active event in the current Management period.');
-        if ($event['event_date']>date('Y-m-d')) throw new SynkManagementConflict('Attendance can open on the event date.');
         $rows=synk_management_query($conn,'SELECT * FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE','i',[$eventId]);
         $settings=$rows[0] ?? null;
+        if ($action==='attendance_correct') {
+            if (!synk_management_catalog_in_period($event,synk_management_view_term($conn,$input,$scope))) throw new OutOfBoundsException('This event is outside the selected period.');
+            require_once __DIR__.'/management_attendance_review_helper.php';
+            $corrected=synk_management_correct_closed_attendance($conn,$scope,$event,$settings,$input);
+            $summary=synk_management_attendance_summary($conn,$scope,$eventId);
+            $conn->commit();
+            return ['attendance'=>$summary,'corrected'=>$corrected];
+        }
+        if (synk_management_attendance_import_template($event)==='EVENT') {
+            throw new SynkManagementConflict('Imported event attendance is closed and requires both workbook entries for presence.');
+        }
+        $semesterAttendance=(synk_management_is_flag_raising($event) && synk_management_same_academic_semester($event,$period)
+            || (in_array($action,['attendance_close','attendance_reopen'],true) && synk_management_imported_event_in_current_semester($event,$period)))
+            && ($input['term'] ?? null)===$period['key'] && ($input['exam_term'] ?? null)===$event['exam_term'];
+        if ($event['status']!=='ACTIVE' || (!synk_management_catalog_in_period($event,$period) && !$semesterAttendance)) {
+            throw new SynkManagementConflict('Attendance requires an active event in the current Management period.');
+        }
+        if ($event['event_date']>date('Y-m-d')) throw new SynkManagementConflict('Attendance can open on the event date.');
         $auditAction=null;
         if ($action==='attendance_open') {
             if (!$settings) {
-                synk_management_execute($conn,'INSERT INTO tbl_management_attendance_events (event_id,college_id,organization_id,ay_id,semester,exam_term,absence_fine,opened_by) VALUES (?,?,?,?,?,?,?,?)','iiiiissi',[$eventId,$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term'],$event['absence_fine'] ?? '0.00',(int)$_SESSION['user_id']]);
-                $source=synk_dean_students_source($scope,['ay_id'=>$period['ay_id'],'semester'=>$period['semester']],$conn);
-                synk_management_execute($conn,'INSERT INTO tbl_management_attendance_roster (event_id,student_id) SELECT DISTINCT ?,s.student_id '.$source['sql'],'i'.$source['types'],array_merge([$eventId],$source['params']));
-                $count=(int)synk_management_query($conn,'SELECT COUNT(*) AS n FROM tbl_management_attendance_roster WHERE event_id=?','i',[$eventId])[0]['n'];
-                if (!$count) throw new SynkManagementConflict('There are no eligible students for this event period.');
+                synk_management_attendance_open_roster($conn,$scope,$event);
                 $auditAction='OPEN';
             } elseif ($settings['attendance_status']!=='OPEN') throw new SynkManagementConflict('Attendance is closed.');
         } elseif ($action==='attendance_scan') {
@@ -78,7 +117,7 @@ function synk_management_attendance_write(mysqli $conn,array $scope,string $acti
             $next=$action==='attendance_close'?'CLOSED':'OPEN';
             if ($settings['attendance_status']===$next) throw new SynkManagementConflict('Attendance is already '.strtolower($next).'.');
             if (($input['confirm'] ?? '')!=='1') throw new DomainException('Confirm the attendance change.');
-            synk_management_execute($conn,'UPDATE tbl_management_attendance_events SET attendance_status=?,closed_by=?,closed_at='.($next==='CLOSED'?'CURRENT_TIMESTAMP':'NULL').',revision=revision+1 WHERE event_id=?','sii',[$next,$next==='CLOSED'?(int)$_SESSION['user_id']:null,$eventId]);
+            synk_management_attendance_set_state($conn,$eventId,$next);
             $auditAction=$next==='CLOSED'?'CLOSE':'REOPEN';
         } else throw new DomainException('Choose a valid attendance action.');
         $summary=synk_management_attendance_summary($conn,$scope,$eventId);

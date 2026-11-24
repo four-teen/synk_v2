@@ -5,8 +5,26 @@ require_once __DIR__ . '/management_term_helper.php';
 function synk_management_catalog_kind(string $kind): array
 {
     if ($kind === 'contributions') return ['table'=>'tbl_management_contributions','key'=>'contribution_id','date'=>'contribution_date','label'=>'Contribution'];
-    if ($kind === 'events') return ['table'=>'tbl_management_events','key'=>'event_id','date'=>'event_date','label'=>'Event'];
-    throw new DomainException('Choose Contributions or Events.');
+    if (in_array($kind,['events','flag_raising'],true)) return ['table'=>'tbl_management_events','key'=>'event_id','date'=>'event_date',
+        'label'=>$kind==='flag_raising' ? 'Flag Raising Ceremony' : 'Event'];
+    throw new DomainException('Choose a valid catalog.');
+}
+
+function synk_management_flag_raising_sql(string $metadata): string
+{
+    return "(COALESCE(JSON_UNQUOTE(JSON_EXTRACT($metadata,'$.attendance_category')),'')='FRC'
+        OR COALESCE(JSON_UNQUOTE(JSON_EXTRACT($metadata,'$.attendance_import.template')),'')='FRC')";
+}
+
+function synk_management_is_flag_raising(array $event): bool
+{
+    $metadata=json_decode($event['source_metadata'] ?? 'null',true);
+    return ($metadata['attendance_category'] ?? null)==='FRC' || ($metadata['attendance_import']['template'] ?? null)==='FRC';
+}
+
+function synk_management_same_academic_semester(array $record, array $period): bool
+{
+    return (int)($record['ay_id'] ?? 0)===(int)$period['ay_id'] && (int)($record['semester'] ?? 0)===(int)$period['semester'];
 }
 
 function synk_management_catalog_status_options(string $kind): array
@@ -89,7 +107,7 @@ function synk_management_catalog_options(mysqli $conn, array $scope, ?array $per
     $period = $period ?? synk_management_fetch_current_period($conn,$scope);
     return [
         'organizations'=>synk_management_query($conn, 'SELECT organization_id,organization_code,organization_name,status FROM tbl_management_organizations WHERE college_id=? AND organization_id=? ORDER BY organization_code', 'ii', [$scope['college_id'],$scope['organization_id']]),
-        'events'=>synk_management_query($conn, 'SELECT event_id,title,event_date,ay_id,semester,exam_term FROM tbl_management_events WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? ORDER BY event_id DESC', 'iiiis', [$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']]),
+        'events'=>synk_management_query($conn, 'SELECT event_id,title,event_date,ay_id,semester,exam_term FROM tbl_management_events WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND NOT '.synk_management_flag_raising_sql('source_metadata').' ORDER BY event_id DESC', 'iiiis', [$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']]),
     ];
 }
 
@@ -99,7 +117,8 @@ function synk_management_catalog_get(mysqli $conn, array $scope, string $kind, i
     $rows = synk_management_query($conn, 'SELECT * FROM ' . $meta['table'] . ' WHERE college_id=? AND organization_id=? AND ' . $meta['key'] . '=?' . ($lock ? ' FOR UPDATE' : ''), 'iii', [$scope['college_id'],$scope['organization_id'],$id]);
     if (!$rows) throw new OutOfBoundsException('This record is unavailable in your organization.');
     $record = $rows[0];
-    if ($kind === 'events') {
+    if ($kind==='flag_raising' && !synk_management_is_flag_raising($record)) throw new OutOfBoundsException('This ceremony is unavailable.');
+    if ($meta['table']==='tbl_management_events') {
         $record['sessions'] = synk_management_query($conn, 'SELECT * FROM tbl_management_event_sessions WHERE college_id=? AND event_id=? ORDER BY session_id' . ($lock ? ' FOR UPDATE' : ''), 'ii', [$scope['college_id'],$id]);
         $record['linked_contributions'] = (int)synk_management_query($conn, 'SELECT COUNT(*) AS n FROM tbl_management_contributions WHERE college_id=? AND event_id=?', 'ii', [$scope['college_id'],$id])[0]['n'];
     }
@@ -109,9 +128,26 @@ function synk_management_catalog_get(mysqli $conn, array $scope, string $kind, i
 
 function synk_management_catalog_in_period(array $record, array $period): bool
 {
-    return (int)($record['ay_id'] ?? 0) === (int)$period['ay_id']
-        && (int)($record['semester'] ?? 0) === (int)$period['semester']
-        && ($record['exam_term'] ?? null) === $period['exam_term'];
+    return synk_management_same_academic_semester($record,$period) && ($record['exam_term'] ?? null)===$period['exam_term'];
+}
+
+function synk_management_imported_event_in_current_semester(array $event, array $currentTerm): bool
+{
+    if ($event['status']!=='ACTIVE' || (int)$event['ay_id']!==$currentTerm['ay_id']
+        || (int)$event['semester']!==$currentTerm['semester']) return false;
+    return synk_management_attendance_import_template($event)!=='';
+}
+
+function synk_management_attendance_import_template(array $event): string
+{
+    $metadata=json_decode($event['source_metadata'] ?? 'null',true);
+    $template=(string)($metadata['attendance_import']['template'] ?? '');
+    return $template==='CUD' ? 'EVENT' : $template;
+}
+
+function synk_management_imported_attendance_editable(array $event, array $currentTerm, ?string $attendanceStatus): bool
+{
+    return $attendanceStatus==='OPEN' && synk_management_imported_event_in_current_semester($event,$currentTerm);
 }
 
 function synk_management_catalog_filters(array $input, string $kind): array
@@ -124,36 +160,55 @@ function synk_management_catalog_filters(array $input, string $kind): array
     $page = filter_var($input['page'] ?? 1,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
     $size = filter_var($input['page_size'] ?? 25,FILTER_VALIDATE_INT);
     if ($page === false || !in_array($size,[25,50,100],true)) throw new DomainException('Choose a valid page size.');
-    return ['search'=>$search,'organization_id'=>synk_management_input_id($input['organization_id'] ?? '', true) ?? 0,'status'=>$status,'catalog_scope'=>$view,'page'=>$page,'page_size'=>$size];
+    $filters=['search'=>$search,'organization_id'=>synk_management_input_id($input['organization_id'] ?? '', true) ?? 0,'status'=>$status,'catalog_scope'=>$view,'page'=>$page,'page_size'=>$size];
+    if (in_array($kind,['events','flag_raising'],true)) $filters['event_id']=synk_management_input_id($input['event_id'] ?? '',true);
+    if ($kind==='events') $filters['saved_event_id']=synk_management_input_id($input['saved_event_id'] ?? '',true);
+    return $filters;
 }
 
 function synk_management_catalog_list(mysqli $conn, array $scope, array $term, string $kind, array $input): array
 {
     $meta = synk_management_catalog_kind($kind);
-    // Both catalogs follow all three parts of the selected Management period.
+    // Both catalogs use the selected academic semester and organization.
     $input['catalog_scope'] = 'term';
     $filters = synk_management_catalog_filters($input,$kind);
     if (!$filters['organization_id']) $filters['organization_id'] = $scope['organization_id'];
     $sql = ' FROM ' . $meta['table'] . ' c LEFT JOIN tbl_management_organizations o ON o.organization_id=c.organization_id AND o.college_id=c.college_id LEFT JOIN tbl_academic_years ay ON ay.ay_id=c.ay_id WHERE c.college_id=? AND c.organization_id=?';
     $types = 'ii'; $values = [$scope['college_id'],$scope['organization_id']];
     if ($filters['catalog_scope'] === 'term') { $sql .= ' AND c.ay_id=? AND c.semester=?'; $types .= 'ii'; $values[] = $term['ay_id']; $values[] = $term['semester']; }
-    $sql .= ' AND c.exam_term=?'; $types .= 's'; $values[] = synk_management_exam_term($term['exam_term'] ?? null);
+    $isEvents=$meta['table']==='tbl_management_events';
+    if ($kind==='flag_raising') {
+        $sql .= ' AND '.synk_management_flag_raising_sql('c.source_metadata');
+    } else {
+        $sql .= ' AND c.exam_term=?';
+        $types .= 's'; $values[] = synk_management_exam_term($term['exam_term'] ?? null);
+        if ($isEvents) $sql .= ' AND NOT '.synk_management_flag_raising_sql('c.source_metadata');
+    }
     if ($filters['catalog_scope'] === 'unassigned') $sql .= ' AND (c.ay_id IS NULL OR c.semester IS NULL OR c.organization_id IS NULL)';
     if ($filters['organization_id']) {
         if ($filters['organization_id'] !== $scope['organization_id']) throw new DomainException('Choose your assigned organization.');
         $sql .= ' AND c.organization_id=?'; $types .= 'i'; $values[] = $filters['organization_id'];
     }
     if ($filters['status'] !== '') { $sql .= ' AND c.status=?'; $types .= 's'; $values[] = $filters['status']; }
+    if (!empty($filters['event_id'])) { $sql .= ' AND c.event_id=?'; $types .= 'i'; $values[] = $filters['event_id']; }
     if ($filters['search'] !== '') {
         $sql .= " AND c.title LIKE ? ESCAPE '!'"; $types .= 's'; $values[] = '%' . str_replace(['!','%','_'], ['!!','!%','!_'], $filters['search']) . '%';
     }
     $statusCounts = "COALESCE(SUM(c.status='ACTIVE'),0) AS active_count,COALESCE(SUM(c.status='INACTIVE'),0) AS inactive_count";
     $summary = synk_management_query($conn, 'SELECT COUNT(*) AS total,' . $statusCounts . $sql, $types, $values)[0];
     $total = (int)$summary['total']; $pages = max(1, (int)ceil($total / $filters['page_size'])); $page = min($filters['page'],$pages);
-    $extras = $kind === 'events' ? ',(SELECT COUNT(*) FROM tbl_management_event_sessions s WHERE s.event_id=c.event_id AND s.college_id=c.college_id) AS session_count' : '';
+    $extras = $isEvents ? ',(SELECT COUNT(*) FROM tbl_management_event_sessions s WHERE s.event_id=c.event_id AND s.college_id=c.college_id) AS session_count' : '';
     $order = 'c.' . $meta['key'] . ' DESC';
+    if ($kind==='events') {
+        $order='c.updated_at DESC, '.$order;
+        if ($filters['saved_event_id']) {
+            $order='(c.event_id=?) DESC, '.$order;
+            $types.='i';
+            $values[]=$filters['saved_event_id'];
+        }
+    }
     $rows = synk_management_query($conn, 'SELECT c.*,o.organization_code,ay.ay' . $extras . $sql . ' ORDER BY ' . $order . ' LIMIT ? OFFSET ?', $types . 'ii', array_merge($values, [$filters['page_size'],($page-1)*$filters['page_size']]));
-    if ($kind==='events' && $rows) {
+    if ($isEvents && $rows) {
         require_once __DIR__.'/management_exemptions_helper.php';
         $exemptionReady=synk_management_exemptions_ready($conn);
         $attendance=[];
@@ -217,9 +272,9 @@ function synk_management_catalog_payload(mysqli $conn, array $scope, string $kin
     if ($kind === 'contributions') {
         $record['amount'] = synk_management_input_money($input['amount'] ?? '');
         $record['event_id'] = synk_management_input_id($input['event_id'] ?? '',true);
-        if ($record['event_id'] && !synk_management_query($conn, 'SELECT event_id FROM tbl_management_events WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND event_id=?', 'iiiisi', [$scope['college_id'],$organizationId,$ayId,$semester,$record['exam_term'],$record['event_id']])) throw new DomainException('Choose an event in your organization and the same Management period.');
+        if ($record['event_id'] && !synk_management_query($conn, 'SELECT event_id FROM tbl_management_events WHERE college_id=? AND organization_id=? AND ay_id=? AND semester=? AND exam_term=? AND event_id=? AND NOT '.synk_management_flag_raising_sql('source_metadata'), 'iiiisi', [$scope['college_id'],$organizationId,$ayId,$semester,$record['exam_term'],$record['event_id']])) throw new DomainException('Choose an event in your organization and the same Management period.');
     } else {
-        $record['absence_fine'] = synk_management_input_money($input['absence_fine'] ?? '',2,true);
+        $record['absence_fine'] = $kind==='flag_raising' ? '0.00' : synk_management_input_money($input['absence_fine'] ?? '',2,true);
         foreach (['latitude'=>90,'longitude'=>180] as $key=>$max) {
             $value = array_key_exists($key,$input) ? $input[$key] : ($existing[$key] ?? '');
             if (!is_scalar($value) && $value !== null) throw new DomainException('Enter valid coordinates.');
@@ -269,6 +324,9 @@ function synk_management_session_payload(array $sessions, array $event, array $e
 function synk_management_catalog_write(mysqli $conn, array $scope, string $kind, string $action, array $input): array
 {
     $meta = synk_management_catalog_kind($kind);
+    $flagRaising=$kind==='flag_raising';
+    $deleteCeremony=$flagRaising && $action==='delete';
+    $isEvents=$meta['table']==='tbl_management_events';
     if (!in_array($action,['save','delete'],true)) throw new DomainException('Choose a valid action.');
     $id = synk_management_input_id($input['record_id'] ?? '',true);
     if ($action === 'delete' && !$id) throw new DomainException('Choose a record to delete.');
@@ -276,45 +334,78 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
     try {
         // Lock current assignment before the record so a simultaneous reassignment cannot widen a write.
         synk_management_lock_assignment($conn,$scope);
-        synk_management_require_permission($conn,$scope,'manage_'.$kind);
+        $permissions=synk_management_require_permission($conn,$scope,$flagRaising?'manage_events':'manage_'.$kind);
+        if ($deleteCeremony && !$permissions['delete_flag_raising']) {
+            throw new SynkManagementPermissionDenied('A Management administrator or faculty supervisor must delete this ceremony.');
+        }
+        if ($deleteCeremony && ($input['confirm'] ?? '')!=='1') throw new DomainException('Confirm the permanent deletion of this ceremony.');
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
-        if (($input['term'] ?? $currentTerm['key']) !== $currentTerm['key']
-                || ($input['exam_term'] ?? $currentTerm['exam_term']) !== $currentTerm['exam_term']) {
+        $existing = $id ? synk_management_catalog_get($conn,$scope,$kind,$id,true) : null;
+        if ($existing && $kind==='events' && synk_management_is_flag_raising($existing)) throw new OutOfBoundsException('Open Flag Raising Ceremony to change this record.');
+        $attendance = null;
+        if ($isEvents && $existing && synk_table_exists($conn,'tbl_management_attendance_events')) {
+            $attendance=synk_management_query($conn,'SELECT attendance_status FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE','i',[$id])[0] ?? null;
+        }
+        $editImported = $existing && $kind==='events' && $action==='save'
+            && synk_management_imported_attendance_editable($existing,$currentTerm,$attendance['attendance_status'] ?? null);
+        $writeTerm=$currentTerm;
+        if ($deleteCeremony) {
+            $writeTerm=['ay_id'=>(int)$existing['ay_id'],'semester'=>(int)$existing['semester'],'exam_term'=>$existing['exam_term'],
+                'key'=>$existing['ay_id'].':'.$existing['semester']];
+        } elseif ($flagRaising) {
+            $writeTerm=synk_management_attendance_date_period($currentTerm,synk_management_input_date($input['event_date'] ?? ''));
+        } elseif ($editImported) {
+            $writeTerm=array_replace($currentTerm,['exam_term'=>$existing['exam_term']]);
+        }
+        if (($input['term'] ?? ($deleteCeremony ? '' : $writeTerm['key'])) !== $writeTerm['key']
+                || (!$flagRaising && ($input['exam_term'] ?? $writeTerm['exam_term']) !== $writeTerm['exam_term'])) {
             throw new SynkManagementConflict('Switch to the current Management period before saving records.');
         }
-        $existing = $id ? synk_management_catalog_get($conn,$scope,$kind,$id,true) : null;
         if ($existing) {
             require_once __DIR__.'/management_payment_read_helper.php';
             if (synk_management_charge_has_payments($conn,$kind,$id)) throw new SynkManagementConflict('Payments have already been recorded for this charge. Its details must be preserved for the receipts.');
         }
         if ($existing && (!is_string($input['version'] ?? null) || !hash_equals($existing['version'],$input['version']))) throw new SynkManagementConflict('This record changed after you opened it. Reload its details before saving or deleting.');
-        if ($existing && !synk_management_catalog_in_period($existing,$currentTerm)) {
+        if ($existing && !synk_management_catalog_in_period($existing,$writeTerm)) {
             throw new SynkManagementConflict('Only records in the current Management period can be changed.');
         }
         require_once __DIR__.'/management_exemptions_helper.php';
-        $hasExemptions=$existing && synk_management_exemptions_ready($conn) && synk_management_query($conn,'SELECT exemption_id FROM tbl_management_exemptions WHERE '.($kind==='events'?'event_id':'contribution_id').'=? LIMIT 1','i',[$id]);
+        $hasExemptions=!$deleteCeremony && $existing && synk_management_exemptions_ready($conn) && synk_management_query($conn,'SELECT exemption_id FROM tbl_management_exemptions WHERE '.($isEvents?'event_id':'contribution_id').'=? LIMIT 1','i',[$id]);
         if ($hasExemptions && $action==='delete') throw new SynkManagementConflict('This record has exemption history. Keep it or mark it inactive instead of deleting it.');
-        $attendance=null;
-        if ($kind==='events' && $existing && synk_table_exists($conn,'tbl_management_attendance_events')) {
-            $attendance=synk_management_query($conn,'SELECT event_id FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE','i',[$id]);
-            if ($attendance && $action==='delete') throw new SynkManagementConflict('This event has attendance records and cannot be deleted.');
-        }
+        if (!$deleteCeremony && $attendance && $action==='delete') throw new SynkManagementConflict('This event has attendance records and cannot be deleted.');
         if ($action === 'delete') {
-            if ($kind === 'events') {
+            if ($isEvents) {
                 if ($existing['linked_contributions']) throw new SynkManagementConflict('This event is linked to contributions. Remove those event links first, or mark the event inactive.');
+                if ($deleteCeremony) {
+                    foreach (['tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_attendance_roster','tbl_management_attendance_events'] as $table) {
+                        if (synk_table_exists($conn,$table)) synk_management_execute($conn,'DELETE FROM '.$table.' WHERE event_id=?','i',[$id]);
+                    }
+                    if (synk_table_exists($conn,'tbl_management_exemptions')) {
+                        synk_management_execute($conn,'DELETE FROM tbl_management_exemptions WHERE event_id=? OR source_event_id=?','ii',[$id,$id]);
+                    }
+                }
                 synk_management_execute($conn, 'DELETE FROM tbl_management_event_sessions WHERE college_id=? AND event_id=?', 'ii', [$scope['college_id'],$id]);
             }
             synk_management_execute($conn, 'DELETE FROM ' . $meta['table'] . ' WHERE college_id=? AND ' . $meta['key'] . '=?','ii',[$scope['college_id'],$id]);
             synk_management_audit_officer_operation($conn,$scope,'CATALOG_DELETE',['kind'=>$kind,'record_id'=>$id,'title'=>$existing['title']]);
             $conn->commit(); return ['message'=>$meta['label'] . ' deleted.','record_id'=>$id];
         }
-        $record = synk_management_catalog_payload($conn,$scope,$kind,$input,$currentTerm,$existing);
+        $record = synk_management_catalog_payload($conn,$scope,$kind,$input,$writeTerm,$existing);
+        if ($flagRaising && !$existing) $record['source_metadata']=json_encode(['attendance_category'=>'FRC']);
         if ($hasExemptions && $kind==='contributions' && (string)$record['event_id']!==(string)$existing['event_id']) throw new SynkManagementConflict('This contribution has saved exemptions. Its event link must be preserved.');
-        if ($attendance && ($record['event_date']!==$existing['event_date'] || $record['absence_fine']!==$existing['absence_fine'] || $record['status']!==$existing['status'])) {
+        if ($attendance && ($record['event_date']!==$existing['event_date'] || $record['status']!==$existing['status']
+            || (!$editImported && !$flagRaising && $record['absence_fine']!==$existing['absence_fine']))) {
             throw new SynkManagementConflict('The date, absence fine and active status are locked once attendance starts.');
         }
+        if ($editImported || ($flagRaising && $attendance)) {
+            if ($record['absence_fine']!==$existing['absence_fine']) {
+                synk_management_execute($conn,'UPDATE tbl_management_attendance_events SET absence_fine=?,revision=revision+1 WHERE event_id=?',
+                    'si',[$record['absence_fine'] ?? '0.00',$id]);
+            }
+            $record=array_intersect_key($record,array_flip(['title','description','absence_fine']));
+        }
         $sessions = [];
-        $writeSessions = $kind === 'events' && array_key_exists('sessions',$input);
+        $writeSessions = $kind === 'events' && !$editImported && array_key_exists('sessions',$input);
         if ($writeSessions) {
             $raw = $input['sessions'];
             if (!is_string($raw) || strlen($raw) > 100000) throw new DomainException('Enter valid session details.');

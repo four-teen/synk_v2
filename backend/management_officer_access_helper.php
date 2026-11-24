@@ -21,7 +21,7 @@ function synk_management_operation_allowed(array $permissions,string $operation)
     if($operation==='records')return $permissions['view']||$permissions['payments']||!empty($permissions['manage_exemptions']);
     if($operation==='student_records')return $permissions['view']||$permissions['payments']||$permissions['manage_violations']||!empty($permissions['manage_exemptions']);
     if($operation==='contributions' || $operation==='violations')return $permissions['view']||$permissions['payments']||$permissions['manage_'.$operation]||($operation==='contributions' && !empty($permissions['manage_exemptions']));
-    if($operation==='events')return $permissions['view']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
+    if($operation==='events' || $operation==='flag_raising')return $permissions['view']||$permissions['attendance']||$permissions['manage_events']||!empty($permissions['manage_exemptions']);
     if($operation==='exemptions')return $permissions['view']||!empty($permissions['manage_exemptions']);
     return !empty($permissions[$operation]);
 }
@@ -83,6 +83,7 @@ function synk_management_permissions(mysqli $conn,array $scope): array
         || (int)$account['management_organization_id']!==(int)$scope['organization_id'] || (int)$account['management_college_id']!==(int)$scope['college_id'])throw new SynkManagementPermissionDenied('Your Management access changed. Sign in again.');
     $grant=synk_management_officer_record($conn,(int)$account['user_id']);
     $permissions=['is_officer'=>(bool)$grant,'setup'=>!$grant,'officers'=>!$grant && synk_management_faculty_supervisor($conn,$account),'student_id'=>(int)($grant['student_id'] ?? 0)];
+    $permissions['delete_flag_raising']=!$grant && ($permissions['officers'] || synk_useraccount_has_active_role($conn,$account,'admin'));
     foreach(synk_management_operation_labels() as $operation=>$label)$permissions[$operation]=!$grant || !empty($grant['can_'.$operation]);
     return $permissions;
 }

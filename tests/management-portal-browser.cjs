@@ -12,6 +12,19 @@ const qrFixture = path.join(root, '.tmp', `management-qr-${nonce}.png`);
 let browser, ws, checks = 0;
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const check = (ok, message) => { if (!ok) throw Error(message); checks++; };
+function requestFields(request) {
+  const contentType = Object.entries(request.headers).find(([key]) => key.toLowerCase() === 'content-type')?.[1] || '';
+  const boundary = /multipart\/form-data;\s*boundary=([^;]+)/i.exec(contentType)?.[1];
+  if (!boundary) return Object.fromEntries(new URLSearchParams(request.postData || ''));
+  const body = request.postData ?? Buffer.concat((request.postDataEntries || []).map(entry => Buffer.from(entry.bytes || '', 'base64'))).toString();
+  const fields = {};
+  for (const part of body.split('--' + boundary)) {
+    const [header, value] = part.split('\r\n\r\n');
+    const field = /Content-Disposition: form-data; name="([^"]+)"(?:; filename="([^"]*)")?/i.exec(header);
+    if (field) fields[field[1]] = field[2] ?? (value || '').trimEnd();
+  }
+  return fields;
+}
 async function main() {
   fs.writeFileSync(route, `<?php if(!in_array($_SERVER['REMOTE_ADDR']??'', ['127.0.0.1','::1'],true)||!hash_equals('${token}',(string)($_GET['qa']??''))){http_response_code(404);exit;}define('SYNK_MANAGEMENT_QA',true);define('SYNK_MANAGEMENT_QA_RENDER',true);require '${path.join(root, 'tests/fixtures/management-request.php').replaceAll('\\', '/')}';`);
   const exe = [process.env['ProgramFiles(x86)'] + '\\Microsoft\\Edge\\Application\\msedge.exe', process.env.ProgramFiles + '\\Google\\Chrome\\Application\\chrome.exe'].find(fs.existsSync);
@@ -27,7 +40,9 @@ async function main() {
   let organizationContext = {}, organizationInUse = false;
   let catalogFailure = false, linkedContributions = 0, catalogTerm = '2:1';
   let attendanceStatus='NOT_STARTED',attendancePresent=0,attendanceRevision=1;
+  let cleanupEventId = 0, cleanupCorrected = false;
   let attendanceScanFailures=1;
+  let importedEventId=0;
   const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
     const id = ++sequence; const timer = setTimeout(() => { pending.delete(id); reject(Error(method + ' timed out.')); }, 20000);
     pending.set(id, { resolve, reject, timer }); ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -37,6 +52,11 @@ async function main() {
     if (msg.id && pending.has(msg.id)) { const p = pending.get(msg.id); pending.delete(msg.id); clearTimeout(p.timer); msg.error ? p.reject(Error(msg.error.message)) : p.resolve(msg.result); }
     if (msg.method === 'Runtime.exceptionThrown') errors.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
     if (msg.method === 'Fetch.requestPaused') {
+      if (new URL(msg.params.request.url).pathname.endsWith('/management/events.php')) {
+        call('Fetch.fulfillRequest',{requestId:msg.params.requestId,responseCode:200,responseHeaders:[{name:'Content-Type',value:'text/html'}],
+          body:Buffer.from('<!doctype html><title>Events list</title>').toString('base64')},msg.sessionId).catch(e=>errors.push(e.message));
+        return;
+      }
       if (msg.params.request.url.includes('query_organizations.php')) {
         const data = Object.fromEntries(new URLSearchParams(msg.params.request.postData || '')); organizationRequests.push(data);
         const record = { organization_id:data.organization_id, college_id:organizationContext.college_id,campus_id:organizationContext.campus_id,organization_code:'BROWSER ORG',organization_name:'BROWSER ORGANIZATION',status:'ACTIVE',version:'B'.repeat(64),usage:{ accounts:organizationInUse?1:0,events:0,contributions:0,violations:0 } };
@@ -45,11 +65,12 @@ async function main() {
         return;
       }
       if (msg.params.request.url.includes('query_management.php')) {
-        const data = Object.fromEntries(new URLSearchParams(msg.params.request.postData || '')); catalogRequests.push(data);
+        const data = requestFields(msg.params.request); catalogRequests.push(data);
         const [ay_id,semester] = catalogTerm.split(':');
         const common = { title:'BROWSER CATALOG RECORD', description:'RECORD DESCRIPTION', organization_id:'1', ay_id, semester, status:'ACTIVE', audience_mode:'ALL', version:'A'.repeat(64) };
         const record = data.kind === 'violations' ? { ...common,violation_id:data.record_id,violation_type:'BROWSER VIOLATION',amount:'75.25',version:'A'.repeat(64) } : data.kind === 'events' ? { ...common,event_id:data.record_id,event_date:'2026-10-26',absence_fine:'25.25',latitude:null,longitude:null,attendance_radius_m:null,linked_contributions:linkedContributions,
           sessions:[{ session_id:'123',title:'MORNING SESSION',starts_at:'2026-10-26 08:00:00',ends_at:'2026-10-26 12:00:00',fine_per_minute:'0.1250',grace_minutes:'15',potential_fine:'28.12',status:'ACTIVE' }] }
+          : data.kind === 'flag_raising' ? { ...common,event_id:data.record_id,title:'FLAG RAISING CEREMONY QA',event_date:'2026-10-10',linked_contributions:0,sessions:[] }
           : { ...common,status:'ACTIVE',contribution_id:data.record_id,contribution_date:'2026-10-26',amount:'123.45',event_id:null };
         let payload = data.action === 'get' ? { status:'ok',record } : { status:'ok',message:'Record saved.',record_id:1 };
         if (data.action === 'student_detail') payload = {
@@ -61,7 +82,42 @@ async function main() {
             summary:{contribution_count:2,contribution_catalog_total:'500.00',event_count:3,absence_count:1,attendance_pending_count:1,event_fine_total:'25.00',violation_total:'0.00',amount_paid:'0.00',total_to_pay:'525.00',payment_status:'UNPAID'},
             availability:{student_charges:true,payments:false,attendance:true,student_violations:false}}
         };
-        if(data.action.startsWith('attendance_')){
+        if (data.template === 'EVENT' && data.action === 'attendance_past_preview') {
+          payload={status:'ok',preview:{token:'C'.repeat(64),title:'CLEAN UP DRIVE',event_date:data.event_date,period:'2026-2027 - 1st Semester - Midterm',
+            term:data.current_term,exam_term:'MIDTERM',can_import:true,attendance_status:'NOT_STARTED',present:1,absent:2,exempted:0,
+            absence_fine:data.absence_fine,workbook_counts:{complete:1,one_entry:1,blank:1},
+            review:{unmatched:[],ambiguous:[],duplicates:[],problems:[{cells:['E9'],reason:'Enter a student ID in the attendance cell.'}]}}};
+        } else if (data.template === 'EVENT' && data.action === 'attendance_past_save') {
+          payload={status:'ok',recorded:1,event_id:321,term:data.current_term,exam_term:'MIDTERM',attendance_status:'CLOSED',
+            present:1,absent:2,exempted:0,absence_fine:data.absence_fine};
+        } else if (data.action === 'attendance_past_preview') {
+          const corrected = data.workbook === 'FRC corrected.xlsx';
+          const closed = data.workbook === 'FRC saved.xlsx';
+          payload = {status:'ok',preview:{token:'P'.repeat(64),title:'FLAG RAISING CEREMONY',event_date:'2026-10-10',
+            period:'2026-2027 - 1st Semester - Midterm',term:catalogTerm,exam_term:'MIDTERM',worksheet:'FRC sample sheet',existing_event:corrected||closed,
+            event_id:corrected||closed ? 321 : null,attendance_status:closed ? 'CLOSED' : 'OPEN',can_import:!closed,new_present:closed ? 0 : 1,already_present:corrected||closed ? 1 : 0,
+            duplicates:1,unmatched:corrected ? [] : ['99999'],ambiguous:[],
+            review:{unmatched:corrected ? [] : [{student_number:'99999',cells:['A3','A5']}],ambiguous:[],
+              duplicates:[{student_number:'11111',cells:['A2','A4']}]}}};
+        } else if (data.action === 'attendance_past_save') {
+          payload = {status:'ok',recorded:1,title:'FLAG RAISING CEREMONY',term:catalogTerm,exam_term:'MIDTERM',event_id:321,
+            review:{unmatched:data.workbook==='FRC corrected.xlsx' ? [] : [{student_number:'99999',cells:['A3','A5']}],
+              ambiguous:[],duplicates:[{student_number:'11111',cells:['A2','A4']}]}};
+        } else if (data.action === 'exemption_data' && importedEventId) {
+          payload = {status:'ok',lists:[],contributions:[],editable_imports:[importedEventId],
+            events:[{event_id:importedEventId,title:'FLAG RAISING CEREMONY QA',event_date:'2026-10-10',contribution_count:0}]};
+        } else if (data.action === 'attendance_roster') {
+          const cleanup = Number(data.event_id) === cleanupEventId;
+          const present = !cleanup || cleanupCorrected;
+          payload={status:'ok',roster:{page:1,pages:1,total:1,revision:cleanup ? (present ? '3' : '2') : String(attendanceRevision),
+            rows:[{student_id:1234,student_number:'20261123',student_name:'JUAN DELA CRUZ',checked_in:cleanup ? true : null,
+              checked_out:cleanup ? present : null,attendance_status:present ? 'PRESENT' : 'ABSENT',correction_reason:cleanupCorrected ? 'PAPER OUT LOG VERIFIED' : null}]}};
+        } else if (Number(data.event_id) === cleanupEventId && ['attendance_get','attendance_correct'].includes(data.action)) {
+          if (data.action === 'attendance_correct') cleanupCorrected = true;
+          payload={status:'ok',corrected:data.action==='attendance_correct',attendance:{event_id:cleanupEventId,title:'CLEAN UP DRIVE QA',event_date:'2026-11-12',absence_fine:'25.00',
+            attendance_status:'CLOSED',two_checkpoints:true,opened_at:'2026-11-24 14:56:00',closed_at:'2026-11-24 14:56:31',
+            revision:cleanupCorrected?'3':'2',eligible:2,present:cleanupCorrected?2:1,absent:cleanupCorrected?0:1,exempted:0,recent:[]}};
+        } else if(data.action.startsWith('attendance_')){
           if(data.action==='attendance_scan' && attendanceScanFailures-- > 0){
             call('Fetch.fulfillRequest',{requestId:msg.params.requestId,responseCode:503,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({status:'error',message:'Temporary attendance connection failure. Scan again.'})).toString('base64')},msg.sessionId).catch(e=>errors.push(e.message));return;
           }
@@ -75,6 +131,7 @@ async function main() {
         if (data.action === 'save_management_term') payload={status:'error',message:'The current Management term changed. Reload this page.'};
         if (data.action === 'organization_add') payload = { status:'ok',organization:{ organization_id:999999,organization_code:'NEW ORG',organization_name:'NEW ORGANIZATION' } };
         if (data.action === 'save' && catalogFailure) payload={ status:'error',message:'The record changed. Reload its details.' };
+        if (data.kind === 'flag_raising' && data.action === 'delete') payload={status:'ok',message:'Flag Raising Ceremony deleted.',record_id:data.record_id};
         call('Fetch.fulfillRequest', { requestId:msg.params.requestId,responseCode:(catalogFailure && data.action==='save') || data.action==='save_management_term' ? 409 : 200,responseHeaders:[{ name:'Content-Type',value:'application/json' }],body:Buffer.from(JSON.stringify(payload)).toString('base64') },msg.sessionId).catch(e=>errors.push(e.message));
         return;
       }
@@ -102,6 +159,170 @@ async function main() {
     check(await evaluate('(()=>{const table=document.querySelector(".management-mobile-records"),region=table.parentElement;return table.scrollWidth<=table.clientWidth+1&&region.scrollWidth<=region.clientWidth+1&&getComputedStyle(table.querySelector("tbody tr")).display==="grid"&&[...table.querySelectorAll("tbody button:not(:disabled)")].every(button=>button.getBoundingClientRect().height>=44)&&[...table.querySelectorAll("tbody td")].every(cell=>cell.classList.contains("management-record-title")||cell.classList.contains("management-record-actions")||cell.classList.contains("management-record-empty")||cell.dataset.label)})()'),`${label} cards overflow, lack labels, or have small touch targets.`);
     check(await evaluate('(()=>{const config=JSON.parse(document.getElementById("management-config").textContent);return [...document.querySelectorAll(".management-mobile-nav a,#management-mobile-more nav a")].every(a=>{const url=new URL(a.href);return url.searchParams.get("term")===config.term&&url.searchParams.get("exam_term")===config.exam_term})})()'),`${label} mobile links lost the viewing period.`);
   };
+  const checkEventActions = async (label, attendanceLabel) => {
+    const layout = await evaluate(`(() => {
+      const actions = document.querySelector('.management-event-actions');
+      const attendance = actions.querySelector('[data-attendance]');
+      const primary = attendance.getBoundingClientRect();
+      const table = actions.closest('.management-table-scroll').getBoundingClientRect();
+      const [viewExemptions, exemptStudents, edit, remove] = ['a', '[data-exempt-open]', '[data-edit]', '[data-delete]']
+        .map(selector => actions.querySelector(selector).getBoundingClientRect());
+      return attendance.textContent.trim() === ${JSON.stringify(attendanceLabel)} &&
+        primary.left > Math.max(viewExemptions.right, exemptStudents.right, edit.right, remove.right) &&
+        Math.abs(primary.top - viewExemptions.top) < 1 && Math.abs(primary.top - exemptStudents.top) < 1 &&
+        Math.abs(primary.bottom - edit.bottom) < 1 && Math.abs(primary.bottom - remove.bottom) < 1 &&
+        edit.top > viewExemptions.bottom && primary.right < table.right;
+    })()`);
+    check(layout, `${label} attendance button does not span both action rows on the right.`);
+  };
+  async function checkPastAttendance() {
+    await evaluate('document.querySelector(\'[data-bs-target="#management-past-attendance"]\').click()');
+    await until('document.querySelector("#management-past-attendance.show") && getComputedStyle(document.getElementById("management-past-attendance")).opacity==="1"');
+    check(await evaluate('(()=>{const date=document.getElementById("past-attendance-date"),year=document.getElementById("past-attendance-year"),semester=document.getElementById("past-attendance-semester");return date.required&&year.readOnly&&/^\\d{4}-\\d{4}$/.test(year.value)&&semester.readOnly&&semester.value.includes("Semester")})()'),
+      'The import modal lacks the required date, academic year, or semester.');
+    await evaluate('(()=>{const date=document.getElementById("past-attendance-date");date.value="2026-10-10";date.dispatchEvent(new Event("change",{bubbles:true}));document.getElementById("past-event-title").value="Flag Raising Ceremony";document.getElementById("past-attendance-template").value="FRC";const selected=new DataTransfer();selected.items.add(new File(["Sample workbook contents"],"FRC sample.xlsx"));document.getElementById("past-attendance-workbook").files=selected.files;document.getElementById("past-attendance-form").requestSubmit()})()');
+    await until('!document.getElementById("past-attendance-event-link").hidden');
+    check(await evaluate('document.getElementById("past-attendance-summary").textContent.includes("Saved 1 as present") && document.querySelector("#past-attendance-issues li").textContent.includes("99999 · A3, A5")'),
+      'One import did not save its match and list the unmatched ID with its workbook cells.');
+    check(await evaluate('!document.getElementById("past-attendance-duplicates").hidden && document.querySelector("#past-attendance-duplicate-rows li").textContent.includes("11111 · A2, A4")'),
+      'The preview did not list repeated IDs with their workbook cells.');
+    check(await evaluate('document.documentElement.scrollWidth<=innerWidth && !document.getElementById("past-attendance-review") && document.getElementById("past-attendance-save").hidden'),
+      'The import results overflow or leave an extra confirmation on the phone.');
+    const pastAttendance = catalogRequests.find(row=>row.template==='FRC' && row.action==='attendance_past_save');
+    check(pastAttendance.title==='Flag Raising Ceremony' && pastAttendance.template==='FRC' && pastAttendance.preview_token.length===64
+      && pastAttendance.workbook==='FRC sample.xlsx','Past attendance confirmation lost the title, template, workbook, or preview token.');
+    const [academicYear, semester] = catalogTerm.split(':');
+    for (const action of ['attendance_past_preview', 'attendance_past_save']) {
+      const payload = catalogRequests.find(row=>row.template==='FRC' && row.action===action);
+      check(payload.event_date==='2026-10-10' && payload.import_ay_id===academicYear && payload.import_semester===semester && payload.import_exam_term==='MIDTERM',
+        'The import request lost its date or academic period.');
+    }
+    check(await evaluate('(()=>{const url=new URL(document.getElementById("past-attendance-event-link").href);return url.pathname.endsWith("/management/flag-raising.php") && url.searchParams.get("exam_term")==="MIDTERM" && url.searchParams.get("event_id")==="321"})()'),
+      'The saved event link did not open its Management period.');
+    check(await evaluate('!document.getElementById("past-attendance-exceptions").hidden && document.querySelector("#past-attendance-issues li").textContent.includes("99999 · A3, A5")'),
+      'Saving matched students hid the remaining unmatched ID.');
+    await evaluate('(()=>{const selected=new DataTransfer();selected.items.add(new File(["Corrected workbook contents"],"FRC corrected.xlsx"));const input=document.getElementById("past-attendance-workbook");input.files=selected.files;input.dispatchEvent(new Event("change",{bubbles:true}));document.getElementById("past-attendance-form").requestSubmit()})()');
+    await until('!document.getElementById("past-attendance-event-link").hidden');
+    check(await evaluate('document.getElementById("past-attendance-exceptions").hidden && document.getElementById("past-attendance-summary").textContent.includes("1 already marked present")'),
+      'A corrected upload did not clear the old unmatched ID or show previously recorded attendance.');
+    await evaluate('(()=>{const selected=new DataTransfer();selected.items.add(new File(["Saved workbook contents"],"FRC saved.xlsx"));const input=document.getElementById("past-attendance-workbook");input.files=selected.files;input.dispatchEvent(new Event("change",{bubbles:true}));document.getElementById("past-attendance-form").requestSubmit()})()');
+    await until('!document.getElementById("past-attendance-event-link").hidden');
+    check(await evaluate('document.getElementById("past-attendance-save").hidden && document.getElementById("past-attendance-summary").textContent.includes("All matched students are already saved") && new URL(document.getElementById("past-attendance-event-link").href).hash==="#event-321"'),
+      'A repeated import did not explain that attendance was already saved.');
+    check(!catalogRequests.some(row=>row.action==='attendance_past_save' && row.workbook==='FRC saved.xlsx'),'An already-saved workbook posted another save.');
+  }
+  if (process.argv.includes('--past-attendance')) {
+    await resize(320,568);
+    await call('Fetch.enable',{patterns:[{urlPattern:'*query_management.php*'},{urlPattern:'*/management/events.php*',resourceType:'Document'}]},sessionId);
+    await navigate('events');
+    check(await evaluate('document.querySelector(\'[data-bs-target="#management-past-attendance"]\') && document.getElementById("record-absence") && document.querySelector(\'#layout-menu a[href^="events.php"]\').closest("li").nextElementSibling.querySelector("a").href.includes("flag-raising.php")'),
+      'Regular Events is missing its import button, event fine, or the link to Flag Raising Ceremony.');
+    await checkEventActions('Events on mobile', 'Take attendance');
+    await evaluate('document.querySelector(\'[data-bs-target="#management-past-attendance"]\').click()');
+    await until('document.querySelector("#management-past-attendance.show") && getComputedStyle(document.getElementById("management-past-attendance")).opacity==="1"');
+    check(await evaluate('document.querySelector("#past-attendance-template option[value=EVENT]").textContent.trim()==="EVENT" && !document.querySelector("#past-attendance-template option[value=CUD],#past-attendance-template option[value=FRC]") && document.getElementById("past-attendance-fine").required && document.documentElement.scrollWidth<=innerWidth'),
+      'Events import exposed the wrong template, lacked the required fine, or overflowed on mobile.');
+    await evaluate(`(() => {
+      const form = document.getElementById('past-attendance-form');
+      form.elements.title.value = 'Clean Up Drive';
+      form.elements.event_date.value = '2026-10-24';
+      form.elements.event_date.dispatchEvent(new Event('change', {bubbles:true}));
+      form.elements.template.value = 'EVENT';
+      form.elements.absence_fine.value = '25.50';
+      const workbook = new DataTransfer();
+      workbook.items.add(new File(['Fixture workbook'], 'CUD.xlsx'));
+      form.elements.workbook.files = workbook.files;
+      form.requestSubmit();
+    })()`);
+    await until('document.getElementById("past-attendance-save").textContent==="Save closed attendance"');
+    check(!catalogRequests.some(row=>row.template==='EVENT' && row.action==='attendance_past_save') && await evaluate('document.getElementById("past-attendance-summary").textContent.includes("1 present, 2 absent") && document.getElementById("past-attendance-summary").textContent.includes("25.50") && document.querySelector("#past-attendance-issues li").textContent.includes("E9")'),
+      'CUD saved automatically or failed to show the preview counts, fine, and workbook issue.');
+    await evaluate('document.getElementById("past-attendance-form").requestSubmit()');
+    await until('!document.getElementById("past-attendance-event-link").hidden');
+    const cudSaved=catalogRequests.find(row=>row.template==='EVENT' && row.action==='attendance_past_save');
+    check(cudSaved.confirm==='1' && cudSaved.preview_token==='C'.repeat(64) && cudSaved.event_date==='2026-10-24' && cudSaved.import_exam_term==='MIDTERM'
+      && cudSaved.current_term===`${cudSaved.import_ay_id}:${cudSaved.import_semester}` && cudSaved.absence_fine==='25.50'
+      && await evaluate('document.getElementById("past-attendance-summary").textContent.includes("saved and closed") && new URL(document.getElementById("past-attendance-event-link").href).pathname.endsWith("/management/events.php")'),
+      'Confirmed CUD import lost the date, period or fine, or linked to the wrong list.');
+    await evaluate('document.querySelector("#management-past-attendance .modal-footer [data-bs-dismiss]").click()');
+    await until('location.pathname.endsWith("/management/events.php") && document.readyState==="complete"');
+    check(await evaluate('(()=>{const url=new URL(location.href);return url.searchParams.get("saved_event_id")==="321" && url.searchParams.get("exam_term")==="MIDTERM" && !["event_id","search","status","page"].some(key=>url.searchParams.has(key))})()'),
+      'Closing a saved import did not reopen the complete selected-period list with the newly saved event first.');
+    await navigate('imported_event_default');
+    catalogTerm = await evaluate('JSON.parse(document.getElementById("management-config").textContent).term');
+    await checkEventActions('Flag Raising Ceremony on mobile', 'View attendance');
+    await checkMobileRecords('Flag Raising Ceremony');
+    await checkPastAttendance();
+    await resize(1440);
+    await navigate('closed_cleanup');
+    cleanupEventId = await evaluate('Number(document.querySelector("[data-event-row]").dataset.eventRow)');
+    await evaluate('document.querySelector("[data-event-attendance-action-label]").click()');
+    await until('document.querySelector("#attendance-roster-rows [data-correct-attendance]") && getComputedStyle(document.getElementById("management-attendance")).opacity==="1"');
+    check(await evaluate(`(() => {
+      const roster = document.getElementById('attendance-roster'), scanner = document.querySelector('.management-attendance-reader-grid');
+      const times = document.getElementById('attendance-times'), columns = document.querySelectorAll('[data-attendance-checkpoint]:not([hidden])');
+      return document.querySelector('#management-attendance .modal-xl .modal-content').getBoundingClientRect().width > 900 && !roster.hidden && scanner.hidden &&
+        columns.length === 2 && times.getBoundingClientRect().bottom < roster.getBoundingClientRect().top &&
+        !times.textContent.includes('—') && roster.textContent.includes('Missing');
+    })()`), 'Closed CUD attendance did not show the wide roster and top timestamps without the scanner.');
+    await screenshot('management-closed-attendance-review.png');
+    await evaluate('document.querySelector("[data-correct-attendance]").click()');
+    check(await evaluate('document.getElementById("attendance-correction-in").checked && !document.getElementById("attendance-correction-out").checked && document.getElementById("attendance-correction-reason").required'), 'The correction editor did not display the student checkpoints or require evidence.');
+    await resize(390,780);
+    check(await evaluate('document.documentElement.scrollWidth<=innerWidth && document.getElementById("attendance-correction").getBoundingClientRect().right<=innerWidth'), 'The correction form overflows on mobile.');
+    await evaluate('document.getElementById("attendance-correction-out").click();document.getElementById("attendance-correction-reason").value="Paper OUT log verified";document.getElementById("attendance-correction").requestSubmit()');
+    await until('document.querySelector("#attendance-roster-rows .badge")?.textContent==="Present"');
+    const correction = catalogRequests.find(row=>row.action==='attendance_correct');
+    check(correction.event_id===String(cleanupEventId) && correction.checked_in==='1' && correction.checked_out==='1' && correction.attendance_revision==='2'
+      && correction.reason==='Paper OUT log verified' && await evaluate('document.getElementById("attendance-present").textContent==="2" && document.getElementById("attendance-status").textContent==="Closed"'),
+      'The correction lost its evidence, changed the event state, or missed updated totals.');
+    await resize(1440);
+    await navigate('imported_event_default');
+    check(await evaluate('document.querySelector("[data-event-row]").textContent.includes("FLAG RAISING CEREMONY QA") && document.querySelector("[data-event-row]").dataset.eventExamTerm==="MIDTERM" && document.querySelector("[data-event-attendance-status]").textContent.trim()==="Closed" && document.querySelectorAll("[data-event-row]").length===1 && JSON.parse(document.getElementById("management-config").textContent).exam_term==="FINAL"'),
+      'The ceremony page did not show the imported record across the semester.');
+    check(await evaluate('document.querySelectorAll(".management-record-actions a,.management-record-actions button").length===5 && document.querySelector("#ceremony-absences tbody").rows.length===2 && document.getElementById("management-add").textContent.trim()==="Add attendance" && !document.getElementById("record-absence")'),
+      'The ceremony page is missing action buttons or student counts, or offered an absence fine.');
+    await checkEventActions('Flag Raising Ceremony on desktop', 'View attendance');
+    await resize(1280);
+    await checkEventActions('Flag Raising Ceremony on a narrow desktop', 'View attendance');
+    await resize(1440);
+    await screenshot('management-flag-raising.png');
+    await evaluate('document.querySelector(\'[data-bs-target="#management-past-attendance"]\').click()');
+    await until('document.querySelector("#management-past-attendance.show") && getComputedStyle(document.getElementById("management-past-attendance")).opacity==="1"');
+    check(await evaluate('document.querySelector("#management-past-attendance .modal-content").getBoundingClientRect().width>500 && document.documentElement.scrollWidth<=innerWidth'), 'Past attendance does not fit desktop.');
+    await screenshot('management-past-attendance-period.png');
+    await navigate('imported_event_staff');
+    check(await evaluate('document.querySelector("[data-edit]") && !document.querySelector("[data-delete]")'), 'Unprivileged staff were offered ceremony deletion.');
+    await navigate('imported_event_default');
+    const ceremonyId = await evaluate('document.querySelector("[data-delete]").dataset.delete');
+    await evaluate('new Promise(resolve=>{document.getElementById("management-delete-modal").addEventListener("shown.bs.modal",()=>resolve(true),{once:true});document.querySelector("[data-delete]").click()})');
+    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-ceremony-confirmation").disabled');
+    check(await evaluate('document.getElementById("management-delete-confirm").disabled && document.getElementById("management-delete-explanation").textContent.includes("roster, attendance records, exemptions, and sessions") && document.getElementById("management-delete-name").textContent.includes("2026-10-10")'),
+      'Ceremony deletion did not identify the record and require confirmation.');
+    await evaluate('document.getElementById("management-delete-ceremony-confirmation").click();document.querySelector("#management-delete-modal [data-bs-dismiss]").click()');
+    await until('document.getElementById("management-delete-modal").getAttribute("aria-hidden")==="true"');
+    check(!catalogRequests.some(row=>row.action==='delete' && row.kind==='flag_raising'), 'Cancelling ceremony deletion submitted a request.');
+    await evaluate('new Promise(resolve=>{document.getElementById("management-delete-modal").addEventListener("shown.bs.modal",()=>resolve(true),{once:true});document.querySelector("[data-delete]").click()})');
+    await until('document.querySelector("#management-delete-modal.show") && !document.getElementById("management-delete-ceremony-confirmation").disabled');
+    check(await evaluate('document.getElementById("management-delete-confirm").disabled && !document.getElementById("management-delete-ceremony-confirmation").checked'), 'Confirmation carried over after cancellation.');
+    await evaluate('document.getElementById("management-delete-ceremony-confirmation").click();document.getElementById("management-delete-confirm").click()');
+    await until('performance.getEntriesByType("navigation")[0]?.type==="reload" && document.readyState==="complete"');
+    check(catalogRequests.some(row=>row.action==='delete' && row.kind==='flag_raising' && row.record_id===ceremonyId && row.version.length===64 && row.confirm==='1'),
+      'Confirmed deletion did not send the selected record and its version.');
+    await navigate('imported_event');
+    importedEventId=await evaluate('Number(document.querySelector("[data-event-row]").dataset.eventRow)');
+    check(await evaluate('document.querySelector("[data-event-present]").textContent==="1" && document.querySelector("[data-event-remaining]").textContent==="1" && document.querySelector("[data-event-remaining-label]").textContent==="absent" && document.querySelector("[data-event-attendance-label]").textContent==="Closed"'),
+      'The Midterm event list did not show the closed event and actual counts.');
+    check(await evaluate('document.querySelector("[data-exempt-event]").textContent==="Exempt students" && !document.querySelector(".management-record-actions").textContent.includes("View only")'),
+      'The closed event row did not show that exemptions are editable.');
+    await evaluate('document.querySelector("[data-exempt-event]").click()');
+    await until('document.querySelector("#management-exemption-modal.show") && document.querySelector("#exemption-event-choices input:checked") && !document.getElementById("exemption-fields").disabled');
+    check(await evaluate('document.querySelector("#management-exemption-modal.show") && document.getElementById("exemption-contribution-fields").hidden'), 'A closed Midterm import could not open its exemption editor.');
+    check(errors.length === 0, 'Browser errors: ' + errors.join(', '));
+    console.log('Past attendance browser checks passed: ' + checks);
+    await call('Browser.close');
+    return;
+  }
   await resize(1440); await navigate('login');
   await until('Number(getComputedStyle(document.querySelector("[data-synk-login-content]")).opacity)>0.99');
   check(await evaluate('document.querySelector("h1").textContent.includes("CCS Management.") && document.querySelector("h1").textContent.includes("One Place.")'), 'Management login branding is incorrect.');
@@ -109,8 +330,8 @@ async function main() {
   for (const width of [1440, 768, 390, 320]) { await resize(width); check(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `Management login overflows ${width}px.`); }
   await screenshot('management-login-320.png');
   await resize(1440); await navigate('dashboard');
-  check(await evaluate('document.querySelectorAll("[data-stat]").length===4 && document.querySelectorAll(".management-nav a").length===7 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard analytics/navigation are missing.');
-  check(await evaluate('document.documentElement.classList.contains("layout-menu-fixed") && document.getElementById("layout-menu").classList.contains("bg-menu-theme") && document.getElementById("layout-navbar").classList.contains("navbar-detached") && document.querySelectorAll(".college-dean-menu-card").length===7'), 'Management is not using the shared module layout/header/card navigation.');
+  check(await evaluate('document.querySelectorAll("[data-stat]").length===4 && document.querySelectorAll(".management-nav a").length===9 && document.querySelector(".management-nav [aria-current=page]").textContent.includes("Dashboard")'), 'Dashboard analytics/navigation are missing.');
+  check(await evaluate('document.documentElement.classList.contains("layout-menu-fixed") && document.getElementById("layout-menu").classList.contains("bg-menu-theme") && document.getElementById("layout-navbar").classList.contains("navbar-detached") && !document.querySelector(".management-nav a:not(.college-dean-menu-card)")'), 'Management is not using the shared module layout/header/card navigation.');
   check(await evaluate('getComputedStyle(document.querySelector(".college-dean-menu-title")).fontSize==="13.92px" && getComputedStyle(document.querySelector(".college-dean-menu-icon")).width==="34px" && getComputedStyle(document.querySelector(".college-dean-menu-card")).borderTopWidth==="1px"'), 'Sidebar fonts, icon sizes, or card borders differ from the Dean template.');
   check(await evaluate('document.compatMode==="CSS1Compat" && document.querySelectorAll("script[src*=jquery]").length===0'), 'Management dashboard is not in standards mode or loads duplicate libraries.');
   await screenshot('management-dashboard-1440.png');
@@ -147,7 +368,7 @@ async function main() {
     check(await evaluate(`(()=>{const nav=document.getElementById('management-mobile-nav'),menu=document.getElementById('layout-menu');return ${width}<1200?getComputedStyle(menu).display==='none'&&menu.inert&&getComputedStyle(nav).display==='grid'&&!nav.inert&&[...nav.children].every(e=>e.getBoundingClientRect().height>=44&&e.getBoundingClientRect().width>=44)&&Math.abs(nav.getBoundingClientRect().bottom-innerHeight)<1&&parseFloat(getComputedStyle(document.querySelector('.content-wrapper')).paddingBottom)>=nav.getBoundingClientRect().height:getComputedStyle(nav).display==='none'&&nav.inert&&!menu.inert})()`),`Navigation visibility, touch targets, or footer clearance failed at ${width}px. ${JSON.stringify(await evaluate('(()=>{const nav=document.getElementById("management-mobile-nav"),menu=document.getElementById("layout-menu");return {menuDisplay:getComputedStyle(menu).display,menuInert:menu.inert,navDisplay:getComputedStyle(nav).display,navInert:nav.inert,navBottom:nav.getBoundingClientRect().bottom,innerHeight,navHeight:nav.getBoundingClientRect().height,padding:getComputedStyle(document.querySelector(".content-wrapper")).paddingBottom,children:[...nav.children].map(e=>({width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height})),bodyClass:document.body.className}})()'))}`);
   }
   await tap('#management-more-toggle');await until('document.getElementById("management-mobile-more").classList.contains("show")');await delay(350);
-  check(await evaluate('document.getElementById("management-more-toggle").getAttribute("aria-expanded")==="true" && document.querySelectorAll("#management-mobile-more nav a").length===3 && document.getElementById("management-mobile-more").getBoundingClientRect().bottom<=innerHeight+1'), 'More options did not open within the phone viewport.');
+  check(await evaluate('document.getElementById("management-more-toggle").getAttribute("aria-expanded")==="true" && document.querySelector(\'#management-mobile-more nav a[href^="flag-raising.php"]\') && document.getElementById("management-mobile-more").getBoundingClientRect().bottom<=innerHeight+1'), 'More options did not show the ceremony link within the phone viewport.');
   await screenshot('management-mobile-more-320.png');
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await until('document.getElementById("management-more-toggle").getAttribute("aria-expanded")==="false"');

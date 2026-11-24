@@ -3,7 +3,7 @@ if (!isset($scope,$navigation,$page)) { http_response_code(404); exit; }
 $menuGroups = [
     'Overview'=>['dashboard'],
     'Daily Operations'=>['financial','students','exemptions','reports'],
-    'Setup'=>['contributions','events','violations','officers'],
+    'Setup'=>['contributions','events','flag_raising','violations','officers'],
 ];
 ?>
 <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme" aria-label="Management navigation">

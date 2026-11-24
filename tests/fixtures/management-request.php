@@ -150,6 +150,29 @@ if (strpos($scenario,'account_')===0) {
         $handler='management/events.php';
         $clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>strtoupper($tag).' EVENT','event_date'=>'2026-10-26']);
     }
+    if(in_array($scenario,['imported_event','imported_event_default','imported_event_staff','closed_cleanup'],true)) {
+        $cleanup=$scenario==='closed_cleanup';
+        $handler=$cleanup ? 'management/events.php' : 'management/flag-raising.php';
+        if ($scenario!=='imported_event_staff') synk_persist_useraccount_roles($conn,$userId,['management','admin'],'management');
+        $period=['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester']];
+        $clone('tbl_management_period_settings',[], $period+['current_exam_term'=>'FINAL']);
+        $period['exam_term']=$cleanup ? 'FINAL' : 'MIDTERM';
+        $eventId=$clone('tbl_management_events',[], $period+['title'=>$cleanup ? 'CLEAN UP DRIVE QA' : 'FLAG RAISING CEREMONY QA',
+            'event_date'=>$cleanup ? '2026-11-12' : '2026-10-10',
+            'source_metadata'=>json_encode(['attendance_import'=>['template'=>$cleanup ? 'CUD' : 'FRC']])]);
+        $clone('tbl_management_attendance_events',[], $period+['event_id'=>$eventId,'opened_by'=>$userId,'closed_by'=>$userId,
+            'attendance_status'=>'CLOSED','closed_at'=>date('Y-m-d H:i:s')]);
+        foreach (array_slice($students,0,2) as $studentId) {
+            $clone('tbl_management_attendance_roster',[],['event_id'=>$eventId,'student_id'=>$studentId]);
+        }
+        $clone('tbl_management_attendance_logs',[],['event_id'=>$eventId,'student_id'=>$students[0],'recorded_by'=>$userId]);
+        if ($scenario==='imported_event' || $cleanup) {
+            $_GET['exam_term']=$period['exam_term'];
+            $_GET['event_id']=(string)$eventId;
+        } else {
+            $clone('tbl_management_events',[], $period+['title'=>'REGULAR MIDTERM EVENT','event_date'=>'2026-10-10']);
+        }
+    }
     if($scenario==='violations') {
         $handler='management/violations.php';
         $clone('tbl_management_violations',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'violation_type'=>strtoupper($tag).' VIOLATION','amount'=>'50.25']);
@@ -190,6 +213,22 @@ if(strpos($scenario,'officers_')===0){
     if(($managedKind ?? '')==='events')$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
     synk_management_officer_write($conn,$scope,'officer_save',$flags+['student_id'=>(string)$sid,'expires_on'=>date('Y-m-d',strtotime('+30 days')),'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']]);
     $handler='management/officers.php';
+    if ($scenario==='officers_page') {
+        $peerEmail=strtolower($tag).'peer@sksu.edu.ph';
+        $peer=$clone('tbl_useraccount',[],['username'=>'Peer Faculty','email'=>$peerEmail,'password'=>'unusable-test-password',
+            'role'=>'management','status'=>'active','management_college_id'=>$scope['college_id'],'management_organization_id'=>$organizationId]);
+        synk_persist_useraccount_roles($conn,$peer,['management'],'management');
+        $peerFaculty=$clone('tbl_faculty',[],['first_name'=>'Peer Faculty','last_name'=>$tag,'status'=>'active']);
+        $clone('tbl_useraccount_faculty_links',[],['user_id'=>$peer,'faculty_id'=>$peerFaculty]);
+        synk_management_execute($conn,'UPDATE tbl_student_management SET first_name=?,email_address=? WHERE student_id=?',
+            'ssi',['Peer Officer',strtolower($tag).'peerstudent@sksu.edu.ph',$students[1]]);
+        $viewerSession=$_SESSION;
+        $_SESSION=array_replace($_SESSION,['user_id'=>$peer,'username'=>'Peer Faculty','email'=>$peerEmail]);
+        synk_management_officer_write($conn,$scope,'officer_save',['student_id'=>(string)$students[1],'can_view'=>'1',
+            'expires_on'=>date('Y-m-d',strtotime('+30 days')),'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],
+            'current_period_version'=>$term['period_version']]);
+        $_SESSION=$viewerSession;
+    }
     if(in_array($scenario,['officers_attendance','officers_viewer'],true)){
         require_once $root.'/backend/management_attendance_helper.php';
         $eventId=$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
