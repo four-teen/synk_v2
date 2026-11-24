@@ -63,7 +63,8 @@ function synk_management_closed_attendance_roster(mysqli $conn,array $event,arra
         $row['student_id']=(int)$row['student_id'];
         foreach (['checked_in','checked_out'] as $key) {
             // Earlier imports kept confirmed pairs, with no evidence for missing or partial rows.
-            $row[$key]=$row[$key]!==null ? (bool)$row[$key] : ($twoCheckpoints && $row['is_present'] ? true : null);
+            $row[$key]=$row[$key]!==null ? (bool)$row[$key]
+                : ($twoCheckpoints && $row['is_present'] && $row['correction_reason']===null ? true : null);
         }
         unset($row['is_present'],$row['event_id']);
     }
@@ -78,8 +79,9 @@ function synk_management_correct_closed_attendance(mysqli $conn,array $scope,arr
     if (($input['attendance_revision'] ?? null)!==(string)$settings['revision']) throw new SynkManagementConflict('Attendance changed. Reload the roster before saving the correction.');
     $eventId=(int)$event['event_id'];
     $studentId=synk_management_input_id($input['student_id'] ?? null);
-    $reason=synk_management_input_text($input,'reason',500);
-    $row=synk_management_query($conn,'SELECT l.student_id IS NOT NULL AS is_present,c.checked_in,c.checked_out
+    $reason=synk_management_input_text(['comment'=>$input['reason'] ?? ''],'comment',500,true,false);
+    $row=synk_management_query($conn,'SELECT l.student_id IS NOT NULL AS is_present,c.checked_in,c.checked_out,
+        EXISTS (SELECT 1 FROM tbl_management_attendance_corrections d WHERE d.event_id=r.event_id AND d.student_id=r.student_id) AS has_correction
         FROM tbl_management_attendance_roster r
         LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
         LEFT JOIN tbl_management_attendance_checkpoints c ON c.event_id=r.event_id AND c.student_id=r.student_id
@@ -87,20 +89,21 @@ function synk_management_correct_closed_attendance(mysqli $conn,array $scope,arr
     if (!$row) throw new OutOfBoundsException('This student is outside the event roster.');
     $twoCheckpoints=synk_management_attendance_import_template($event)==='EVENT';
     $wasPresent=(int)$row['is_present'];
-    $previousIn=$row['checked_in']!==null ? (int)$row['checked_in'] : ($twoCheckpoints && $wasPresent ? 1 : null);
-    $previousOut=$row['checked_out']!==null ? (int)$row['checked_out'] : ($twoCheckpoints && $wasPresent ? 1 : null);
-    $nextIn=$nextOut=null;
-    if ($twoCheckpoints) {
+    $inferred=$twoCheckpoints && $wasPresent && !$row['has_correction'] ? 1 : null;
+    $previousIn=$row['checked_in']!==null ? (int)$row['checked_in'] : $inferred;
+    $previousOut=$row['checked_out']!==null ? (int)$row['checked_out'] : $inferred;
+    $nextIn=$previousIn;
+    $nextOut=$previousOut;
+    $status=$input['corrected_status'] ?? null;
+    if ($twoCheckpoints && ($status===null || isset($input['checked_in']) || isset($input['checked_out']))) {
         $in=$input['checked_in'] ?? null;
         $out=$input['checked_out'] ?? null;
         if (!in_array($in,['0','1'],true) || !in_array($out,['0','1'],true)) throw new DomainException('Choose the verified IN and OUT entries.');
         $nextIn=(int)$in; $nextOut=(int)$out;
-        $present=$nextIn*$nextOut;
-    } else {
-        $status=$input['corrected_status'] ?? null;
-        if (!in_array($status,['PRESENT','ABSENT'],true)) throw new DomainException('Choose Present or Absent.');
-        $present=(int)($status==='PRESENT');
+        $status=$status ?? ($nextIn && $nextOut ? 'PRESENT' : 'ABSENT');
     }
+    if (!in_array($status,['PRESENT','ABSENT'],true)) throw new DomainException('Choose Present or Absent.');
+    $present=(int)($status==='PRESENT');
     if ($wasPresent===$present && $previousIn===$nextIn && $previousOut===$nextOut) return false;
     if ($wasPresent!==$present && synk_management_payments_ready($conn) && synk_management_query($conn,
         'SELECT i.payment_item_id FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id
@@ -108,7 +111,9 @@ function synk_management_correct_closed_attendance(mysqli $conn,array $scope,arr
         throw new SynkManagementConflict('This student has an absence-fine payment for this event. Review the payment before changing attendance.');
     }
     $actor=(int)$_SESSION['user_id'];
-    if ($twoCheckpoints) synk_management_store_event_checkpoints($conn,$eventId,[$studentId=>[$nextIn,$nextOut]]);
+    if ($twoCheckpoints && $nextIn!==null && $nextOut!==null) {
+        synk_management_store_event_checkpoints($conn,$eventId,[$studentId=>[$nextIn,$nextOut]]);
+    }
     if (!$wasPresent && $present) synk_management_execute($conn,'INSERT INTO tbl_management_attendance_logs (event_id,student_id,recorded_by) VALUES (?,?,?)','iii',[$eventId,$studentId,$actor]);
     if ($wasPresent && !$present) synk_management_execute($conn,'DELETE FROM tbl_management_attendance_logs WHERE event_id=? AND student_id=?','ii',[$eventId,$studentId]);
     synk_management_execute($conn,'INSERT INTO tbl_management_attendance_corrections

@@ -15,14 +15,14 @@
   </form>
   <form id="attendance-correction" class="management-attendance-correction mb-3" hidden>
     <h4 class="fs-6 mb-2" id="attendance-correction-student"></h4>
+    <div class="mb-2"><label class="form-label" for="attendance-correction-status">Corrected attendance</label><select class="form-select" id="attendance-correction-status"><option value="PRESENT">Present</option><option value="ABSENT">Absent</option></select></div>
     <fieldset id="attendance-correction-checkpoints" class="d-flex gap-3 mb-2" hidden>
-      <legend class="form-label fs-6">Verified attendance</legend>
+      <legend class="form-label fs-6">Recorded IN and OUT</legend>
       <label class="form-check"><input class="form-check-input" type="checkbox" id="attendance-correction-in"> IN</label>
       <label class="form-check"><input class="form-check-input" type="checkbox" id="attendance-correction-out"> OUT</label>
     </fieldset>
-    <p class="form-text mb-2" id="attendance-correction-checkpoint-help" hidden>Confirm both IN and OUT to mark the student present.</p>
-    <div id="attendance-correction-status-field" class="mb-2"><label class="form-label" for="attendance-correction-status">Corrected attendance</label><select class="form-select" id="attendance-correction-status"><option value="PRESENT">Present</option><option value="ABSENT">Absent</option></select></div>
-    <label class="form-label" for="attendance-correction-reason">Reason or evidence reference</label>
+    <p class="form-text mb-2" id="attendance-correction-checkpoint-help" hidden>Change IN or OUT only if the recorded entries also need correcting.</p>
+    <label class="form-label" for="attendance-correction-reason">Correction comment</label>
     <textarea class="form-control mb-3" id="attendance-correction-reason" rows="2" maxlength="500" required></textarea>
     <div class="d-flex flex-wrap gap-2"><button type="submit" class="btn btn-primary" id="attendance-correction-save">Save correction</button><button type="button" class="btn btn-outline-secondary" id="attendance-correction-cancel">Cancel</button></div>
   </form>

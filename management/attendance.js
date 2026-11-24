@@ -6,19 +6,23 @@
   const canScan=currentView && config.permissions?.attendance;
   const canManage = Boolean(config.permissions?.manage_events);
   let eventExamTerm=config.exam_term;
-  element.querySelector('.management-attendance-reader-grid').classList.toggle('management-attendance-history',!currentView);
   const $=id=>document.getElementById(id),video=$('attendance-video'),canvas=document.createElement('canvas'),context=canvas.getContext('2d',{willReadFrequently:true});
   const dialog = element.querySelector('.modal-dialog');
   const reader = element.querySelector('.management-attendance-reader-grid');
+  const cameraColumn = reader.querySelector('.management-attendance-camera-column');
   const stateControl = element.querySelector('.management-attendance-close');
   const roster = $('attendance-roster');
   const correction = $('attendance-correction');
   const rosterRows = $('attendance-roster-rows');
   const rosterFilter = $('attendance-roster-filter');
+  const correctedStatus = $('attendance-correction-status');
+  const checkedIn = $('attendance-correction-in');
+  const checkedOut = $('attendance-correction-out');
   const attendanceDate = new Intl.DateTimeFormat('en-PH', {dateStyle:'medium', timeStyle:'short'});
   const statusLabels = {PRESENT:'Present', ABSENT:'Absent', EXEMPTED:'Exempted'};
   let rosterPage = 1, rosterRequest = 0, rosterRevision = '', rosterStudents = new Map(), editing = null;
   let state=null,eventId=0,generation=0,cameraGeneration=0,stream=null,timer=null,scanning=false,busy=false,opener=null,lastCode='',lastAt=0,cameraCode='',cameraDevice='';
+  const scannerAvailable = () => canScan && state?.attendance_status === 'OPEN' && state.active !== false;
   const error=message=>{$('attendance-error').textContent=message;$('attendance-error').hidden=!message;};
   const cameraStatus=message=>{$('attendance-camera-status').textContent=message;};
   async function request(action,values={}) {
@@ -141,7 +145,7 @@
     }
     ['eligible','present','absent','exempted'].forEach(key=>$(('attendance-'+key)).textContent=next.attendance_status==='OPEN' && key==='absent'?'Pending':next[key]??0);
     $('attendance-absent').dataset.finalized=next.attendance_status==='CLOSED'?'true':'false';
-    const closed=next.attendance_status==='CLOSED',scanDisabled=next.attendance_status!=='OPEN'||!canScan;$('attendance-camera-start').disabled=scanDisabled;$('attendance-upload').disabled=scanDisabled;$('attendance-camera-device').disabled=scanDisabled;
+    const closed=next.attendance_status==='CLOSED',scanDisabled=!scannerAvailable();$('attendance-camera-start').disabled=scanDisabled;$('attendance-upload').disabled=scanDisabled;$('attendance-camera-device').disabled=scanDisabled;
     $('attendance-upload-label').setAttribute('aria-disabled',String(scanDisabled));$('attendance-upload-label').tabIndex=scanDisabled?-1:0;
     $('attendance-code').disabled=scanDisabled;$('attendance-code-submit').disabled=scanDisabled;
     $('attendance-event-context').textContent=`${next.event_date} · ${config.term_labels[config.term] || config.current_term_text}` +
@@ -153,6 +157,8 @@
     $('attendance-opened-at').textContent=formatTime(next.opened_at);
     $('attendance-closed-at').textContent=formatTime(next.closed_at);
     reader.hidden=next.attendance_status!=='OPEN';
+    cameraColumn.hidden=scanDisabled;
+    reader.classList.toggle('management-attendance-history',scanDisabled);
     roster.hidden=!closed;
     dialog.classList.toggle('modal-xl',closed);
     dialog.classList.toggle('modal-lg',!closed);
@@ -169,10 +175,10 @@
     const list=$('attendance-recent');list.replaceChildren();
     if(!next.recent.length){const li=document.createElement('li');li.className='list-group-item small text-muted';li.textContent='No attendance recorded yet.';list.append(li);}
     for(const row of next.recent){const li=document.createElement('li');li.className='list-group-item';const name=document.createElement('strong');name.textContent=row.student_name;const details=document.createElement('small');details.className='d-block text-muted';details.textContent=`${row.student_number} · ${row.recorded_at}`;li.append(name,details);list.append(li);}
-    if(closed)stopCamera();
+    if(scanDisabled)stopCamera();
   }
   async function record(code) {
-    if(busy || !canScan || !state || state.attendance_status!=='OPEN')return false;
+    if(busy || !scannerAvailable())return false;
     if(code===lastCode && Date.now()-lastAt<2500)return;
     lastCode=code;lastAt=Date.now();busy=true;error('');$('attendance-result').hidden=true;$('attendance-ready-note').hidden=false;const run=generation;
     $('attendance-ready-note').textContent='Saving attendance…';
@@ -195,7 +201,7 @@
     if(scanning && cameraRun===cameraGeneration)timer=setTimeout(()=>frame(cameraRun),220);
   }
   async function startCamera() {
-    stopCamera();if(!canScan || !state || state.attendance_status!=='OPEN')return;const run=generation,cameraRun=cameraGeneration;
+    stopCamera();if(!scannerAvailable())return;const run=generation,cameraRun=cameraGeneration;
     if(!element.classList.contains('show')) { element.addEventListener('shown.bs.modal',()=>{if(run===generation && cameraRun===cameraGeneration)startCamera();},{once:true});return; }
     error('');$('attendance-camera-stop').disabled=false;cameraStatus('Waiting for camera permission…');
     try {
@@ -225,18 +231,20 @@
     correction.hidden = true;
   }
   function openCorrection(student) {
-    editing = {studentId:student.student_id, revision:rosterRevision};
+    editing = {studentId:student.student_id, revision:rosterRevision, checkedIn:Boolean(student.checked_in), checkedOut:Boolean(student.checked_out)};
     correction.reset();
     $('attendance-roster-notice').hidden = true;
     $('attendance-correction-student').textContent = `${student.student_name} · ${student.student_number}`;
     $('attendance-correction-checkpoints').hidden = !state.two_checkpoints;
     $('attendance-correction-checkpoint-help').hidden = !state.two_checkpoints;
-    $('attendance-correction-status-field').hidden = Boolean(state.two_checkpoints);
-    $('attendance-correction-in').checked = Boolean(student.checked_in);
-    $('attendance-correction-out').checked = Boolean(student.checked_out);
-    $('attendance-correction-status').value = student.attendance_status === 'PRESENT' ? 'PRESENT' : 'ABSENT';
+    checkedIn.checked = editing.checkedIn;
+    checkedOut.checked = editing.checkedOut;
+    correctedStatus.value = student.attendance_status === 'PRESENT' ? 'PRESENT' : 'ABSENT';
     correction.hidden = false;
-    (state.two_checkpoints ? $('attendance-correction-in') : $('attendance-correction-status')).focus();
+    correctedStatus.focus();
+  }
+  for (const checkpoint of [checkedIn, checkedOut]) {
+    checkpoint.addEventListener('change', () => { correctedStatus.value = checkedIn.checked && checkedOut.checked ? 'PRESENT' : 'ABSENT'; });
   }
   rosterFilter.addEventListener('submit', event => {
     event.preventDefault();
@@ -262,12 +270,11 @@
   correction.addEventListener('submit', async event => {
     event.preventDefault();
     if (busy || !editing || state?.attendance_status !== 'CLOSED') return;
-    const values = {student_id:editing.studentId, attendance_revision:editing.revision, reason:$('attendance-correction-reason').value};
-    if (state.two_checkpoints) {
-      values.checked_in = Number($('attendance-correction-in').checked);
-      values.checked_out = Number($('attendance-correction-out').checked);
-    } else {
-      values.corrected_status = $('attendance-correction-status').value;
+    const values = {student_id:editing.studentId, attendance_revision:editing.revision,
+      corrected_status:correctedStatus.value, reason:$('attendance-correction-reason').value};
+    if (state.two_checkpoints && (checkedIn.checked !== editing.checkedIn || checkedOut.checked !== editing.checkedOut)) {
+      values.checked_in = Number(checkedIn.checked);
+      values.checked_out = Number(checkedOut.checked);
     }
     busy = true;
     $('attendance-correction-save').disabled = true;

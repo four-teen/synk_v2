@@ -1,11 +1,11 @@
 <?php
 require_once __DIR__.'/management_attendance_helper.php';
 
-function synk_management_past_attendance_period(array $current, string $eventDate, bool $twoCheckpoints=false): array
+function synk_management_past_attendance_period(array $current, string $eventDate, string $examTerm, bool $twoCheckpoints): array
 {
     $today=date('Y-m-d');
     if ($twoCheckpoints ? $eventDate>$today : $eventDate>=$today) throw new DomainException($twoCheckpoints?'Choose today or an earlier attendance date.':'Choose a date before today.');
-    return synk_management_attendance_date_period($current,$eventDate);
+    return synk_management_attendance_date_period($current,$eventDate,$examTerm);
 }
 
 function synk_management_past_attendance_encode(array $data): string
@@ -24,12 +24,10 @@ function synk_management_past_attendance_plan(mysqli $conn, array $scope, array 
     if (!$twoCheckpoints && $eventDate!==$workbook['event_date']) {
         throw new DomainException('The attendance date must match the workbook date ('.$workbook['event_date'].').');
     }
-    $period=synk_management_past_attendance_period($current,$eventDate,$twoCheckpoints);
+    $examTerm=synk_management_exam_term($input['import_exam_term'] ?? null);
+    $period=synk_management_past_attendance_period($current,$eventDate,$examTerm,$twoCheckpoints);
     if (($input['import_ay_id'] ?? null)!==(string)$period['ay_id'] || ($input['import_semester'] ?? null)!==(string)$period['semester']) {
         throw new SynkManagementConflict('The academic year or semester changed. Reload the page before importing.');
-    }
-    if (synk_management_exam_term($input['import_exam_term'] ?? null)!==$period['exam_term']) {
-        throw new DomainException('Choose '.$period['exam_term_label'].' for this attendance date.');
     }
     $fine=$twoCheckpoints ? synk_management_input_money($input['absence_fine'] ?? null) : '0.00';
     $description=$twoCheckpoints ? synk_management_input_text($input,'description',10000,false) : '';

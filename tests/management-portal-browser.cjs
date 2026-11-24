@@ -40,7 +40,7 @@ async function main() {
   let organizationContext = {}, organizationInUse = false;
   let catalogFailure = false, linkedContributions = 0, catalogTerm = '2:1';
   let attendanceStatus='NOT_STARTED',attendancePresent=0,attendanceRevision=1;
-  let cleanupEventId = 0, cleanupCorrected = false;
+  let cleanupEventId = 0, cleanupPresent = false, cleanupRevision = 2, cleanupComment = null;
   let attendanceScanFailures=1;
   let importedEventId=0;
   const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
@@ -83,12 +83,13 @@ async function main() {
             availability:{student_charges:true,payments:false,attendance:true,student_violations:false}}
         };
         if (data.template === 'EVENT' && data.action === 'attendance_past_preview') {
-          payload={status:'ok',preview:{token:'C'.repeat(64),title:'CLEAN UP DRIVE',event_date:data.event_date,period:'2026-2027 - 1st Semester - Midterm',
-            term:data.current_term,exam_term:'MIDTERM',can_import:true,attendance_status:'NOT_STARTED',present:1,absent:2,exempted:0,
+          const examLabel = data.import_exam_term === 'FINAL' ? 'Final' : 'Midterm';
+          payload={status:'ok',preview:{token:'C'.repeat(64),title:'CLEAN UP DRIVE',event_date:data.event_date,period:`2026-2027 - 1st Semester - ${examLabel}`,
+            term:data.current_term,exam_term:data.import_exam_term,can_import:true,attendance_status:'NOT_STARTED',present:1,absent:2,exempted:0,
             absence_fine:data.absence_fine,workbook_counts:{complete:1,one_entry:1,blank:1},
             review:{unmatched:[],ambiguous:[],duplicates:[],problems:[{cells:['E9'],reason:'Enter a student ID in the attendance cell.'}]}}};
         } else if (data.template === 'EVENT' && data.action === 'attendance_past_save') {
-          payload={status:'ok',recorded:1,event_id:321,term:data.current_term,exam_term:'MIDTERM',attendance_status:'CLOSED',
+          payload={status:'ok',recorded:1,event_id:321,term:data.current_term,exam_term:data.import_exam_term,attendance_status:'CLOSED',
             present:1,absent:2,exempted:0,absence_fine:data.absence_fine};
         } else if (data.action === 'attendance_past_preview') {
           const corrected = data.workbook === 'FRC corrected.xlsx';
@@ -108,15 +109,19 @@ async function main() {
             events:[{event_id:importedEventId,title:'FLAG RAISING CEREMONY QA',event_date:'2026-10-10',contribution_count:0}]};
         } else if (data.action === 'attendance_roster') {
           const cleanup = Number(data.event_id) === cleanupEventId;
-          const present = !cleanup || cleanupCorrected;
-          payload={status:'ok',roster:{page:1,pages:1,total:1,revision:cleanup ? (present ? '3' : '2') : String(attendanceRevision),
+          const present = !cleanup || cleanupPresent;
+          payload={status:'ok',roster:{page:1,pages:1,total:1,revision:String(cleanup ? cleanupRevision : attendanceRevision),
             rows:[{student_id:1234,student_number:'20261123',student_name:'JUAN DELA CRUZ',checked_in:cleanup ? true : null,
-              checked_out:cleanup ? present : null,attendance_status:present ? 'PRESENT' : 'ABSENT',correction_reason:cleanupCorrected ? 'PAPER OUT LOG VERIFIED' : null}]}};
+              checked_out:cleanup ? false : null,attendance_status:present ? 'PRESENT' : 'ABSENT',correction_reason:cleanup ? cleanupComment : null}]}};
         } else if (Number(data.event_id) === cleanupEventId && ['attendance_get','attendance_correct'].includes(data.action)) {
-          if (data.action === 'attendance_correct') cleanupCorrected = true;
+          if (data.action === 'attendance_correct') {
+            cleanupPresent = data.corrected_status === 'PRESENT';
+            cleanupComment = data.reason;
+            cleanupRevision++;
+          }
           payload={status:'ok',corrected:data.action==='attendance_correct',attendance:{event_id:cleanupEventId,title:'CLEAN UP DRIVE QA',event_date:'2026-11-12',absence_fine:'25.00',
             attendance_status:'CLOSED',two_checkpoints:true,opened_at:'2026-11-24 14:56:00',closed_at:'2026-11-24 14:56:31',
-            revision:cleanupCorrected?'3':'2',eligible:2,present:cleanupCorrected?2:1,absent:cleanupCorrected?0:1,exempted:0,recent:[]}};
+            revision:String(cleanupRevision),eligible:2,present:cleanupPresent?2:1,absent:cleanupPresent?0:1,exempted:0,recent:[]}};
         } else if(data.action.startsWith('attendance_')){
           if(data.action==='attendance_scan' && attendanceScanFailures-- > 0){
             call('Fetch.fulfillRequest',{requestId:msg.params.requestId,responseCode:503,responseHeaders:[{name:'Content-Type',value:'application/json'}],body:Buffer.from(JSON.stringify({status:'error',message:'Temporary attendance connection failure. Scan again.'})).toString('base64')},msg.sessionId).catch(e=>errors.push(e.message));return;
@@ -225,6 +230,8 @@ async function main() {
     await evaluate(`(() => {
       const form = document.getElementById('past-attendance-form');
       form.elements.title.value = 'Clean Up Drive';
+      form.elements.import_exam_term.value = 'FINAL';
+      form.elements.import_exam_term.dispatchEvent(new Event('change', {bubbles:true}));
       form.elements.event_date.value = '2026-10-24';
       form.elements.event_date.dispatchEvent(new Event('change', {bubbles:true}));
       form.elements.template.value = 'EVENT';
@@ -235,18 +242,20 @@ async function main() {
       form.requestSubmit();
     })()`);
     await until('document.getElementById("past-attendance-save").textContent==="Save closed attendance"');
-    check(!catalogRequests.some(row=>row.template==='EVENT' && row.action==='attendance_past_save') && await evaluate('document.getElementById("past-attendance-summary").textContent.includes("1 present, 2 absent") && document.getElementById("past-attendance-summary").textContent.includes("25.50") && document.querySelector("#past-attendance-issues li").textContent.includes("E9")'),
-      'CUD saved automatically or failed to show the preview counts, fine, and workbook issue.');
+    const eventPreview=catalogRequests.find(row=>row.template==='EVENT' && row.action==='attendance_past_preview');
+    check(eventPreview.import_exam_term==='FINAL' && !catalogRequests.some(row=>row.template==='EVENT' && row.action==='attendance_past_save')
+      && await evaluate('document.getElementById("past-attendance-summary").textContent.includes("Final") && document.getElementById("past-attendance-summary").textContent.includes("1 present, 2 absent") && document.getElementById("past-attendance-summary").textContent.includes("25.50") && document.querySelector("#past-attendance-issues li").textContent.includes("E9")'),
+      'The preview ignored the selected Final term, saved automatically, or omitted import details.');
     await evaluate('document.getElementById("past-attendance-form").requestSubmit()');
     await until('!document.getElementById("past-attendance-event-link").hidden');
     const cudSaved=catalogRequests.find(row=>row.template==='EVENT' && row.action==='attendance_past_save');
-    check(cudSaved.confirm==='1' && cudSaved.preview_token==='C'.repeat(64) && cudSaved.event_date==='2026-10-24' && cudSaved.import_exam_term==='MIDTERM'
+    check(cudSaved.confirm==='1' && cudSaved.preview_token==='C'.repeat(64) && cudSaved.event_date==='2026-10-24' && cudSaved.import_exam_term==='FINAL'
       && cudSaved.current_term===`${cudSaved.import_ay_id}:${cudSaved.import_semester}` && cudSaved.absence_fine==='25.50'
       && await evaluate('document.getElementById("past-attendance-summary").textContent.includes("saved and closed") && new URL(document.getElementById("past-attendance-event-link").href).pathname.endsWith("/management/events.php")'),
       'Confirmed CUD import lost the date, period or fine, or linked to the wrong list.');
     await evaluate('document.querySelector("#management-past-attendance .modal-footer [data-bs-dismiss]").click()');
     await until('location.pathname.endsWith("/management/events.php") && document.readyState==="complete"');
-    check(await evaluate('(()=>{const url=new URL(location.href);return url.searchParams.get("saved_event_id")==="321" && url.searchParams.get("exam_term")==="MIDTERM" && !["event_id","search","status","page"].some(key=>url.searchParams.has(key))})()'),
+    check(await evaluate('(()=>{const url=new URL(location.href);return url.searchParams.get("saved_event_id")==="321" && url.searchParams.get("exam_term")==="FINAL" && !["event_id","search","status","page"].some(key=>url.searchParams.has(key))})()'),
       'Closing a saved import did not reopen the complete selected-period list with the newly saved event first.');
     await navigate('imported_event_default');
     catalogTerm = await evaluate('JSON.parse(document.getElementById("management-config").textContent).term');
@@ -262,20 +271,26 @@ async function main() {
       const roster = document.getElementById('attendance-roster'), scanner = document.querySelector('.management-attendance-reader-grid');
       const times = document.getElementById('attendance-times'), columns = document.querySelectorAll('[data-attendance-checkpoint]:not([hidden])');
       return document.querySelector('#management-attendance .modal-xl .modal-content').getBoundingClientRect().width > 900 && !roster.hidden && scanner.hidden &&
+        getComputedStyle(document.querySelector('.management-attendance-camera-column')).display === 'none' &&
         columns.length === 2 && times.getBoundingClientRect().bottom < roster.getBoundingClientRect().top &&
         !times.textContent.includes('—') && roster.textContent.includes('Missing');
     })()`), 'Closed CUD attendance did not show the wide roster and top timestamps without the scanner.');
     await screenshot('management-closed-attendance-review.png');
     await evaluate('document.querySelector("[data-correct-attendance]").click()');
-    check(await evaluate('document.getElementById("attendance-correction-in").checked && !document.getElementById("attendance-correction-out").checked && document.getElementById("attendance-correction-reason").required'), 'The correction editor did not display the student checkpoints or require evidence.');
+    check(await evaluate('document.getElementById("attendance-correction-status").value==="ABSENT" && document.getElementById("attendance-correction-in").checked && !document.getElementById("attendance-correction-out").checked && document.getElementById("attendance-correction-reason").required'), 'The correction editor did not display the status and checkpoints or require a comment.');
     await resize(390,780);
     check(await evaluate('document.documentElement.scrollWidth<=innerWidth && document.getElementById("attendance-correction").getBoundingClientRect().right<=innerWidth'), 'The correction form overflows on mobile.');
-    await evaluate('document.getElementById("attendance-correction-out").click();document.getElementById("attendance-correction-reason").value="Paper OUT log verified";document.getElementById("attendance-correction").requestSubmit()');
+    await evaluate('document.getElementById("attendance-correction-status").value="PRESENT";document.getElementById("attendance-correction-reason").value="Paper OUT log verified";document.getElementById("attendance-correction").requestSubmit()');
     await until('document.querySelector("#attendance-roster-rows .badge")?.textContent==="Present"');
     const correction = catalogRequests.find(row=>row.action==='attendance_correct');
-    check(correction.event_id===String(cleanupEventId) && correction.checked_in==='1' && correction.checked_out==='1' && correction.attendance_revision==='2'
-      && correction.reason==='Paper OUT log verified' && await evaluate('document.getElementById("attendance-present").textContent==="2" && document.getElementById("attendance-status").textContent==="Closed"'),
+    check(correction.event_id===String(cleanupEventId) && correction.corrected_status==='PRESENT' && !('checked_in' in correction) && !('checked_out' in correction) && correction.attendance_revision==='2'
+      && correction.reason==='Paper OUT log verified' && await evaluate('document.getElementById("attendance-present").textContent==="2" && document.getElementById("attendance-status").textContent==="Closed" && document.getElementById("attendance-roster-rows").textContent.includes("Paper OUT log verified")'),
       'The correction lost its evidence, changed the event state, or missed updated totals.');
+    await evaluate('document.querySelector("[data-correct-attendance]").click();document.getElementById("attendance-correction-status").value="ABSENT";document.getElementById("attendance-correction-reason").value="Wrong event";document.getElementById("attendance-correction").requestSubmit()');
+    await until('document.querySelector("#attendance-roster-rows .badge")?.textContent==="Absent"');
+    check(catalogRequests.some(row=>row.action==='attendance_correct' && row.corrected_status==='ABSENT' && row.attendance_revision==='3' && row.reason==='Wrong event')
+      && await evaluate('document.getElementById("attendance-present").textContent==="1" && document.getElementById("attendance-roster-rows").textContent.includes("Wrong event")'),
+      'Changing Present to Absent did not send or display the new correction comment.');
     await resize(1440);
     await navigate('imported_event_default');
     check(await evaluate('document.querySelector("[data-event-row]").textContent.includes("FLAG RAISING CEREMONY QA") && document.querySelector("[data-event-row]").dataset.eventExamTerm==="MIDTERM" && document.querySelector("[data-event-attendance-status]").textContent.trim()==="Closed" && document.querySelectorAll("[data-event-row]").length===1 && JSON.parse(document.getElementById("management-config").textContent).exam_term==="FINAL"'),
@@ -459,7 +474,7 @@ async function main() {
   await evaluate('document.querySelector("[data-attendance]:not([data-attendance-mode])").click()');await until('document.getElementById("attendance-result").textContent.includes("Attendance recorded")');
   check(catalogRequests.some(row=>row.action==='attendance_scan'&&row.qr_code==='SYNK-ATTENDANCE:'+'a7'.repeat(32)),'Camera did not decode and submit the student QR.');
   check(catalogRequests.filter(row=>row.action==='attendance_scan').length===2,'The camera did not retry the same QR after a failed save.');
-  check(await evaluate('document.getElementById("attendance-recorded-at").textContent.includes("2026-10-27 09:30:00") && document.getElementById("attendance-student-photo").getAttribute("src")==="../student/profile-placeholder.svg" && document.getElementById("attendance-student-name").textContent==="JUAN DELA CRUZ" && document.getElementById("attendance-camera-status").textContent.includes("Ready to scan")'),'Saved attendance did not show photo, name, time and live camera status.');
+  check(await evaluate('document.getElementById("attendance-recorded-at").textContent.includes("2026-10-27 09:30:00") && document.getElementById("attendance-student-photo").getAttribute("src")==="../student/profile-placeholder.svg" && document.getElementById("attendance-student-name").textContent==="JUAN DELA CRUZ" && document.getElementById("attendance-camera-status").textContent.includes("Ready to scan") && document.getElementById("attendance-camera-status").getClientRects().length>0'),'Saved attendance did not show photo, name, time and live camera status.');
   await until('!document.getElementById("attendance-camera-picker").hidden && document.getElementById("attendance-camera-device").options.length===2');
   await evaluate('window.oldAttendanceCamera=attendanceTestStream;document.getElementById("attendance-camera-device").value="back";document.getElementById("attendance-camera-device").dispatchEvent(new Event("change"))');
   await until('attendanceTestStream!==oldAttendanceCamera && document.getElementById("attendance-camera-status").textContent.includes("Ready to scan")');
@@ -499,7 +514,7 @@ async function main() {
   check(await evaluate('document.querySelector("[data-event-attendance-label]").textContent==="Closed" && document.querySelector("[data-event-attendance-status]").dataset.eventAttendanceStatus==="CLOSED"'),'Closing attendance did not update the table status.');
   check(await evaluate('document.querySelector("[data-event-attendance-action-label]").textContent==="View attendance"'),'A closed event still invites users to take attendance.');
   check(await evaluate('(()=>{const button=document.querySelector("[data-event-attendance-status]"),status=document.createElement("span");status.className="management-event-attendance-state";status.dataset.eventAttendanceStatus="CLOSED";button.after(status);const red=getComputedStyle(status).color==="rgb(180, 69, 69)";status.dataset.eventAttendanceStatus="OPEN";const green=getComputedStyle(status).color==="rgb(40, 121, 76)";status.remove();return red&&green})()'),'View-only attendance status lost its open/closed colors.');
-  check(await evaluate('document.getElementById("attendance-code").disabled && document.getElementById("attendance-code-submit").disabled && document.getElementById("attendance-camera-device").disabled'),'Closed attendance still enables scanner inputs.');
+  check(await evaluate('document.getElementById("attendance-code").disabled && document.getElementById("attendance-code-submit").disabled && document.getElementById("attendance-camera-device").disabled && document.getElementById("attendance-camera-status").getClientRects().length===0'),'Closed attendance still exposes the scanner or readiness message.');
   await evaluate('document.getElementById("attendance-confirm").checked=true;document.getElementById("attendance-confirm").dispatchEvent(new Event("change"));document.getElementById("attendance-state-change").click()');await until('document.getElementById("attendance-status").textContent==="Open"');
   await evaluate('document.querySelector("#management-attendance [data-bs-dismiss]").click()');await delay(350);
   await evaluate('window.attendanceStreamsBeforeManage=attendanceTestStreams.length;document.querySelector("[data-attendance-mode=manage]").click()');
