@@ -60,7 +60,7 @@ try{
   synk_management_require_permission($db,$scope,$kind);
   foreach(['setup','officers','attendance','payments','records']as$op)$reject(static function()use($db,$scope,$op){synk_management_require_permission($db,$scope,$op);},$kind.' manager accessed '.$op);
   foreach(['contributions','events','violations']as$otherKind)if($otherKind!==$kind){$reject(static function()use($db,$scope,$otherKind){synk_management_require_permission($db,$scope,$otherKind);},'Management permission exposed another catalog.');$reject(static function()use($write,$otherKind,$input){$write($otherKind,'save',$input([]));},'Management permission authorized another catalog write.');}
-  $payload=$input(['title'=>$tag.' CATALOG','violation_type'=>$tag.' CATALOG','contribution_date'=>date('Y-m-d'),'event_date'=>date('Y-m-d'),'amount'=>'15','absence_fine'=>'5']);
+  $payload=$input(['title'=>$tag.' CATALOG','violation_type'=>$tag.' CATALOG','contribution_date'=>date('Y-m-d'),'event_date'=>date('Y-m-d'),'amount'=>'15','absence_fine'=>'5','confirm'=>'1']);
   $id=$write($kind,'save',$payload)['record_id'];$record=$get($kind,$id);
   $check(($record['title'] ?? $record['violation_type'])===strtoupper($tag.' CATALOG'),'Officer could not add '.$kind);
   $payload['record_id']=(string)$id;$payload['version']=$record['version'];$payload['title']=$payload['violation_type']=$tag.' UPDATED';$write($kind,'save',$payload);$record=$get($kind,$id);

@@ -6,7 +6,7 @@ $isEvents=$page==='events' || $isFlagRaising;
 $singular=synk_management_catalog_kind($page)['label'];
 $canWrite=$permissions[$isEvents?'manage_events':'manage_contributions']
     && ($isFlagRaising ? $term['key']===$currentTerm['key'] : $term['period_key']===$currentTerm['period_key']);
-$canDelete=$isFlagRaising ? $permissions['delete_flag_raising'] : $canWrite;
+$canDelete=$isFlagRaising ? $permissions['delete_event_records'] : $canWrite;
 $canRecordPastAttendance=$isEvents && $term['key']===$currentTerm['key'] && $permissions['manage_events'] && $permissions['attendance'];
 $statusOptions = synk_management_catalog_status_options($page);
 $stats = [['total','Records in this view','bx-list-ul','primary'],['active_count','Active','bx-check-circle','success'],['inactive_count','Inactive','bx-minus-circle','secondary']];
@@ -108,10 +108,10 @@ $catalogUrl = static function (array $changes = []) use ($pageUrl,$page,$filters
       <div class="alert alert-danger" id="management-delete-error" role="alert" hidden></div>
       <p>Delete <strong id="management-delete-name"></strong>?</p>
       <p class="small text-muted mb-0" id="management-delete-explanation"></p>
-      <?php if ($isFlagRaising): ?>
+      <?php if ($isEvents): ?>
         <div class="form-check mt-3">
-          <input class="form-check-input" type="checkbox" id="management-delete-ceremony-confirmation">
-          <label class="form-check-label" for="management-delete-ceremony-confirmation">I confirm permanent deletion of this ceremony and its records.</label>
+          <input class="form-check-input" type="checkbox" id="management-delete-event-confirmation">
+          <label class="form-check-label" for="management-delete-event-confirmation">I confirm permanent deletion of this <?= $isFlagRaising ? 'ceremony' : 'event' ?> and its connected records.</label>
         </div>
       <?php endif; ?>
     </div>

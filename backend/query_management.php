@@ -96,6 +96,11 @@ try {
             || !($kind==='flag_raising' ? synk_management_same_academic_semester($record,$view) : synk_management_catalog_in_period($record,$view))) {
             throw new OutOfBoundsException('This record is unavailable in the selected Management period.');
         }
+        if (in_array($kind,['events','flag_raising'],true) && ($_POST['for_delete'] ?? '')==='1') {
+            $permissions=synk_management_require_permission($conn,$scope,'manage_events');
+            $details=synk_management_event_deletion_details($conn,$scope,$record,$permissions);
+            $record['delete_block']=$details['block_message'];
+        }
         synk_management_response(['status'=>'ok','record'=>$record]);
     }
     $result = synk_management_catalog_write($conn,$scope,$kind,$action,$_POST);

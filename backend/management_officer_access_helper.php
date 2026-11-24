@@ -83,7 +83,7 @@ function synk_management_permissions(mysqli $conn,array $scope): array
         || (int)$account['management_organization_id']!==(int)$scope['organization_id'] || (int)$account['management_college_id']!==(int)$scope['college_id'])throw new SynkManagementPermissionDenied('Your Management access changed. Sign in again.');
     $grant=synk_management_officer_record($conn,(int)$account['user_id']);
     $permissions=['is_officer'=>(bool)$grant,'setup'=>!$grant,'officers'=>!$grant && synk_management_faculty_supervisor($conn,$account),'student_id'=>(int)($grant['student_id'] ?? 0)];
-    $permissions['delete_flag_raising']=!$grant && ($permissions['officers'] || synk_useraccount_has_active_role($conn,$account,'admin'));
+    $permissions['delete_event_records']=!$grant && ($permissions['officers'] || synk_useraccount_has_active_role($conn,$account,'admin'));
     foreach(synk_management_operation_labels() as $operation=>$label)$permissions[$operation]=!$grant || !empty($grant['can_'.$operation]);
     return $permissions;
 }

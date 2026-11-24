@@ -321,12 +321,56 @@ function synk_management_session_payload(array $sessions, array $event, array $e
     return $result;
 }
 
+function synk_management_event_deletion_details(mysqli $conn, array $scope, array $event, array $permissions): array
+{
+    require_once __DIR__.'/management_payment_read_helper.php';
+    $id=(int)$event['event_id'];
+    $linked=synk_management_query($conn,'SELECT contribution_id,organization_id FROM tbl_management_contributions WHERE college_id=? AND event_id=?',
+        'ii',[$scope['college_id'],$id]);
+    $contributionIds=array_map('intval',array_column($linked,'contribution_id'));
+    $hasAttendance=synk_table_exists($conn,'tbl_management_attendance_events')
+        && synk_management_query($conn,'SELECT 1 FROM tbl_management_attendance_events WHERE event_id=?','i',[$id]);
+    $hasExemptions=synk_table_exists($conn,'tbl_management_exemptions')
+        && synk_management_query($conn,'SELECT 1 FROM tbl_management_exemptions WHERE event_id=? OR source_event_id=? LIMIT 1','ii',[$id,$id]);
+    $requiresSupervisor=synk_management_is_flag_raising($event) || $linked || $hasAttendance || $hasExemptions;
+    $permissionDenied=$requiresSupervisor && !$permissions['delete_event_records'];
+    $message='';
+    if ($permissionDenied) {
+        $message='A Management administrator or faculty supervisor must delete this event and its connected records.';
+    } elseif (array_diff(array_column($linked,'organization_id'),[$scope['organization_id']])) {
+        $message='A linked contribution belongs to another organization. Review that link before deleting.';
+    } elseif (synk_management_payments_ready($conn) && synk_management_query($conn,
+        'SELECT 1 FROM tbl_management_payment_items i LEFT JOIN tbl_management_contributions c ON c.contribution_id=i.contribution_id
+         WHERE i.event_id=? OR (c.college_id=? AND c.event_id=?) LIMIT 1','iii',[$id,$scope['college_id'],$id])) {
+        $message='This event or a linked contribution has recorded payments. Its records are needed for the receipts.';
+    }
+    return ['contribution_ids'=>$contributionIds,'permission_denied'=>$permissionDenied,'block_message'=>$message];
+}
+
+function synk_management_delete_event_records(mysqli $conn, array $scope, int $eventId, array $contributionIds): void
+{
+    foreach (['tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_attendance_roster','tbl_management_attendance_events'] as $table) {
+        if (synk_table_exists($conn,$table)) synk_management_execute($conn,'DELETE FROM '.$table.' WHERE event_id=?','i',[$eventId]);
+    }
+    if (synk_table_exists($conn,'tbl_management_exemptions')) {
+        $sql='DELETE FROM tbl_management_exemptions WHERE college_id=? AND organization_id=? AND (event_id=? OR source_event_id=?';
+        if ($contributionIds) $sql.=' OR contribution_id IN ('.implode(',',array_fill(0,count($contributionIds),'?')).')';
+        synk_management_execute($conn,$sql.')','iiii'.str_repeat('i',count($contributionIds)),
+            array_merge([$scope['college_id'],$scope['organization_id'],$eventId,$eventId],$contributionIds));
+    }
+    if ($contributionIds) {
+        synk_management_execute($conn,'DELETE FROM tbl_management_contributions WHERE college_id=? AND organization_id=? AND event_id=?',
+            'iii',[$scope['college_id'],$scope['organization_id'],$eventId]);
+    }
+    synk_management_execute($conn,'DELETE FROM tbl_management_event_sessions WHERE college_id=? AND event_id=?','ii',[$scope['college_id'],$eventId]);
+}
+
 function synk_management_catalog_write(mysqli $conn, array $scope, string $kind, string $action, array $input): array
 {
     $meta = synk_management_catalog_kind($kind);
     $flagRaising=$kind==='flag_raising';
-    $deleteCeremony=$flagRaising && $action==='delete';
     $isEvents=$meta['table']==='tbl_management_events';
+    $deleteEvent=$isEvents && $action==='delete';
     if (!in_array($action,['save','delete'],true)) throw new DomainException('Choose a valid action.');
     $id = synk_management_input_id($input['record_id'] ?? '',true);
     if ($action === 'delete' && !$id) throw new DomainException('Choose a record to delete.');
@@ -335,57 +379,46 @@ function synk_management_catalog_write(mysqli $conn, array $scope, string $kind,
         // Lock current assignment before the record so a simultaneous reassignment cannot widen a write.
         synk_management_lock_assignment($conn,$scope);
         $permissions=synk_management_require_permission($conn,$scope,$flagRaising?'manage_events':'manage_'.$kind);
-        if ($deleteCeremony && !$permissions['delete_flag_raising']) {
-            throw new SynkManagementPermissionDenied('A Management administrator or faculty supervisor must delete this ceremony.');
-        }
-        if ($deleteCeremony && ($input['confirm'] ?? '')!=='1') throw new DomainException('Confirm the permanent deletion of this ceremony.');
+        if ($deleteEvent && ($input['confirm'] ?? '')!=='1') throw new DomainException('Confirm the permanent deletion of this event and its connected records.');
         $currentTerm = synk_management_lock_current_term($conn,$input,$scope);
         $existing = $id ? synk_management_catalog_get($conn,$scope,$kind,$id,true) : null;
         if ($existing && $kind==='events' && synk_management_is_flag_raising($existing)) throw new OutOfBoundsException('Open Flag Raising Ceremony to change this record.');
         $attendance = null;
-        if ($isEvents && $existing && synk_table_exists($conn,'tbl_management_attendance_events')) {
+        if ($isEvents && !$deleteEvent && $existing && synk_table_exists($conn,'tbl_management_attendance_events')) {
             $attendance=synk_management_query($conn,'SELECT attendance_status FROM tbl_management_attendance_events WHERE event_id=? FOR UPDATE','i',[$id])[0] ?? null;
         }
         $editImported = $existing && $kind==='events' && $action==='save'
             && synk_management_imported_attendance_editable($existing,$currentTerm,$attendance['attendance_status'] ?? null);
         $writeTerm=$currentTerm;
-        if ($deleteCeremony) {
-            $writeTerm=['ay_id'=>(int)$existing['ay_id'],'semester'=>(int)$existing['semester'],'exam_term'=>$existing['exam_term'],
-                'key'=>$existing['ay_id'].':'.$existing['semester']];
+        if ($deleteEvent) {
+            if ($flagRaising) $writeTerm=synk_management_view_term($conn,$input,$scope);
         } elseif ($flagRaising) {
             $importedTerm=$existing && synk_management_attendance_import_template($existing)==='FRC' ? $existing['exam_term'] : null;
             $writeTerm=synk_management_attendance_date_period($currentTerm,synk_management_input_date($input['event_date'] ?? ''),$importedTerm);
         } elseif ($editImported) {
             $writeTerm=array_replace($currentTerm,['exam_term'=>$existing['exam_term']]);
         }
-        if (($input['term'] ?? ($deleteCeremony ? '' : $writeTerm['key'])) !== $writeTerm['key']
+        if (($input['term'] ?? $writeTerm['key']) !== $writeTerm['key']
                 || (!$flagRaising && ($input['exam_term'] ?? $writeTerm['exam_term']) !== $writeTerm['exam_term'])) {
             throw new SynkManagementConflict('Switch to the current Management period before saving records.');
         }
-        if ($existing) {
+        if ($existing && !$deleteEvent) {
             require_once __DIR__.'/management_payment_read_helper.php';
             if (synk_management_charge_has_payments($conn,$kind,$id)) throw new SynkManagementConflict('Payments have already been recorded for this charge. Its details must be preserved for the receipts.');
         }
         if ($existing && (!is_string($input['version'] ?? null) || !hash_equals($existing['version'],$input['version']))) throw new SynkManagementConflict('This record changed after you opened it. Reload its details before saving or deleting.');
-        if ($existing && !synk_management_catalog_in_period($existing,$writeTerm)) {
+        if ($existing && !($deleteEvent && $flagRaising ? synk_management_same_academic_semester($existing,$writeTerm) : synk_management_catalog_in_period($existing,$writeTerm))) {
             throw new SynkManagementConflict('Only records in the current Management period can be changed.');
         }
         require_once __DIR__.'/management_exemptions_helper.php';
-        $hasExemptions=!$deleteCeremony && $existing && synk_management_exemptions_ready($conn) && synk_management_query($conn,'SELECT exemption_id FROM tbl_management_exemptions WHERE '.($isEvents?'event_id':'contribution_id').'=? LIMIT 1','i',[$id]);
+        $hasExemptions=!$deleteEvent && $existing && synk_management_exemptions_ready($conn) && synk_management_query($conn,'SELECT exemption_id FROM tbl_management_exemptions WHERE '.($isEvents?'event_id':'contribution_id').'=? LIMIT 1','i',[$id]);
         if ($hasExemptions && $action==='delete') throw new SynkManagementConflict('This record has exemption history. Keep it or mark it inactive instead of deleting it.');
-        if (!$deleteCeremony && $attendance && $action==='delete') throw new SynkManagementConflict('This event has attendance records and cannot be deleted.');
         if ($action === 'delete') {
-            if ($isEvents) {
-                if ($existing['linked_contributions']) throw new SynkManagementConflict('This event is linked to contributions. Remove those event links first, or mark the event inactive.');
-                if ($deleteCeremony) {
-                    foreach (['tbl_management_attendance_logs','tbl_management_attendance_audit','tbl_management_attendance_roster','tbl_management_attendance_events'] as $table) {
-                        if (synk_table_exists($conn,$table)) synk_management_execute($conn,'DELETE FROM '.$table.' WHERE event_id=?','i',[$id]);
-                    }
-                    if (synk_table_exists($conn,'tbl_management_exemptions')) {
-                        synk_management_execute($conn,'DELETE FROM tbl_management_exemptions WHERE event_id=? OR source_event_id=?','ii',[$id,$id]);
-                    }
-                }
-                synk_management_execute($conn, 'DELETE FROM tbl_management_event_sessions WHERE college_id=? AND event_id=?', 'ii', [$scope['college_id'],$id]);
+            if ($deleteEvent) {
+                $details=synk_management_event_deletion_details($conn,$scope,$existing,$permissions);
+                if ($details['permission_denied']) throw new SynkManagementPermissionDenied($details['block_message']);
+                if ($details['block_message']!=='') throw new SynkManagementConflict($details['block_message']);
+                synk_management_delete_event_records($conn,$scope,$id,$details['contribution_ids']);
             }
             synk_management_execute($conn, 'DELETE FROM ' . $meta['table'] . ' WHERE college_id=? AND ' . $meta['key'] . '=?','ii',[$scope['college_id'],$id]);
             synk_management_audit_officer_operation($conn,$scope,'CATALOG_DELETE',['kind'=>$kind,'record_id'=>$id,'title'=>$existing['title']]);

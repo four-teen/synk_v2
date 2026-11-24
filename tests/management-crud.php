@@ -62,7 +62,23 @@ try {
         }
     }
     foreach(['delete_contribution','delete_event']as$scenario){$r=$request($scenario);$check($r['status']===200,$scenario.': deletion failed.');$events=$scenario==='delete_event';$key=$events?'event_id':'contribution_id';$table='tbl_management_'.($events?'events':'contributions');$check($find($r['after'][$table],$r['ids'][$events?'event':'contribution'],$key)===null,'Deletion retained its definition.');if($events)$check($find($r['after']['tbl_management_event_sessions'],$r['ids']['session'],'session_id')===null,'Deleting an event retained its sessions.');}
-    $invalid=['delete_linked_event'=>409,'stale_contribution'=>409,'stale_delete_event'=>409,'foreign_contribution'=>404,'contribution_other_period_get'=>404,'event_other_period_get'=>404,'old_event_status'=>422,'old_session_status'=>422,'foreign_event'=>404,'foreign_org'=>403,'unassigned_event'=>403,'foreign_event_link'=>422,
+    $cascade=$request('delete_event_records');
+    $check($cascade['status']===200,'Deleting an event with records failed: '.json_encode($cascade['response']));
+    $eventId=$cascade['ids']['event'];
+    $contributionId=$cascade['ids']['contribution'];
+    foreach (['events','event_sessions','attendance_events','attendance_roster','attendance_logs','attendance_audit','attendance_checkpoints','attendance_corrections','exemptions','contributions'] as $suffix) {
+        $table='tbl_management_'.$suffix;
+        $related=static function (array $row) use ($eventId,$contributionId,$suffix): bool {
+            return (int)($row['event_id'] ?? 0)===$eventId || (int)($row['source_event_id'] ?? 0)===$eventId
+                || (in_array($suffix,['contributions','exemptions'],true) && (int)($row['contribution_id'] ?? 0)===$contributionId);
+        };
+        $check(count(array_filter($cascade['before'][$table],$related))>0
+            && array_values(array_filter($cascade['before'][$table],static function($row)use($related){return !$related($row);}))===$cascade['after'][$table],
+            'Event deletion left related records or changed another record in '.$table);
+    }
+    $check($cascade['before']['tbl_management_student_qr_tokens']===$cascade['after']['tbl_management_student_qr_tokens'],
+        'Deleting an event removed a student’s reusable QR code.');
+    $invalid=['delete_linked_event'=>403,'delete_event_unconfirmed'=>422,'delete_event_paid'=>409,'delete_event_link_paid'=>409,'stale_contribution'=>409,'stale_delete_event'=>409,'foreign_contribution'=>404,'contribution_other_period_get'=>404,'event_other_period_get'=>404,'old_event_status'=>422,'old_session_status'=>422,'foreign_event'=>404,'foreign_org'=>403,'unassigned_event'=>403,'foreign_event_link'=>422,
         'bad_amount'=>422,'negative_amount'=>422,'large_amount'=>422,'bad_date'=>422,'bad_term'=>422,'bad_title'=>422,'bad_utf8'=>422,'bad_coordinates_event'=>422,'partial_coordinates_event'=>422,
         'bad_session'=>422,'duplicate_session'=>422,'foreign_session'=>422,'bad_csrf'=>403,'array_input'=>400,'forged_college'=>403,'forged_campus'=>403,'no_google'=>403,'no_role'=>401,'anonymous'=>401,'revoked'=>403,'reassigned'=>403,'get_method'=>405,'invalid_action'=>422,'invalid_kind'=>422,'add_organization'=>422,'duplicate_organization'=>422,'invalid_organization'=>422,
         'violation_foreign'=>404,'violation_stale'=>409,'violation_negative'=>422,'violation_precision'=>422,'violation_blank'=>422,'violation_duplicate'=>422,'violation_duplicate_legacy'=>422];
