@@ -31,6 +31,53 @@ try {
     $check(strpos($r['response'],'officers.php?')===false&&strpos($r['response'],'id="management-current-period-settings" hidden')!==false,'Officer navigation exposes delegation or period administration.');
     $r=$request('officers_viewer');$check($r['status']===200&&strpos($r['response'],'Scan attendance')===false,'Viewer received attendance collection controls.');
     $r=$request('officers_payments');$check($r['status']===200&&strpos($r['response'],'Financial overview')!==false,'Treasurer cannot access financial overviews.');
+    $r = $request('payment_corrections_dashboard');
+    $check($r['status'] === 200 && strpos($r['response'],'id="management-dashboard-payment-corrections"') !== false
+        && substr_count($r['response'],'href="payment-corrections.php?term='.rawurlencode($r['term']['key']).'&amp;exam_term=FINAL"') === 3,
+        'Assigned faculty lost the Dashboard, desktop, or mobile Payment Corrections shortcut for the viewing period.');
+    $r = $request('payment_corrections_financial');
+    $check($r['status'] === 200 && strpos($r['response'],'id="management-financial-payment-corrections"') !== false,
+        'The faculty Financial register lost its correction shortcut.');
+    $r = $request('officers_payment_corrections_hidden');
+    $check($r['status'] === 200 && strpos($r['response'],'management-payment-register') !== false
+        && strpos($r['response'],'payment-corrections.php') === false,
+        'The student treasurer lost the payment register or received the faculty correction shortcut.');
+    foreach (['officers_payment_corrections_denied','officers_payment_corrections_post_denied',
+        'payment_corrections_staff_denied','payment_corrections_foreign'] as $scenario) {
+        $r = $request($scenario);
+        $check($r['status'] === 403 && strpos($r['response'],'id="correction-search"') === false,
+            'Correction access exposed receipts outside the assigned active faculty account: '.$scenario);
+    }
+    $r = $request('payment_corrections_search');
+    $check($r['status'] === 200 && strpos($r['response'],'Matching students') !== false
+        && strpos($r['response'],'correction-student-result') !== false && strpos($r['response'],'₱87.75') !== false,
+        'Faculty receipt search did not load the assigned organization’s payment.');
+    $r = $request('payment_corrections_account');
+    $check($r['status'] === 200 && strpos($r['response'],'id="correction-editor"') !== false
+        && strpos($r['response'],'href="payment-receipt.php?payment_id=') !== false
+        && substr_count($r['response'],'data-correction-select-all') === 2 && substr_count($r['response'],'data-correction-item') === 3
+        && strpos($r['response'],'name="action" value="delete"') !== false
+        && strpos($r['response'],'action="payment-corrections.php?term='.rawurlencode($r['term']['key']).'&amp;exam_term=FINAL') !== false,
+        'Student correction detail lost the receipt groups, checkboxes, single delete action, or selected term.');
+    foreach (['payment_corrections_delete'=>'0.00','payment_corrections_delete_one'=>'25.25'] as $scenario=>$remaining) {
+        $r = $request($scenario);
+        $check($r['status'] === 303 && strpos($r['location'],'payment-corrections.php?term='.rawurlencode($r['term']['key']).'&exam_term=FINAL') === 0
+            && strpos($r['session']['management_correction_notice'] ?? '','Selected payments deleted. Reference REV-') === 0
+            && $r['correction'] === ['paid'=>[$remaining,'12.50'],'reasons'=>['Correction QA']],
+            'Faculty deletion did not remove only the checked payments and save its reason: '.$scenario);
+    }
+    $invalidCorrections = [
+        'payment_corrections_wrong_context'=>[409,'paid receipts changed'],
+        'payment_corrections_csrf'=>[403,'This form expired'],
+        'payment_corrections_reason_required'=>[422,'Enter reason'],
+        'payment_corrections_empty_selection'=>[422,'Select at least one payment'],
+    ];
+    foreach ($invalidCorrections as $scenario=>[$status,$message]) {
+        $r = $request($scenario);
+        $check($r['status'] === $status && strpos($r['response'],$message) !== false
+            && $r['correction'] === ['paid'=>['75.25','12.50'],'reasons'=>[]],
+            'An invalid deletion did not preserve receipt credits: '.$scenario);
+    }
     foreach(['contributions','events','violations']as$kind){
         $r=$request('officers_manage_'.$kind);$html=$r['response'];$check($r['status']===200&&strpos($html,'id="management-add"><')!==false,'Management-only officer cannot open/add '.$kind);
         $check(strpos($html,'officers.php?')===false&&strpos($html,'id="management-current-period-settings" hidden')!==false,'Catalog manager gained delegation or period settings.');

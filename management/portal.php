@@ -15,6 +15,7 @@ $page = $managementPage ?? 'dashboard';
 $navigation = [
     'dashboard'=>['Dashboard','index.php','bx-home-circle','College metrics and community overview','primary'],
     'financial'=>['Financial','financial.php','bx-receipt','Payment register and receipt lookup','info'],
+    'payment_corrections'=>['Payment Corrections','payment-corrections.php','bx-undo','Review and reverse student payments','warning'],
     'contributions'=>['Contributions','contributions.php','bx-wallet','Contribution setup, amounts, and records','primary'],
     'events'=>['Events','events.php','bx-calendar-event','Organization events and QR attendance','success'],
     'flag_raising'=>['Flag Raising Ceremony','flag-raising.php','bx-flag','Ceremony attendance and absence counts','success'],
@@ -27,7 +28,7 @@ $navigation = [
 ];
 if (!isset($navigation[$page])) { http_response_code(404); exit('Page not found.'); }
 try{
-    if($page==='officers')synk_management_require_permission($conn,$scope,'officers');
+    if(in_array($page,['officers','payment_corrections'],true))synk_management_require_permission($conn,$scope,$page);
     elseif(in_array($page,['students','financial'],true))synk_management_require_permission($conn,$scope,$page==='students'?'student_records':'records');
     elseif(in_array($page,['contributions','events','flag_raising','violations','reports','exemptions','student_permits'],true))synk_management_require_permission($conn,$scope,$page);
 }catch(SynkManagementPermissionDenied $error){http_response_code(403);exit(synk_management_h($error->getMessage()));}
@@ -46,6 +47,7 @@ try {
         require_once __DIR__.'/../backend/management_payment_register_helper.php';
         $paymentRegister = synk_management_payment_register($conn,$scope,$term,$currentTerm,$_GET);
     }
+    if ($page === 'payment_corrections') require __DIR__.'/payment-corrections-controller.php';
     $analytics = $page === 'dashboard' ? synk_management_analytics($conn,$scope,$term) : [];
     $collectionTotals = null;
     if ($page === 'dashboard' && synk_management_operation_allowed($permissions,'records')) {
@@ -69,7 +71,7 @@ try {
         $violations = synk_management_violations_list($conn,$scope,$_GET);
     }
     $catalog = null; $catalogOptions = null; $activityCounts = ['contributions'=>0,'events'=>0];
-    if (!in_array($page,['reports','student_permits','financial'],true) && synk_management_catalog_ready($conn)) {
+    if (!in_array($page,['reports','student_permits','financial','payment_corrections'],true) && synk_management_catalog_ready($conn)) {
         foreach (['contributions','events'] as $kind) {
             $periodValues = [$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester'],$term['exam_term']];
             $eventFilter=$kind==='events' ? ' AND NOT '.synk_management_flag_raising_sql('source_metadata') : '';
@@ -124,6 +126,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php if($page==='reports'): ?><link rel="stylesheet" href="reports.css?v=<?= (int)filemtime(__DIR__.'/reports.css') ?>"><?php endif; ?>
   <link rel="stylesheet" href="portal.css?v=<?= (int)filemtime(__DIR__.'/portal.css') ?>">
   <?php if($page==='financial'): ?><link rel="stylesheet" href="financial.css?v=<?= (int)filemtime(__DIR__.'/financial.css') ?>"><?php endif; ?>
+  <?php if($page==='payment_corrections'): ?><link rel="stylesheet" href="payment-corrections.css?v=<?= (int)filemtime(__DIR__.'/payment-corrections.css') ?>"><?php endif; ?>
   <?php if($page==='student_permits'): ?><link rel="stylesheet" href="student-permits.css?v=<?= (int)filemtime(__DIR__.'/student-permits.css') ?>"><?php endif; ?>
 </head>
 <body class="management-portal">
@@ -134,7 +137,19 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php require __DIR__ . '/navbar.php'; ?>
   <div class="content-wrapper">
   <main id="main-content" class="container-xxl flex-grow-1 container-p-y management-main">
-    <?php if(!in_array($page,['students','contributions','events','flag_raising'],true)): ?><section class="card dean-page-card management-heading"><div><p class="card-section-title management-heading-context mb-1"><span><?= synk_management_h($organizationLabel) ?> WORKSPACE</span><span aria-hidden="true">·</span><span><?= synk_management_h($scope['college_name']) ?></span></p><h1 class="dean-page-title"><?= $page === 'dashboard' ? 'Dashboard' : synk_management_h($pageTitle) ?></h1></div></section><?php endif; ?>
+    <?php if(!in_array($page,['students','contributions','events','flag_raising'],true)): ?>
+      <section class="card dean-page-card management-heading">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+          <div>
+            <p class="card-section-title management-heading-context mb-1"><span><?= synk_management_h($organizationLabel) ?> WORKSPACE</span><span aria-hidden="true">·</span><span><?= synk_management_h($scope['college_name']) ?></span></p>
+            <h1 class="dean-page-title"><?= synk_management_h($pageTitle) ?></h1>
+          </div>
+          <?php if ($page === 'dashboard' && $permissions['payment_corrections']): ?>
+            <a class="btn btn-outline-primary" id="management-dashboard-payment-corrections" href="<?= synk_management_h($pageUrl('payment-corrections.php')) ?>"><i class="bx bx-undo me-1" aria-hidden="true"></i>Payment Corrections</a>
+          <?php endif; ?>
+        </div>
+      </section>
+    <?php endif; ?>
     <?php if ($page === 'dashboard'): ?>
       <?php
       $dashboardStats = [['students','Students','bx-group','primary']];
@@ -176,6 +191,8 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
       <?php require __DIR__.'/reports-view.php'; ?>
     <?php elseif ($page === 'financial'): ?>
       <?php require __DIR__.'/financial-view.php'; ?>
+    <?php elseif ($page === 'payment_corrections'): ?>
+      <?php require __DIR__.'/payment-corrections-view.php'; ?>
     <?php elseif ($page === 'violations'): ?>
       <?php require __DIR__ . '/violations-view.php'; ?>
     <?php elseif ($page === 'students'): ?>
@@ -204,6 +221,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 <?php if ($page === 'officers'): ?><script src="officers.js?v=<?= (int)filemtime(__DIR__.'/officers.js') ?>" defer></script><?php endif; ?>
 <?php if ($page === 'reports'): ?><script src="reports.js?v=<?= (int)filemtime(__DIR__.'/reports.js') ?>" defer></script><?php endif; ?>
 <?php if ($page === 'student_permits'): ?><script src="student-permits.js?v=<?= (int)filemtime(__DIR__.'/student-permits.js') ?>" defer></script><?php endif; ?>
+<?php if ($page === 'payment_corrections'): ?><script src="payment-corrections.js?v=<?= (int)filemtime(__DIR__.'/payment-corrections.js') ?>" defer></script><?php endif; ?>
 <?php if (in_array($page,['events','flag_raising'],true)): ?><script src="../assets/vendor/libs/management-qr/jsQR.js" defer></script><script src="attendance.js?v=<?= (int)filemtime(__DIR__.'/attendance.js') ?>" defer></script><?php endif; ?>
 <?php if (!empty($canRecordPastAttendance)): ?><script src="past-attendance.js?v=<?= (int)filemtime(__DIR__.'/past-attendance.js') ?>" defer></script><?php endif; ?>
 <script src="workspace.js?v=<?= (int)filemtime(__DIR__.'/workspace.js') ?>" defer></script>

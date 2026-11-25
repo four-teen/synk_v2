@@ -2,7 +2,7 @@
 if (!isset($scope,$navigation,$page)) { http_response_code(404); exit; }
 $menuGroups = [
     'Overview'=>['dashboard'],
-    'Daily Operations'=>['financial','students','student_permits','exemptions','reports'],
+    'Daily Operations'=>['financial','payment_corrections','students','student_permits','exemptions','reports'],
     'Setup'=>['contributions','events','flag_raising','violations','officers'],
 ];
 ?>

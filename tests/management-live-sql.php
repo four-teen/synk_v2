@@ -15,6 +15,8 @@ $execute=static function(mysqli $db,string $sql): void {
     } while ($db->next_result());
 };
 $tables=['tbl_management_organizations','tbl_management_events','tbl_management_event_sessions','tbl_management_contributions','tbl_management_violations','tbl_management_student_violations','tbl_management_payments','tbl_management_payment_items','tbl_management_period_settings','tbl_management_attendance_events','tbl_management_attendance_roster','tbl_management_attendance_logs','tbl_management_student_qr_tokens','tbl_management_attendance_audit','tbl_management_officers','tbl_management_officer_audit','tbl_management_exemption_lists','tbl_management_exemption_list_members','tbl_management_exemptions','tbl_management_exemption_audit'];
+$tables[]='tbl_management_payment_reversals';
+$tables[]='tbl_management_payment_reversal_items';
 foreach (['fresh','legacy','varchar'] as $scenario) {
     $database='synk_management_sql_qa_'.bin2hex(random_bytes(8));
     if (!preg_match('/^synk_management_sql_qa_[a-f0-9]{16}$/D',$database)) throw new RuntimeException('Invalid scratch database name.');
@@ -132,6 +134,7 @@ foreach (['fresh','legacy','varchar'] as $scenario) {
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_periods.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_contribution_status.sql'));
         $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_event_periods.sql'));
+        $execute($db,file_get_contents(__DIR__.'/../backend/sql/management_payment_reversals.sql'));
         $check($snapshot()===$before,$scenario.': repeat execution changed existing data or schema.');
     } finally {
         if ($created) {

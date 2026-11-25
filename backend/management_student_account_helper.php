@@ -82,7 +82,8 @@ function synk_management_student_account(mysqli $conn,int $studentId,?string $vi
 
 function synk_management_account_money(string $amount): string
 {
-    $text=synk_management_money_text(synk_management_money_cents($amount));
+    $negative = substr($amount,0,1) === '-';
+    $text=synk_management_money_text(synk_management_money_cents($negative ? substr($amount,1) : $amount));
     [$whole,$fraction]=explode('.',$text);
-    return '₱'.preg_replace('/\B(?=(\d{3})+(?!\d))/',',',$whole).'.'.$fraction;
+    return ($negative ? '-' : '').'₱'.preg_replace('/\B(?=(\d{3})+(?!\d))/',',',$whole).'.'.$fraction;
 }

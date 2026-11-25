@@ -118,7 +118,7 @@ function synk_management_exemption_grant(mysqli $conn,array $scope,array $period
         }
         return false;
     }
-    if (synk_management_payments_ready($conn) && synk_management_query($conn,'SELECT i.payment_item_id FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id WHERE p.student_id=? AND i.'.$column.'=? LIMIT 1','ii',[$studentId,$chargeId])) {
+    if (synk_management_student_charge_has_credit($conn,$studentId,$kind,$chargeId)) {
         throw new SynkManagementConflict('A selected student has already paid part or all of this charge. A separate payment correction is required before granting an exemption.');
     }
     if ($rows) {

@@ -79,7 +79,7 @@
         summary.querySelector('[data-collection-payers]').textContent = count(data.total_students,'student');
         summary.hidden = false;
         if (search && data.rows.length) notice(matches,`${count(data.pagination.total,'student')} found`);
-        const emptyMessage = search ? 'No students with payments match your search.' : 'No student payments have been recorded for this period.';
+        const emptyMessage = search ? 'No students with payments match your search.' : 'No student accounts have remaining payment credit for this period.';
         notice(state,data.rows.length ? '' : emptyMessage);
         list.innerHTML = data.rows.map(row => `
           <details class="management-collections-student" data-collection-student="${escape(row.student_id)}">
@@ -119,12 +119,13 @@
         const receipts = data.receipts.map(receipt => `
           <li>
             <div class="management-collections-receipt-heading">
-              <div><strong>Receipt ${escape(receipt.receipt_number)}</strong><small>${escape(receipt.recorded_at)}${receipt.recorded_by ? ` · ${escape(receipt.recorded_by)}` : ''}</small></div>
+              <div><strong>Receipt ${escape(receipt.receipt_number)}</strong><small>${escape(receipt.recorded_at)}${receipt.recorded_by ? ` · ${escape(receipt.recorded_by)}` : ''}</small>
+                ${receipt.payment_state && receipt.payment_state !== 'Posted' ? `<small>${escape(receipt.payment_state)} · Originally ${money(receipt.posted_amount)}</small>` : ''}</div>
               <strong class="management-collections-paid">${money(receipt.amount)}</strong>
               <a href="payment-receipt.php?payment_id=${encodeURIComponent(receipt.payment_id)}" target="_blank" rel="noopener">View receipt</a>
             </div>
             ${receipt.items.length ? `<ul class="management-collections-items">${receipt.items.map(item =>
-              `<li><span>${escape(item.title)}</span><strong>${money(item.amount)}</strong></li>`).join('')}</ul>`
+              `<li><span>${escape(item.title)}${item.posted_amount && item.amount !== item.posted_amount ? `<small>Originally ${money(item.posted_amount)}</small>` : ''}</span><strong>${money(item.amount)}</strong></li>`).join('')}</ul>`
               : '<small class="mt-2">No itemized allocations on this receipt.</small>'}
           </li>`).join('');
         detail.innerHTML = `${categories}<ul class="management-collections-receipts" aria-label="Payment receipts">${receipts}</ul>`;

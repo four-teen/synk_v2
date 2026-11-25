@@ -177,6 +177,27 @@ function synk_management_payment_receipt(mysqli $conn,int $paymentId,?int $stude
     $rows=synk_management_query($conn,$sql,$types,$params);
     if (!$rows) throw new OutOfBoundsException('Receipt unavailable.');
     $receipt=$rows[0];$receipt['items']=synk_management_query($conn,'SELECT title,charge_amount,paid_before,amount,balance_after FROM tbl_management_payment_items WHERE payment_id=? ORDER BY payment_item_id','i',[$paymentId]);
+    $receipt['adjustments'] = [];
+    $reversed = 0;
+    $refunded = 0;
+    if (synk_management_payment_reversals_ready($conn)) {
+        $receipt['adjustments'] = synk_management_query($conn,'SELECT r.reversal_id,r.reversal_type,r.recorded_at,
+            i.title,x.amount FROM tbl_management_payment_items i
+            JOIN tbl_management_payment_reversal_items x ON x.payment_item_id=i.payment_item_id
+            JOIN tbl_management_payment_reversals r ON r.reversal_id=x.reversal_id
+            WHERE i.payment_id=? ORDER BY r.reversal_id,i.payment_item_id','i',[$paymentId]);
+        foreach ($receipt['adjustments'] as &$adjustment) {
+            $amount = synk_management_money_cents($adjustment['amount']);
+            $reversed += $amount;
+            if ($adjustment['reversal_type'] === 'REFUND') $refunded += $amount;
+            $adjustment['reference'] = synk_management_payment_reversal_reference($adjustment['reversal_type'],$adjustment['reversal_id']);
+            $adjustment['recorded_at'] = (new DateTimeImmutable($adjustment['recorded_at'],new DateTimeZone('UTC')))
+                ->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A');
+        }
+        unset($adjustment);
+    }
+    $receipt['net_amount'] = synk_management_money_text(synk_management_money_cents($receipt['amount'])-$reversed);
+    $receipt['payment_state'] = synk_management_payment_state($receipt['amount'],$receipt['net_amount'],synk_management_money_text($refunded));
     $receipt['recorded_at']=(new DateTimeImmutable($receipt['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A');
     return $receipt;
 }

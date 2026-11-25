@@ -1,0 +1,73 @@
+.payment-corrections {
+  --correction-border: #e5e9f1;
+  --correction-surface: #f7f8fc;
+}
+
+.correction-search { min-width: 0; }
+
+.correction-account-heading,
+.correction-receipt-controls,
+.correction-delete-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+}
+
+.correction-account-total { font-variant-numeric: tabular-nums; }
+
+.correction-student-result,
+.correction-receipt > summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .65rem;
+  padding: .85rem 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.correction-student-result:hover,
+.correction-receipt > summary:hover,
+.correction-receipt[open] > summary { background: var(--correction-surface); }
+.correction-receipt { border-top: 1px solid var(--correction-border); }
+.correction-receipt > summary { cursor: pointer; list-style: none; }
+.correction-receipt > summary::-webkit-details-marker { display: none; }
+.correction-receipt[open] > summary i { transform: rotate(180deg); }
+.correction-receipt-body { padding: .65rem 1.5rem .85rem; }
+.correction-receipt-controls, .correction-payment-row { min-height: 44px; }
+
+.correction-checkbox,
+.correction-payment-row {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin: 0;
+}
+
+label.correction-payment-row,
+.correction-checkbox,
+.correction-history > summary { cursor: pointer; }
+
+.correction-items { margin: .2rem 0 0; padding: 0; list-style: none; }
+.correction-items > li { border-top: 1px solid var(--correction-border); }
+.correction-payment-row .form-check-input,
+.correction-checkbox .form-check-input { flex-shrink: 0; margin: 0; }
+.correction-payment-row > span { min-width: 0; overflow-wrap: anywhere; }
+.correction-payment-row > strong { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.correction-delete { border-top: 1px solid var(--correction-border); }
+.correction-notes { min-width: 10rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.correction-student-result:focus-visible,
+.correction-receipt > summary:focus-visible,
+.correction-history > summary:focus-visible {
+  outline: 2px solid #696cff;
+  outline-offset: -2px;
+}
+
+@media (max-width: 575.98px) {
+  .correction-student-result,
+  .correction-receipt > summary,
+  .correction-receipt-body { padding-inline: 1rem; }
+  .correction-delete-actions .btn { width: 100%; }
+}

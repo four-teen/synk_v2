@@ -2,12 +2,13 @@
 require_once __DIR__.'/management_catalog_helper.php';
 require_once __DIR__.'/management_student_financial_helper.php';
 require_once __DIR__.'/management_attendance_helper.php';
+require_once __DIR__.'/management_collection_helper.php';
 
 function synk_management_report_types(array $permissions): array
 {
     $types=[];
     if(synk_management_operation_allowed($permissions,'records')){
-        $types['collection_summary']=['label'=>'Collection Summary','description'=>'Amounts actually received, separated by payment category. Split receipts are counted once in the overall total.'];
+        $types['collection_summary']=['label'=>'Collection Summary','description'=>'Net collections by payment category. Split receipts are counted once in the overall total.'];
         $types['collection_register']=['label'=>'Detailed Collections','description'=>'Receipt allocations grouped into contributions and event absence fines, with student and cashier details.'];
         $types['absence_fines']=['label'=>'Event Absence Fines','description'=>'Assessed, collected, and outstanding event absence fines for students on finalized attendance rosters.'];
     }
@@ -35,7 +36,11 @@ function synk_management_report_collections(mysqli $conn,array $scope,array $per
     if(!synk_management_payments_ready($conn))throw new RuntimeException('Payment storage is unavailable.');
     $values=synk_management_report_period_values($scope,$period);
     $where=' WHERE p.college_id=? AND p.organization_id=? AND p.ay_id=? AND p.semester=? AND p.exam_term=?';
-    $totals=synk_management_query($conn,'SELECT COUNT(*) AS receipts,COUNT(DISTINCT p.student_id) AS students,COALESCE(SUM(p.amount),0) AS collected FROM tbl_management_payments p'.$where,'iiiis',$values)[0];
+    $net = synk_management_payment_net_sql($conn);
+    $itemNet = synk_management_payment_item_net_sql($conn);
+    $totals=synk_management_query($conn,"SELECT COUNT(*) AS receipts,COUNT(DISTINCT CASE WHEN $net>0 THEN p.student_id END) AS students,
+        COALESCE(SUM($net),0) AS collected,COALESCE(SUM(p.amount),0) AS posted FROM tbl_management_payments p".$where,'iiiis',$values)[0];
+    $totals += synk_management_collection_reversal_totals($conn,$scope,$period);
     // Classify by saved allocation identity, not an editable catalog title.
     $violationReady=synk_management_student_violations_ready($conn);
     $withoutViolation=$violationReady?' AND i.student_violation_id IS NULL':'';
@@ -43,15 +48,19 @@ function synk_management_report_collections(mysqli $conn,array $scope,array $per
     $categories=['contributions'=>['label'=>'Contributions','collected'=>'0.00','receipts'=>0,'students'=>0],
         'event_fines'=>['label'=>'Event absence fines','collected'=>'0.00','receipts'=>0,'students'=>0],
         'violations'=>['label'=>'Violation fines','collected'=>$violationReady?'0.00':null,'receipts'=>$violationReady?0:null,'students'=>$violationReady?0:null]];
-    foreach(synk_management_query($conn,'SELECT '.$category.' AS category,COUNT(DISTINCT p.payment_id) AS receipts,COUNT(DISTINCT p.student_id) AS students,SUM(i.amount) AS collected FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id'.$where.' GROUP BY category','iiiis',$values)as$row){
+    foreach(synk_management_query($conn,'SELECT '.$category." AS category,COUNT(DISTINCT p.payment_id) AS receipts,
+        COUNT(DISTINCT CASE WHEN $itemNet>0 THEN p.student_id END) AS students,SUM($itemNet) AS collected
+        FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id".$where.' GROUP BY category','iiiis',$values)as$row){
         $categories[$row['category']]=['label'=>$row['category']==='unclassified'?'Unclassified allocations':$categories[$row['category']]['label'],'collected'=>$row['collected'],'receipts'=>(int)$row['receipts'],'students'=>(int)$row['students']];
     }
     $allocated=0;foreach($categories as$row)if($row['collected']!==null)$allocated+=synk_management_money_cents($row['collected']);
     $totals['allocated']=synk_management_money_text($allocated);
-    $totals['reconciled']=$allocated===synk_management_money_cents($totals['collected']);
+    $netCents = synk_management_money_cents($totals['collected']);
+    $totals['reconciled']=$allocated===$netCents && $netCents===synk_management_money_cents($totals['posted'])
+        -synk_management_money_cents($totals['voided'])-synk_management_money_cents($totals['refunded']);
     $rows=[];
-    if($details)$rows=synk_management_query($conn,'SELECT '.$category.' AS category,p.payment_id,p.receipt_number,p.student_number,p.student_name,p.recorded_at,p.recorded_by_name,i.title,i.amount,i.payment_item_id
-        FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id'.$where.' ORDER BY category,p.recorded_at,p.payment_id,i.payment_item_id','iiiis',$values);
+    if($details)$rows=synk_management_query($conn,'SELECT '.$category." AS category,p.payment_id,p.receipt_number,p.student_number,p.student_name,p.recorded_at,p.recorded_by_name,i.title,i.amount AS posted_amount,$itemNet AS amount,i.payment_item_id
+        FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id".$where.' ORDER BY category,p.recorded_at,p.payment_id,i.payment_item_id','iiiis',$values);
     foreach($rows as&$row)$row['recorded_at']=(new DateTimeImmutable($row['recorded_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Manila'))->format('M j, Y g:i A');
     unset($row);
     return ['totals'=>$totals,'categories'=>$categories,'rows'=>$rows];
@@ -89,11 +98,12 @@ function synk_management_report_absence_fines(mysqli $conn,array $scope,array $p
     $states=synk_management_query($conn,'SELECT a.attendance_status,COUNT(*) AS events FROM tbl_management_attendance_events a
         JOIN tbl_management_events e ON e.event_id=a.event_id'.$where.' GROUP BY a.attendance_status',$types,$values);
     if (synk_management_exemptions_ready($conn)) $where.=" AND NOT EXISTS (SELECT 1 FROM tbl_management_exemptions x WHERE x.event_id=a.event_id AND x.student_id=r.student_id AND x.status='ACTIVE')";
+    $itemNet = synk_management_payment_item_net_sql($conn);
     $rows=synk_management_query($conn,"SELECT a.event_id,e.title,e.event_date,s.student_id,s.student_number,CONCAT_WS(' ',s.last_name,s.first_name,NULLIF(s.middle_name,''),NULLIF(s.suffix_name,'')) AS student_name,a.absence_fine AS assessed,COALESCE(paid.amount,0) AS collected
         FROM tbl_management_attendance_events a JOIN tbl_management_events e ON e.event_id=a.event_id
         JOIN tbl_management_attendance_roster r ON r.event_id=a.event_id JOIN tbl_student_management s ON s.student_id=r.student_id
         LEFT JOIN tbl_management_attendance_logs l ON l.event_id=r.event_id AND l.student_id=r.student_id
-        LEFT JOIN (SELECT p.student_id,i.event_id,SUM(i.amount) AS amount FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id
+        LEFT JOIN (SELECT p.student_id,i.event_id,SUM($itemNet) AS amount FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id
             WHERE p.college_id=? AND p.organization_id=? AND p.ay_id=? AND p.semester=? AND p.exam_term=? AND i.event_id IS NOT NULL GROUP BY p.student_id,i.event_id) paid ON paid.student_id=r.student_id AND paid.event_id=a.event_id".$where." AND a.attendance_status='CLOSED' AND l.student_id IS NULL AND a.absence_fine>0 ORDER BY e.event_date,e.title,e.event_id,s.last_name,s.first_name,s.student_id",'iiiis'.$types,array_merge(synk_management_report_period_values($scope,$period),$values));
     $totals=['assessed'=>0,'collected'=>0,'outstanding'=>0];$students=[];$events=[];
     foreach($rows as&$row){$assessed=synk_management_money_cents($row['assessed']);$collected=synk_management_money_cents($row['collected']);$balance=max(0,$assessed-$collected);$row['outstanding']=synk_management_money_text($balance);$totals['assessed']+=$assessed;$totals['collected']+=$collected;$totals['outstanding']+=$balance;$students[$row['student_id']]=true;$events[$row['event_id']]=true;}

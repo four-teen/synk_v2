@@ -29,6 +29,7 @@ function synk_management_payment_register(mysqli $conn, array $scope, array $ter
             ? 'Choose an end date on or after the start date.' : '',
         'rows'=>[],
         'filtered_total'=>'0.00',
+        'filtered_reversed'=>'0.00',
         'pagination'=>['page'=>1,'pages'=>1,'total'=>0,'from'=>0,'to'=>0],
     ];
     if (!$register['available']) return $register;
@@ -43,10 +44,14 @@ function synk_management_payment_register(mysqli $conn, array $scope, array $ter
     // Keep the counts, cashier choices and visible receipts on the same ledger snapshot.
     $conn->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
     try {
-        $register['today_totals'] = synk_management_query($conn, 'SELECT COUNT(*) AS receipts,
-            COALESCE(SUM(p.amount),0) AS collected FROM tbl_management_payments p'
+        $daily = synk_management_query($conn, 'SELECT COUNT(*) AS receipts,
+            COALESCE(SUM(p.amount),0) AS posted FROM tbl_management_payments p'
             .$currentScope['where'].' AND p.recorded_at>=? AND p.recorded_at<?',
             $currentScope['types'].'ss',array_merge($currentScope['params'],$dayBounds))[0];
+        $daily += synk_management_collection_reversal_totals($conn,$scope,$currentTerm,$dayBounds);
+        $daily['collected'] = synk_management_money_text(synk_management_money_cents($daily['posted'])
+            -synk_management_money_cents($daily['voided'])-synk_management_money_cents($daily['refunded']));
+        $register['today_totals'] = $daily;
 
         $register['cashiers'] = synk_management_query($conn, 'SELECT latest.recorded_by, latest.recorded_by_name
             FROM (SELECT MAX(p.payment_id) AS payment_id FROM tbl_management_payments p'
@@ -81,19 +86,24 @@ function synk_management_payment_register(mysqli $conn, array $scope, array $ter
                 $params[] = $filters['cashier_id'];
             }
             $source = ' FROM tbl_management_payments p'.$where;
-            $summary = synk_management_query($conn, 'SELECT COUNT(*) AS total, COALESCE(SUM(p.amount),0) AS collected'.$source,$types,$params)[0];
+            $net = synk_management_payment_net_sql($conn);
+            $summary = synk_management_query($conn, "SELECT COUNT(*) AS total,COALESCE(SUM($net),0) AS collected,
+                COALESCE(SUM(p.amount),0) AS posted".$source,$types,$params)[0];
             $total = (int)$summary['total'];
             $pageSize = 25;
             $pages = max(1,(int)ceil($total / $pageSize));
             $page = min($page,$pages);
             $offset = ($page - 1) * $pageSize;
             if ($total > 0) {
-                $register['rows'] = synk_management_query($conn, 'SELECT p.payment_id, p.receipt_number, p.student_name,
-                    p.student_number, p.recorded_by_name, p.recorded_at, p.amount'.$source.'
+                $register['rows'] = synk_management_query($conn, "SELECT p.payment_id, p.receipt_number, p.student_name,
+                    p.student_number, p.recorded_by_name, p.recorded_at, p.amount AS posted_amount, $net AS amount".$source.'
                     ORDER BY p.recorded_at DESC, p.payment_id DESC LIMIT ? OFFSET ?',
                     $types.'ii',array_merge($params,[$pageSize,$offset]));
             }
             $register['filtered_total'] = $summary['collected'];
+            $register['filtered_reversed'] = synk_management_money_text(
+                synk_management_money_cents($summary['posted'])-synk_management_money_cents($summary['collected'])
+            );
             $register['pagination'] = [
                 'page'=>$page,'pages'=>$pages,'total'=>$total,
                 'from'=>$total ? $offset + 1 : 0,'to'=>$offset + count($register['rows']),

@@ -270,6 +270,70 @@ if (strpos($scenario,'account_')===0) {
         $handler='administrator/manage-organizations.php';
     }
 }
+if (strpos($scenario,'payment_corrections_') === 0) {
+    $handler = 'management/payment-corrections.php';
+    if ($scenario !== 'payment_corrections_staff_denied') {
+        $faculty = $clone('tbl_faculty',[],['first_name'=>'QA Faculty','last_name'=>$tag,'status'=>'active']);
+        $clone('tbl_useraccount_faculty_links',[],['user_id'=>$userId,'faculty_id'=>$faculty]);
+    }
+    $_GET['exam_term'] = 'FINAL';
+    if ($scenario === 'payment_corrections_dashboard') $handler = 'management/index.php';
+    if ($scenario === 'payment_corrections_financial') $handler = 'management/financial.php';
+    if ($scenario === 'payment_corrections_foreign') $_GET['organization_id'] = (string)$otherOrganizationId;
+    $correctionPosts = ['payment_corrections_delete','payment_corrections_delete_one','payment_corrections_reason_required',
+        'payment_corrections_empty_selection','payment_corrections_wrong_context','payment_corrections_csrf'];
+    if (in_array($scenario,array_merge(['payment_corrections_search','payment_corrections_account'],$correctionPosts),true)) {
+        require_once $root.'/backend/management_payment_correction_helper.php';
+        $clone('tbl_management_period_settings',[],['organization_id'=>$organizationId,'college_id'=>$scope['college_id'],
+            'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'current_exam_term'=>'FINAL']);
+        $term = synk_management_fetch_current_period($conn,$scope);
+        $sid = $students[0];
+        $paymentInput = ['term'=>$term['key'],'exam_term'=>$term['exam_term'],'current_term'=>$term['key'],
+            'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']];
+        $charges = [];
+        foreach (['50.00','25.25','12.50'] as $index=>$charge) {
+            $charges[] = 'C:'.synk_management_catalog_write($conn,$scope,'contributions','save',$paymentInput+[
+                'title'=>'Correction QA contribution '.($index+1),'contribution_date'=>date('Y-m-d'),'amount'=>$charge])['record_id'];
+        }
+        $pay = static function (int $student, string $amount, array $items, string $number) use ($conn,$scope,$term,$paymentInput): int {
+            $financial = synk_management_student_financial_overview($conn,$scope,$term,$student);
+            return (int)synk_management_payment_post($conn,$scope,$paymentInput+['student_id'=>$student,'amount'=>$amount,
+                'allocation_mode'=>'SELECTED','selected'=>json_encode($items),'receipt_number'=>$number,
+                'account_version'=>$financial['account_version'],'request_key'=>bin2hex(random_bytes(32))])['payment_id'];
+        };
+        $receiptNumber = $tag.'-Receipt';
+        $paymentId = $pay($sid,'75.25',array_slice($charges,0,2),$receiptNumber);
+        $otherPaymentId = $pay($sid,'12.50',[$charges[2]],$tag.'-Second');
+        if ($scenario === 'payment_corrections_search') {
+            $_GET['search'] = strtolower($receiptNumber);
+        } else {
+            $_GET['student_id'] = (string)$sid;
+        }
+        if (in_array($scenario,$correctionPosts,true)) {
+            $receipts = synk_management_correction_receipts($conn,$scope,$term,$sid);
+            $ids = array_keys($receipts[$paymentId]['items']);
+            if ($scenario === 'payment_corrections_delete_one') $ids = array_slice($ids,0,1);
+            if ($scenario === 'payment_corrections_empty_selection') $ids = [];
+            $_SESSION['management_csrf_token'] = 'correction-qa';
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_POST = ['action'=>'delete','csrf_token'=>$scenario === 'payment_corrections_csrf' ? 'invalid' : 'correction-qa',
+                'reason'=>$scenario === 'payment_corrections_reason_required' ? ' ' : 'Correction QA',
+                'selection'=>json_encode($ids),'request_key'=>bin2hex(random_bytes(32)),
+                'receipt_version'=>synk_management_correction_version(synk_management_correction_context($scope,$term,$sid),$receipts)];
+            if ($scenario === 'payment_corrections_wrong_context') {
+                $pay($students[1],'50.00',[$charges[0]],$tag.'-DifferentStudent');
+                $_GET['student_id'] = (string)$students[1];
+            }
+            $correctionState = static function () use ($conn,$scope,$term,$sid,$paymentId,$otherPaymentId): array {
+                return [
+                    'paid'=>[synk_management_payment_receipt($conn,$paymentId,$sid)['net_amount'],
+                        synk_management_payment_receipt($conn,$otherPaymentId,$sid)['net_amount']],
+                    'reasons'=>array_column(synk_management_correction_history($conn,$scope,$term,$sid),'reason'),
+                ];
+            };
+        }
+    }
+}
 if(strpos($scenario,'officers_')===0){
     require_once $root.'/backend/management_officers_helper.php';
     $faculty=$clone('tbl_faculty',[],['first_name'=>'QA Faculty','last_name'=>$tag,'status'=>'active']);
@@ -279,7 +343,8 @@ if(strpos($scenario,'officers_')===0){
     $flags=['can_view'=>'1','can_attendance'=>'0','can_payments'=>'0'];
     if($scenario==='officers_page')$flags['can_manage_events']='1';
     if(in_array($scenario,['officers_attendance','officers_financial_denied'],true))$flags=['can_view'=>'0','can_attendance'=>'1','can_payments'=>'0'];
-    if($scenario==='officers_payments')$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'1'];
+    if(in_array($scenario,['officers_payments','officers_payment_corrections_hidden','officers_payment_corrections_denied',
+        'officers_payment_corrections_post_denied'],true))$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'1'];
     if(strpos($scenario,'officers_manage_')===0){$managedKind=substr($scenario,16);$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'0','can_manage_'.$managedKind=>'1'];}
     if(($managedKind ?? '')==='events')$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
     synk_management_officer_write($conn,$scope,'officer_save',$flags+['student_id'=>(string)$sid,'expires_on'=>date('Y-m-d',strtotime('+30 days')),'current_term'=>$term['key'],'current_exam_term'=>$term['exam_term'],'current_period_version'=>$term['period_version']]);
@@ -311,6 +376,13 @@ if(strpos($scenario,'officers_')===0){
         if($scenario==='officers_attendance'||$scenario==='officers_viewer')$handler='management/events.php';
         if($scenario==='officers_payments'){$handler='management/students.php';$_GET['search']=$tag;}
         if($scenario==='officers_financial_denied')$handler='management/financial.php';
+        if($scenario==='officers_payment_corrections_hidden')$handler='management/financial.php';
+        if(in_array($scenario,['officers_payment_corrections_denied','officers_payment_corrections_post_denied'],true))$handler='management/payment-corrections.php';
+        if($scenario==='officers_payment_corrections_post_denied'){
+            $_SERVER['REQUEST_METHOD']='POST'; $_GET['student_id']=(string)$students[1];
+            $_SESSION['management_csrf_token']='correction-qa';
+            $_POST=['action'=>'delete','csrf_token'=>'correction-qa','selection'=>'[1]','reason'=>'Officer test'];
+        }
         if(isset($managedKind))$handler='management/'.$managedKind.'.php';
     }
 }
@@ -438,7 +510,8 @@ $take=static function () use($conn,$tag):array {
         'roles'=>$conn->query("SELECT r.* FROM tbl_useraccount_roles r JOIN tbl_useraccount u ON u.user_id=r.user_id WHERE u.username='".$tag."' ORDER BY r.account_role_id")->fetch_all(MYSQLI_ASSOC)];
 };
 $before=$take();
-register_shutdown_function(static function()use($conn,$take,$before,$scope,$otherScope,$userId,$tag,$baseline,$term,&$result,$scenario):void {
+$correctionState = $correctionState ?? null;
+register_shutdown_function(static function()use($conn,$take,$before,$scope,$otherScope,$userId,$tag,$baseline,$term,&$result,$scenario,$correctionState):void {
     $body='';while(ob_get_level()>0)$body=ob_get_clean().$body;
     $location='';foreach(headers_list()as$header)if(stripos($header,'Location:')===0)$location=substr($header,10);
     try {
@@ -446,6 +519,7 @@ register_shutdown_function(static function()use($conn,$take,$before,$scope,$othe
         $decoded=json_decode($body,true); if($scenario==='account_load' && is_array($decoded)) $decoded['accounts']=array_values(array_filter($decoded['accounts'],static function($a)use($userId){return (int)$a['id']===$userId;}));
         $data=['response'=>$result ?? ($decoded ?? $body),'status'=>http_response_code()?:200,'location'=>$location,'before'=>$before,'after'=>$after,'session'=>$session,
             'scope'=>$scope,'other_scope'=>$otherScope,'baseline'=>$baseline,'term'=>$term,'tag'=>$tag];
+        if ($correctionState) $data['correction'] = $correctionState();
         $conn->discardFixtures();if(session_status()===PHP_SESSION_ACTIVE)session_destroy();header_remove();http_response_code(200);
         if (defined('SYNK_MANAGEMENT_QA_RENDER') && is_string($data['response']) && strpos($data['response'],'<!DOCTYPE html>')!==false) {
             header('Content-Type: text/html; charset=utf-8');
