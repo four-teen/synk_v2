@@ -101,9 +101,8 @@ Review allocation shows the proposed amounts before Record payment commits them.
 
 Payments and their allocations commit together. Organization/period locks and a
 balance version reject stale updates; a unique request key makes network retries
-idempotent. Paid contributions cannot be edited/deleted, and attendance with paid
-absence fines cannot reopen. A future reversal/refund workflow must explicitly
-handle those cases rather than silently changing collected amounts.
+idempotent. Contributions with original payment records cannot be edited or deleted.
+Attendance with original absence-fine payment records cannot reopen.
 
 Every payment snapshots the student identity, organization, period, cashier and
 itemized balances into a printable receipt. Management shows its selected-period
@@ -111,6 +110,30 @@ receipts inside Financial overview. My Finances shows the student's own receipt
 history across periods, while its summary totals remain for current periods.
 Receipt URLs check student ownership or the cashier's assigned organization.
 Total to pay is light red while outstanding and light green when settled.
+
+### Payment corrections
+
+Apply `backend/sql/management_payment_reversals.sql` to an existing Management
+database. Fresh installations include the same two tables in
+`management_live_install.sql`.
+
+Sign in to Management with the assigned faculty supervisor’s Google account.
+Open **Payment Corrections** from the Dashboard, the Financial page, or the
+**More** menu on a phone. The page uses the faculty supervisor’s Management
+organization. The Management viewing period in the header sets the academic year,
+semester, and term.
+
+Search for the student by name, student ID, or receipt number. Open a receipt
+and check individual paid items or choose **Select all payments on this receipt**.
+Enter a reason and click **Delete selected payments**. This reverses the remaining
+credit on each checked item. Student officers retain their delegated collection
+permissions.
+
+The correction records the original receipt links, its reason, faculty supervisor,
+and timestamp. The directory, student account, and collection reports use the
+credit remaining after corrections. The Financial register applies daily
+corrections on the date they were recorded in Philippine time. Tests for the
+correction ledger are in `tests/management-payment-corrections.php`.
 
 Attendance uses the event's **Take attendance** action. It is available only for
 active events in the current Management period, on or after the event date.

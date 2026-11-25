@@ -10,6 +10,21 @@ function synk_management_collection_receipt_scope(array $scope, array $period): 
     ];
 }
 
+function synk_management_collection_reversal_totals(mysqli $conn, array $scope, array $period, array $dayBounds = []): array
+{
+    if (!synk_management_payment_reversals_ready($conn)) return ['voided'=>'0.00','refunded'=>'0.00'];
+    $source = synk_management_collection_receipt_scope($scope,$period);
+    if ($dayBounds) {
+        $source['where'] .= ' AND p.recorded_at>=? AND p.recorded_at<?';
+        $source['types'] .= 'ss';
+        $source['params'] = array_merge($source['params'],$dayBounds);
+    }
+    return synk_management_query($conn,"SELECT
+        COALESCE(SUM(CASE WHEN p.reversal_type='VOID' THEN p.amount END),0) AS voided,
+        COALESCE(SUM(CASE WHEN p.reversal_type='REFUND' THEN p.amount END),0) AS refunded
+        FROM tbl_management_payment_reversals p".$source['where'],$source['types'],$source['params'])[0];
+}
+
 // Account totals for either the students already authorized by the directory
 // or every eligible student in the period. Aggregate each charge source before
 // joining it to the roster so subject rows cannot multiply a student's balance.
@@ -83,8 +98,9 @@ function synk_management_collection_source(mysqli $conn, array $scope, array $pe
     $paymentParams = [];
     if (synk_management_payments_ready($conn)) {
         $payments = ' FROM tbl_management_payments p'.$receiptScope['where'];
-        $parts[] = 'SELECT p.student_id,0 AS assessed,SUM(p.amount) AS collected'.$payments.$studentWhere('p').' GROUP BY p.student_id';
-        $paymentTotal = '(SELECT COALESCE(SUM(p.amount),0)'.$payments.')';
+        $net = synk_management_payment_net_sql($conn);
+        $parts[] = "SELECT p.student_id,0 AS assessed,SUM($net) AS collected".$payments.$studentWhere('p').' GROUP BY p.student_id';
+        $paymentTotal = "(SELECT COALESCE(SUM($net),0)".$payments.')';
         $paymentTypes = $periodTypes;
         $paymentParams = $periodValues;
     }
@@ -134,10 +150,11 @@ function synk_management_collection_students(mysqli $conn, array $scope, array $
 {
     if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
     $source = synk_management_collection_receipt_scope($scope, $period);
+    $net = synk_management_payment_net_sql($conn);
     // Sum every receipt in the period before matching the latest saved student identity.
     $students = "FROM (
-        SELECT p.student_id, MAX(p.payment_id) AS latest_id, COUNT(*) AS receipt_count, SUM(p.amount) AS total_paid
-        FROM tbl_management_payments p{$source['where']} GROUP BY p.student_id
+        SELECT p.student_id, MAX(p.payment_id) AS latest_id, COUNT(*) AS receipt_count, SUM($net) AS total_paid
+        FROM tbl_management_payments p{$source['where']} GROUP BY p.student_id HAVING total_paid>0
     ) paid JOIN tbl_management_payments latest ON latest.payment_id=paid.latest_id";
     $matches = [];
     $searchParams = [];
@@ -174,9 +191,10 @@ function synk_management_collection_student_payments(mysqli $conn, array $scope,
 {
     if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
     $source = synk_management_collection_receipt_scope($scope, $period);
-    $rows = synk_management_query($conn, 'SELECT p.payment_id, p.receipt_number, p.amount, p.recorded_at, p.recorded_by_name,
-        i.payment_item_id, i.charge_key, i.title, i.amount AS item_amount
-        FROM tbl_management_payments p LEFT JOIN tbl_management_payment_items i ON i.payment_id=p.payment_id'
+    $net = synk_management_payment_item_net_sql($conn);
+    $rows = synk_management_query($conn, "SELECT p.payment_id, p.receipt_number, p.amount, p.recorded_at, p.recorded_by_name,
+        i.payment_item_id, i.charge_key, i.title, i.amount AS item_posted, $net AS item_amount
+        FROM tbl_management_payments p LEFT JOIN tbl_management_payment_items i ON i.payment_id=p.payment_id"
         .$source['where'].' AND p.student_id=? ORDER BY p.payment_id DESC, i.payment_item_id',
         $source['types'].'i', array_merge($source['params'], [$studentId]));
     if (!$rows) throw new OutOfBoundsException('No receipts are available for this student in the current period.');
@@ -193,20 +211,30 @@ function synk_management_collection_student_payments(mysqli $conn, array $scope,
             $receipts[$id] = [
                 'payment_id'=>(string)$id,
                 'receipt_number'=>$row['receipt_number'],
-                'amount'=>$row['amount'],
+                'posted_amount'=>$row['amount'],
+                'reversed'=>0,
                 'recorded_at'=>(new DateTimeImmutable($row['recorded_at'], $utc))->setTimezone($local)->format('M j, Y g:i A'),
                 'recorded_by'=>$row['recorded_by_name'],
                 'items'=>[],
             ];
-            $paid += synk_management_money_cents($row['amount']);
         }
         if ($row['payment_item_id'] !== null) {
             $type = $row['charge_key'][0] ?? '';
             $category = isset($categoryLabels[$type]) ? $type : 'other';
-            $categoryTotals[$category] += synk_management_money_cents($row['item_amount']);
-            $receipts[$id]['items'][] = ['title'=>$row['title'],'amount'=>$row['item_amount']];
+            $itemAmount = synk_management_money_cents($row['item_amount']);
+            $categoryTotals[$category] += $itemAmount;
+            $receipts[$id]['reversed'] += synk_management_money_cents($row['item_posted'])-$itemAmount;
+            $receipts[$id]['items'][] = ['title'=>$row['title'],'amount'=>$row['item_amount'],'posted_amount'=>$row['item_posted']];
         }
     }
+    foreach ($receipts as &$receipt) {
+        $remaining = synk_management_money_cents($receipt['posted_amount'])-$receipt['reversed'];
+        $paid += $remaining;
+        $receipt['amount'] = synk_management_money_text($remaining);
+        $receipt['payment_state'] = synk_management_payment_state($receipt['posted_amount'],$receipt['amount']);
+        unset($receipt['reversed']);
+    }
+    unset($receipt);
     $categories = [];
     foreach ($categoryTotals as $type => $amount) {
         if ($amount > 0) $categories[] = ['label'=>$categoryLabels[$type],'amount'=>synk_management_money_text($amount)];

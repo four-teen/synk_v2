@@ -4,17 +4,6 @@ require_once __DIR__ . '/management_payment_read_helper.php';
 require_once __DIR__ . '/management_student_violations_helper.php';
 require_once __DIR__ . '/management_exemptions_helper.php';
 
-function synk_management_money_cents(string $amount): int
-{
-    if (!preg_match('/^(\d{1,14})(?:\.(\d{1,2}))?$/D',$amount,$parts)) throw new RuntimeException('Invalid stored monetary amount.');
-    return (int)$parts[1]*100+(int)str_pad($parts[2] ?? '',2,'0');
-}
-
-function synk_management_money_text(int $cents): string
-{
-    return intdiv($cents,100).'.'.str_pad((string)($cents%100),2,'0',STR_PAD_LEFT);
-}
-
 function synk_management_balance_summary(int $assessed, int $paid): array
 {
     $balance = max(0,$assessed-$paid);
@@ -52,7 +41,8 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
     $payments=synk_management_payment_history($conn,$studentId,$scope,$period);
     $paid=[];$paidCents=0;$charges=[];
     if ($ready) {
-        $rows=synk_management_query($conn,'SELECT i.charge_key,SUM(i.amount) AS amount FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id WHERE p.student_id=? AND p.college_id=? AND p.organization_id=? AND p.ay_id=? AND p.semester=? AND p.exam_term=? GROUP BY i.charge_key','iiiiis',array_merge([$studentId],$values));
+        $net = synk_management_payment_item_net_sql($conn);
+        $rows=synk_management_query($conn,"SELECT i.charge_key,SUM($net) AS amount FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id WHERE p.student_id=? AND p.college_id=? AND p.organization_id=? AND p.ay_id=? AND p.semester=? AND p.exam_term=? GROUP BY i.charge_key",'iiiiis',array_merge([$studentId],$values));
         foreach ($rows as $row) $paid[$row['charge_key']]=synk_management_money_cents($row['amount']);
         foreach ($payments as $row) $paidCents+=synk_management_money_cents($row['amount']);
     }
@@ -111,7 +101,7 @@ function synk_management_student_financial_overview(mysqli $conn, array $scope, 
         'organization'=>['code'=>$scope['organization_code'] ?? '', 'name'=>$scope['organization_name'] ?? '',
             'college'=>$scope['college_name'] ?? '', 'campus'=>$scope['campus_name'] ?? ''],
         'contributions'=>$contributions,'events'=>$events,'violations'=>$violations, 'payments'=>$payments,'charges'=>$charges,
-        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'payment_id'),array_column($violations,'student_violation_id'),$exemptions])),
+        'account_version'=>hash('sha256',json_encode([$studentId,$period['period_key'],$charges,array_column($payments,'amount','payment_id'),array_column($violations,'student_violation_id'),$exemptions])),
         'can_pay'=>$ready && $gross>$paidCents && $period['period_key']===$current['period_key'],
         'summary'=>['contribution_count'=>count($contributions),'contribution_catalog_total'=>$contributionTotal,
             'event_count'=>count($events),'absence_count'=>$absences,'attendance_pending_count'=>$pendingEvents,'exempted_event_count'=>$exemptedEvents,'exempted_contribution_count'=>$exemptedContributions,'event_fine_total'=>$eventTotal,'violation_total'=>synk_management_money_text($violationCents),

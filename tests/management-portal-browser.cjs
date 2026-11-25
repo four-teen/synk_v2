@@ -534,6 +534,56 @@ async function main() {
   await evaluate('document.querySelector("#management-term-modal [data-bs-dismiss]").click()');await delay(300);
   await navigate('view_final');
   check(await evaluate('document.querySelector(".dean-view-label").textContent.includes("Final") && [...document.querySelectorAll(".management-nav a")].every(a=>new URL(a.href).searchParams.get("exam_term")==="FINAL")'),'Final period did not persist in the header and Management navigation.');
+  await resize(1440);
+  await navigate('payment_corrections_dashboard');
+  check(await evaluate(`(() => {
+    const shortcut = document.getElementById('management-dashboard-payment-corrections');
+    const link = document.querySelector('#layout-menu a[href^="payment-corrections.php"]');
+    return shortcut.getBoundingClientRect().width > 0 && link.getBoundingClientRect().width > 0
+      && new URL(shortcut.href).searchParams.get('exam_term') === 'FINAL';
+  })()`),'The assigned faculty cannot find Payment Corrections from the desktop Dashboard.');
+  await resize(390);
+  await tap('#management-more-toggle');
+  await until('document.getElementById("management-mobile-more").classList.contains("show")');
+  check(await evaluate(`Boolean(document.querySelector('#management-mobile-more a[href^="payment-corrections.php"]'))`),
+    'The assigned faculty cannot find Payment Corrections in the phone More menu.');
+  await navigate('payment_corrections_account');
+  check(await evaluate(`document.documentElement.scrollWidth <= innerWidth
+    && document.querySelector('#management-mobile-more [aria-current="page"]').textContent.includes('Payment Corrections')
+    && document.querySelector('[data-correction-account-credit]').textContent.trim() === '₱87.75'`),
+    'The Management payment detail overflows mobile or lost its active navigation or credit.');
+  const correctionGroups = `[...document.querySelectorAll('[data-correction-receipt]')]`;
+  const splitReceipt = `${correctionGroups}.find(receipt => receipt.querySelectorAll('[data-correction-item]').length === 2)`;
+  check(await evaluate(`(() => {
+    const receipt = ${splitReceipt};
+    receipt.querySelector('summary').click();
+    receipt.querySelector('[data-correction-item]').click();
+    return receipt.open && receipt.querySelector('[data-correction-select-all]').indeterminate
+      && document.querySelector('[data-correction-count]').textContent === '1 selected'
+      && !document.querySelector('[data-correction-delete]').disabled
+      && document.querySelector('#correction-reason').required;
+  })()`),'An individual receipt checkbox did not update the selection and reason form.');
+  check(await evaluate(`(() => {
+    const receipt = ${splitReceipt};
+    receipt.querySelector('[data-correction-select-all]').click();
+    const selected = [...document.querySelectorAll('[data-correction-item]:checked')];
+    return selected.length === 2 && selected.every(item => receipt.contains(item))
+      && document.querySelector('[data-correction-selected-total]').textContent === '₱75.25';
+  })()`),'Select all did not stay inside the open receipt or show its exact total.');
+  check(await evaluate(`(() => {
+    const form = document.getElementById('correction-editor');
+    const receipt = ${splitReceipt};
+    form.addEventListener('submit', event => event.preventDefault(), {once:true});
+    form.elements.reason.value = 'Test reason';
+    form.querySelector('[data-correction-delete]').click();
+    return form.elements.action.value === 'delete' &&
+      JSON.stringify(JSON.parse(form.elements.selection.value)) === JSON.stringify([...receipt.querySelectorAll('[data-correction-item]')].map(item => item.value));
+  })()`),'Delete did not submit the checked payments in a single request.');
+  await evaluate(`document.getElementById('management-term-settings').click()`);
+  await until('document.getElementById("management-term-modal").classList.contains("show")');
+  check(await evaluate(`document.getElementById('management-view-exam-term').value === 'FINAL'`),
+    'The correction page lost the shared Management viewing-period control.');
+  await resize(320);
   await navigate('dashboard');
   await call('Fetch.enable',{patterns:[{urlPattern:'*query_management.php*'}]},sessionId);
   await evaluate('document.getElementById("management-term-settings").click()'); await until('document.getElementById("management-term-modal").classList.contains("show")'); await delay(300);

@@ -290,12 +290,13 @@ function synk_management_catalog_payload(mysqli $conn, array $scope, string $kin
     return $record;
 }
 
-function synk_management_lock_assignment(mysqli $conn, array $scope): void
+function synk_management_lock_assignment(mysqli $conn, array $scope): array
 {
     $org = synk_management_query($conn,"SELECT o.organization_id FROM tbl_management_organizations o JOIN tbl_college c ON c.college_id=o.college_id JOIN tbl_campus p ON p.campus_id=c.campus_id WHERE o.organization_id=? AND o.college_id=? AND o.status='ACTIVE' AND c.status='active' AND p.status='active' FOR UPDATE",'ii',[$scope['organization_id'],$scope['college_id']]);
     if (!$org) throw new SynkManagementConflict('Your organization access changed. Reload the page.');
     $account = synk_management_query($conn, 'SELECT * FROM tbl_useraccount WHERE user_id=? FOR UPDATE','i',[(int)$_SESSION['user_id']]);
     if (!$account || !synk_management_account_has_access($conn,$account[0]) || (int)$account[0]['management_college_id'] !== $scope['college_id'] || (int)$account[0]['management_organization_id'] !== $scope['organization_id']) throw new SynkManagementConflict('Your organization assignment changed. Reload the page.');
+    return $account[0];
 }
 
 function synk_management_session_payload(array $sessions, array $event, array $existing): array

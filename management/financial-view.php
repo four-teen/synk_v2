@@ -21,16 +21,26 @@ $utc = new DateTimeZone('UTC');
         <p>Current Management period · <?= $h($currentTerm['period_text']) ?></p>
       <?php endif; ?>
     </div>
-    <?php if (synk_management_operation_allowed($permissions,'student_records')): ?>
-      <a class="btn btn-primary" id="management-register-find-student" href="<?= $h($pageUrl('students.php',[
-          'term'=>$currentTerm['key'],'exam_term'=>$currentTerm['exam_term'],
-      ])) ?>"><i class="bx bx-user me-1" aria-hidden="true"></i>Find student</a>
-    <?php endif; ?>
+    <div class="d-flex flex-wrap gap-2">
+      <?php if ($permissions['payment_corrections']): ?>
+        <a class="btn btn-outline-primary" id="management-financial-payment-corrections" href="<?= $h($pageUrl('payment-corrections.php')) ?>"><i class="bx bx-undo me-1" aria-hidden="true"></i>Payment Corrections</a>
+      <?php endif; ?>
+      <?php if (synk_management_operation_allowed($permissions,'student_records')): ?>
+        <a class="btn btn-primary" id="management-register-find-student" href="<?= $h($pageUrl('students.php',[
+            'term'=>$currentTerm['key'],'exam_term'=>$currentTerm['exam_term'],
+        ])) ?>"><i class="bx bx-user me-1" aria-hidden="true"></i>Find student</a>
+      <?php endif; ?>
+    </div>
   </div>
   <div class="management-stats management-register-stats">
     <article class="card management-stat">
       <span class="management-stat-icon bg-label-success"><i class="bx bx-wallet" aria-hidden="true"></i></span>
-      <div><span>Today's collections</span><strong data-register-today-collected><?= $todayTotals === null ? '—' : $money((string)$todayTotals['collected']) ?></strong></div>
+      <div>
+        <span>Today's net collections</span><strong data-register-today-collected><?= $todayTotals === null ? '—' : $money((string)$todayTotals['collected']) ?></strong>
+        <?php if ($todayTotals && ($todayTotals['voided'] > 0 || $todayTotals['refunded'] > 0)): ?>
+          <small class="text-muted d-block">Posted <?= $money($todayTotals['posted']) ?> · Voided <?= $money($todayTotals['voided']) ?> · Refunded <?= $money($todayTotals['refunded']) ?></small>
+        <?php endif; ?>
+      </div>
     </article>
     <article class="card management-stat">
       <span class="management-stat-icon bg-label-info"><i class="bx bx-receipt" aria-hidden="true"></i></span>
@@ -46,7 +56,10 @@ $utc = new DateTimeZone('UTC');
       <p><?= $h($term['period_text']) ?> · Philippine time</p>
     </div>
     <?php if ($paymentRegister['available'] && $paymentRegister['filter_error'] === ''): ?>
-      <div class="management-register-total"><span><?= $activeFilters ? 'Filtered total' : 'Period total' ?></span><strong data-register-total><?= $money((string)$paymentRegister['filtered_total']) ?></strong></div>
+      <div class="management-register-total">
+        <span><?= $activeFilters ? 'Filtered net total' : 'Period net total' ?></span><strong data-register-total><?= $money((string)$paymentRegister['filtered_total']) ?></strong>
+        <?php if ($paymentRegister['filtered_reversed'] > 0): ?><span><?= $money($paymentRegister['filtered_reversed']) ?> reversed</span><?php endif; ?>
+      </div>
     <?php endif; ?>
   </div>
 
@@ -102,23 +115,24 @@ $utc = new DateTimeZone('UTC');
             <th scope="col" role="columnheader">Receipt number</th>
             <th scope="col" role="columnheader">Student</th>
             <th scope="col" role="columnheader">Cashier</th>
-            <th scope="col" role="columnheader" class="text-end">Amount</th>
+            <th scope="col" role="columnheader" class="text-end">Net amount</th>
             <th scope="col" role="columnheader" class="text-end">Receipt</th>
           </tr></thead>
           <tbody role="rowgroup">
             <?php foreach ($paymentRegister['rows'] as $receipt):
                 $posted = (new DateTimeImmutable($receipt['recorded_at'],$utc))->setTimezone($today->getTimezone());
+                $state = synk_management_payment_state($receipt['posted_amount'],$receipt['amount']);
             ?>
               <tr role="row">
                 <td role="cell" data-label="Posted date / time">
                   <time datetime="<?= $posted->format(DATE_ATOM) ?>"><?= $posted->format('M j, Y') ?><small><?= $posted->format('g:i A') ?></small></time>
                 </td>
-                <td role="cell" data-label="Receipt number"><strong><?= $h($receipt['receipt_number']) ?></strong></td>
+                <td role="cell" data-label="Receipt number"><strong><?= $h($receipt['receipt_number']) ?></strong><?php if ($state !== 'Posted'): ?><small class="d-block text-muted"><?= $h($state) ?></small><?php endif; ?></td>
                 <td role="cell" data-label="Student" class="management-record-title">
                   <strong><?= $h($receipt['student_name']) ?></strong><small><?= $h($receipt['student_number']) ?></small>
                 </td>
                 <td role="cell" data-label="Cashier"><?= $h($receipt['recorded_by_name'] ?: '—') ?></td>
-                <td role="cell" data-label="Amount" class="text-end management-register-amount"><strong><?= $money((string)$receipt['amount']) ?></strong></td>
+                <td role="cell" data-label="Net amount" class="text-end management-register-amount"><strong><?= $money((string)$receipt['amount']) ?></strong><?php if ($state !== 'Posted'): ?><small class="d-block text-muted">Originally <?= $money($receipt['posted_amount']) ?></small><?php endif; ?></td>
                 <td role="cell" class="text-end management-record-actions">
                   <a class="btn btn-sm btn-outline-primary management-register-receipt" href="payment-receipt.php?payment_id=<?= (int)$receipt['payment_id'] ?>"
                     target="_blank" rel="noopener" aria-label="View or reprint receipt <?= $h($receipt['receipt_number']) ?>">View / reprint</a>

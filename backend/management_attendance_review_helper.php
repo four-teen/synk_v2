@@ -105,9 +105,7 @@ function synk_management_correct_closed_attendance(mysqli $conn,array $scope,arr
     if (!in_array($status,['PRESENT','ABSENT'],true)) throw new DomainException('Choose Present or Absent.');
     $present=(int)($status==='PRESENT');
     if ($wasPresent===$present && $previousIn===$nextIn && $previousOut===$nextOut) return false;
-    if ($wasPresent!==$present && synk_management_payments_ready($conn) && synk_management_query($conn,
-        'SELECT i.payment_item_id FROM tbl_management_payment_items i JOIN tbl_management_payments p ON p.payment_id=i.payment_id
-         WHERE i.event_id=? AND p.student_id=? LIMIT 1','ii',[$eventId,$studentId])) {
+    if ($wasPresent!==$present && synk_management_student_charge_has_credit($conn,$studentId,'events',$eventId)) {
         throw new SynkManagementConflict('This student has an absence-fine payment for this event. Review the payment before changing attendance.');
     }
     $actor=(int)$_SESSION['user_id'];

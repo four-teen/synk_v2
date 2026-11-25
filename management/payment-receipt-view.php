@@ -13,6 +13,7 @@ body{font:15px/1.6 system-ui,sans-serif;color:#253348;background:#f5f6fa;margin:
 .receipt-letterhead h1 { font-size: clamp(1.25rem, 4vw, 1.6875rem); line-height: 1.25; }
 .receipt-letterhead p { margin: .3rem 0 0; }
 .receipt-letterhead .receipt-document-type { margin-top: .8rem; color: inherit; font-size: 1.125rem; font-weight: 700; }
+.receipt-adjustments{margin-top:2rem}.receipt-adjustments h2{font-size:1.15rem;margin:0}.receipt-adjustments th:nth-child(2),.receipt-adjustments td:nth-child(2){text-align:left}.receipt-adjustments td:first-child small{display:block}.receipt-adjustments strong{overflow-wrap:anywhere}.receipt-status{background:#fff4e5;border-left:3px solid #a45b17;padding:.65rem .85rem;margin-bottom:1rem}@media print{.receipt-adjustments h2{break-after:avoid}.receipt-adjustments tr{break-inside:avoid}}
 </style></head><body><main class="receipt">
 <?php if ($cssoReceipt): ?>
 <header class="receipt-letterhead">
@@ -24,6 +25,24 @@ body{font:15px/1.6 system-ui,sans-serif;color:#253348;background:#f5f6fa;margin:
 <header><h1><span class="synk-wordmark">syn<span class="synk-wordmark-q">Q</span></span> · Payment receipt</h1><p><?= $h($receipt['organization_name']) ?></p></header>
 <?php endif; ?>
 <div class="details"><div><small>Receipt number</small><strong><?= $h($receipt['receipt_number']) ?></strong></div><div><small>Payment recorded</small><strong><?= $h($receipt['recorded_at']) ?> (Philippine time)</strong></div><div><small>Student</small><strong><?= $h($receipt['student_name']) ?></strong><span><?= $h($receipt['student_number']) ?></span></div><div><small>Management period</small><strong><?= $h($receipt['period_text']) ?></strong><span><?= $h($receipt['organization_code']) ?></span></div></div>
-<div class="table-scroll"><table><thead><tr><th>Charge</th><th>Assessed</th><th>Previously paid</th><th>This payment</th><th>Remaining</th></tr></thead><tbody><?php foreach($receipt['items'] as$item): ?><tr><td><?= $h($item['title']) ?></td><td><?= $money($item['charge_amount']) ?></td><td><?= $money($item['paid_before']) ?></td><td><?= $money($item['amount']) ?></td><td><?= $money($item['balance_after']) ?></td></tr><?php endforeach; ?></tbody><tfoot><tr><td colspan="3">Total received</td><td><?= $money($receipt['amount']) ?></td><td></td></tr></tfoot></table></div>
-<footer><p>Account balance before: <strong><?= $money($receipt['balance_before']) ?></strong><br>Account balance after: <strong><?= $money($receipt['balance_after']) ?></strong></p><p>Recorded by <?= $h($receipt['recorded_by_name']) ?> · <?= $h(ucfirst(strtolower($receipt['allocation_mode']))) ?> payment</p><button type="button" onclick="window.print()">Print / Save as PDF</button></footer>
+<?php if ($receipt['adjustments']): ?><p class="receipt-status">Receipt status <strong data-receipt-status><?= $h($receipt['payment_state']) ?></strong></p><?php endif; ?>
+<div class="table-scroll"><table><thead><tr><th>Charge</th><th>Assessed</th><th>Previously paid</th><th>This payment</th><th>Remaining</th></tr></thead><tbody><?php foreach($receipt['items'] as$item): ?><tr><td><?= $h($item['title']) ?></td><td><?= $money($item['charge_amount']) ?></td><td><?= $money($item['paid_before']) ?></td><td><?= $money($item['amount']) ?></td><td><?= $money($item['balance_after']) ?></td></tr><?php endforeach; ?></tbody><tfoot><tr><td colspan="3"><?= $receipt['adjustments'] ? 'Original total received' : 'Total received' ?></td><td><?= $money($receipt['amount']) ?></td><td></td></tr></tfoot></table></div>
+<?php if ($receipt['adjustments']): ?>
+  <section class="receipt-adjustments" aria-labelledby="receipt-adjustments-title">
+    <h2 id="receipt-adjustments-title">Payment adjustments</h2>
+    <p>Recorded in Philippine time.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th scope="col">Correction reference</th><th scope="col">Allocation</th><th scope="col">Amount reversed</th></tr></thead>
+        <tbody>
+        <?php foreach ($receipt['adjustments'] as $entry): ?>
+          <tr><td><strong><?= $h($entry['reference']) ?></strong><small><?= $entry['reversal_type'] === 'REFUND' ? 'Refund' : 'Void' ?> · <?= $h($entry['recorded_at']) ?></small></td><td><?= $h($entry['title']) ?></td><td><?= $money($entry['amount']) ?></td></tr>
+        <?php endforeach; ?>
+        </tbody>
+        <tfoot><tr><td colspan="2">Payment credit remaining on this receipt</td><td data-receipt-net><?= $money($receipt['net_amount']) ?></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+<?php endif; ?>
+<footer><p>Account balance before original payment <strong><?= $money($receipt['balance_before']) ?></strong><br>Account balance after original payment <strong><?= $money($receipt['balance_after']) ?></strong></p><p>Recorded by <?= $h($receipt['recorded_by_name']) ?> · <?= $h(ucfirst(strtolower($receipt['allocation_mode']))) ?> payment</p><button type="button" onclick="window.print()">Print / Save as PDF</button></footer>
 </main></body></html>

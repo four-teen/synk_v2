@@ -8,11 +8,12 @@ complete preview; **Print / Save as PDF** uses an A4 portrait print layout.
 
 Available reports:
 
-- **Collection Summary:** actual receipts and allocations, separated into
+- **Collection Summary:** net collections after voids and refunds, separated into
   Contributions, Event absence fines, and Violation fines. Overall receipts and
   payers are unique; category counts can overlap when a receipt is split.
 - **Detailed Collections:** saved receipt allocations grouped by category, with
-  receipt number/time, student identity, charge title, cashier, and amount.
+  receipt number/time, student identity, charge title, cashier, and net amount.
+  Corrected lines also show their original amount.
   Numbering continues across payment categories. One receipt can have several
   allocation rows; its header amount is never repeated as category revenue.
 - **Event Absence Fines:** finalized absences with positive assessed fines,
