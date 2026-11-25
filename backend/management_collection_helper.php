@@ -1,13 +1,23 @@
 <?php
 require_once __DIR__.'/management_student_account_helper.php';
 
+function synk_management_collection_receipt_scope(array $scope, array $period): array
+{
+    return [
+        'where'=>' WHERE p.college_id=? AND p.organization_id=? AND p.ay_id=? AND p.semester=? AND p.exam_term=?',
+        'types'=>'iiiis',
+        'params'=>[$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']],
+    ];
+}
+
 // Account totals for either the students already authorized by the directory
 // or every eligible student in the period. Aggregate each charge source before
 // joining it to the roster so subject rows cannot multiply a student's balance.
 function synk_management_collection_source(mysqli $conn, array $scope, array $period, ?array $studentIds): array
 {
-    $periodTypes = 'iiiis';
-    $periodValues = [$scope['college_id'],$scope['organization_id'],$period['ay_id'],$period['semester'],$period['exam_term']];
+    $receiptScope = synk_management_collection_receipt_scope($scope, $period);
+    $periodTypes = $receiptScope['types'];
+    $periodValues = $receiptScope['params'];
     $in = $studentIds ? implode(',',array_fill(0,count($studentIds),'?')) : '';
     $studentTypes = str_repeat('i',count($studentIds ?? []));
     if ($in !== '') {
@@ -72,7 +82,7 @@ function synk_management_collection_source(mysqli $conn, array $scope, array $pe
     $paymentTypes = '';
     $paymentParams = [];
     if (synk_management_payments_ready($conn)) {
-        $payments = ' FROM tbl_management_payments p WHERE '.$periodWhere('p');
+        $payments = ' FROM tbl_management_payments p'.$receiptScope['where'];
         $parts[] = 'SELECT p.student_id,0 AS assessed,SUM(p.amount) AS collected'.$payments.$studentWhere('p').' GROUP BY p.student_id';
         $paymentTotal = '(SELECT COALESCE(SUM(p.amount),0)'.$payments.')';
         $paymentTypes = $periodTypes;
@@ -118,4 +128,88 @@ function synk_management_collection_totals(mysqli $conn, array $scope, array $pe
     return synk_management_query($conn,'SELECT COALESCE(SUM(accounts.assessed),0) AS expected,
         '.$source['payment_total'].' AS collected,COALESCE(SUM(GREATEST(0,accounts.assessed-accounts.collected)),0) AS outstanding
         FROM ('.$source['sql'].') accounts',$source['payment_types'].$source['types'],array_merge($source['payment_params'],$source['params']))[0];
+}
+
+function synk_management_collection_students(mysqli $conn, array $scope, array $period, int $page, string $search = ''): array
+{
+    if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
+    $source = synk_management_collection_receipt_scope($scope, $period);
+    // Sum every receipt in the period before matching the latest saved student identity.
+    $students = "FROM (
+        SELECT p.student_id, MAX(p.payment_id) AS latest_id, COUNT(*) AS receipt_count, SUM(p.amount) AS total_paid
+        FROM tbl_management_payments p{$source['where']} GROUP BY p.student_id
+    ) paid JOIN tbl_management_payments latest ON latest.payment_id=paid.latest_id";
+    $matches = [];
+    $searchParams = [];
+    foreach (preg_split('/[\s,]+/u', $search, -1, PREG_SPLIT_NO_EMPTY) as $word) {
+        $pattern = '%'.str_replace(['!','%','_'], ['!!','!%','!_'], $word).'%';
+        $matches[] = "(latest.student_name LIKE ? ESCAPE '!' OR latest.student_number LIKE ? ESCAPE '!')";
+        $searchParams[] = $pattern;
+        $searchParams[] = $pattern;
+    }
+    $matchSql = $matches ? implode(' AND ', $matches) : '1=1';
+    $searchTypes = str_repeat('s', count($searchParams));
+    $summary = synk_management_query($conn, "SELECT COUNT(*) AS total_students,
+        COALESCE(SUM(paid.total_paid),0) AS total_collected,
+        COUNT(CASE WHEN {$matchSql} THEN 1 END) AS matched_students {$students}",
+        $searchTypes.$source['types'], array_merge($searchParams, $source['params']))[0];
+    $matchedStudents = (int)$summary['matched_students'];
+    $pageSize = 25;
+    $pages = max(1, (int)ceil($matchedStudents / $pageSize));
+    $page = min($page, $pages);
+    $offset = ($page - 1) * $pageSize;
+    $rows = $matchedStudents ? synk_management_query($conn, "SELECT paid.student_id, latest.student_name, latest.student_number,
+        paid.receipt_count, paid.total_paid {$students} WHERE {$matchSql}
+        ORDER BY latest.student_name, latest.student_number, paid.student_id LIMIT ? OFFSET ?",
+        $source['types'].$searchTypes.'ii', array_merge($source['params'], $searchParams, [$pageSize, $offset])) : [];
+    return [
+        'rows'=>$rows,
+        'total_collected'=>$summary['total_collected'],
+        'total_students'=>(int)$summary['total_students'],
+        'pagination'=>['page'=>$page,'pages'=>$pages,'total'=>$matchedStudents],
+    ];
+}
+
+function synk_management_collection_student_payments(mysqli $conn, array $scope, array $period, int $studentId): array
+{
+    if (!synk_management_payments_ready($conn)) throw new RuntimeException('Payment storage is unavailable.');
+    $source = synk_management_collection_receipt_scope($scope, $period);
+    $rows = synk_management_query($conn, 'SELECT p.payment_id, p.receipt_number, p.amount, p.recorded_at, p.recorded_by_name,
+        i.payment_item_id, i.charge_key, i.title, i.amount AS item_amount
+        FROM tbl_management_payments p LEFT JOIN tbl_management_payment_items i ON i.payment_id=p.payment_id'
+        .$source['where'].' AND p.student_id=? ORDER BY p.payment_id DESC, i.payment_item_id',
+        $source['types'].'i', array_merge($source['params'], [$studentId]));
+    if (!$rows) throw new OutOfBoundsException('No receipts are available for this student in the current period.');
+
+    $receipts = [];
+    $paid = 0;
+    $categoryLabels = ['C'=>'Contributions','E'=>'Event absence fines','V'=>'Violation fines','other'=>'Other allocations'];
+    $categoryTotals = array_fill_keys(array_keys($categoryLabels), 0);
+    $utc = new DateTimeZone('UTC');
+    $local = new DateTimeZone('Asia/Manila');
+    foreach ($rows as $row) {
+        $id = $row['payment_id'];
+        if (!isset($receipts[$id])) {
+            $receipts[$id] = [
+                'payment_id'=>(string)$id,
+                'receipt_number'=>$row['receipt_number'],
+                'amount'=>$row['amount'],
+                'recorded_at'=>(new DateTimeImmutable($row['recorded_at'], $utc))->setTimezone($local)->format('M j, Y g:i A'),
+                'recorded_by'=>$row['recorded_by_name'],
+                'items'=>[],
+            ];
+            $paid += synk_management_money_cents($row['amount']);
+        }
+        if ($row['payment_item_id'] !== null) {
+            $type = $row['charge_key'][0] ?? '';
+            $category = isset($categoryLabels[$type]) ? $type : 'other';
+            $categoryTotals[$category] += synk_management_money_cents($row['item_amount']);
+            $receipts[$id]['items'][] = ['title'=>$row['title'],'amount'=>$row['item_amount']];
+        }
+    }
+    $categories = [];
+    foreach ($categoryTotals as $type => $amount) {
+        if ($amount > 0) $categories[] = ['label'=>$categoryLabels[$type],'amount'=>synk_management_money_text($amount)];
+    }
+    return ['total_paid'=>synk_management_money_text($paid),'categories'=>$categories,'receipts'=>array_values($receipts)];
 }

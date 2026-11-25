@@ -97,7 +97,19 @@ try{
     // the fully-settled display state without changing any organization's data.
     $financialAccount=$account;$financialAccount['totals']['due']='0.00';ob_start();require __DIR__.'/../management/student-financial-page.php';$html=ob_get_clean();
     $check(strpos($html,'student-finance-due is-paid')!==false && strpos($html,'payment-receipt.php?payment_id='.$posted['payment_id'])!==false,'Student view omitted paid styling or receipt links.');
-    ob_start();require __DIR__.'/../management/payment-receipt-view.php';$html=ob_get_clean();$check(strpos($html,$posted['receipt_number'])!==false && strpos($html,'500.00')!==false,'Printable receipt did not render.');
+    ob_start();require __DIR__.'/../management/payment-receipt-view.php';$html=ob_get_clean();$check(strpos($html,$posted['receipt_number'])!==false && strpos($html,'500.00')!==false && strpos($html,'OFFICIAL RECEIPT')===false,'Printable receipt did not render its own organization identity.');
+    $receipt = array_replace($receipt,['college_code'=>'CCS','organization_code'=>'CSSO']);
+    ob_start();
+    require __DIR__.'/../management/payment-receipt-view.php';
+    $html=ob_get_clean();
+    $receiptDocument = new DOMDocument();
+    $receiptDocument->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+    $receiptXPath = new DOMXPath($receiptDocument);
+    $letterhead = [];
+    foreach ($receiptXPath->query('//header/*') as $line) $letterhead[] = trim($line->textContent);
+    $check($letterhead===['COLLEGE OF COMPUTER STUDIES','College of Computer Student Organization','OFFICIAL RECEIPT']
+        && strpos($html,$posted['receipt_number'])!==false && strpos($html,'500.00')!==false,
+        'CSSO receipt did not render the requested letterhead above its payment details.');
     $event=synk_management_catalog_write($db,$scope,'events','save',$input(['title'=>$tag.' FINE','event_date'=>date('Y-m-d'),'absence_fine'=>'80.00']))['record_id'];
     $opened=synk_management_attendance_write($db,$scope,'attendance_open',$input(['event_id'=>$event]));
     synk_management_attendance_write($db,$scope,'attendance_close',$input(['event_id'=>$event,'attendance_revision'=>$opened['attendance']['revision'],'confirm'=>'1']));

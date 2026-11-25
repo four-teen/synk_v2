@@ -97,6 +97,16 @@ function synk_management_student_evaluation_progress(
     return $progress;
 }
 
+function synk_management_student_evaluation_label(array $evaluation): string
+{
+    $status = $evaluation['status'] ?? 'UNAVAILABLE';
+    if ($status === 'PARTIAL') {
+        return sprintf('%d of %d submitted', $evaluation['submitted_count'], $evaluation['faculty_count']);
+    }
+    $labels = ['SUBMITTED'=>'Submitted', 'PENDING'=>'Not submitted', 'NO_LINKED_FACULTY'=>'No linked faculty'];
+    return $labels[$status] ?? 'Unavailable';
+}
+
 function synk_management_original_student_placement(mysqli $conn, array $scope, int $studentId): array
 {
     $original = synk_management_query($conn,"SELECT s.ay_id,s.semester,s.year_level,
@@ -140,5 +150,8 @@ function synk_management_students_detail(mysqli $conn, array $scope, array $inpu
     $financial['can_add_violations']=$permissions['manage_violations'] && $period['period_key']===$current['period_key'] && $financial['availability']['student_violations'];
     $financial['violation_options']=$financial['can_add_violations']?synk_management_student_violation_options($conn,$scope,$period):[];
     $financial['violation_date_today']=date('Y-m-d');
-    return $detail + ['financial'=>$financial];
+    $evaluation = synk_management_student_evaluation_progress($conn,$scope,$period,$current,[$id])[$id]
+        ?? ['status'=>'UNAVAILABLE','faculty_count'=>0,'submitted_count'=>0];
+    $evaluation['label'] = synk_management_student_evaluation_label($evaluation);
+    return $detail + ['financial'=>$financial,'evaluation_progress'=>$evaluation];
 }

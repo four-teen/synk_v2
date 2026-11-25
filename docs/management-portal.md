@@ -142,10 +142,10 @@ Management term automatically from today's calendar date.
 
 ## Student directory and analytics
 
-The **Financial** menu is an empty workspace for a fresh recording process. Legacy
-history, email links, and Financial import tables were removed. See
-[management-financial.md](management-financial.md) for the reset scope. Student
-identities and directory memberships remain available in the existing directory.
+The **Financial** menu opens the payment register and today's collection totals.
+See [management-financial.md](management-financial.md) for receipt lookup and the
+reset scope. Student identities and directory memberships are available in the
+existing directory.
 
 Dashboard counts and program breakdowns use active imported subject memberships
 in `tbl_student_management_enrolled_subjects` joined to Synk's shared

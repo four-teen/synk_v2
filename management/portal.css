@@ -57,10 +57,86 @@
 .management-catalog-stats { grid-template-columns: repeat(3,minmax(0,1fr)); margin-bottom: 1.5rem; }
 .management-stat { display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1.5rem; border: 0; border-radius: var(--dean-card-radius); box-shadow: var(--dean-shadow); min-width: 0; }
 .management-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: .5rem; font-size: 1.5rem; flex: 0 0 44px; }
-.management-stat > div { min-width: 0; }
-.management-stat > div > span { color: var(--dean-text); font-size: .875rem; }
+.management-stat > :is(div,.management-collected-copy) { min-width: 0; }
+.management-stat > :is(div,.management-collected-copy) > span { color: var(--dean-text); font-size: .875rem; }
 .management-stat strong { display: block; color: var(--dean-heading); font-size: 1.5rem; font-weight: 500; margin-top: .5rem; }
 .management-dashboard-stats .management-stat strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.management-collected-stat { width: 100%; text-align: left; }
+.management-collected-stat:hover { background: #f0faf5; }
+.management-collected-chevron { position: absolute; top: .55rem; right: .55rem; color: var(--management-menu-color); font-size: 1.15rem; }
+.management-collections-modal .modal-dialog { width: calc(100% - 2rem); max-width: 1160px; margin-inline: auto; }
+.management-collections-modal .modal-dialog > .modal-content { max-height: 100%; }
+.management-collections-modal .modal-header { gap: .75rem; }
+.management-collections-modal .modal-header .btn-close { flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 0; margin: 0; }
+.management-collections-modal .modal-body { min-height: 0; overscroll-behavior-y: contain; }
+.management-collections-period { margin: .25rem 0 0; color: var(--dean-muted); font-size: .875rem; }
+.management-collections-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: .25rem 1rem;
+  padding: .75rem 1.5rem 0;
+}
+.management-collections-search > div { flex: 1 1 16rem; max-width: 28rem; min-width: 0; }
+.management-collections-search .form-control { min-height: 44px; }
+.management-collections-matches { padding-block: .6rem; color: var(--dean-muted); font-size: .875rem; }
+.management-collections-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid #cce6d8;
+  border-radius: .75rem;
+  background: #effaf4;
+  color: #246347;
+}
+.management-collections-overview strong { display: block; font-size: 1.4rem; overflow-wrap: anywhere; }
+.management-collections-overview span { font-size: .875rem; }
+.management-collections-state { margin: 1rem 0; color: var(--dean-muted); }
+.management-collections-students:not(:empty) { margin-top: .75rem; }
+.management-collections-student { border-bottom: 1px solid var(--dean-border); }
+.management-collections-student > summary {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,auto) 1.25rem;
+  align-items: center;
+  gap: .75rem;
+  padding: .85rem .75rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--dean-heading);
+  overflow-wrap: anywhere;
+}
+.management-collections-student > summary::-webkit-details-marker { display: none; }
+.management-collections-student > summary:is(:hover,:focus-visible), .management-collections-student[open] > summary { background: #f4f7fb; }
+.management-collections-student > summary:focus-visible { outline: 2px solid var(--dean-primary); outline-offset: -2px; }
+.management-collections-student[open] > summary .bx { transform: rotate(180deg); }
+.management-collections-paid { text-align: right; color: #246347; }
+.management-collections-modal small { display: block; color: var(--dean-muted); }
+.management-collections-detail { padding: .75rem; background: #f8fafc; overflow-wrap: anywhere; }
+.management-collections-categories { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%, 11rem),1fr)); gap: .5rem; margin: 0 0 .75rem; }
+.management-collections-categories div { padding: .65rem .75rem; border: 1px solid var(--dean-border); border-radius: .5rem; background: #fff; }
+.management-collections-categories dt { color: var(--dean-muted); font-size: .8rem; }
+.management-collections-categories dd { margin: .2rem 0 0; color: var(--dean-heading); font-weight: 600; }
+.management-collections-receipts, .management-collections-items { margin: 0; padding: 0; list-style: none; }
+.management-collections-receipts > li { padding: .75rem; border: 1px solid var(--dean-border); border-radius: .5rem; background: #fff; }
+.management-collections-receipts > li + li { margin-top: .5rem; }
+.management-collections-receipt-heading { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: .5rem .75rem; }
+.management-collections-items { margin-top: .5rem; border-top: 1px solid var(--dean-border); }
+.management-collections-items li { display: flex; justify-content: space-between; align-items: start; gap: .5rem; padding-top: .5rem; }
+.management-collections-items strong, .management-collections-receipt-heading > strong { font-variant-numeric: tabular-nums; }
+.management-collections-pagination > span { margin-right: auto; }
+@media (max-width:575.98px) {
+  .management-collections-modal .modal-dialog { width: calc(100% - 1rem); height: calc(var(--management-viewport-height,100dvh) - 1rem); min-height: 0; margin: .5rem auto; }
+  .management-collections-modal .modal-body { padding: .75rem; }
+  .management-collections-search { padding: .35rem .75rem 0; }
+  .management-collections-matches { padding-block: 0; }
+  .management-collections-student > summary { gap: .5rem; padding-inline: .5rem; }
+  .management-collections-receipt-heading { grid-template-columns: minmax(0,1fr) minmax(0,auto); }
+  .management-collections-receipt-heading a { grid-column: 1 / -1; }
+  .management-collections-pagination > span { width: 100%; margin: 0; }
+}
 .management-data-note { font-size: .875rem; color: var(--dean-muted); margin: 1rem 0 1.5rem; }
 .management-dashboard-grid { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(0,1fr); gap: 1.5rem; }
 .management-panel { border: 0; border-radius: var(--dean-card-radius); background: #fff; box-shadow: var(--dean-shadow); min-width: 0; }
@@ -159,6 +235,10 @@
 }
 .management-student-evaluation-value[data-evaluation-status="SUBMITTED"] { color: #216743; background: #e8f7ee; }
 .management-student-evaluation-value:is([data-evaluation-status="PENDING"],[data-evaluation-status="PARTIAL"]) { color: #854d0e; background: #fff4dd; }
+.management-evaluation-reminder .modal-header { gap: .75rem; }
+.management-evaluation-reminder .modal-header .btn-close { flex-shrink: 0; margin: 0; min-width: 44px; min-height: 44px; padding: 0; }
+.management-evaluation-reminder .alert-warning { color: #854d0e; overflow-wrap: anywhere; }
+.management-evaluation-reminder .modal-footer .btn { min-height: 44px; }
 .management-student-field-label { display: none; }
 .management-student-action-cell { width: 18%; }
 .management-student-actions { display: grid; gap: .375rem; }
