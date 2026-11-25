@@ -11,6 +11,34 @@ System** for that subject and period. An unconfigured period requires a saved
 presentation or project columns. The reference XLSX is a calculation reference;
 its students and historical scores are not imported.
 
+## Online Attendance
+
+Open **Grade Book → Online Attendance**, choose Midterm or Final, and schedule a
+session with its opening and closing times in Philippine time. The server accepts
+one check-in per student from the opening time up to the closing time. In
+**Activities & assessments**, students use the green heart on their subject
+card to check in. The card shows **Submitted** after confirmation or **You missed
+attendance** after an eligible session closes without a check-in. Each scheduled
+window opens and closes automatically on the page, and **Attendance history**
+shows records from earlier sessions.
+
+The roster is captured when the professor saves the session. A newly enrolled
+student can check in during an open session. Closed sessions without a roster
+entry do not count against that student. Students who are dropped or excluded
+from the LMS class cannot check in. After a session closes, professors can
+correct the result with a reason. Cancelled sessions are excluded from totals.
+
+The totals show present and absent counts and each student's percentage across
+eligible closed sessions. The professor chooses a saved grading component and
+clicks **Apply attendance scores**. Applying again updates the same Grade Book
+entry for that period. Professor corrections made after applying appear in
+grades after the professor applies the totals again. If every counted session
+is cancelled, **Update Grade Book** excludes the previous attendance entry.
+
+Apply `backend/sql/online_attendance_lms.sql` after the Grade Book schema in the
+separate LMS database. The local CLI installer is
+`php backend/install_online_attendance_lms.php`.
+
 ## Entries and scores
 
 **Add manual entry** opens a short form for face-to-face work under any saved

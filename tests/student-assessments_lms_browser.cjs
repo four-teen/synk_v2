@@ -3,6 +3,10 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const root=path.resolve(__dirname,'..'),tag=crypto.randomBytes(10).toString('hex'),token=crypto.randomBytes(24).toString('hex');
 const route=path.join(root,'tmp',`student-assessments-${tag}_lms.php`),profile=path.join(root,'.tmp',`student-assessments-${tag}_lms`),pending=new Map(),errors=[],requests=[];
 let browser,ws,call,session,config,deadlineConfig,checks=0,conflict=false,deadlineFailure=false;const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms)),clone=value=>JSON.parse(JSON.stringify(value));
+let attendanceConfig;
+const attendanceWindows=[],attendanceRequests=[];
+const attendanceNow=()=>Date.now()+75*60000;
+const iso=milliseconds=>new Date(milliseconds).toISOString();
 const check=(ok,message)=>{if(!ok)throw Error(message);checks++;};
 let serverOffset=0;
 const stamp=()=>new Date(Date.now()+serverOffset).toLocaleString('sv-SE',{timeZone:'Asia/Manila'});
@@ -36,12 +40,34 @@ function api(request){
  const result=resultFor(record,attempt);
  return {ok:true,server_time:stamp(),assessment:{...clone(record),questions:attempt?clone(record.questions):[]},attempt:clone(attempt),result};
 }
+function attendanceApi(request){
+ attendanceRequests.push(request);
+ check(request.csrf_token===attendanceConfig.csrf_token,'Attendance uses its authenticated page token.');
+ const now=attendanceNow();
+ if(request.action==='check_in'){
+  check(Object.keys(request).sort().join(',')==='action,csrf_token,session_id','Check-in sends the session ID without student or term selectors.');
+  const session=attendanceWindows.find(row=>row.session_id===request.session_id);
+  if(!session||now<session.opens||now>=session.closes)return {ok:false,status:409,message:'The check-in window has closed.'};
+  session.checked_in_at??=iso(now);
+  return {ok:true,session_id:session.session_id,state:'open',result:'present',checked_in_at:session.checked_in_at,server_time:iso(now)};
+ }
+ check(request.action==='cards','The assessment page requests the compact attendance feed.');
+ const sessions=attendanceWindows.map(row=>{
+  const state=now<row.opens?'scheduled':now<row.closes?'open':'closed';
+  return {session_id:row.session_id,title:row.title,state,opens_at:iso(row.opens),closes_at:iso(row.closes),grading_period:'final',
+   result:row.checked_in_at?'present':state==='closed'?'absent':'pending',checked_in_at:row.checked_in_at??null};
+ });
+ return {ok:true,server_time:iso(now),subjects:[{subject_key:config.subjects[0].subject_key,sessions,section:'QA-1'}]};
+}
 async function main(){
  const phpPath=path.join(root,'tests/fixtures/student-assessment-request_lms.php').replaceAll('\\','/');fs.writeFileSync(route,`<?php define('SYNK_PROFESSOR_LMS_QA','${token}');require '${phpPath}';`);
  const response=await fetch(`http://localhost/synk/tmp/${path.basename(route)}?qa=${token}`),html=await response.text();
  check(response.status===200&&!/Fatal error|Parse error|xdebug-error/.test(html),'The actual student assessments page renders without PHP errors: '+response.status+' / '+html.replace(/<[^>]*>/g,' ').slice(-2200));
  check(response.headers.get('x-qa-core-unchanged')==='yes','Rendering the actual page must roll back all student and core fixtures.');
  const match=html.match(/<script id="studentAssessmentConfig" type="application\/json">(.*?)<\/script>/s);if(!match)throw Error('Missing student assessment configuration.');config=JSON.parse(match[1]);
+ const attendanceMatch=html.match(/<script id="studentAttendanceCardConfig" type="application\/json">(.*?)<\/script>/s);
+ if(!attendanceMatch)throw Error('Missing student attendance configuration.');
+ attendanceConfig=JSON.parse(attendanceMatch[1]);
  check(config.subjects.length===2,'Both enrolled subjects appear even before any assessments are published.');
  records[0].subject_key=config.subjects[0].subject_key;records[1].subject_key=config.subjects[0].subject_key;
  records.push({...clone(records[0]),assessment_id:3,title:'Other subject quiz',subject_key:config.subjects[1].subject_key});
@@ -55,34 +81,82 @@ async function main(){
  check(tampered.status===303&&tampered.headers.get('location')==='assessments_lms.php'&&!(await tampered.text()).includes('studentAssessmentConfig'),'Forged student, assessment and term URL selectors redirect to the clean assessment URL before showing any workspace data.');
  const executable=[process.env['ProgramFiles(x86)']+'\\Microsoft\\Edge\\Application\\msedge.exe',process.env.ProgramFiles+'\\Google\\Chrome\\Application\\chrome.exe'].find(fs.existsSync);
  browser=spawn(executable,['--headless=new','--disable-gpu','--disable-extensions','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
- const socket=await new Promise((resolve,reject)=>{let log='';const timer=setTimeout(()=>reject(Error('Browser startup timed out.')),15000);browser.stderr.on('data',data=>{log+=data;const m=log.match(/DevTools listening on (ws:\/\/[^\s]+)/);if(m){clearTimeout(timer);resolve(m[1]);}});browser.on('error',reject);});
+ const portFile=path.join(profile,'DevToolsActivePort');
+ let socket,startupError;
+ browser.stderr.resume();
+ browser.on('error',error=>{startupError=error;});
+ for(let attempt=0;attempt<200&&!socket&&!startupError;attempt++){
+  if(fs.existsSync(portFile)){
+   const [port,socketPath]=fs.readFileSync(portFile,'utf8').trim().split(/\r?\n/);
+   if(Number(port)>0&&socketPath?.startsWith('/devtools/browser/'))socket=`ws://127.0.0.1:${port}${socketPath}`;
+  }
+  if(!socket)await delay(100);
+ }
+ if(!socket)throw startupError||Error('Browser startup timed out.');
  ws=new WebSocket(socket);await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true});});
  let sequence=0;call=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++sequence,timer=setTimeout(()=>{pending.delete(id);reject(Error('Browser timeout: '+method));},15000);pending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})}));});
  ws.addEventListener('message',event=>{
   const m=JSON.parse(event.data);if(pending.has(m.id)){const item=pending.get(m.id);pending.delete(m.id);clearTimeout(item.timer);m.error?item.reject(Error(m.error.message)):item.resolve(m.result);}
   if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text);
   if(m.method==='Page.javascriptDialogOpening'){errors.push('Unexpected native dialog: '+m.params.type);call('Page.handleJavaScriptDialog',{accept:true},session).catch(e=>errors.push(e.message));}
-  if(m.method==='Fetch.requestPaused')(async()=>{const {requestId,request}=m.params,isApi=request.url.includes('assessments_api_lms.php'),isPresence=request.url.includes('student_presence.php'),data=isApi?api(JSON.parse(request.postData)):isPresence?{status:'ok',seconds_remaining:900}:request.url.includes('/student/index.php')?dashboardHtml:html,status=isApi?(data.status||200):200;if(isApi)delete data.status;await call('Fetch.fulfillRequest',{requestId,responseCode:status,responseHeaders:[{name:'Content-Type',value:isApi||isPresence?'application/json':'text/html; charset=utf-8'}],body:Buffer.from(isApi||isPresence?JSON.stringify(data):data).toString('base64')},session);})().catch(e=>errors.push(e.stack));
+  if(m.method==='Fetch.requestPaused')(async()=>{
+   const {requestId,request}=m.params;
+   const isApi=request.url.includes('assessments_api_lms.php'),isAttendance=request.url.includes('online_attendance_api_lms.php'),isPresence=request.url.includes('student_presence.php');
+   const isJson=isApi||isAttendance||isPresence;
+   const data=isApi?api(JSON.parse(request.postData)):isAttendance?attendanceApi(JSON.parse(request.postData))
+    :isPresence?{status:'ok',seconds_remaining:900}:request.url.includes('/student/index.php')?dashboardHtml:html;
+   const status=(isApi||isAttendance)?data.status||200:200;
+   if(isApi||isAttendance)delete data.status;
+   await call('Fetch.fulfillRequest',{requestId,responseCode:status,responseHeaders:[{name:'Content-Type',value:isJson?'application/json':'text/html; charset=utf-8'}],body:Buffer.from(isJson?JSON.stringify(data):data).toString('base64')},session);
+  })().catch(e=>errors.push(e.stack));
  });
  const target=await call('Target.createTarget',{url:'about:blank'});session=(await call('Target.attachToTarget',{targetId:target.targetId,flatten:true})).sessionId;
  for(const method of ['Page.enable','Runtime.enable','Network.enable'])await call(method,{},session);
  await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false},session);
- await call('Fetch.enable',{patterns:[{urlPattern:'http://localhost/synk/student/index.php',resourceType:'Document'},{urlPattern:'http://localhost/synk/student/assessments_lms.php',resourceType:'Document'},{urlPattern:'http://localhost/synk/student/assessments_api_lms.php'},{urlPattern:'http://localhost/synk/backend/student_presence.php'}]},session);
+ await call('Fetch.enable',{patterns:[{urlPattern:'http://localhost/synk/student/index.php',resourceType:'Document'},{urlPattern:'http://localhost/synk/student/assessments_lms.php',resourceType:'Document'},{urlPattern:'http://localhost/synk/student/assessments_api_lms.php'},{urlPattern:'http://localhost/synk/student/online_attendance_api_lms.php'},{urlPattern:'http://localhost/synk/backend/student_presence.php'}]},session);
  await call('Page.navigate',{url:'http://localhost/synk/student/index.php'},session);await until('document.readyState==="complete" && !!document.querySelector("#announcements-title")');
  check(await evaluate('!document.querySelector("[data-subject-card]") && document.querySelector(".student-announcement-panel").textContent.includes("No announcements yet") && document.querySelector(".student-announcement-panel a").getAttribute("href")==="assessments_lms.php"'),'The dashboard uses the former subject area for announcements and links to the moved subjects.');
  await click('#studentDeadlineRefresh');await until('document.querySelectorAll("[data-deadline-assessment]").length===5 && !document.querySelector("#studentDeadlineRefresh").disabled');
  check(await evaluate('(()=>{const pending=document.querySelector("[data-deadline-assessment=\\"1\\"]"),done=document.querySelector("[data-deadline-assessment=\\"7\\"]"),expired=document.querySelector("[data-deadline-assessment=\\"6\\"]");return pending.textContent.includes("Due today")&&getComputedStyle(pending.querySelector(".student-deadline-notice")).color==="rgb(180, 35, 24)"&&done.classList.contains("is-complete")&&getComputedStyle(done.querySelector(".student-deadline-notice")).color==="rgb(20, 115, 62)"&&!expired.classList.contains("is-complete")&&expired.textContent.includes("Time ended")&&!pending.querySelector("img")&&document.querySelector("#studentDeadlinePanel").compareDocumentPosition(document.querySelector(".student-announcement-panel"))===Node.DOCUMENT_POSITION_FOLLOWING;})()'),'Dashboard deadlines appear above announcements, with red due-today notices, green submissions, red expiry and escaped titles.');
  for(const width of[1440,390]){await call('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<600},session);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),'The announcement dashboard fits '+width+'px.');const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp',`student-announcements-${width}_lms.png`),Buffer.from(shot.data,'base64'));}
+ attendanceWindows.push({session_id:101,title:'Attendance <img src=x onerror=alert(1)>',opens:attendanceNow()-60000,closes:attendanceNow()+120000});
  await call('Page.navigate',{url:'http://localhost/synk/student/assessments_lms.php'},session);await until('!!document.querySelector("[data-open-subject]") && !document.querySelector("#studentAssessmentRefresh").disabled && [...document.querySelectorAll("[data-subject-count]")].every(node=>!node.textContent.includes("Loading"))');
+ await until('!!document.querySelector("[data-attendance-check-in]")');
+ check(await evaluate(`(()=>{const button=document.querySelector('[data-attendance-check-in="101"]'),heart=button.querySelector('.bxs-heart');return button.textContent.includes('Attendance open')&&button.textContent.includes('PHT')&&!button.querySelector('img')&&getComputedStyle(heart).color==='rgb(25, 133, 77)'&&getComputedStyle(heart).animationName==='student-attendance-heartbeat'&&!!button.closest('[data-subject-card]').querySelector('a[href^="online_attendance_lms.php#"]')&&document.querySelectorAll('[data-attendance-check-in]').length===1;})()`),
+  'The eligible subject card shows an animated green heart, an escaped title, Philippine time and the history link.');
+ await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},session);
+ check(await evaluate('getComputedStyle(document.querySelector("[data-attendance-check-in] .bxs-heart")).animationName==="none"'),'The green check-in respects reduced motion.');
+ await call('Emulation.setEmulatedMedia',{features:[]},session);
  check(await evaluate('!document.querySelector("#studentSubjectLibrary").hidden && document.querySelector("#studentAssessmentLibrary").hidden && document.querySelectorAll("[data-subject-card]").length===2'),'The assessment workspace opens with one card per enrolled faculty subject.');
  check(await evaluate('(()=>{const card=document.querySelector("[data-subject-card]"),rows=[...card.querySelectorAll(".student-class-summary-row")];return rows.length===3&&card.querySelector("[data-subject-active]").textContent==="2"&&card.querySelector("[data-subject-completed]").textContent==="1"&&card.querySelector("[data-subject-total]").textContent==="7"&&rows[0].getBoundingClientRect().right<=rows[1].getBoundingClientRect().left+1&&rows[1].getBoundingClientRect().right<=rows[2].getBoundingClientRect().left+1&&card.classList.contains("has-pending")&&!card.querySelector(".student-class-details").open;})()'),'Each subject has a compact count strip, highlights active work and keeps class details collapsed.');
  for(const width of[1440,768,390,320]){
   await call('Emulation.setDeviceMetricsOverride',{width,height:1000,deviceScaleFactor:1,mobile:width<600},session);
   check(await evaluate('document.documentElement.scrollWidth<=innerWidth && [...document.querySelectorAll("[data-open-subject]")].every(button=>button.getBoundingClientRect().height>=44)'),'Subject cards and their actions fit '+width+'px.');
+  check(await evaluate('document.querySelector("[data-attendance-check-in]").getBoundingClientRect().height>=44'),'The attendance button is large enough to tap at '+width+'px.');
   check(await evaluate('(()=>{const nav=document.querySelector("#layout-navbar").getBoundingClientRect(),page=document.querySelector("#studentAssessments").getBoundingClientRect();return Math.abs(nav.left-page.left)<1&&Math.abs(nav.right-page.right)<1;})()'),'The header aligns with both content edges at '+width+'px.');
   check(await evaluate('(()=>{const title=document.querySelector(".student-subject-title"),code=title.querySelector(".student-class-code"),description=title.querySelector(".student-class-description");return getComputedStyle(code).fontSize===getComputedStyle(description).fontSize&&Math.abs(code.getBoundingClientRect().top-description.getBoundingClientRect().top)<1&&getComputedStyle(document.querySelector(".student-professor-name")).color==="rgb(240, 100, 0)";})()'),'Subject codes and descriptions share one line and size, with vivid orange faculty names at '+width+'px.');
   if(width===1440||width===390){const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false},session);fs.writeFileSync(path.join(root,'.tmp',`student-subject-cards-${width}_lms.png`),Buffer.from(shot.data,'base64'));}
  }
+ await evaluate(`(()=>{const selector='[data-attendance-check-in="101"]';document.querySelector(selector).focus();document.querySelector(selector).click();document.querySelector(selector)?.click();window.qaAttendancePage=document.querySelector('#studentAssessments');})()`);
+ await until(`document.querySelector('[data-attendance-session="101"]')?.classList.contains('is-submitted')`);
+ check(await evaluate(`document.activeElement.dataset.attendanceSession==='101' && document.activeElement.textContent.includes('Submitted') && document.activeElement.textContent.includes('Checked in')`)
+  &&attendanceRequests.filter(row=>row.action==='check_in').length===1,'One click records attendance and focuses the confirmed Submitted status. Duplicate taps are ignored.');
+ const next=attendanceNow();
+ attendanceWindows[0].closes=next-1000;
+ attendanceWindows.push({session_id:102,title:'Second check-in',opens:next+1400,closes:next+3900},
+  {session_id:103,title:'Third check-in',opens:next+6000,closes:next+120000});
+ await click('#studentAssessmentRefresh');
+ await until(`!!document.querySelector('[data-attendance-check-in="102"] .bxs-heart')`);
+ await until(`document.querySelector('[data-attendance-session="102"]')?.textContent.includes('You missed attendance')`);
+ check(await evaluate(`!document.querySelector('[data-attendance-check-in]') && !document.querySelector('[data-attendance-session="103"]')`),'A missed window shows its result while the next one is scheduled.');
+ await until(`!!document.querySelector('[data-attendance-check-in="103"] .bxs-heart')`);
+ check(await evaluate(`window.qaAttendancePage===document.querySelector('#studentAssessments') && !document.querySelector('[data-attendance-session="102"]')`),'The next green heart replaces the missed result automatically on the same page.');
+ await click('[data-open-subject="'+config.subjects[0].subject_key+'"]');
+ await until(`!!document.querySelector('#studentAttendanceSubject [data-attendance-check-in="103"]')`);
+ await click('#studentAttendanceSubject [data-attendance-check-in="103"]');
+ await until(`document.querySelector('#studentAttendanceSubject .is-submitted')?.textContent.includes('Submitted')`);
+ await click('#studentSubjectBack');
+ check(await evaluate(`document.querySelector('[data-attendance-card] .is-submitted')?.textContent.includes('Third check-in')`),'Check-in from inside the subject also updates its overview card.');
  await fill('#subject-search','no matching subject');check(await evaluate('!document.querySelector("#subject-search-empty").hidden && !document.querySelector("[data-subject-card]:not([hidden])")'),'Subject search explains an empty result.');await click('#subject-search-clear');
  await click('[data-open-subject="'+config.subjects[1].subject_key+'"]');
  check(await evaluate('document.querySelector("[data-student-period-count=midterm]").textContent==="1" && document.querySelector("[data-student-period-unit=midterm]").textContent==="activity" && document.querySelector("[data-student-period-count=final]").textContent==="0"'),'Period counts include only the selected subject and use singular labels for one activity.');

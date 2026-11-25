@@ -1,0 +1,27 @@
+.student-online-attendance { --soa-ink:#283752; --soa-muted:#566780; --soa-border:#e2e8f2; }
+.student-oa-heading, .student-oa-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.65rem 1rem; }
+.student-oa-heading { justify-content:space-between; margin-bottom:1.25rem; }
+.student-oa-heading h1 { color:var(--soa-ink); font-size:clamp(1.3rem,3vw,1.75rem); margin:0; }
+.student-oa-heading p { margin:.3rem 0 0; color:var(--soa-muted); }
+.student-oa-filter { max-width:26rem; }
+.student-oa-subject { border:1px solid var(--soa-border); margin-bottom:1rem; }
+.student-oa-subject header { padding:.95rem 1.1rem; }
+.student-oa-subject h2 { margin:0; font-size:1.05rem; color:var(--soa-ink); overflow-wrap:anywhere; }
+.student-oa-subject header p { margin:.3rem 0 0; font-size:.875rem; color:var(--soa-muted); }
+.student-oa-subject ul { padding:0; margin:0; list-style:none; }
+.student-oa-empty { border-top:1px solid var(--soa-border); margin:0; padding:.85rem 1.1rem; color:var(--soa-muted); }
+.student-oa-session { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.6rem 1rem; align-items:center; border-top:1px solid var(--soa-border); padding:.85rem 1.1rem; }
+.student-oa-session h3 { margin:0; color:var(--soa-ink); font-size:.95rem; overflow-wrap:anywhere; }
+.student-oa-session p { margin:.2rem 0 0; color:var(--soa-muted); font-size:.85rem; }
+.student-oa-status { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:.55rem; }
+.student-oa-pill { border-radius:999px; padding:.25rem .6rem; font-size:.75rem; font-weight:650; background:#edf0f8; color:#425477; white-space:nowrap; }
+.student-oa-pill[data-state=present] { background:#e1f3ea; color:#1a6545; }
+.student-oa-pill:is([data-state=absent],[data-state=cancelled]) { background:#fae9eb; color:#8f3841; }
+.student-oa-pill:is([data-state=pending],[data-state=scheduled]) { background:#fff2da; color:#7b5118; }
+.student-oa-notice { color:var(--soa-muted); }
+.student-oa-notice:empty { display:none; }
+.student-oa-actions .btn, .student-oa-status .btn { min-height:44px; }
+@media (max-width:479px) {
+  .student-oa-session { grid-template-columns:1fr; }
+  .student-oa-status { justify-content:flex-start; }
+}

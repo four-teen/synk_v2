@@ -33,22 +33,38 @@ function synk_gradebook_write_scores_lms(mysqli $lms, int $itemId, array $entrie
     }
 }
 
+function synk_gradebook_open_for_write_lms(mysqli $lms, array $context, array $book, array $payload, string $now): array
+{
+    if (synk_grading_integer_lms($payload['version']??null)!==$book['version'] || synk_grading_integer_lms($payload['scheme_version']??null)!==$book['scheme']['version']) throw new DomainException('This gradebook changed in another tab. Reload before saving; your entries are kept on this page.',409);
+    $scheme=$book['scheme'];
+    if (!$scheme['scheme_id'] || !$scheme['components'] || abs($scheme['total_weight']-100)>0.00000001) throw new DomainException('Save a grading system totaling 100% for this period before recording scores.',422);
+    if (!$book['book_id']) {
+        synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_periods (faculty_id,offering_id,ay_id,semester,grading_period,scheme_id,scheme_version,scheme_snapshot_json,version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,0,?,?)','iiiisiisss',array_merge(synk_grading_scope_lms($context),[$book['grading_period'],$scheme['scheme_id'],$scheme['version'],json_encode($scheme,JSON_UNESCAPED_UNICODE),$now,$now]));
+        $book['book_id']=(int)$lms->insert_id;
+    }
+    return $book;
+}
+
+function synk_gradebook_record_revision_lms(mysqli $lms, array $book, int $actor, string $action, array $details, string $now): void
+{
+    $version=$book['version']+1;
+    synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_periods SET version=?,updated_at=? WHERE book_id=?','isi',[$version,$now,$book['book_id']]);
+    synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_logs (book_id,actor_user_id,version,action,details_json,recorded_at) VALUES (?,?,?,?,?,?)','iiisss',[$book['book_id'],$actor,$version,$action,json_encode($details,JSON_UNESCAPED_UNICODE),$now]);
+}
+
 function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, string $action, array $payload, int $actor): array
 {
     if($action==='set_visibility')return synk_gradebook_set_visibility_lms($lms,$context,$payload,$actor);
     $period=synk_grading_period_lms($payload['grading_period']??null);
     $book=synk_gradebook_period_lms($lms,$context,$period,true);
-    if (synk_grading_integer_lms($payload['version']??null)!==$book['version'] || synk_grading_integer_lms($payload['scheme_version']??null)!==$book['scheme']['version']) throw new DomainException('This gradebook changed in another tab. Reload before saving; your entries are kept on this page.',409);
-    $scheme=$book['scheme'];$now=synk_assessment_now_lms();$details=[];
-    if (!$scheme['scheme_id'] || !$scheme['components'] || abs($scheme['total_weight']-100)>0.00000001) throw new DomainException('Save a grading system totaling 100% for this period before recording scores.',422);
-    if (!$book['book_id']) {
-        synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_periods (faculty_id,offering_id,ay_id,semester,grading_period,scheme_id,scheme_version,scheme_snapshot_json,version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,0,?,?)','iiiisiisss',array_merge(synk_grading_scope_lms($context),[$period,$scheme['scheme_id'],$scheme['version'],json_encode($scheme,JSON_UNESCAPED_UNICODE),$now,$now]));
-        $book['book_id']=(int)$lms->insert_id;
-    }
+    $now=synk_assessment_now_lms();$details=[];
+    $book=synk_gradebook_open_for_write_lms($lms,$context,$book,$payload,$now);
+    $scheme=$book['scheme'];
     $items=synk_gradebook_items_lms($lms,$book['book_id']);$itemMap=array_column($items,null,'item_id');$components=array_column($scheme['components'],null,'component_id');
     if ($action==='save_item' || $action==='save_attendance') {
         $id=synk_grading_integer_lms($payload['item_id']??0);$before=$itemMap[$id]??null;
         if ($id && !$before) throw new DomainException('This entry is unavailable in this gradebook.',404);
+        if (!empty($before['online_attendance'])) throw new DomainException('Update this entry from Online Attendance.',422);
         if (!$id && count($items)>=300) throw new DomainException('A period can contain up to 300 active entries.',422);
         $component=synk_grading_integer_lms($payload['component_id']??null);
         if (!isset($components[$component])) throw new DomainException('Choose a component from this period\'s grading system.',422);
@@ -104,7 +120,9 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
     } elseif ($action==='save_scores') {
         $id=synk_grading_integer_lms($payload['item_id']??null);
         if (!isset($itemMap[$id])) throw new DomainException('This entry is unavailable in this period.',404);
-        $item=$itemMap[$id];$students=array_column(synk_gradebook_roster_lms($core,$context),null,'student_id');
+        $item=$itemMap[$id];
+        if (!empty($item['online_attendance'])) throw new DomainException('Correct attendance and apply its scores from Online Attendance.',422);
+        $students=array_column(synk_gradebook_roster_lms($core,$context),null,'student_id');
         $entries=$payload['scores']??null;
         if (!is_array($entries)) throw new DomainException('Include the student scores.',422);
         $validated=synk_gradebook_validate_scores_lms($entries,$students,$item);
@@ -118,9 +136,7 @@ function synk_gradebook_mutate_lms(mysqli $core, mysqli $lms, array $context, st
         synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_periods SET scheme_id=?,scheme_version=?,scheme_snapshot_json=? WHERE book_id=?','iisi',[$latest['scheme_id'],$latest['version'],json_encode($latest,JSON_UNESCAPED_UNICODE),$book['book_id']]);
         $details=['before'=>$scheme,'after'=>$latest];
     }
-    $version=$book['version']+1;
-    synk_grading_query_lms($lms,'UPDATE tbl_lms_gradebook_periods SET version=?,updated_at=? WHERE book_id=?','isi',[$version,$now,$book['book_id']]);
-    synk_grading_query_lms($lms,'INSERT INTO tbl_lms_gradebook_logs (book_id,actor_user_id,version,action,details_json,recorded_at) VALUES (?,?,?,?,?,?)','iiisss',[$book['book_id'],$actor,$version,$action,json_encode($details,JSON_UNESCAPED_UNICODE),$now]);
+    synk_gradebook_record_revision_lms($lms,$book,$actor,$action,$details,$now);
     return in_array($action,['save_item','save_attendance'],true)?['saved_item_id'=>$id]:[];
 }
 function synk_gradebook_request_lms(mysqli $core, array $input): array

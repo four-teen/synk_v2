@@ -12,14 +12,20 @@ function synk_student_gradebook_identity_lms(mysqli $core): int
 
 // Resolve only current enrollments against the same live class/merge matcher as delivery.
 // Keep independently graded offerings separate; never average unrelated gradebooks.
-function synk_student_gradebook_classes_lms(mysqli $core,int $studentId): array
+function synk_student_gradebook_classes_lms(mysqli $core,int $studentId,?array $term=null,?array $offeringScope=null): array
 {
-    $term=synk_fetch_current_academic_term($core);$rows=[];$faculty=[];
+    $term=$term??synk_fetch_current_academic_term($core);$rows=[];$faculty=[];
+    if($offeringScope===[])return ['term'=>$term,'classes'=>[]];
     foreach(synk_student_subjects_lms($core,$studentId) as $subject){
         $facultyId=(int)$subject['faculty_id'];
+        if($offeringScope!==null&&!isset($offeringScope[$facultyId]))continue;
         if(!isset($faculty[$facultyId])){
             $active=$facultyId>0?synk_grading_query_lms($core,"SELECT faculty_id FROM tbl_faculty WHERE faculty_id=? AND status='active'",'i',[$facultyId]):[];
             $classes=$active?synk_professor_fetch_subject_rows_by_academic_year($core,$facultyId,(int)$term['ay_id'],(int)$term['semester']):[];
+            if($offeringScope!==null){
+                $assigned=$offeringScope[$facultyId];
+                $classes=array_filter($classes,static function(array $class) use($assigned):bool{return isset($assigned[(int)$class['offering_id']]);});
+            }
             $faculty[$facultyId]=['classes'=>$classes,'members'=>synk_professor_workload_student_memberships($core,$classes,(int)$term['ay_id'],(int)$term['semester'])];
         }
         $matched=false;
@@ -66,9 +72,12 @@ function synk_student_gradebook_period_lms(mysqli $lms,array $context,string $pe
         // Show exactly the active entries included by the frozen grading setup.
         if(!isset($components[$item['component_id']]))continue;
         $score=$scores[$item['item_id']][$studentId]??null;
+        $attendance=!empty($item['online_attendance']);
         $entries[]=['title'=>$item['title'],'component'=>$components[$item['component_id']]['name'],'kind'=>$item['entry_kind'],
-            'date'=>$item['recorded_date'],'maximum'=>$item['max_points'],'points'=>$score===null?null:$score['points'],'source'=>$score===null?'unrecorded':$score['source'],
-            'explanation'=>$score===null?'Unrecorded; counts as zero':($score['source']==='lms'?$score['reason']:'Recorded by your instructor')];
+            'date'=>$item['recorded_date'],'maximum'=>$attendance && $score===null?null:$item['max_points'],'points'=>$score===null?null:$score['points'],
+            'source'=>$attendance?'attendance':($score===null?'unrecorded':$score['source']),
+            'explanation'=>$attendance ? ($score===null?'No eligible sessions when last applied':'Attendance scores applied by your instructor')
+                : ($score===null?'Unrecorded; counts as zero':($score['source']==='lms'?$score['reason']:'Recorded by your instructor'))];
     }
     // Explicit student-safe view: no answer keys, responses, other students or staff notes.
     return ['visible'=>true,'result'=>$result,'entries'=>$entries,'updated_at'=>$book['updated_at']];
