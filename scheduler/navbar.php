@@ -18,7 +18,6 @@ $schedulerCollegeAccess = is_array($_SESSION['scheduler_college_access'] ?? null
     ? $_SESSION['scheduler_college_access']
     : [];
 $activeCollegeId = (int)($_SESSION['college_id'] ?? 0);
-$activeCampusName = trim((string)($_SESSION['campus_name'] ?? ''));
 $activeCollegeName = trim((string)($_SESSION['college_name'] ?? ''));
 $schedulerScopeToken = (string)$_SESSION['csrf_token'];
 $uEmail = trim((string)($_SESSION['email'] ?? ''));
@@ -34,33 +33,40 @@ $schedulerTermConfig = ['term'=>$schedulerNavbarTerm,'years'=>$schedulerNavbarYe
 <link rel="stylesheet" href="working-term.css?v=<?= (int)filemtime(__DIR__.'/working-term.css') ?>">
 
 <nav
-  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+  class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached bg-navbar-theme scheduler-navbar"
   id="layout-navbar">
 
-  <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
-    <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
-      <i class="bx bx-menu bx-sm"></i>
-    </a>
+  <div class="layout-menu-toggle d-xl-none">
+    <button type="button" class="scheduler-menu-button" aria-label="Toggle navigation" aria-controls="layout-menu">
+      <i class="bx bx-menu" aria-hidden="true"></i>
+    </button>
   </div>
 
-  <div class="navbar-nav-right d-flex align-items-center gap-3 w-100" id="navbar-collapse">
-    <div class="scheduler-term-context">
-      <div class="scheduler-term-summary">
-        <i class="bx bx-calendar" aria-hidden="true"></i>
+  <div class="navbar-nav-right" id="navbar-collapse">
+    <button
+      type="button"
+      class="scheduler-term-control"
+      id="scheduler-term-settings-toggle"
+      data-bs-toggle="modal"
+      data-bs-target="#schedulerTermSettingsModal"
+      aria-label="Change working academic year and semester"
+      aria-describedby="scheduler-working-term-label scheduler-working-term-status"
+      aria-haspopup="dialog"
+      title="Working term settings"
+    >
+      <span class="scheduler-term-labels">
         <span id="scheduler-working-term-label"><?= htmlspecialchars($schedulerNavbarTerm['term_text'],ENT_QUOTES,'UTF-8') ?></span>
-        <span class="badge <?= $schedulerNavbarTerm['can_write'] ? 'bg-label-primary' : 'bg-label-secondary' ?>"><?= htmlspecialchars($schedulerNavbarTerm['mode'],ENT_QUOTES,'UTF-8') ?></span>
-        <button type="button" class="btn btn-sm" id="scheduler-term-settings-toggle" data-bs-toggle="modal" data-bs-target="#schedulerTermSettingsModal" aria-label="Change working academic year and semester" title="Working term settings"><i class="bx bx-cog" aria-hidden="true"></i></button>
-      </div>
-    </div>
+        <span class="scheduler-term-status<?= $schedulerNavbarTerm['is_current'] ? ' is-current' : '' ?>" id="scheduler-working-term-status"><?= htmlspecialchars($schedulerNavbarTerm['mode'],ENT_QUOTES,'UTF-8') ?></span>
+      </span>
+      <i class="bx bx-calendar-edit scheduler-term-icon" aria-hidden="true"></i>
+    </button>
 
     <?php if ((string)($_SESSION['role'] ?? '') === 'scheduler'): ?>
-      <div class="d-none d-md-flex align-items-center gap-2 flex-shrink-0">
-        <span class="badge bg-label-info text-uppercase"><?= htmlspecialchars($activeCampusName !== '' ? $activeCampusName : 'Campus', ENT_QUOTES, 'UTF-8') ?></span>
+      <div class="d-none d-md-flex align-items-center justify-content-center scheduler-college-context">
         <?php if (count($schedulerCollegeAccess) > 1): ?>
           <select
             id="schedulerCollegeSwitch"
             class="form-select form-select-sm"
-            style="min-width: 18rem;"
             aria-label="Switch active college workspace"
           >
             <?php foreach ($schedulerCollegeAccess as $accessRow): ?>
@@ -77,22 +83,21 @@ $schedulerTermConfig = ['term'=>$schedulerNavbarTerm,'years'=>$schedulerNavbarYe
             <?php endforeach; ?>
           </select>
         <?php else: ?>
-          <span class="badge bg-label-primary"><?= htmlspecialchars($activeCollegeName !== '' ? $activeCollegeName : 'Assigned College', ENT_QUOTES, 'UTF-8') ?></span>
+          <span class="scheduler-college-label"><?= htmlspecialchars($activeCollegeName !== '' ? $activeCollegeName : 'Assigned College', ENT_QUOTES, 'UTF-8') ?></span>
         <?php endif; ?>
       </div>
     <?php endif; ?>
 
-    <ul class="navbar-nav flex-row align-items-center ms-auto">
-      <li class="nav-item lh-1 me-3 text-end scheduler-user-name">
-        <span class="fw-semibold"><?= htmlspecialchars($uName, ENT_QUOTES, 'UTF-8') ?></span>
-        <small class="text-muted ms-1">(<?= htmlspecialchars($uRole, ENT_QUOTES, 'UTF-8') ?>)</small>
-      </li>
-
+    <ul class="navbar-nav scheduler-profile">
       <li class="nav-item navbar-dropdown dropdown-user dropdown">
-        <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
-          <div class="avatar avatar-online">
-            <img src="<?= htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($uName, ENT_QUOTES, 'UTF-8') ?>" class="w-px-40 h-auto rounded-circle" onerror="this.onerror=null;this.src='<?= htmlspecialchars($avatarFallback, ENT_QUOTES, 'UTF-8') ?>';" referrerpolicy="no-referrer" />
-          </div>
+        <a class="scheduler-profile-toggle dropdown-toggle hide-arrow" href="javascript:void(0);" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <span class="avatar">
+            <img src="<?= htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" class="rounded-circle" onerror="this.onerror=null;this.src='<?= htmlspecialchars($avatarFallback, ENT_QUOTES, 'UTF-8') ?>';" referrerpolicy="no-referrer" />
+          </span>
+          <span class="scheduler-user-name">
+            <span class="fw-bold text-uppercase"><?= htmlspecialchars($uName, ENT_QUOTES, 'UTF-8') ?></span>
+            <small class="scheduler-user-role"><?= htmlspecialchars($uRole, ENT_QUOTES, 'UTF-8') ?></small>
+          </span>
         </a>
 
         <ul class="dropdown-menu dropdown-menu-end">
