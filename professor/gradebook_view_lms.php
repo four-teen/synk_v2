@@ -2,7 +2,14 @@
 if (!isset($class,$gradebookReady) || $view!=='gradebook' || ($_SESSION['role']??'')!=='professor') {http_response_code(404);return;}
 ?>
 <section id="gradebookWorkspace" class="gb-workspace" aria-labelledby="gradebookTitle">
-  <div class="gb-heading"><div><p class="gb-eyebrow">SCORES &amp; GRADES</p><h2 id="gradebookTitle">Grade Book</h2></div><div class="gb-actions"><?php if ($gradebookReady): ?><a id="gbPrintGradesheet" class="btn btn-primary" target="_blank" rel="noopener" href="gradesheet_lms.php?<?= synk_professor_h(http_build_query(array_intersect_key($_GET,array_flip(['offering_id','ay_id','semester','view','signature'])))) ?>"><i class="bx bx-printer" aria-hidden="true"></i>Print grade sheet</a><?php endif; ?><a class="btn btn-outline-secondary" href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>"><i class="bx bx-slider-alt" aria-hidden="true"></i>Grading system</a></div></div>
+  <div class="gb-heading">
+    <div><p class="gb-eyebrow">SCORES &amp; GRADES</p><h2 id="gradebookTitle">Grade Book</h2></div>
+    <div class="gb-actions">
+      <?php if ($gradebookReady): ?><a id="gbPrintGradesheet" class="btn btn-primary" target="_blank" rel="noopener" href="gradesheet_lms.php?<?= synk_professor_h(http_build_query(array_intersect_key($_GET,array_flip(['offering_id','ay_id','semester','view','signature'])))) ?>"><i class="bx bx-printer" aria-hidden="true"></i>Print grade sheet</a><?php endif; ?>
+      <a id="gbOnlineAttendance" class="btn btn-outline-primary" href="<?= synk_professor_h(synk_professor_class_url_lms($class,'attendance')) ?>"><i class="bx bx-calendar-check" aria-hidden="true"></i>Online Attendance</a>
+      <a class="btn btn-outline-secondary" href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>"><i class="bx bx-slider-alt" aria-hidden="true"></i>Grading system</a>
+    </div>
+  </div>
   <?php if (!$gradebookReady): ?>
     <div class="lms-feedback-state" role="status">Gradebook storage needs to be prepared. Ask your administrator to install the LMS gradebook.</div>
   <?php else: ?>

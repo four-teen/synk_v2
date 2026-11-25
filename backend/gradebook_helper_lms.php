@@ -3,6 +3,7 @@ require_once __DIR__.'/grading_helper_lms.php';
 require_once __DIR__.'/assessment_delivery_helper_lms.php';
 require_once __DIR__.'/assessment_result_helper_lms.php';
 require_once __DIR__.'/gradebook_visibility_helper_lms.php';
+require_once __DIR__.'/online_attendance_storage_lms.php';
 
 function synk_gradebook_ready_lms(mysqli $lms): bool
 {
@@ -42,9 +43,16 @@ function synk_gradebook_period_lms(mysqli $lms, array $context, string $period, 
 }
 function synk_gradebook_items_lms(mysqli $lms, int $bookId): array
 {
-    $rows=$bookId?synk_grading_query_lms($lms,"SELECT item_id,component_id,title,entry_kind,assessment_id,max_points,recorded_date FROM tbl_lms_gradebook_items WHERE book_id=? AND status='active' ORDER BY item_id",'i',[$bookId]):[];
+    if (!$bookId) return [];
+    $linked = in_array('tbl_lms_online_attendance_periods',synk_online_attendance_tables_lms($lms),true);
+    $rows = synk_grading_query_lms($lms,'SELECT i.item_id,i.component_id,i.title,i.entry_kind,i.assessment_id,i.max_points,i.recorded_date'
+        .($linked ? ',a.attendance_period_id AS online_attendance' : '').' FROM tbl_lms_gradebook_items i'
+        .($linked ? ' LEFT JOIN tbl_lms_online_attendance_periods a ON a.gradebook_item_id=i.item_id' : '')
+        ." WHERE i.book_id=? AND i.status='active' ORDER BY i.item_id",'i',[$bookId]);
     foreach ($rows as &$row) {
         $row['item_id']=(int)$row['item_id'];$row['component_id']=(int)$row['component_id'];$row['assessment_id']=$row['assessment_id']===null?null:(int)$row['assessment_id'];$row['max_points']=(float)$row['max_points'];
+        if (!empty($row['online_attendance'])) $row['online_attendance'] = true;
+        else unset($row['online_attendance']);
     } unset($row);
     return $rows;
 }
@@ -132,8 +140,11 @@ function synk_gradebook_calculate_lms(array $scheme, array $items, array $scores
     foreach ($scheme['components'] as $component) {
         $earned=0;$possible=0;$pending=0;$count=0;
         foreach ($items as $item) if ($item['component_id']===$component['component_id']) {
-            $count++;$total++;$possible+=synk_gradebook_points_lms($item['max_points'],false);
             $value=$scores[$item['item_id']][$studentId]['points']??null;
+            // The attendance projection records even an eligible zero. A
+            // missing row means there were no eligible sessions at application.
+            if (!empty($item['online_attendance']) && $value===null) continue;
+            $count++;$total++;$possible+=synk_gradebook_points_lms($item['max_points'],false);
             if ($value===null) $pending++;
             else {$earned+=synk_gradebook_points_lms($value);$graded++;}
         }

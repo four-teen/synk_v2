@@ -38,7 +38,7 @@
     if(!response.ok||!data.ok)throw Error(data.message||'The assessment request could not be completed.');
     if(data.server_time)state.clock=time(data.server_time)-performance.now();return data;
   }
-  async function task(callback){if(state.busy)return;state.busy=true;root.querySelectorAll('button').forEach(button=>{button.dataset.wasDisabled=String(button.disabled);button.disabled=true;});try{await callback();}catch(error){feedback.error(error.message,'Assessment workspace');}finally{state.busy=false;root.querySelectorAll('[data-was-disabled]').forEach(button=>{button.disabled=button.dataset.wasDisabled==='true';delete button.dataset.wasDisabled;});updateActions();}}
+  async function task(callback){if(state.busy)return;state.busy=true;root.querySelectorAll('button:not([data-attendance-check-in])').forEach(button=>{button.dataset.wasDisabled=String(button.disabled);button.disabled=true;});try{await callback();}catch(error){feedback.error(error.message,'Assessment workspace');}finally{state.busy=false;root.querySelectorAll('[data-was-disabled]').forEach(button=>{button.disabled=button.dataset.wasDisabled==='true';delete button.dataset.wasDisabled;});updateActions();}}
   function assessmentCardStats(row,result){
     const checked=result?.checked_count||0,pending=result?.pending_review_count||0;
     const items=row.assessment_type==='assignment'?1:Number.isInteger(row.question_count)?row.question_count:result?checked+pending:null;
@@ -75,6 +75,7 @@
   function openSubject(key){
     const subject=config.subjects.find(row=>row.subject_key===key);if(!subject)return;
     state.subject=subject;
+    root.dataset.attendanceSubject=key;
     root.dataset.view='activities';
     // Prefer a populated period when entering a subject; never infer a grading period from the calendar.
     const subjectRows=state.rows.filter(row=>row.subject_key===key);
@@ -163,7 +164,7 @@
     const button=event.target.closest('[data-open]');if(button)task(async()=>render(await api('detail',{assessment_id:Number(button.dataset.open)})));
   });
   $('studentSubjectBack').addEventListener('click',()=>{
-    if(state.busy)return;state.subject=null;root.dataset.view='subjects';$('studentAssessmentLibrary').hidden=true;$('studentSubjectLibrary').hidden=false;
+    if(state.busy)return;state.subject=null;delete root.dataset.attendanceSubject;root.dataset.view='subjects';$('studentAssessmentLibrary').hidden=true;$('studentSubjectLibrary').hidden=false;
     root.querySelector('[data-open-subject]')?.focus();
   });
   $('studentAssessmentStart').addEventListener('click',async()=>{

@@ -9,6 +9,8 @@
   const hasScore=value=>Number.isFinite(Number(value))&&Number(value)>0;
   const valueCell=(value,content,classes='')=>`<td class="${classes}${hasScore(value)?' gb-has-score':''}">${content}</td>`;
   const labels={midterm:'Midterm',final:'Final',summary:'Semester summary'},fold=value=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const onlineLink=$('gbOnlineAttendance'),onlineUrl=onlineLink?.getAttribute('href') || '';
+  const onlinePeriodUrl=period=>onlineUrl+'&period='+encodeURIComponent(period==='final'?'final':'midterm');
   const state={data:null,period:'midterm',busy:false,requestFailed:false,syncing:false,item:null,preview:null,editingItem:null,editPeriod:null,assignment:null,drafts:new Map(),originals:new Map(),changed:new Set(),loaded:false,returnToWork:false,afterItemClose:null,paste:null,attendance:null};
   const dirty=()=>state.changed.size>0||!!state.attendance?.dirty;
   const book=(period=state.period)=>state.data.periods[period];
@@ -64,6 +66,7 @@
     renderVisibility();
     root.querySelectorAll('[data-gb-period]').forEach(button=>{const active=button.dataset.gbPeriod===state.period;button.setAttribute('aria-pressed',String(active));button.classList.toggle('is-active',active);});
     const summary=state.period==='summary';$('gbPeriodTitle').textContent=summary?'Semester summary':labels[state.period]+' gradebook';
+    if(onlineLink)onlineLink.href=onlinePeriodUrl(state.period);
     $('gbResultsTitle').textContent=summary?'Midterm, Final & semester grade':'Student grades';
     $('gbAdd').hidden=summary;$('gbAddManual').hidden=summary;$('gbAddAttendance').hidden=summary;
     const notice=$('gbSchemeNotice');notice.hidden=true;notice.innerHTML='';
@@ -101,7 +104,16 @@
     $('gbWorkTitle').textContent=(summary?'All periods':labels[state.period])+' · Graded work';
     $('gbWorkTable').innerHTML=`<table class="gb-table gb-work-table"><caption class="visually-hidden">Graded work and component assignments</caption><thead><tr><th>Graded work</th>${summary?'<th>Period</th>':''}<th>Type</th><th>Max points</th><th>Grading component</th><th>Actions</th></tr></thead><tbody>${rows.map(row=>{
       const scheme=book(row.period).scheme,component=scheme.components.find(c=>c.component_id===row.component_id),ready=scheme.components.length&&scheme.total_weight===100;
-      return `<tr data-work-key="${row.key}"><th scope="row">${escape(row.title)}${row.recorded_date?`<small>${escape(attendanceDate(row.recorded_date))}</small>`:''}</th>${summary?`<td>${labels[row.period]}</td>`:''}<td>${row.entry_kind==='attendance'?'Attendance':row.entry_kind==='lms'?'LMS assessment':'Manual score'}</td><td>${number(row.max_points)}</td><td><button type="button" class="btn btn-outline-primary gb-assign-button" data-assign-work="${row.key}"${ready?'':' disabled'}>${component?escape(component.name):'Assign component'}<i class="bx bx-chevron-down" aria-hidden="true"></i></button></td><td><div class="gb-work-row-actions">${row.item_id?`<button type="button" class="btn btn-outline-primary" data-score-work="${row.key}">${row.entry_kind==='attendance'?'Record attendance':'Enter scores'}</button><button type="button" class="gb-text-button" data-edit-work="${row.key}">Edit</button><button type="button" class="gb-text-button gb-danger" data-archive-work="${row.key}">Archive</button>`:`<button type="button" class="btn btn-outline-secondary" data-preview-work="${row.key}">View scores</button>`}</div></td></tr>`;
+      const componentName=component?escape(component.name):'Assign component';
+      const archive=`<button type="button" class="gb-text-button gb-danger" data-archive-work="${row.key}">Archive</button>`;
+      const kind=row.online_attendance?'Online attendance':row.entry_kind==='attendance'?'Attendance':row.entry_kind==='lms'?'LMS assessment':'Manual score';
+      const componentControl=row.online_attendance?componentName:`<button type="button" class="btn btn-outline-primary gb-assign-button" data-assign-work="${row.key}"${ready?'':' disabled'}>${componentName}<i class="bx bx-chevron-down" aria-hidden="true"></i></button>`;
+      const actions=row.online_attendance
+        ? `<a class="btn btn-outline-primary" href="${escape(onlinePeriodUrl(row.period))}">Open Attendance</a>${archive}`
+        : row.item_id
+          ? `<button type="button" class="btn btn-outline-primary" data-score-work="${row.key}">${row.entry_kind==='attendance'?'Record attendance':'Enter scores'}</button><button type="button" class="gb-text-button" data-edit-work="${row.key}">Edit</button>${archive}`
+          : `<button type="button" class="btn btn-outline-secondary" data-preview-work="${row.key}">View scores</button>`;
+      return `<tr data-work-key="${row.key}"><th scope="row">${escape(row.title)}${row.recorded_date?`<small>${escape(attendanceDate(row.recorded_date))}</small>`:''}</th>${summary?`<td>${labels[row.period]}</td>`:''}<td>${kind}</td><td>${number(row.max_points)}</td><td>${componentControl}</td><td><div class="gb-work-row-actions">${actions}</div></td></tr>`;
     }).join('')||`<tr><td colspan="${summary?6:5}">No graded work to show.</td></tr>`}</tbody></table>`;
     if(!state.assignment)$('gbAssignmentForm').hidden=true;
   }

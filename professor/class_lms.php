@@ -14,6 +14,7 @@ $view = 'overview';
 $assessmentsReady = false;
 $gradingReady = false;
 $gradebookReady = false;
+$onlineAttendanceReady = false;
 $announcementsReady = false;
 $overviewSummary = null;
 $materialsReady = false;
@@ -68,6 +69,11 @@ try {
         $gradebookReady = synk_gradebook_ready_lms($lmsConn);
         if (empty($_SESSION['lms_gradebook_csrf'])) $_SESSION['lms_gradebook_csrf'] = bin2hex(random_bytes(32));
     }
+    if ($view === 'attendance') {
+        require_once __DIR__.'/../backend/gradebook_helper_lms.php';
+        $onlineAttendanceReady = synk_online_attendance_ready_lms($lmsConn) && synk_gradebook_ready_lms($lmsConn);
+        if (empty($_SESSION['lms_online_attendance_csrf'])) $_SESSION['lms_online_attendance_csrf'] = bin2hex(random_bytes(32));
+    }
     if ($view === 'students') {
         require_once __DIR__ . '/../backend/class_student_status_helper_lms.php';
         require_once __DIR__.'/../backend/professor_student_email_helper.php';
@@ -109,6 +115,7 @@ $professorPortalCompactHeader = true;
   <?php if ($view === 'assessments' && $class): ?><link rel="stylesheet" href="assessments_lms.css?v=<?= (int)filemtime(__DIR__.'/assessments_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'grading' && $class): ?><link rel="stylesheet" href="grading_lms.css?v=<?= (int)filemtime(__DIR__.'/grading_lms.css') ?>"><?php endif; ?>
   <?php if ($view === 'gradebook' && $class): ?><link rel="stylesheet" href="gradebook_lms.css?v=<?= (int)filemtime(__DIR__.'/gradebook_lms.css') ?>"><?php endif; ?>
+  <?php if ($view === 'attendance' && $class): ?><link rel="stylesheet" href="online_attendance_lms.css?v=<?= (int)filemtime(__DIR__.'/online_attendance_lms.css') ?>"><?php endif; ?>
   <script src="../assets/vendor/js/helpers.js"></script><script src="../assets/js/config.js"></script>
 </head>
 <body>
@@ -131,7 +138,7 @@ $professorPortalCompactHeader = true;
               <p class="class-lms-context"><span class="class-lms-section"><?= synk_professor_h($class['section_display'] ?: 'Section pending') ?></span><span class="class-lms-context-divider" aria-hidden="true">&middot;</span><span class="class-lms-program"><?= synk_professor_h($class['program_label']) ?></span></p>
             </div>
           </header>
-          <nav class="class-lms-tabs" aria-label="Class workspace views" style="--class-lms-active-x: <?= ['overview'=>10,'students'=>30,'assessments'=>50,'grading'=>70,'gradebook'=>90,'announcements'=>10,'materials'=>10][$view] ?>%">
+          <nav class="class-lms-tabs" aria-label="Class workspace views" style="--class-lms-active-x: <?= ['overview'=>10,'students'=>30,'assessments'=>50,'grading'=>70,'gradebook'=>90,'attendance'=>90,'announcements'=>10,'materials'=>10][$view] ?>%">
             <span class="class-lms-tab-surface" aria-hidden="true">
               <svg class="class-lms-notch-desktop" viewBox="0 0 84 48" preserveAspectRatio="xMidYMin meet" focusable="false"><path d="M0 0 C6 0 10 0 10 6 A32 32 0 0 0 74 6 C74 0 78 0 84 0 V48 H0 Z" fill="white"/></svg>
               <svg class="class-lms-notch-mobile" viewBox="0 0 76 44" preserveAspectRatio="xMidYMin meet" focusable="false"><path d="M0 0 C5 0 8 0 8 4 A30 30 0 0 0 68 4 C68 0 71 0 76 0 V44 H0 Z" fill="white"/></svg>
@@ -141,7 +148,7 @@ $professorPortalCompactHeader = true;
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'students')) ?>" aria-label="Students"<?= $view==='students'?' aria-current="page"':'' ?>><i class="bx bx-group" aria-hidden="true"></i><span>Students</span></a>
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'assessments')) ?>" aria-label="Activities and assessments"<?= $view==='assessments'?' aria-current="page"':'' ?>><i class="bx bx-task" aria-hidden="true"></i><span>Activities</span></a>
             <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'grading')) ?>" aria-label="Grading system"<?= $view==='grading'?' aria-current="page"':'' ?>><i class="bx bx-slider-alt" aria-hidden="true"></i><span>Grading</span></a>
-            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>" aria-label="Grade Book"<?= $view==='gradebook'?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i><span>Grade Book</span></a>
+            <a href="<?= synk_professor_h(synk_professor_class_url_lms($class,'gradebook')) ?>" aria-label="Grade Book"<?= in_array($view,['gradebook','attendance'],true)?' aria-current="page"':'' ?>><i class="bx bx-spreadsheet" aria-hidden="true"></i><span>Grade Book</span></a>
           </nav>
           <?php if ($view === 'students'): ?>
             <?php include __DIR__.'/class_students_view_lms.php'; ?>
@@ -155,6 +162,8 @@ $professorPortalCompactHeader = true;
             <?php include __DIR__ . '/grading_view_lms.php'; ?>
           <?php elseif ($view === 'gradebook'): ?>
             <?php include __DIR__ . '/gradebook_view_lms.php'; ?>
+          <?php elseif ($view === 'attendance'): ?>
+            <?php include __DIR__ . '/online_attendance_view_lms.php'; ?>
           <?php else: ?>
             <?php include __DIR__ . '/class_overview_lms.php'; ?>
           <?php endif; ?>
@@ -181,5 +190,6 @@ $professorPortalCompactHeader = true;
 <?php endif; ?>
 <?php if ($view === 'grading' && $class && $gradingReady): ?><script src="grading_lms.js?v=<?= (int)filemtime(__DIR__.'/grading_lms.js') ?>" defer></script><?php endif; ?>
 <?php if ($view === 'gradebook' && $class && $gradebookReady): ?><script src="gradebook_lms.js?v=<?= (int)filemtime(__DIR__.'/gradebook_lms.js') ?>" defer></script><?php endif; ?>
+<?php if ($view === 'attendance' && $class && $onlineAttendanceReady): ?><script src="../assets/js/online_attendance_lms.js?v=<?= (int)filemtime(__DIR__.'/../assets/js/online_attendance_lms.js') ?>" defer></script><script src="online_attendance_lms.js?v=<?= (int)filemtime(__DIR__.'/online_attendance_lms.js') ?>" defer></script><?php endif; ?>
 </body>
 </html>

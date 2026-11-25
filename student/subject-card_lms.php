@@ -16,7 +16,9 @@ if(!$scheduleLines)$scheduleLines=['Schedule to be posted'];
     </div></details>
   </div>
   <div class="student-class-card-footer">
+    <div class="student-attendance-panel" data-attendance-card="<?= synk_student_h($subject['subject_key']) ?>" aria-live="polite" aria-label="<?= synk_student_h('Online attendance for '.$subject['subject_code']) ?>" hidden></div>
     <div class="student-class-summary" data-subject-count role="status" aria-live="polite">Loading assessments...</div>
     <button type="button" class="btn btn-outline-primary" data-open-subject="<?= synk_student_h($subject['subject_key']) ?>" aria-label="<?= synk_student_h('View assessments for '.$subject['subject_code'].' with '.($subject['faculty_name']?:'your professor')) ?>">View activities<i class="bx bx-right-arrow-alt" aria-hidden="true"></i></button>
+    <a class="btn btn-outline-primary" href="online_attendance_lms.php#<?= synk_student_h(rawurlencode($subject['subject_key'])) ?>" aria-label="<?= synk_student_h('Attendance history for '.$subject['subject_code']) ?>">Attendance history<i class="bx bx-calendar-check" aria-hidden="true"></i></a>
   </div>
 </article>
