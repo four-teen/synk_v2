@@ -3,16 +3,16 @@
 if (PHP_SAPI!=='cli') { http_response_code(404); exit; }
 require_once __DIR__.'/../backend/db.php';
 $snapshot=static function()use($conn):array {
-    $data=[];foreach(['tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_class_schedule','tbl_faculty_workload_sched']as$table){
+    $data=[];foreach(['tbl_useraccount','tbl_useraccount_roles','tbl_student_management','tbl_student_management_enrolled_subjects','tbl_class_schedule','tbl_faculty_workload_sched','tbl_management_payments','tbl_management_payment_items']as$table){
         $data[$table]=hash('sha256',json_encode($conn->query('SELECT * FROM `'.$table.'` ORDER BY 1')->fetch_all(MYSQLI_ASSOC)));
     }return $data;
 };
 $before=$snapshot();$checks=0;$check=static function(bool$ok,string$message)use(&$checks):void{if(!$ok)throw new RuntimeException($message);$checks++;};
 $token=bin2hex(random_bytes(24));$name='management-qa-'.bin2hex(random_bytes(8)).'.php';$route=__DIR__.'/../tmp/'.$name;
 file_put_contents($route,'<?php if(!in_array($_SERVER["REMOTE_ADDR"]??"",["127.0.0.1","::1"],true)||!hash_equals('.var_export($token,true).',(string)($_GET["qa"]??""))){http_response_code(404);exit;}define("SYNK_MANAGEMENT_QA",true);require '.var_export(__DIR__.'/fixtures/management-request.php',true).';');
-$request=static function(string$scenario)use($name,$token):array {
+$request=static function(string $scenario, array $params=[])use($name,$token):array {
     $context=stream_context_create(['http'=>['timeout'=>35,'ignore_errors'=>true,'follow_location'=>0,'header'=>"Connection: close\r\n"]]);
-    $body=file_get_contents('http://localhost/synk/tmp/'.$name.'?qa='.$token.'&scenario='.rawurlencode($scenario),false,$context);
+    $body=file_get_contents('http://localhost/synk/tmp/'.$name.'?'.http_build_query(['qa'=>$token,'scenario'=>$scenario]+$params),false,$context);
     $data=json_decode((string)$body,true);if(!is_array($data)||isset($data['fixture_error']))throw new RuntimeException($scenario.': '.substr((string)$body,0,2400));return $data;
 };
 $evaluationStatuses = static function (string $html): array {
@@ -47,7 +47,7 @@ try {
         $check($r['status']===200 && is_string($html) && !preg_match('/Fatal error|Parse error|xdebug-error|<b>Warning/i',$html),$scenario.': page failed to render: '.json_encode(['status'=>$r['status'],'response'=>is_string($html)?substr($html,0,500):$html]));
         $check((int)$r['session']['college_id']===$r['scope']['college_id'],'Management trusted a stale session college.');
         foreach(['Financial','Contributions','Events','Violations','Students','Dashboard']as$menu)$check(strpos($html,$menu)!==false,'A Management menu is missing: '.$menu);
-        if($scenario==='financial')$check(strpos($html,'id="financial-fresh-start"')!==false && strpos($html,'No financial records yet')!==false,'Financial retained imported history instead of a fresh workspace.');
+        if($scenario==='financial')$check(strpos($html,'id="management-payment-register"')!==false && strpos($html,'No receipts recorded for this period')!==false,'Financial did not show the empty payment register.');
         if ($scenario==='students') {
             $check(strpos($html,$r['tag'].'Foreign')===false && substr_count($html,'<tr role="row">')===26,'Directory scope or pagination is incorrect.');
             $check(array_slice($evaluationStatuses($html),0,8)===$expectedEvaluations,
@@ -56,6 +56,99 @@ try {
         }
         if($scenario==='students_page')$check(substr_count($html,'<tr role="row">')===4 && strpos($html,'Page 2 of 2')!==false,'Student directory did not deduplicate or paginate correctly.');
         if($scenario==='contributions'||$scenario==='events')$check(strpos($html,'id="management-add"')!==false && strpos($html,'id="management-record-form"')!==false,'Catalog management forms are missing.');
+    }
+    $register = static function (array $params = []) use ($request,$check): DOMXPath {
+        $response = $request('financial_register',$params);
+        $check($response['status']===200,'Payment register request failed.');
+        $doc = new DOMDocument();
+        $doc->loadHTML('<?xml encoding="UTF-8">'.$response['response'],LIBXML_NOERROR|LIBXML_NOWARNING);
+        return new DOMXPath($doc);
+    };
+    $registerRows = '//*[@id="management-payment-register"]//tbody/tr';
+    $today = new DateTimeImmutable('today',new DateTimeZone('Asia/Manila'));
+    $page = $register();
+    $registerSummary = [
+        $page->evaluate('string(//*[@data-register-today-collected])'),
+        $page->evaluate('string(//*[@data-register-today-receipts])'),
+        $page->evaluate('string(//*[@data-register-total])'),
+        $page->query($registerRows)->length,
+        $page->query($registerRows.'/td[6]/a')->length,
+    ];
+    $check($registerSummary===['₱175.50','2','₱345.25',25,25],
+        'Financial totals leaked across the Manila day or Management scope, or counted split allocations twice: '.json_encode($registerSummary));
+    $check($page->query($registerRows.'[1]/td[2][contains(., "-NEXT")]')->length===1
+        && $page->query('//*[@id="management-register-cashier"]/option')->length===3,
+        'The register lost newest-first ordering or used cashier options from another period or organization.');
+    $page = $register(['page'=>2,'search'=>'payer']);
+    $check($page->query($registerRows)->length===3 && $page->evaluate('string(//*[@data-register-total])')==='₱345.25'
+        && strpos($page->evaluate('string(//nav[@aria-label="Receipt pages"]/div/a/@href)'),'search=payer')!==false,
+        'The second page changed the filtered total or lost its search parameters.');
+    $page = $register(['search'=>'edge-0001']);
+    $check($page->query($registerRows)->length===1 && $page->evaluate('string(//*[@data-register-total])')==='₱125.50'
+        && $page->query($registerRows.'/td[1]/time[@datetime="'.$today->format('Y-m-d').'T00:00:00+08:00"]')->length===1,
+        'Receipt lookup lost case-insensitive matching, Philippine time, or the full posted amount.');
+    foreach (['QA-2026-501','payer, aLeX'] as $search) {
+        $page = $register(['search'=>$search]);
+        $check($page->query($registerRows)->length===2 && $page->evaluate('string(//*[@data-register-total])')==='₱175.50',
+            'The register search missed receipts by student ID or name.');
+    }
+    $dates = ['date_from'=>$today->format('Y-m-d'),'date_to'=>$today->format('Y-m-d')];
+    $page = $register($dates);
+    $check($page->query($registerRows)->length===2 && $page->evaluate('string(//*[@data-register-total])')==='₱175.50',
+        'An inclusive Philippine date filter excluded an endpoint or included a neighboring day.');
+    $page = $register($dates+['qa_cashier'=>'evening']);
+    $check($page->query($registerRows)->length===1 && $page->evaluate('string(//*[@data-register-total])')==='₱50.00'
+        && $page->evaluate('string(//*[@data-register-today-collected])')==='₱175.50',
+        'Cashier filtering did not combine with the date range or it changed the daily cards.');
+    $page = $register(['exam_term'=>'MIDTERM']);
+    $check($page->query($registerRows)->length===1 && $page->query($registerRows.'/td[3][contains(., "Midterm Payer")]')->length===1
+        && $page->evaluate('string(//*[@data-register-today-collected])')==='₱175.50'
+        && strpos($page->evaluate('string(//*[@id="management-register-find-student"]/@href)'),'exam_term=FINAL')!==false,
+        'Reviewing Midterm altered the current daily totals or sent new payments to the viewing period.');
+    $page = $register(['search'=>'%']);
+    $check($page->query($registerRows)->length===0 && $page->query('//*[@id="management-payment-register"]//h3[contains(., "No receipts match")]')->length===1,
+        'The register treated search wildcards as operators or omitted the empty result state.');
+    $page = $register(['date_from'=>$today->format('Y-m-d'),'date_to'=>$today->modify('-1 day')->format('Y-m-d')]);
+    $check($page->query($registerRows)->length===0 && $page->query('//*[@id="management-payment-register"]//*[@role="alert"]')->length===1,
+        'The register accepted a reversed date range without an inline error.');
+    $r=$request('officers_financial_denied');
+    $check($r['status']===403 && strpos($r['response'],'management-payment-register')===false,
+        'An attendance-only officer accessed the payment register.');
+    $r=$request('dashboard_collections');
+    $check($r['status']===200 && preg_match('/data-stat="collected">[^<]*225\.50<\/strong>/', $r['response'])
+        && strpos($r['response'],'id="management-collection-search-input"')!==false && strpos($r['response'],'Alex Payer')===false,
+        'Dashboard did not show current collections or fetched student data before the card opened.');
+    $r=$request('collection_list');
+    $list=$r['response'];
+    $check($r['status']===200 && $list['total_collected']==='225.50' && $list['pagination']['total']===2
+        && $list['total_students']===2
+        && array_column($list['rows'],'student_name')===['Alex Payer','Retained Payer']
+        && array_column($list['rows'],'total_paid')===['175.50','50.00'] && (int)$list['rows'][0]['receipt_count']===2,
+        'Collections list split a student or included another period or organization.');
+    $r=$request('collection_search_name');
+    $check($r['status']===200 && array_column($r['response']['rows'],'student_name')===['Alex Payer']
+        && $r['response']['rows'][0]['total_paid']==='175.50' && (int)$r['response']['rows'][0]['receipt_count']===2
+        && $r['response']['total_collected']==='225.50' && $r['response']['total_students']===2 && $r['response']['pagination']['total']===1,
+        'Name search dropped an earlier receipt or changed the period total.');
+    $r=$request('collection_search_id');
+    $check($r['status']===200 && array_column($r['response']['rows'],'student_name')===['Retained Payer'],
+        'ID search did not find a payer whose enrollments were removed.');
+    foreach (['collection_search_wrong_period','collection_search_wildcard'] as $scenario) {
+        $r=$request($scenario);
+        $check($r['status']===200 && $r['response']['rows']===[] && $r['response']['pagination']['total']===0
+            && $r['response']['total_collected']==='225.50',
+            'Student search matched another period or treated a wildcard as search syntax.');
+    }
+    $r=$request('collection_detail');
+    $detail=$r['response'];
+    $check($r['status']===200 && $detail['total_paid']==='175.50' && count($detail['receipts'])===2
+        && count($detail['receipts'][1]['items'])===2 && $detail['receipts'][0]['recorded_at']==='Nov 25, 2026 8:30 AM'
+        && array_column($detail['categories'],'amount','label')===['Contributions'=>'100.00','Event absence fines'=>'25.50','Violation fines'=>'50.00'],
+        'Expanded payment history lost receipt items, the local timestamp, or exact category totals.');
+    foreach (['collection_foreign_student'=>404,'collection_stale'=>409,'collection_wrong_scope'=>403] as $scenario=>$status) {
+        $r=$request($scenario);
+        $check($r['status']===$status && !isset($r['response']['receipts']) && !isset($r['response']['rows']),
+            $scenario.': collections accepted a request outside the card period or organization.');
     }
     $r=$request('analytics');$check($r['response']['students']===$r['baseline']['students']+28,'Analytics counted duplicate memberships or foreign-only students.');
     $check($r['response']['enrollments']===$r['baseline']['enrollments']+29,'Analytics included foreign-college imported classes.');
@@ -66,6 +159,18 @@ try {
     $r=$request('students_evaluation_history');
     $check($r['status']===200 && $evaluationStatuses($r['response'])===[['PARTIAL','2 of 3 submitted']],
         'The historical evaluation count omitted inactive enrollments or retained submissions.');
+    foreach ([
+        'submitted'=>['SUBMITTED',1,1,'Submitted'],
+        'pending'=>['PENDING',1,0,'Not submitted'],
+        'partial'=>['PARTIAL',2,1,'1 of 2 submitted'],
+        'unlinked'=>['NO_LINKED_FACULTY',0,0,'No linked faculty'],
+    ] as $state=>$expected) {
+        $r=$request('students_detail_'.$state);
+        $progress=$r['response']['evaluation_progress'] ?? [];
+        $check($r['status']===200 && isset($r['response']['financial'])
+            && array_values($progress)===$expected,
+            'Student financial overview reported inaccurate evaluation progress for '.$state.'.');
+    }
     foreach(['students_wildcard','students_otherterm']as$scenario){$r=$request($scenario);$check($r['status']===200&&strpos($r['response'],'No matching students')!==false,$scenario.': search matched unintended memberships.');}
     $r=$request('students_xss');$check($r['status']===200&&strpos($r['response'],'<img src=x onerror=alert(1)>')===false&&strpos($r['response'],'&lt;img src=x onerror=alert(1)&gt;')!==false,'Search text is not escaped.');
     foreach(['forged_college'=>403,'forged_campus'=>403,'bad_term'=>400,'students_array'=>400,'bad_exam_term'=>400,'array_exam_term'=>400]as$scenario=>$status){$r=$request($scenario);$check($r['status']===$status,$scenario.': invalid scope/filter was accepted.');}

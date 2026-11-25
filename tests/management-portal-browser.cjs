@@ -29,11 +29,18 @@ async function main() {
   fs.writeFileSync(route, `<?php if(!in_array($_SERVER['REMOTE_ADDR']??'', ['127.0.0.1','::1'],true)||!hash_equals('${token}',(string)($_GET['qa']??''))){http_response_code(404);exit;}define('SYNK_MANAGEMENT_QA',true);define('SYNK_MANAGEMENT_QA_RENDER',true);require '${path.join(root, 'tests/fixtures/management-request.php').replaceAll('\\', '/')}';`);
   const exe = [process.env['ProgramFiles(x86)'] + '\\Microsoft\\Edge\\Application\\msedge.exe', process.env.ProgramFiles + '\\Google\\Chrome\\Application\\chrome.exe'].find(fs.existsSync);
   browser = spawn(exe, ['--headless=new', '--disable-gpu', '--disable-extensions', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-  const socket = await new Promise((resolve, reject) => {
-    let logs = ''; const timer = setTimeout(() => reject(Error('Browser startup timed out.')), 20000);
-    browser.stderr.on('data', data => { logs += data; const match = logs.match(/DevTools listening on (ws:\/\/[^\s]+)/); if (match) { clearTimeout(timer); resolve(match[1]); } });
-    browser.on('error', reject);
-  });
+  const portFile = path.join(profile, 'DevToolsActivePort');
+  let socket, startupError;
+  browser.stderr.resume();
+  browser.on('error', error => { startupError = error; });
+  for (let attempt = 0; attempt < 200 && !socket && !startupError; attempt++) {
+    if (fs.existsSync(portFile)) {
+      const [port, socketPath] = fs.readFileSync(portFile, 'utf8').trim().split(/\r?\n/);
+      if (Number(port) > 0 && socketPath?.startsWith('/devtools/browser/')) socket = 'ws://127.0.0.1:' + port + socketPath;
+    }
+    if (!socket) await delay(100);
+  }
+  if (!socket) throw startupError || Error('Browser startup timed out.');
   ws = new WebSocket(socket);
   await new Promise((resolve, reject) => { ws.addEventListener('open', resolve, { once: true }); ws.addEventListener('error', reject, { once: true }); });
   let sequence = 0; const pending = new Map(); const errors = []; const saves = [], catalogRequests = [], organizationRequests = [];
@@ -42,6 +49,8 @@ async function main() {
   let attendanceStatus='NOT_STARTED',attendancePresent=0,attendanceRevision=1;
   let cleanupEventId = 0, cleanupPresent = false, cleanupRevision = 2, cleanupComment = null;
   let attendanceScanFailures=1;
+  let collectionDetailAttempts=0;
+  let evaluationProgress={status:'SUBMITTED',faculty_count:1,submitted_count:1,label:'Submitted'};
   let importedEventId=0;
   const call = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
     const id = ++sequence; const timer = setTimeout(() => { pending.delete(id); reject(Error(method + ' timed out.')); }, 20000);
@@ -73,8 +82,31 @@ async function main() {
           : data.kind === 'flag_raising' ? { ...common,event_id:data.record_id,title:'FLAG RAISING CEREMONY QA',event_date:'2026-10-10',linked_contributions:0,sessions:[] }
           : { ...common,status:'ACTIVE',contribution_id:data.record_id,contribution_date:'2026-10-26',amount:'123.45',event_id:null };
         let payload = data.action === 'get' ? { status:'ok',record } : { status:'ok',message:'Record saved.',record_id:1 };
+        if (data.action === 'collection_students') {
+          const otherStudents = Array.from({length:25}, (_,index) => ({
+            student_id:100 + index, student_name:'Payer ' + (index + 1), student_number:'QA-' + (index + 1), receipt_count:1, total_paid:'2.00'
+          }));
+          const students = [{student_id:99, student_name:'Alex Payer', student_number:'2026-00123', receipt_count:2, total_paid:'175.50'}, ...otherStudents];
+          const words = (data.search || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
+          const matches = students.filter(student => words.every(word =>
+            student.student_name.toLowerCase().includes(word) || student.student_number.toLowerCase().includes(word)));
+          const pages = Math.max(1, Math.ceil(matches.length / 25));
+          const page = Math.min(Number(data.page), pages);
+          payload = {status:'ok', total_collected:'225.50', total_students:students.length,
+            rows:matches.slice((page - 1) * 25, page * 25), pagination:{page, pages, total:matches.length}};
+        }
+        if (data.action === 'collection_student_payments') {
+          payload = ++collectionDetailAttempts === 1 ? {status:'error', message:'Temporary receipt connection failure.'} : {
+            status:'ok', total_paid:'175.50', categories:[{label:'Contributions', amount:'150.00'},{label:'Event absence fines', amount:'25.50'}],
+            receipts:[
+              {payment_id:'901', receipt_number:'QA-002', amount:'50.00', recorded_at:'Nov 25, 2026 8:30 AM', recorded_by:'QA cashier', items:[{title:'Student organization contribution', amount:'50.00'}]},
+              {payment_id:'900', receipt_number:'QA-001', amount:'125.50', recorded_at:'Nov 24, 2026 8:30 AM', recorded_by:'QA cashier', items:[{title:'Student organization contribution', amount:'100.00'},{title:'Event absence fine', amount:'25.50'}]}
+            ]
+          };
+        }
         if (data.action === 'student_detail') payload = {
           status:'ok',student:{ first_name:'JUAN MIGUEL',last_name:'DELA CRUZ',student_name:'DELA CRUZ, JUAN MIGUEL',student_number:'2026-00123',email_address:'juan.delacruz@sksu.edu.ph',home_section:'BSCS 3A',original_section:'BSCS 1A',original_year_level:1 },
+          evaluation_progress:evaluationProgress,
           subjects:[{ subject_code:'CS 101',descriptive_title:'PROGRAMMING',section_label:'BSCS 2B',program_label:'BSCS',program_name:'Bachelor of Science in Computer Science',year_level:2,term_label:'2026-2027 - 1st Semester',faculty_name:'ASSIGNED FACULTY' }],
           financial:{ period:{key:'2:1:FINAL',text:'2026-2027 - 1st Semester - Final'},organization:{code:'CSSO',name:'CSSO',college:'COLLEGE OF COMPUTER STUDIES',campus:'ISULAN CAMPUS'},
             contributions:[{contribution_id:2,title:'CCS TEAM JERSEY (INTRAMURALS 2026)',contribution_date:'2026-10-27',amount:'350.00',audience_mode:'ALL'},{contribution_id:1,title:'PAISULABAN 2026',contribution_date:'2026-10-27',amount:'150.00',audience_mode:'ALL'}],
@@ -150,9 +182,10 @@ async function main() {
   const evaluate = async expression => { const r = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId); if (r.exceptionDetails) throw Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text); return r.result.value; };
   const until = async expression => { for (let i = 0; i < 120; i++) { if (await evaluate('Boolean(' + expression + ')')) return; await delay(100); } throw Error('Timed out: ' + expression + '; ' + errors.join('; ')); };
   const resize = async (width,height=960) => { await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId); await call('Emulation.setTouchEmulationEnabled',{enabled:width<1200},sessionId); await delay(120); };
-  const navigate = async scenario => {
-    await call('Page.navigate', { url: `http://localhost/synk/tmp/${path.basename(route)}?qa=${token}&scenario=${scenario}` }, sessionId);
-    await until('document.readyState === "complete" && new URL(location.href).searchParams.get("scenario")==='+JSON.stringify(scenario)); await delay(150);
+  const navigate = async (scenario,params={}) => {
+    const query = new URLSearchParams({qa:token,scenario,...params});
+    await call('Page.navigate', { url: `http://localhost/synk/tmp/${path.basename(route)}?${query}` }, sessionId);
+    await until('document.readyState === "complete" && location.search==='+JSON.stringify('?'+query)); await delay(150);
   };
   const screenshot = async name => { const r = await call('Page.captureScreenshot', { format: 'png' }, sessionId); fs.writeFileSync(path.join(root, '.tmp', name), Buffer.from(r.data, 'base64')); };
   const tap = async selector => {
@@ -350,6 +383,86 @@ async function main() {
   check(await evaluate('getComputedStyle(document.querySelector(".college-dean-menu-title")).fontSize==="13.92px" && getComputedStyle(document.querySelector(".college-dean-menu-icon")).width==="34px" && getComputedStyle(document.querySelector(".college-dean-menu-card")).borderTopWidth==="1px"'), 'Sidebar fonts, icon sizes, or card borders differ from the Dean template.');
   check(await evaluate('document.compatMode==="CSS1Compat" && document.querySelectorAll("script[src*=jquery]").length===0'), 'Management dashboard is not in standards mode or loads duplicate libraries.');
   await screenshot('management-dashboard-1440.png');
+  await call('Fetch.enable',{patterns:[{urlPattern:'*query_management.php*'}]},sessionId);
+  await navigate('dashboard_collections');
+  const collectionRequests = () => catalogRequests.filter(row => row.action?.startsWith('collection_'));
+  check(collectionRequests().length===0,'Dashboard fetched student payments before opening Total Collected.');
+  await evaluate('document.getElementById("management-collected-stat").click()');
+  await until('document.getElementById("management-collections").classList.contains("show") && document.querySelectorAll("[data-collection-student]").length===25');
+  check(collectionRequests().length===1 && collectionRequests()[0].collection_period.endsWith(':FINAL') && collectionRequests()[0].exam_term==='MIDTERM',
+    'Collection request used the dashboard viewing term or preloaded individual receipts.');
+  const collectionsSummary = await evaluate(`({
+    period: document.querySelector('#management-collections-period').textContent,
+    total: document.querySelector('[data-collection-total]').textContent,
+    cardTotal: document.querySelector('[data-stat=collected]').textContent,
+    width: document.querySelector('.management-collections-modal .modal-dialog').offsetWidth,
+    paid: document.querySelector('[data-collection-student-total]').textContent
+  })`);
+  check(collectionsSummary.period.includes('Final') && collectionsSummary.total===collectionsSummary.cardTotal &&
+    collectionsSummary.width>1000 && collectionsSummary.paid.includes('175.50'),
+    'The wide collections panel shows the wrong period, total, or student payment amount. ' + JSON.stringify(collectionsSummary));
+  await evaluate('document.querySelector("[data-collection-student] summary").click()');
+  await until('document.querySelector("[data-collection-student-retry]")');
+  await evaluate('document.querySelector("[data-collection-student-retry]").click()');
+  await until('document.querySelectorAll(".management-collections-receipt-heading").length===2');
+  check(collectionDetailAttempts===2 && collectionRequests().at(-1).student_id==='99' && await evaluate('document.querySelector("[data-collection-detail]").textContent.includes("Event absence fine") && document.querySelector(".management-collections-receipt-heading a").href.endsWith("payment_id=901")'),
+    'The expanded row did not retry and show the correct student receipts and allocations.');
+  await screenshot('management-collections-1440.png');
+  await evaluate('const summary=document.querySelector("[data-collection-student] summary"); summary.click(); summary.click()');
+  await delay(150);
+  check(collectionDetailAttempts===2,'An already loaded payment row fetched the receipts again.');
+  for (const [width,height] of [[768,960],[390,780],[320,640]]) {
+    await resize(width,height);
+    const fit = await evaluate(`(() => {
+      const modal = document.getElementById('management-collections');
+      const body = modal.querySelector('.modal-body');
+      const pager = modal.querySelector('[data-collection-pagination]');
+      const search = document.getElementById('management-collection-search-input').getBoundingClientRect();
+      return {
+        scrollWidth: body.scrollWidth, bodyWidth: body.clientWidth, viewportWidth: innerWidth, viewportHeight: innerHeight,
+        dialogRight: modal.querySelector('.modal-dialog').getBoundingClientRect().right,
+        closeTop: modal.querySelector('.btn-close').getBoundingClientRect().top,
+        searchFits: search.left >= 0 && search.right <= innerWidth && search.height >= 44,
+        paginationVisible: !pager.hidden, paginationBottom: pager.getBoundingClientRect().bottom
+      };
+    })()`);
+    check(fit.scrollWidth<=fit.bodyWidth+1 && fit.dialogRight<=fit.viewportWidth && fit.closeTop>=0 &&
+      fit.searchFits && fit.paginationVisible && fit.paginationBottom<=fit.viewportHeight,
+      `Expanded student payments overflow or block controls at ${width}px. ${JSON.stringify(fit)}`);
+  }
+  await screenshot('management-collections-320.png');
+  await evaluate('document.querySelector("[data-collection-next]").click()');
+  await until('document.querySelector("[data-collection-page]").textContent==="Page 2 of 2" && document.querySelector("[data-collection-student]").textContent.includes("Payer 25")');
+  check(collectionRequests().at(-1).page==='2' && await evaluate('document.querySelector("[data-collection-next]").disabled && !document.querySelector("[data-collection-previous]").disabled'),
+    'Payer pagination failed to request or render the second page.');
+  const searchRequestCount = collectionRequests().length;
+  await evaluate(`(() => {
+    const input = document.getElementById('management-collection-search-input');
+    input.focus();
+    for (const value of ['2026', '2026-00123']) {
+      input.value = value;
+      input.dispatchEvent(new Event('input'));
+    }
+  })()`);
+  await until('document.querySelector("[data-collection-matches]").textContent==="1 student found" && document.querySelector("[data-collection-student]").textContent.includes("Alex Payer")');
+  check(collectionRequests().length===searchRequestCount+1 && collectionRequests().at(-1).page==='1' &&
+    collectionRequests().at(-1).search==='2026-00123' && collectionRequests().at(-1).collection_period.endsWith(':FINAL'),
+    'Typing an ID did not filter the full period, debounce the request, or reset pagination.');
+  check(await evaluate('document.querySelector("[data-collection-total]").textContent.includes("225.50") && document.querySelector("[data-collection-payers]").textContent==="26 students" && document.querySelectorAll("[data-collection-student]").length===1 && document.activeElement.id==="management-collection-search-input"'),
+    'Search altered the period totals, showed extra rows, or moved keyboard focus.');
+  await evaluate('document.getElementById("management-collection-search-input").value="Payer 25";document.querySelector("[data-collection-search]").requestSubmit()');
+  await until('document.querySelector("[data-collection-student]")?.textContent.includes("QA-25")');
+  check(collectionRequests().at(-1).page==='1' && collectionRequests().at(-1).search==='Payer 25',
+    'Submitting a name did not find a student outside the first unfiltered page.');
+  await evaluate('document.getElementById("management-collection-search-input").value="No matching payer";document.querySelector("[data-collection-search]").requestSubmit()');
+  await until('document.querySelector("[data-collection-state]").textContent==="No students with payments match your search."');
+  await evaluate('const search=document.getElementById("management-collection-search-input");search.value="";search.dispatchEvent(new Event("input"))');
+  await until('document.querySelectorAll("[data-collection-student]").length===25 && document.querySelector("[data-collection-page]").textContent==="Page 1 of 2"');
+  check(collectionRequests().at(-1).search==='' && await evaluate('document.querySelector("[data-collection-matches]").hidden'),
+    'Clearing search did not restore the full list and its pagination.');
+  await evaluate('document.querySelector("#management-collections .btn-close").click()');
+  await until('document.activeElement===document.getElementById("management-collected-stat")');
+  await resize(1440);
   await navigate('permits');
   check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Print Student Permit") && document.getElementById("permit-exam-term").value==="FINAL" && document.getElementById("management-permit-print").disabled'), 'The permit menu, Final default, or initial print state is wrong.');
   check(await evaluate(`(() => {
@@ -479,10 +592,62 @@ async function main() {
   check(await evaluate('studentFilterSubmissions.length===2 && studentFilterSubmissions[0].search==="new name" && studentFilterSubmissions[1].page_size==="50" && studentFilterSubmissions.every(row=>row.term===JSON.parse(document.getElementById("management-config").textContent).term && row.exam_term===JSON.parse(document.getElementById("management-config").textContent).exam_term && !("page" in row))'),'Typing or page-size changes did not apply student filters with the header period and reset pagination.');
   await evaluate('document.getElementById("management-student-filters").removeEventListener("submit",captureStudentFilter);document.getElementById("management-student-filters").reset()');
   await resize(1440); await navigate('financial');
-  check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Financial") && document.getElementById("financial-fresh-start") && document.body.textContent.includes("No financial records yet")'),'Financial did not render a fresh, empty workspace.');
-  check(await evaluate('!document.querySelector(".financial-stats") && !document.querySelector(".financial-records-table")'),'Financial retained legacy-linked account records.');
-  for(const width of [1440,768,390,320]) {await resize(width);check(await evaluate('document.documentElement.scrollWidth<=innerWidth'),`Fresh Financial page overflows ${width}px.`);}
-  await screenshot('management-financial-fresh-320.png');
+  check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Financial") && document.getElementById("management-payment-register") && document.body.textContent.includes("No receipts recorded for this period")'),
+    'Financial did not render the empty receipt register.');
+  await navigate('financial_register');
+  check(await evaluate(`(() => {
+    const rows = [...document.querySelectorAll('.management-register-table tbody tr')];
+    return document.querySelector('[data-register-today-collected]').textContent==='₱175.50' &&
+      document.querySelector('[data-register-today-receipts]').textContent==='2' &&
+      rows.length===25 && rows[0].textContent.includes('Next Day Payer') &&
+      rows.every(row => row.querySelector('a[target="_blank"][href^="payment-receipt.php?payment_id="]')) &&
+      document.getElementById('management-register-find-student').href.includes('exam_term=FINAL');
+  })()`), 'Financial did not show current daily totals, chronologically sorted receipts, or the current student link.');
+  await screenshot('management-financial-register-1440.png');
+  for (const width of [1440,1200,1024,768,390,320]) {
+    await resize(width);
+    const layout = await evaluate(`(() => {
+      const table = document.querySelector('.management-register-table');
+      const region = table.parentElement;
+      const search = document.getElementById('management-register-search').getBoundingClientRect();
+      return {
+        documentFits: document.documentElement.scrollWidth<=innerWidth,
+        tableFits: region.scrollWidth<=region.clientWidth+1,
+        searchFits: search.left>=0 && search.right<=innerWidth,
+        rowDisplay: getComputedStyle(table.querySelector('tbody tr')).display,
+        actionHeight: table.querySelector('tbody a').getBoundingClientRect().height
+      };
+    })()`);
+    check(layout.documentFits && layout.tableFits && layout.searchFits &&
+      (width>=768 || (layout.rowDisplay==='grid' && layout.actionHeight>=44)),
+      `Receipt register overflows or has a small receipt action at ${width}px. ${JSON.stringify(layout)}`);
+  }
+  await screenshot('management-financial-register-320.png');
+  check(await evaluate(`(() => {
+    const form = document.getElementById('management-register-filters');
+    const day = document.querySelector('#management-register-today-title time').dateTime;
+    form.elements.search.value = 'payer';
+    form.elements.date_from.value = day;
+    form.elements.date_to.value = day;
+    form.elements.cashier_id.selectedIndex = 1;
+    let filters;
+    form.addEventListener('submit',event => {
+      event.preventDefault();
+      filters = Object.fromEntries(new FormData(form));
+    },{once:true});
+    form.requestSubmit();
+    return filters.search==='payer' && filters.date_from===day && filters.date_to===day &&
+      Boolean(filters.cashier_id) && filters.exam_term==='FINAL' && !('page' in filters);
+  })()`), 'Applying payment filters lost the date, cashier, or selected period.');
+  await navigate('financial_register',{search:'payer',page:'2'});
+  check(await evaluate(`(() => {
+    const previous = document.querySelector('nav[aria-label="Receipt pages"] a');
+    const clear = document.querySelector('.management-register-filters a');
+    const params = new URL(previous.href).searchParams;
+    return document.querySelectorAll('.management-register-table tbody tr').length===3 &&
+      document.querySelector('[data-register-total]').textContent==='₱345.25' && params.get('search')==='payer' &&
+      params.get('page')==='1' && params.get('exam_term')==='FINAL' && !new URL(clear.href).searchParams.has('search');
+  })()`), 'Receipt pagination or Clear filters lost context or changed the matching total.');
   await resize(1440);
   await navigate('events'); check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Events") && document.getElementById("management-add") && document.getElementById("management-record-form")'), 'Events management page is missing.');
   await navigate('contributions'); check(await evaluate('document.querySelector(".management-nav [aria-current=page]").textContent.includes("Contributions")'), 'Contributions foundation page is missing.');
@@ -632,7 +797,44 @@ async function main() {
   await navigate('students');
   check(await evaluate('!document.getElementById("student-directory-term") && !document.getElementById("student-program") && !document.getElementById("student-section") && !document.getElementById("student-email-status") && !document.getElementById("student-sort") && document.querySelectorAll("#management-student-filters select").length===1 && document.querySelectorAll("#student-page-size option").length===3 && !document.querySelector("#management-student-filters button, #management-student-filters a")'),'Simplified student search retained removed filters or actions.');
   check(await evaluate('document.querySelector("[data-student]").textContent.trim()==="Financial overview"'),'Student action does not explain the financial overview.');
-  await resize(1440);await evaluate('document.querySelector("[data-student]").click()');await until('document.getElementById("management-student-detail-content").textContent.includes("CCS TEAM JERSEY")');await delay(300);
+  const detailRequests = () => catalogRequests.filter(row => row.action==='student_detail').length;
+  const overviewRequestsBefore = detailRequests();
+  evaluationProgress={status:'PENDING',faculty_count:2,submitted_count:0,label:'Not submitted'};
+  await resize(320,640);
+  await evaluate('document.querySelector("[data-student]").click()');
+  await until('document.activeElement.id==="management-evaluation-reminder-back"');
+  check(detailRequests()===overviewRequestsBefore+1 && await evaluate(`(() => {
+    const reminder = document.getElementById('management-evaluation-reminder');
+    const panel = reminder.querySelector('.modal-content').getBoundingClientRect();
+    return !document.querySelector('#management-student-detail.show, .management-financial-layout') &&
+      reminder.textContent.includes('0 of 2 submitted') && reminder.textContent.includes('DELA CRUZ, JUAN MIGUEL') &&
+      document.querySelector('[data-evaluation-status]').dataset.evaluationStatus === 'PENDING' &&
+      panel.left >= 0 && panel.right <= innerWidth && panel.top >= 0 && panel.bottom <= innerHeight;
+  })()`), 'A draft did not show a fresh, readable reminder before opening the financial overview.');
+  await evaluate('document.getElementById("management-evaluation-reminder-back").click()');
+  await until('document.activeElement===document.querySelector("[data-student]") && !document.querySelector(".modal.show")');
+  check(detailRequests()===overviewRequestsBefore+1,'Going back opened the overview or requested the account again.');
+  evaluationProgress={status:'PARTIAL',faculty_count:2,submitted_count:1,label:'1 of 2 submitted'};
+  await resize(1440);
+  await evaluate('document.querySelector("[data-student]").click()');
+  await until('document.activeElement.id==="management-evaluation-reminder-back"');
+  check(await evaluate('document.getElementById("management-evaluation-reminder-count").textContent==="1 of 2 submitted" && !document.querySelector("#management-student-detail.show")'),
+    'Partial submissions did not require acknowledgment before opening the overview.');
+  await evaluate('document.getElementById("management-evaluation-reminder-open").click()');
+  await until('document.querySelector("#management-student-detail.show .management-financial-layout") && !document.querySelector("#management-evaluation-reminder.show")');
+  check(detailRequests()===overviewRequestsBefore+2,'Opening after acknowledgment fetched the student overview twice.');
+  await delay(300);
+  await evaluate('document.querySelector("#management-student-detail .btn-close").click()');
+  await until('document.activeElement===document.querySelector("[data-student]") && !document.querySelector(".modal.show")');
+  evaluationProgress={status:'SUBMITTED',faculty_count:2,submitted_count:2,label:'Submitted'};
+  await resize(1440);
+  await evaluate(`new Promise(resolve => {
+    document.getElementById('management-student-detail').addEventListener('shown.bs.modal', () => resolve(true), {once:true});
+    document.querySelector('[data-student]').click();
+  })`);
+  await until('document.getElementById("management-student-detail-content").textContent.includes("CCS TEAM JERSEY")');
+  check(detailRequests()===overviewRequestsBefore+3 && await evaluate('!!document.querySelector("#management-student-detail.show") && !document.querySelector("#management-evaluation-reminder.show") && document.querySelector("[data-evaluation-status]").dataset.evaluationStatus==="SUBMITTED"'),
+    'Submitted evaluations still displayed a reminder or left the directory badge stale.');
   check(await evaluate('document.querySelector(".management-financial-sidebar").getBoundingClientRect().left<document.querySelector(".management-financial-main").getBoundingClientRect().left && document.querySelector("#management-student-detail .modal-dialog").getBoundingClientRect().width>1250 && document.querySelector(".management-financial-avatar").textContent.trim()==="JD" && document.querySelectorAll(".management-financial-stat").length===4'),'Financial overview lacks its wide layout, profile sidebar, avatar or summary cards.');
   check(await evaluate('document.getElementById("financial-contributions").textContent.includes("500.00") && document.getElementById("financial-events").textContent.includes("Attendance pending") && document.getElementById("financial-violations") && document.getElementById("financial-payments") && document.querySelector(".management-financial-stat-due > strong").textContent.includes("525.00") && document.querySelector(".management-financial-status").textContent.includes("Unpaid") && !document.getElementById("management-student-detail").textContent.includes("Not assessed")'),'Financial overview did not show automatic totals, unpaid status or pending attendance.');
   check(await evaluate('getComputedStyle(document.querySelector(".management-financial-present")).color==="rgb(40, 121, 76)" && getComputedStyle(document.querySelector(".management-financial-absent")).color==="rgb(180, 69, 69)" && getComputedStyle(document.querySelector("[data-financial-absence-count]")).color==="rgb(180, 69, 69)"'),'Financial attendance is not consistently green for Present and red for Absent.');
@@ -723,6 +925,10 @@ async function main() {
   await call('Browser.close');
 }
 main().catch(error => { console.error(error.stack); process.exitCode = 1; }).finally(async () => {
+  if (ws?.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ id:1000000, method:'Browser.close' }));
+    await delay(500);
+  }
   if (ws) ws.close(); if (browser) { browser.kill(); await delay(600); }
   if (fs.existsSync(route)) fs.unlinkSync(route);
   if (fs.existsSync(qrFixture)) fs.unlinkSync(qrFixture);

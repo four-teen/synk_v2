@@ -14,7 +14,7 @@ $currentTerm = synk_management_fetch_current_period($conn,$scope);
 $page = $managementPage ?? 'dashboard';
 $navigation = [
     'dashboard'=>['Dashboard','index.php','bx-home-circle','College metrics and community overview','primary'],
-    'financial'=>['Financial','financial.php','bx-receipt','New student financial records','info'],
+    'financial'=>['Financial','financial.php','bx-receipt','Payment register and receipt lookup','info'],
     'contributions'=>['Contributions','contributions.php','bx-wallet','Contribution setup, amounts, and records','primary'],
     'events'=>['Events','events.php','bx-calendar-event','Organization events and QR attendance','success'],
     'flag_raising'=>['Flag Raising Ceremony','flag-raising.php','bx-flag','Ceremony attendance and absence counts','success'],
@@ -42,6 +42,10 @@ try {
         require_once __DIR__.'/../backend/management_student_permits_helper.php';
         $permits = synk_management_student_permits($conn,$scope,$term,$_GET);
     }
+    if ($page === 'financial') {
+        require_once __DIR__.'/../backend/management_payment_register_helper.php';
+        $paymentRegister = synk_management_payment_register($conn,$scope,$term,$currentTerm,$_GET);
+    }
     $analytics = $page === 'dashboard' ? synk_management_analytics($conn,$scope,$term) : [];
     $collectionTotals = null;
     if ($page === 'dashboard' && synk_management_operation_allowed($permissions,'records')) {
@@ -65,7 +69,7 @@ try {
         $violations = synk_management_violations_list($conn,$scope,$_GET);
     }
     $catalog = null; $catalogOptions = null; $activityCounts = ['contributions'=>0,'events'=>0];
-    if (!in_array($page,['reports','student_permits'],true) && synk_management_catalog_ready($conn)) {
+    if (!in_array($page,['reports','student_permits','financial'],true) && synk_management_catalog_ready($conn)) {
         foreach (['contributions','events'] as $kind) {
             $periodValues = [$scope['college_id'],$scope['organization_id'],$term['ay_id'],$term['semester'],$term['exam_term']];
             $eventFilter=$kind==='events' ? ' AND NOT '.synk_management_flag_raising_sql('source_metadata') : '';
@@ -119,6 +123,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
   <?php if($page==='officers'): ?><link rel="stylesheet" href="officers.css?v=<?= (int)filemtime(__DIR__.'/officers.css') ?>"><?php endif; ?>
   <?php if($page==='reports'): ?><link rel="stylesheet" href="reports.css?v=<?= (int)filemtime(__DIR__.'/reports.css') ?>"><?php endif; ?>
   <link rel="stylesheet" href="portal.css?v=<?= (int)filemtime(__DIR__.'/portal.css') ?>">
+  <?php if($page==='financial'): ?><link rel="stylesheet" href="financial.css?v=<?= (int)filemtime(__DIR__.'/financial.css') ?>"><?php endif; ?>
   <?php if($page==='student_permits'): ?><link rel="stylesheet" href="student-permits.css?v=<?= (int)filemtime(__DIR__.'/student-permits.css') ?>"><?php endif; ?>
 </head>
 <body class="management-portal">
@@ -139,7 +144,15 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
       ?>
       <section class="management-stats management-dashboard-stats" aria-label="Dashboard totals">
         <?php foreach ($dashboardStats as [$statKey,$label,$icon,$color]): ?>
+        <?php if ($statKey === 'collected'): ?>
+        <button type="button" class="card management-stat management-collected-stat" id="management-collected-stat" data-bs-toggle="modal" data-bs-target="#management-collections" aria-haspopup="dialog">
+          <span class="management-stat-icon bg-label-<?= $color ?>"><i class="bx <?= $icon ?>" aria-hidden="true"></i></span>
+          <span class="management-collected-copy"><span><?= $label ?></span><strong data-stat="collected"><?= synk_management_account_money($collectionTotals['collected']) ?></strong></span>
+          <i class="bx bx-chevron-right management-collected-chevron" aria-hidden="true"></i>
+        </button>
+        <?php else: ?>
         <article class="card management-stat"><span class="management-stat-icon bg-label-<?= $color ?>"><i class="bx <?= $icon ?>" aria-hidden="true"></i></span><div><span><?= $label ?></span><strong data-stat="<?= $statKey ?>"><?= isset($collectionTotals[$statKey]) ? synk_management_account_money((string)$collectionTotals[$statKey]) : number_format($analytics[$statKey]) ?></strong><?php if ($statKey === 'expected'): ?><small class="text-muted">After exemptions</small><?php endif; ?></div></article>
+        <?php endif; ?>
         <?php endforeach; ?>
       </section>
       <p class="management-data-note"><?php if ($collectionTotals !== null): ?><strong>Collections for <?= synk_management_h($currentTerm['period_text']) ?></strong><br><?php endif; ?>Unique students and active imported class records in <?= synk_management_h($term['term_text']) ?>.<?php if ($analytics['last_import']): ?> Latest import: <?= synk_management_h(date('M j, Y, g:i A', strtotime($analytics['last_import']))) ?>.<?php endif; ?></p>
@@ -181,6 +194,7 @@ $accountName = trim((string)$_SESSION['username']) ?: 'Management';
 <button type="button" class="layout-overlay layout-menu-toggle" id="management-menu-backdrop" aria-label="Close navigation" hidden></button>
 </div>
 <?php require __DIR__.'/mobile-navigation.php'; ?>
+<?php if ($collectionTotals !== null) require __DIR__.'/dashboard-collections-view.php'; ?>
 <?php if (in_array($page,['exemptions','events','flag_raising','contributions','students'],true)) require __DIR__.'/exemptions-modal.php'; ?>
 <script type="application/json" id="management-config"><?= json_encode(['permissions'=>$permissions,'csrf_token'=>$_SESSION['management_csrf_token'],'user_id'=>(int)$_SESSION['user_id'],'college_id'=>$scope['college_id'],'campus_id'=>$scope['campus_id'],'organization_id'=>$scope['organization_id'],'current_term'=>$currentTerm['key'],'current_exam_term'=>$currentTerm['exam_term'],'current_period_version'=>$currentTerm['period_version'],'current_period'=>$currentTerm['period_key'],'current_term_text'=>$currentTerm['term_text'],'term'=>$term['key'],'exam_term'=>$term['exam_term'],'directory_term'=>$directory['filters']['term'] ?? $term['key'],'term_labels'=>array_reduce($years,static function($labels,$year){ for($sem=1;$sem<=3;$sem++) $labels[$year['ay_id'].':'.$sem]=$year['ay'].' · '.synk_semester_label($sem); return $labels; },[]),'page'=>$page,'today'=>date('Y-m-d'),'endpoint'=>'../backend/query_management.php'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) ?></script>
 <script src="../assets/vendor/js/bootstrap.js"></script>

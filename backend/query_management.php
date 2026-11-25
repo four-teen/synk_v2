@@ -18,6 +18,21 @@ if (empty($_SESSION['management_csrf_token']) || !is_string($_POST['csrf_token']
 }
 try {
     $action = (string)($_POST['action'] ?? '');
+    if (in_array($action,['collection_students','collection_student_payments'],true)) {
+        synk_management_require_permission($conn,$scope,'records');
+        $period = synk_management_fetch_current_period($conn,$scope);
+        if (($_POST['collection_period'] ?? '') !== $period['period_key']) {
+            throw new SynkManagementConflict('The current Management period changed. Reload the dashboard to see its collections.');
+        }
+        require_once __DIR__.'/management_collection_helper.php';
+        if ($action === 'collection_students') {
+            $page = synk_management_input_id($_POST['page'] ?? 1);
+            $search = synk_management_input_text($_POST,'search',150,false,false);
+            synk_management_response(['status'=>'ok'] + synk_management_collection_students($conn,$scope,$period,$page,$search));
+        }
+        $studentId = synk_management_input_id($_POST['student_id'] ?? null);
+        synk_management_response(['status'=>'ok'] + synk_management_collection_student_payments($conn,$scope,$period,$studentId));
+    }
     if (strpos($action,'exemption_')===0) {
         require_once __DIR__.'/management_exemptions_helper.php';
         synk_management_require_permission($conn,$scope,in_array($action,['exemption_data','exemption_list_get'],true)?'exemptions':'manage_exemptions');

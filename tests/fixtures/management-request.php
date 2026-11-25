@@ -4,6 +4,7 @@ if (PHP_SAPI !== 'cli' && !defined('SYNK_MANAGEMENT_QA')) { http_response_code(4
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $root = dirname(__DIR__, 2);
 $reportInput=array_intersect_key($_GET,array_flip(['report_type','generate','institution','prepared_by','checked_by','approved_by','qa_event']));
+$registerInput=array_intersect_key($_GET,array_flip(['search','date_from','date_to','page','exam_term','qa_cashier']));
 require_once $root . '/backend/db.php';
 require_once $root . '/backend/management_portal_helper.php';
 require_once $root . '/backend/auth_google.php';
@@ -135,7 +136,10 @@ if (strpos($scenario,'account_')===0) {
 } else {
     if($scenario==='login') { $handler='management/login.php'; $_SESSION=[]; }
     if($scenario==='students' || strpos($scenario,'students_')===0) { $handler='management/students.php'; $_GET['search']=$tag; }
-    if (in_array($scenario, ['students','students_evaluation_midterm','students_evaluation_history'], true)) {
+    $evaluationDetailIndex = [
+        'students_detail_submitted'=>0, 'students_detail_pending'=>1, 'students_detail_partial'=>2, 'students_detail_unlinked'=>3,
+    ][$scenario] ?? null;
+    if ($evaluationDetailIndex !== null || in_array($scenario, ['students','students_evaluation_midterm','students_evaluation_history'], true)) {
         [$faculty, $secondFaculty, $retainedFaculty] = array_map('intval', array_column($conn->query(
             "SELECT faculty_id FROM tbl_faculty WHERE status='active' ORDER BY faculty_id LIMIT 3"
         )->fetch_all(MYSQLI_ASSOC), 'faculty_id'));
@@ -177,6 +181,13 @@ if (strpos($scenario,'account_')===0) {
         }
         $_GET['exam_term'] = $scenario === 'students_evaluation_midterm' ? 'MIDTERM' : 'FINAL';
         if ($scenario === 'students_evaluation_history') $_GET['term'] = $term['ay_id'].':'.$otherSemester;
+        if ($evaluationDetailIndex !== null) {
+            $handler = 'backend/query_management.php';
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_SESSION['management_csrf_token'] = 'evaluation-qa';
+            $_POST = ['action'=>'student_detail','csrf_token'=>'evaluation-qa','term'=>$term['key'],'exam_term'=>'FINAL',
+                'student_id'=>$students[$evaluationDetailIndex]];
+        }
     }
     if($scenario==='students_page')$_GET['page']=2;
     if($scenario==='students_foreign')$_GET['program_id']=$foreignProgram['program_id'];
@@ -267,7 +278,7 @@ if(strpos($scenario,'officers_')===0){
     $stmt=$conn->prepare('UPDATE tbl_student_management SET email_address=? WHERE student_id=?');$stmt->bind_param('si',$studentEmail,$sid);$stmt->execute();$stmt->close();
     $flags=['can_view'=>'1','can_attendance'=>'0','can_payments'=>'0'];
     if($scenario==='officers_page')$flags['can_manage_events']='1';
-    if($scenario==='officers_attendance')$flags=['can_view'=>'0','can_attendance'=>'1','can_payments'=>'0'];
+    if(in_array($scenario,['officers_attendance','officers_financial_denied'],true))$flags=['can_view'=>'0','can_attendance'=>'1','can_payments'=>'0'];
     if($scenario==='officers_payments')$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'1'];
     if(strpos($scenario,'officers_manage_')===0){$managedKind=substr($scenario,16);$flags=['can_view'=>'0','can_attendance'=>'0','can_payments'=>'0','can_manage_'.$managedKind=>'1'];}
     if(($managedKind ?? '')==='events')$clone('tbl_management_events',[],['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'exam_term'=>$term['exam_term'],'title'=>$tag.' EVENT','event_date'=>date('Y-m-d'),'status'=>'ACTIVE','absence_fine'=>'10.00']);
@@ -299,6 +310,7 @@ if(strpos($scenario,'officers_')===0){
         $_SESSION['user_id']=(int)$grant['user_id'];$_SESSION['email']=$studentEmail;
         if($scenario==='officers_attendance'||$scenario==='officers_viewer')$handler='management/events.php';
         if($scenario==='officers_payments'){$handler='management/students.php';$_GET['search']=$tag;}
+        if($scenario==='officers_financial_denied')$handler='management/financial.php';
         if(isset($managedKind))$handler='management/'.$managedKind.'.php';
     }
 }
@@ -320,6 +332,106 @@ if($scenario==='reports'){
     $_GET=array_merge($_GET,array_diff_key($reportInput,['qa_event'=>true]));
     if(in_array($_GET['report_type'] ?? '',['event_attendance','absence_fines'],true))$_GET['event_id']=$reportEvents[($reportInput['qa_event'] ?? '')==='open'?'OPEN':'CLOSED'];
     $handler='management/reports.php';
+}
+$collectionFixture = $scenario === 'dashboard_collections' || strpos($scenario,'collection_') === 0;
+if ($collectionFixture || $scenario === 'financial_register') {
+    $clone('tbl_management_period_settings', [], ['college_id'=>$scope['college_id'],'organization_id'=>$organizationId,
+        'ay_id'=>$term['ay_id'],'semester'=>$term['semester'],'current_exam_term'=>'FINAL']);
+    $collectionPeriod = synk_management_fetch_current_period($conn,$scope);
+    $record = static function (int $studentId, string $amount, array $overrides = []) use ($clone,$scope,$collectionPeriod,$tag,$userId): int {
+        return $clone('tbl_management_payments', [], $overrides + [
+            'receipt_number'=>$tag.'-'.bin2hex(random_bytes(5)), 'request_key'=>bin2hex(random_bytes(32)),
+            'payload_hash'=>bin2hex(random_bytes(32)), 'student_id'=>$studentId, 'college_id'=>$scope['college_id'],
+            'organization_id'=>$scope['organization_id'], 'ay_id'=>$collectionPeriod['ay_id'],
+            'semester'=>$collectionPeriod['semester'], 'exam_term'=>$collectionPeriod['exam_term'], 'allocation_mode'=>'SELECTED',
+            'amount'=>$amount, 'balance_before'=>$amount, 'balance_after'=>'0.00',
+            'student_number'=>$tag.'-'.$studentId, 'student_name'=>'QA payer '.$studentId,
+            'organization_code'=>$tag, 'organization_name'=>$tag, 'period_text'=>$collectionPeriod['period_text'],
+            'recorded_by'=>$userId, 'recorded_by_name'=>'QA cashier', 'recorded_at'=>'2026-11-25 00:30:00',
+        ]);
+    };
+}
+if ($scenario === 'financial_register') {
+    $manila = new DateTimeZone('Asia/Manila');
+    $utc = new DateTimeZone('UTC');
+    $day = new DateTimeImmutable('today',$manila);
+    $start = $day->setTimezone($utc)->format('Y-m-d H:i:s');
+    $lastSecond = $day->modify('+1 day -1 second')->setTimezone($utc)->format('Y-m-d H:i:s');
+    $yesterday = $day->modify('-1 second')->setTimezone($utc)->format('Y-m-d H:i:s');
+    $tomorrow = $day->modify('+1 day')->setTimezone($utc)->format('Y-m-d H:i:s');
+    $archive = $day->modify('-2 days')->setTimezone($utc)->format('Y-m-d H:i:s');
+    $secondCashier = $clone('tbl_useraccount',[],[
+        'username'=>$tag.' Cashier','email'=>'cashier-'.$email,'password'=>'fixture','role'=>'management','status'=>'inactive',
+    ]);
+    $siblingOrganization = $clone('tbl_management_organizations',[],[
+        'college_id'=>$scope['college_id'],'organization_code'=>$tag.'-other','organization_name'=>$tag.' Other',
+    ]);
+    $receipt = $record($students[0],'125.50',[
+        'receipt_number'=>$tag.'-EDGE-0001','student_name'=>'Alex Payer','student_number'=>'QA-2026-501',
+        'recorded_at'=>$start,'recorded_by_name'=>'Morning Cashier',
+    ]);
+    $record($students[0],'50.00',[
+        'receipt_number'=>$tag.'-EDGE-0002','student_name'=>'Alex Payer','student_number'=>'QA-2026-501',
+        'recorded_at'=>$lastSecond,'recorded_by'=>$secondCashier,'recorded_by_name'=>'Evening Cashier',
+    ]);
+    $record($students[1],'50.00',['receipt_number'=>$tag.'-PREVIOUS','student_name'=>'Previous Day Payer','recorded_at'=>$yesterday,
+        'recorded_by'=>$secondCashier,'recorded_by_name'=>'Evening Cashier']);
+    $record($students[2],'95.75',['receipt_number'=>$tag.'-NEXT','student_name'=>'Next Day Payer','recorded_at'=>$tomorrow,
+        'recorded_by_name'=>'Morning Cashier']);
+    for ($i=1; $i<=24; $i++) {
+        $record($students[$i],'1.00',['receipt_number'=>$tag.'-ARCHIVE-'.sprintf('%02d',$i),
+            'student_name'=>'Earlier Payer '.$i,'recorded_at'=>$archive,'recorded_by_name'=>'Morning Cashier']);
+    }
+    $record($students[0],'80.00',['exam_term'=>'MIDTERM','student_name'=>'Midterm Payer','recorded_at'=>$start]);
+    $record($students[0],'900.00',['semester'=>$term['semester']===1 ? 2 : 1,'student_name'=>'Other Semester Payer','recorded_at'=>$start]);
+    $record($students[0],'900.00',['ay_id'=>$term['ay_id']+1,'student_name'=>'Other Year Payer','recorded_at'=>$start]);
+    $record($students[0],'900.00',['organization_id'=>$siblingOrganization,'student_name'=>'Other Organization Payer','recorded_at'=>$start]);
+    $record($foreignStudent,'900.00',['college_id'=>$otherScope['college_id'],'organization_id'=>$otherOrganizationId,
+        'student_name'=>'Other College Payer','recorded_at'=>$start]);
+    foreach (['C:1'=>'100.00','E:2'=>'25.50'] as $key=>$amount) {
+        $clone('tbl_management_payment_items',[],['payment_id'=>$receipt,'charge_key'=>$key,'title'=>'QA '.$key,
+            'charge_amount'=>$amount,'paid_before'=>'0.00','amount'=>$amount,'balance_after'=>'0.00']);
+    }
+    $handler = 'management/financial.php';
+    $_GET = array_replace(['term'=>$term['key'],'exam_term'=>'FINAL'],array_diff_key($registerInput,['qa_cashier'=>true]));
+    if (($registerInput['qa_cashier'] ?? '') === 'evening') $_GET['cashier_id'] = (string)$secondCashier;
+}
+if ($collectionFixture) {
+    $firstReceipt = $record($students[0],'125.50',['student_name'=>'Older Payer Name']);
+    $secondReceipt = $record($students[0],'50.00',['student_name'=>'Alex Payer']);
+    $record($students[1],'50.00',['student_name'=>'Retained Payer']);
+    $conn->query('UPDATE tbl_student_management_enrolled_subjects SET is_active=0 WHERE student_id='.(int)$students[1]);
+    $record($students[0],'200.00',['exam_term'=>'MIDTERM','student_name'=>'Midterm Only']);
+    $record($students[0],'300.00',['semester'=>$term['semester'] === 1 ? 2 : 1]);
+    $record($students[0],'400.00',['ay_id'=>$term['ay_id'] + 1]);
+    $record($foreignStudent,'500.00',['college_id'=>$otherScope['college_id'],'organization_id'=>$otherOrganizationId]);
+    foreach ([[$firstReceipt,'C:1','QA Contribution','100.00'],[$firstReceipt,'E:2','QA Event Fine','25.50'],
+        [$secondReceipt,'V:3','QA Violation Fine','50.00']] as [$paymentId,$chargeKey,$title,$amount]) {
+        $clone('tbl_management_payment_items', [], ['payment_id'=>$paymentId,'charge_key'=>$chargeKey,
+            'title'=>$title,'charge_amount'=>$amount,'paid_before'=>'0.00','amount'=>$amount,'balance_after'=>'0.00']);
+    }
+    $_GET['exam_term'] = 'MIDTERM';
+    if ($scenario !== 'dashboard_collections') {
+        $handler = 'backend/query_management.php';
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SESSION['management_csrf_token'] = 'collection-qa';
+        $_POST = [
+            'action'=>in_array($scenario,['collection_detail','collection_foreign_student'],true) ? 'collection_student_payments' : 'collection_students',
+            'csrf_token'=>'collection-qa', 'collection_period'=>$collectionPeriod['period_key'],
+            'term'=>$term['key'], 'exam_term'=>'MIDTERM',
+        ];
+        if ($scenario === 'collection_detail') $_POST['student_id'] = $students[0];
+        if ($scenario === 'collection_foreign_student') $_POST['student_id'] = $foreignStudent;
+        if ($scenario === 'collection_stale') $_POST['collection_period'] = $term['key'].':MIDTERM';
+        if ($scenario === 'collection_wrong_scope') $_POST['organization_id'] = $otherOrganizationId;
+        $searches = [
+            'collection_search_name'=>'payer, aLeX',
+            'collection_search_id'=>$tag.'-'.$students[1],
+            'collection_search_wrong_period'=>'Midterm Only',
+            'collection_search_wildcard'=>'Payer%',
+        ];
+        if (isset($searches[$scenario])) $_POST['search'] = $searches[$scenario];
+    }
 }
 $take=static function () use($conn,$tag):array {
     return ['accounts'=>$conn->query("SELECT user_id,email,role,college_id,management_college_id,management_organization_id,status,google_sub FROM tbl_useraccount WHERE username='".$tag."' ORDER BY user_id")->fetch_all(MYSQLI_ASSOC),

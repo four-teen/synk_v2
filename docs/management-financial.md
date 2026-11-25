@@ -1,8 +1,8 @@
 # Management Financial: fresh start
 
-The user cancelled the old-system migration. The Financial menu now opens an empty
-workspace for a new recording process. Do not restore old student email links,
-legacy Financial tables, or the old import utilities.
+The user cancelled the old-system migration. Management uses native receipts for
+the new payment workflow. Do not restore old student email links, legacy
+Financial tables, or the old import utilities.
 
 The starting Management period is **2026-2027 / 1st Semester / Final** for CSSO
 and PSITS. This is the explicit operational setting even though the calendar date
@@ -24,10 +24,14 @@ memberships, academic settings, schedules, and workload data were preserved.
 Checksums verified 68 protected tables unchanged during the cleanup. The original
 SQL dump in Downloads was not modified or deleted.
 
-The Financial page retains its fresh-start workspace. New payment collection is
-available from Students → Financial overview → Pay. New receipts and allocations
-use only fresh native recording tables, without legacy IDs, imported balances,
-or old-system receipts.
+Financial shows today's collections and receipt count for the current Management
+period using Philippine time. The Payment register follows the viewing period in
+the header. Staff can search by student name, ID, or receipt number, filter by
+payment date and cashier, and open any listed receipt to view or reprint it. The
+filtered total includes all matching receipts across pages.
+
+**Find student** opens Students for the current Management period. Continue
+through Financial overview → Pay to collect a new payment.
 
 The Students page now has a **Financial overview** account view. It uses
 the selected student's profile and the organization's active period catalogs.

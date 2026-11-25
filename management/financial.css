@@ -1,0 +1,47 @@
+.management-register-today { margin-bottom: 1.5rem; }
+.management-register-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .75rem 1rem;
+  margin-bottom: .75rem;
+}
+.management-register-toolbar h2 { margin: 0; color: var(--dean-heading); font-size: 1.125rem; }
+.management-register-toolbar :is(time,p) { color: var(--dean-muted); font-size: .875rem; }
+.management-register-toolbar time { margin-left: .35rem; font-weight: 400; }
+.management-register-toolbar p { margin: .25rem 0 0; }
+.management-register-toolbar .btn,
+.management-register-filters :is(.form-control,.form-select,.btn) { min-height: 44px; }
+.management-register-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.management-register-stats strong, .management-register-amount, .management-register-total strong { font-variant-numeric: tabular-nums; }
+.management-register-stats strong, .management-register-total strong { overflow-wrap: anywhere; }
+.management-register-total { text-align: right; color: var(--dean-heading); }
+.management-register-total span { display: block; color: var(--dean-muted); font-size: .75rem; }
+.management-register-total strong { display: block; font-size: 1.25rem; }
+.management-filters.management-register-filters {
+  display: grid;
+  grid-template-columns: minmax(12rem,1.8fr) repeat(2,minmax(8rem,1fr)) minmax(9rem,1.2fr);
+}
+.management-register-filters > .management-filter-actions { grid-column: 1/-1; justify-content: flex-end; }
+.management-register-filters .form-control { min-width: 0; }
+.management-register-error { margin: 0 1.5rem 1.5rem; }
+.management-register-table td { overflow-wrap: anywhere; }
+.management-register-table .management-record-title { min-width: 0; }
+.management-register-table time small { display: block; color: var(--dean-muted); }
+.management-register-receipt { white-space: nowrap; }
+
+@media (max-width:991.98px) {
+  .management-filters.management-register-filters { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .management-register-filters > :is(.management-filter-search,.management-register-cashier) { grid-column: 1/-1; }
+}
+
+@media (min-width:768px) and (max-width:991.98px) {
+  .management-register-table :is(th,td) { padding-inline: .65rem; }
+  .management-register-table th { white-space: normal; }
+}
+
+@media (max-width:767.98px) {
+  .management-register-receipt { display: flex; justify-content: center; align-items: center; min-height: 44px; }
+  .management-register-error { margin-inline: 1rem; }
+}

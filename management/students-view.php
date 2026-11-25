@@ -5,12 +5,6 @@ $studentUrl = static function (array $changes = []) use ($pageUrl,$filters): str
     return $pageUrl('students.php',array_merge(['search'=>$filters['search'],'page_size'=>$filters['page_size']],$changes));
 };
 $canManageExemptions = $permissions['manage_exemptions'] && $term['period_key'] === $currentTerm['period_key'];
-$evaluationLabels = [
-    'SUBMITTED'=>'Submitted',
-    'PENDING'=>'Not submitted',
-    'NO_LINKED_FACULTY'=>'No linked faculty',
-    'UNAVAILABLE'=>'Unavailable',
-];
 ?>
 <h1 class="visually-hidden">Students</h1>
 <section class="management-stats management-catalog-stats management-student-stats" aria-label="Student overview"><?php foreach([['students','Unique students','bx-group','primary'],['classes','Imported classes','bx-book-open','success'],['programs','Programs','bx-buildings','info']] as $stat): ?><article class="card management-stat"><span class="management-stat-icon bg-label-<?= $stat[3] ?>"><i class="bx <?= $stat[2] ?>" aria-hidden="true"></i></span><div><span><?= $stat[1] ?></span><strong><?= number_format($directory['summary'][$stat[0]]) ?></strong></div></article><?php endforeach; ?></section>
@@ -47,9 +41,7 @@ $evaluationLabels = [
               $balanceText = ['PAID'=>'Paid','NO_CHARGES'=>'No charges','UNAVAILABLE'=>'—'][$balanceStatus] ?? synk_management_account_money($balance['total_to_pay']);
               $evaluation = $directory['evaluation_progress'][$studentId] ?? [];
               $evaluationStatus = $evaluation['status'] ?? 'UNAVAILABLE';
-              $evaluationText = $evaluationStatus === 'PARTIAL'
-                  ? sprintf('%d of %d submitted', $evaluation['submitted_count'], $evaluation['faculty_count'])
-                  : $evaluationLabels[$evaluationStatus];
+              $evaluationText = synk_management_student_evaluation_label($evaluation);
           ?>
             <tr role="row">
               <td role="cell" class="management-student-photo">
@@ -94,4 +86,26 @@ $evaluationLabels = [
   <nav class="management-pagination" aria-label="Student result pages"><span>Page <?= $pagination['page'] ?> of <?= $pagination['pages'] ?> · <?= number_format($pagination['total']) ?> students<?php if($pagination['total']): ?> · Showing <?= $pagination['from'] ?>–<?= $pagination['to'] ?><?php endif; ?></span><div><?php foreach(['Previous'=>-1,'Next'=>1] as $label=>$step): $next=$pagination['page']+$step; ?><a class="btn btn-sm btn-outline-primary<?= $next<1 || $next>$pagination['pages'] ? ' disabled' : '' ?>"<?= $next<1 || $next>$pagination['pages'] ? ' aria-disabled="true" tabindex="-1"' : '' ?> href="<?= synk_management_h($studentUrl(['page'=>max(1,$next)])) ?>"><?= $label ?></a><?php endforeach; ?></div></nav>
   <p class="management-directory-note"><i class="bx bx-info-circle" aria-hidden="true"></i>Students appear once per selected scope, using the same directory source as the Dean's module.</p>
 </section>
+<div class="modal fade management-evaluation-reminder" id="management-evaluation-reminder" tabindex="-1"
+  aria-labelledby="management-evaluation-reminder-title" aria-describedby="management-evaluation-reminder-status management-evaluation-reminder-note" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="management-evaluation-reminder-title">Faculty evaluation incomplete</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning" id="management-evaluation-reminder-status">
+          <p class="mb-1"><strong id="management-evaluation-reminder-student"></strong> still has faculty evaluations to submit for <?= synk_management_h($term['term_text']) ?>.</p>
+          <strong id="management-evaluation-reminder-count"></strong>
+        </div>
+        <p class="mb-0" id="management-evaluation-reminder-note">Please verify completion before collecting payment.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" id="management-evaluation-reminder-back" data-bs-dismiss="modal">Go back</button>
+        <button type="button" class="btn btn-primary" id="management-evaluation-reminder-open">Open overview</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal fade management-financial-modal" id="management-student-detail" tabindex="-1" aria-labelledby="management-student-detail-title" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div class="management-financial-modal-title"><span class="management-financial-kicker">STUDENT ACCOUNT</span><h2 class="modal-title fs-5" id="management-student-detail-title">Financial overview</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="management-student-detail-content" aria-live="polite"></div><div class="modal-footer"><span class="management-financial-footer-note">Amounts and records follow the period selected in the header.</span><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button></div></div></div></div>

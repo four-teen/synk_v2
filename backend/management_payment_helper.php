@@ -169,9 +169,11 @@ function synk_management_payment_post(mysqli $conn,array $scope,array $input): a
 function synk_management_payment_receipt(mysqli $conn,int $paymentId,?int $studentId=null,?array $scope=null): array
 {
     if (!$studentId && !$scope) throw new OutOfBoundsException('Receipt unavailable.');
-    $sql='SELECT * FROM tbl_management_payments WHERE payment_id=?';$types='i';$params=[$paymentId];
-    if ($studentId) { $sql.=' AND student_id=?';$types.='i';$params[]=$studentId; }
-    else { $sql.=' AND college_id=? AND organization_id=?';$types.='ii';$params[]=$scope['college_id'];$params[]=$scope['organization_id']; }
+    $sql='SELECT p.*, c.college_code FROM tbl_management_payments p
+        LEFT JOIN tbl_college c ON c.college_id=p.college_id WHERE p.payment_id=?';
+    $types='i';$params=[$paymentId];
+    if ($studentId) { $sql.=' AND p.student_id=?';$types.='i';$params[]=$studentId; }
+    else { $sql.=' AND p.college_id=? AND p.organization_id=?';$types.='ii';$params[]=$scope['college_id'];$params[]=$scope['organization_id']; }
     $rows=synk_management_query($conn,$sql,$types,$params);
     if (!$rows) throw new OutOfBoundsException('Receipt unavailable.');
     $receipt=$rows[0];$receipt['items']=synk_management_query($conn,'SELECT title,charge_amount,paid_before,amount,balance_after FROM tbl_management_payment_items WHERE payment_id=? ORDER BY payment_item_id','i',[$paymentId]);
